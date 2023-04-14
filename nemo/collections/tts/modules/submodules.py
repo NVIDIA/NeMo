@@ -459,9 +459,9 @@ class ConditionalLayerNorm(torch.nn.LayerNorm):
         # Normalize along channel
         if self.condition:
             if conditioning is None:
-                raise ValueError(
-                    'You should add additional data types as conditions e.g. speaker id or reference audio'
-                )
+                raise ValueError("""You should add additional data types as conditions (e.g. speaker id or reference audio) 
+                                 and define speaker_encoder in your config.""")
+
             inputs = inputs * self.cond_weight(conditioning)
             inputs = inputs + self.cond_bias(conditioning)
 
@@ -496,9 +496,8 @@ class ConditionalInput(torch.nn.Module):
         """
         if len(self.condition_types) > 0:
             if conditioning is None:
-                raise ValueError(
-                    'You should add additional data types as conditions e.g. speaker id or reference audio'
-                )
+                raise ValueError("""You should add additional data types as conditions (e.g. speaker id or reference audio) 
+                                 and define speaker_encoder in your config.""")
 
             if "add" in self.condition_types:
                 if self.condition_dim != self.hidden_dim:
