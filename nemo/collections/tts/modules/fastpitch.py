@@ -84,7 +84,13 @@ def average_features(pitch, durs):
 
 
 class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
+<<<<<<< HEAD
     def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_types=[]):
+=======
+    def __init__(
+        self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_types=[]
+    ):
+>>>>>>> Add ConditionalInput
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
         self.norm = ConditionalLayerNorm(out_channels, condition_dim=condition_dim, condition_types=condition_types)
@@ -106,7 +112,11 @@ class TemporalPredictor(NeuralModule):
 
     def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2, condition_types=[]):
         super(TemporalPredictor, self).__init__()
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> Add ConditionalInput
         self.cond_input = ConditionalInput(input_size, input_size, condition_types)
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
@@ -121,7 +131,8 @@ class TemporalPredictor(NeuralModule):
                 )
             )
         self.fc = torch.nn.Linear(filter_size, 1, bias=True)
-
+        
+        
         # Use for adapter input dimension
         self.filter_size = filter_size
 
@@ -140,6 +151,12 @@ class TemporalPredictor(NeuralModule):
         }
 
     def forward(self, enc, enc_mask, conditioning=None):
+<<<<<<< HEAD
+=======
+        if conditioning is not None:
+            enc = enc + conditioning
+            
+>>>>>>> Add ConditionalInput
         enc = self.cond_input(enc, conditioning)
         out = enc * enc_mask
         out = out.transpose(1, 2)
@@ -207,7 +224,14 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.learn_alignment = aligner is not None
         self.use_duration_predictor = True
         self.binarize = False
+<<<<<<< HEAD
 
+=======
+        self.speaker_emb_condition_prosody = speaker_emb_condition_prosody
+        self.speaker_emb_condition_decoder = speaker_emb_condition_decoder
+        self.speaker_emb_condition_aligner = speaker_emb_condition_aligner
+        
+>>>>>>> Add ConditionalInput
         if n_speakers > 1:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:
@@ -298,6 +322,14 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
+<<<<<<< HEAD
+=======
+        # Condition
+        prosody_condition = spk_emb if self.speaker_emb_condition_prosody else None
+        aligner_condition = spk_emb if self.speaker_emb_condition_aligner else None
+        decoder_condition = spk_emb if self.speaker_emb_condition_decoder else None
+        
+>>>>>>> Add ConditionalInput
         # Predict duration
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
