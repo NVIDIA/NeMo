@@ -123,23 +123,22 @@ class MegatronGPTBaseAdapterModel(MegatronGPTSFTModel):
                 dropout=adapter_tuning_cfg.adapter_dropout,
             )
         self.adapter_cfg = adapter_cfg
-        self.adapter_modules = None
-        self.base_keys = self._get_keys()
+        self.base_keys = self.get_all_keys()
         self.init_adapters()
-        self.adapter_and_base_keys = self._get_keys()
-        self.adapter_keys = self.adapter_and_base_keys - self.base_keys
-        print("done")
+        self.adapter_keys = self.get_all_keys() - self.base_keys
     
     def setup(self, stage=None):
         super().setup(stage)
-        print("setup completed")
         self.setup_complete = True
     
-    def _get_keys(self,):
+    def get_all_keys(self,):
         k = [n for n, p in self.named_parameters()]
         return set(k)
     
     def get_adapter_state_dict(self,):
+        """ 
+        Gets the keys associated with the adapters only.
+        """
         state_dict = self.model.state_dict(prefix="model.")
         adapter_state_dict = {}
         for k in self.adapter_keys:
@@ -147,27 +146,35 @@ class MegatronGPTBaseAdapterModel(MegatronGPTSFTModel):
         return adapter_state_dict 
 
     def init_adapters(self):
+        """ 
+        Randomly initialize the adapter params and add them to the appropriate modules.
+        """
         logging.info(f'Before adding adapters:\n{self.summarize()}')
-        for name, module in self.named_modules():
+        for _, module in self.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
                     if model_utils.import_class_by_path(self.adapter_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
                             name=adapter_key, cfg=self.adapter_cfg,
                         )
-                        print(f"added adapter {adapter_key} to module {name}")
-
         logging.info(f'After adding adapters:\n{self.summarize()}')
-        return torch.nn.Linear(10,10)
+        return True
     
     def state_dict(self, destination=None, prefix=None, keep_vars=False): 
         if self.setup_complete:
+            # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
             return self.get_adapter_state_dict()
         else:
+            # we want all the params with the same keys as calling self.state_dict()
+            # but we can't call self.state_dict() here as it would be a recursive call.
+            # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
             return self.model.state_dict(prefix="model.")
     
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
+            # at this stage only adapter params will appear in the state_dict arg, so we only update those while the rest of the model is frozen.
+            # setting strict=False will ignore the missing keys (which are not being updated anyway)
+            assert set(state_dict.keys()) == self.adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
