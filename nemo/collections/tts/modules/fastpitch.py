@@ -207,7 +207,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.binarize = False
 
         # TODO: combine self.speaker_emb with self.speaker_encoder
-        if n_speakers > 1:
+        if n_speakers > 1 and speaker_encoder is None:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:
             self.speaker_emb = None
@@ -269,7 +269,19 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "energy_pred": NeuralType(('B', 'T_text'), RegressionValuesType()),
             "energy_tgt": NeuralType(('B', 'T_audio'), RegressionValuesType()),
         }
-
+    
+    def get_speaker_embedding(self, speaker, reference_spec, reference_spec_lens):
+        """spk_emb: BxD"""
+        if self.speaker_encoder is not None:
+            spk_emb = self.speaker_encoder(speaker, reference_spec, reference_spec_lens)
+        elif self.speaker_emb is not None:
+            if speaker is None: raise ValueError('Please give speaker id to get lookup speaker embedding.')
+            spk_emb = self.speaker_emb(speaker)
+        else:
+            spk_emb = None
+            
+        return spk_emb
+    
     @typecheck()
     def forward(
         self,
@@ -293,16 +305,12 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             assert pitch is not None
 
         # Calculate speaker embedding
-        if self.speaker_emb is None or speaker is None:
-            spk_emb = None
-        else:
-            spk_emb = self.speaker_emb(speaker).unsqueeze(1)
-
-        if self.speaker_encoder is not None:
-            spk_emb = self.speaker_encoder(
-                spk_emb=spk_emb, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
-            )
-
+        spk_emb = self.get_speaker_embedding(
+            speaker=speaker,
+            reference_spec=reference_spec,
+            reference_spec_lens=reference_spec_lens,
+        ).unsqueeze(1)
+        
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 

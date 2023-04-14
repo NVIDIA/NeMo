@@ -689,32 +689,29 @@ class StyleAttention(NeuralModule):
 class SpeakerEncoder(torch.nn.Module):
     """
     class SpeakerEncoder represents speakers representation. This module can combine GST (global style token)
-    based speaker embeddings, speaker embeddings from speaker verificaiton models and lookup table speaker
-    embeddings.
+    based speaker embeddings and lookup table speaker embeddings.
     """
 
-    def __init__(self, gst_module=None, lookup_emb_projection_module=None):
+    def __init__(self, num_speakers, embedding_dim, gst_module=None):
         """
         Constructor.
         Parameters:
             - gst_module: Neural module to get GST based speaker embedding
-            - lookup_emb_projection_module: Neural module to project lookup speaker embedding
         """
         super(SpeakerEncoder, self).__init__()
+        self.lookup_module = torch.nn.Embedding(num_speakers, embedding_dim) if num_speakers > 1 else None
         self.gst_module = gst_module
-        self.lookup_emb_projection_module = lookup_emb_projection_module
-
-    def forward(self, spk_emb, reference_spec=None, reference_spec_lens=None):
-        x = spk_emb
-
-        # Project lookup speaker embedding
-        if self.lookup_emb_projection_module is not None:
-            out = self.lookup_emb_projection_module(spk_emb)
-            x = out if x is None else x + out
-
+        
+    def forward(self, speaker=None, reference_spec=None, reference_spec_lens=None):
+        x = None
+        
+        # Get Lookup table speaker embedding
+        if self.lookup_module is not None and speaker is not None:
+            x = self.lookup_module(speaker)
+            
         # Get GST based speaker embedding
         if self.gst_module is not None and reference_spec is not None and reference_spec_lens is not None:
-            out = self.gst_module(reference_spec, reference_spec_lens).unsqueeze(1)
+            out = self.gst_module(reference_spec, reference_spec_lens)
             x = out if x is None else x + out
         elif self.gst_module is not None and reference_spec is None and reference_spec_lens is None:
             raise ValueError('You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config.')
