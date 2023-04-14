@@ -816,10 +816,7 @@ class _TarredAudioToTextDataset(IterableDataset):
     ):
         self.shard_manifests = shard_manifests
 
-        # If necessary, cache manifests from object store
-        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
-
-        # Shard manifests if necessary and possible
+        # Shard manifests if necessary and possible and then expand the paths
         manifest_filepath = shard_manifests_if_needed(
             shard_manifests=shard_manifests,
             shard_strategy=shard_strategy,
@@ -827,6 +824,9 @@ class _TarredAudioToTextDataset(IterableDataset):
             world_size=world_size,
             global_rank=global_rank,
         )
+
+        # If necessary, cache manifests from object store
+        cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
