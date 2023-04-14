@@ -194,7 +194,10 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
         sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths))
 
     # Expand store paths into WebDataset URLs
-    sharded_filepaths = [datastore_path_to_webdataset_url(p) if is_datastore_path(p) and is_tarred_path(p) else p for p in sharded_filepaths]
+    sharded_filepaths = [
+        datastore_path_to_webdataset_url(p) if is_datastore_path(p) and is_tarred_path(p) else p
+        for p in sharded_filepaths
+    ]
 
     # Check for distributed and partition shards accordingly
     if world_size > 1:
