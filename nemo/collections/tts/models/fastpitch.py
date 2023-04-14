@@ -134,16 +134,27 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.forward_sum_loss_fn = ForwardSumLoss()
             self.bin_loss_fn = BinLoss()
 
-        self.preprocessor = instantiate(self._cfg.preprocessor)
+        self.preprocessor = instantiate(self._cfg.preprocessor)        
         input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
+        energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
+        energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
+        
+        # [TODO] may remove if we change the pre-trained config
         speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
         speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
         speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
-        energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
-        energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
+        if cfg.n_speakers > 1:
+            input_fft.cond_input.condition_types.append("add")
+        if speaker_emb_condition_prosody:
+            duration_predictor.cond_input.condition_types.append("add")
+            pitch_predictor.cond_input.condition_types.append("add")
+        if speaker_emb_condition_decoder:
+            output_fft.cond_input.condition_types.append("add")
+        if speaker_emb_condition_aligner and self.aligner is not None:
+            self.aligner.cond_input.condition_types.append("add")
 
         self.fastpitch = FastPitchModule(
             input_fft,
@@ -158,9 +169,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             energy_embedding_kernel_size,
             cfg.n_mel_channels,
             cfg.max_token_duration,
-            speaker_emb_condition_prosody,
-            speaker_emb_condition_decoder,
-            speaker_emb_condition_aligner,
         )
         self._input_types = self._output_types = None
         self.export_config = {

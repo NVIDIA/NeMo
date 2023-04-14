@@ -458,7 +458,7 @@ class ConditionalLayerNorm(torch.nn.LayerNorm):
         return signal
 
 
-class ConditionalInput(toch.nn.Module):
+class ConditionalInput(torch.nn.Module):
     """
     This module is used to condition any model inputs.
     If we don't have any conditions, this will be a normal pass.
@@ -466,6 +466,7 @@ class ConditionalInput(toch.nn.Module):
 
     def __init__(self, hidden_dim, condition_dim, condition_types=[]):
         check_support_condition_types(condition_types)
+        super().__init__()
         self.support_types = ["add", "concat"]
         self.condition_types = [tp for tp in condition_types if tp in self.support_types]
         self.hidden_dim = hidden_dim
@@ -488,14 +489,11 @@ class ConditionalInput(toch.nn.Module):
         if "add" in self.condition_types:
             if self.condition_dim != self.hidden_dim:
                 conditioning = self.add_proj(conditioning)
-            out = signal + conditioning
+            signal += conditioning
+            
+        if "concat" in self.condition_types:
+            conditioning = conditionting.repeat(1,signal.shape[1],1)
+            signal = torch.cat([signal, conditioning])
+            signal = self.concat_proj(signal)
 
-        elif "concat" in self.condition_types:
-            conditioning = conditionting.expand_as(signal)
-            out = torch.cat([signal, conditioning])
-            out = self.concat_proj(out)
-
-        else:
-            out = signal
-
-        return out
+        return signal
