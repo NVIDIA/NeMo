@@ -20,16 +20,16 @@ culculate perplexity of resulted LM, and make binary KenLM from it.
 Minimun usage example to merge two N-gram language models with weights:
 alpha * ngram_a + beta * ngram_b = 2 * ngram_a + 1 * ngram_b
 
-python3 opengrm.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
+python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
                     --arpa_a /path/ngram_a.kenlm.tmp.arpa \
                     --alpha 2 \
                     --arpa_b /path/ngram_b.kenlm.tmp.arpa \
                     --beta 1 \
-                    --out_path /path/out \
+                    --out_path /path/out
 
 
 Merge two N-gram language models and calculate its perplexity with test_file.
-python3 opengrm.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
+python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
                     --arpa_a /path/ngram_a.kenlm.tmp.arpa \
                     --alpha 0.5 \
                     --arpa_b /path/ngram_b.kenlm.tmp.arpa \
