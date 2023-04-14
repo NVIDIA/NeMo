@@ -19,7 +19,7 @@ from omegaconf import DictConfig
 from torch import nn
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import ConvNorm, ConditionalInput
+from nemo.collections.tts.modules.submodules import ConditionalInput, ConvNorm
 from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel
 from nemo.core.classes import adapter_mixins
 
@@ -35,7 +35,7 @@ class AlignmentEncoder(torch.nn.Module):
         self.cond_input = ConditionalInput(n_text_channels, n_text_channels, condition_types)
         self.softmax = torch.nn.Softmax(dim=3)
         self.log_softmax = torch.nn.LogSoftmax(dim=3)
-        
+
         self.key_proj = nn.Sequential(
             ConvNorm(n_text_channels, n_text_channels * 2, kernel_size=3, bias=True, w_init_gain='relu'),
             torch.nn.ReLU(),
@@ -164,7 +164,7 @@ class AlignmentEncoder(torch.nn.Module):
         """
         if conditioning is not None:
             keys = keys + conditioning.transpose(1, 2)
-            
+
         keys = self.cond_input(key.transpose(1, 2), conditioning)
         keys_enc = self.key_proj(keys)  # B x n_attn_dims x T2
         queries_enc = self.query_proj(queries)  # B x n_attn_dims x T1

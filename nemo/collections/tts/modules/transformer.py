@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.tts.modules.submodules import ConditionalLayerNorm, ConditionalInput, LinearNorm
+from nemo.collections.tts.modules.submodules import ConditionalInput, ConditionalLayerNorm, LinearNorm
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
@@ -209,7 +209,7 @@ class FFTransformerDecoder(NeuralModule):
         self.drop = nn.Dropout(dropemb)
         self.layers = nn.ModuleList()
         self.cond_input = ConditionalInput(d_model, d_model, condition_types)
-        
+
         for _ in range(n_layer):
             self.layers.append(
                 TransformerLayer(
@@ -248,10 +248,10 @@ class FFTransformerDecoder(NeuralModule):
         pos_seq = torch.arange(inp.size(1), device=inp.device).to(inp.dtype)
         pos_emb = self.pos_emb(pos_seq) * mask
         inp += pos_emb
-        
+
         if conditioning is not None:
             inp += conditioning
-            
+
         inp = self.cond_input(inp, conditioning)
         out = self.drop(inp)
 
