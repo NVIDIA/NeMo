@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ from nemo.utils.decorators import experimental
 
 
 @experimental
-class TTSPipeline:
+class TextToSpeechPipeline:
     def __init__(
         self,
         text_processor: TextProcessor = None,
@@ -59,7 +59,7 @@ class TTSPipeline:
         assert len(audio.shape) == 1
 
         # [1, T_audio]
-        audio_tensor = torch.tensor([audio], dtype=torch.float32)
+        audio_tensor = torch.tensor(audio[np.newaxis, :], dtype=torch.float32)
         # [1]
         audio_len_tensor = torch.tensor([audio.shape[0]], dtype=torch.int32)
 

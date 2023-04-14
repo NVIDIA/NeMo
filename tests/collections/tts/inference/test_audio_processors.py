@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 
 import numpy as np
 import pytest
@@ -22,15 +21,13 @@ from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.tts.inference.audio_processors import MelSpectrogramProcessor
 
 
-class TestAudioProcessors(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super(TestAudioProcessors, cls).setUpClass()
+class TestAudioProcessors:
 
-        cls.spec_dim = 80
+    def setup_class(self):
+        self.spec_dim = 80
         audio_mel_processor = AudioToMelSpectrogramPreprocessor(
             sample_rate=44100,
-            features=cls.spec_dim,
+            features=self.spec_dim,
             n_window_size=2048,
             n_window_stride=512,
             window_size=False,
@@ -40,7 +37,7 @@ class TestAudioProcessors(unittest.TestCase):
             highfreq=None,
             pad_to=0,
         )
-        cls.audio_processor = MelSpectrogramProcessor(preprocessor=audio_mel_processor)
+        self.audio_processor = MelSpectrogramProcessor(preprocessor=audio_mel_processor)
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

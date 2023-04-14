@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import unittest
 
 import numpy as np
 import pytest
@@ -23,33 +22,30 @@ from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPATokenizer
 from nemo.collections.tts.g2p.modules import IPAG2P
 from nemo.collections.tts.inference.audio_processors import MelSpectrogramProcessor
-from nemo.collections.tts.inference.pipeline import TTSPipeline
+from nemo.collections.tts.inference.pipeline import TextToSpeechPipeline
 from nemo.collections.tts.inference.spectrogram_synthesizers import FastPitchSpectrogramSynthesizer
 from nemo.collections.tts.inference.text_processors import BaseTextProcessor, IPATextTokenizer
 from nemo.collections.tts.inference.vocoders import HifiGanVocoder
 from nemo.collections.tts.models import FastPitchModel, HifiGanModel
 
 
-class TestTTSPipeline(unittest.TestCase):
+class TestTTSPipeline:
 
     PHONEME_DICT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict", "test_dict.txt")
 
-    @classmethod
-    def setUpClass(cls):
-        super(TestTTSPipeline, cls).setUpClass()
-
+    def setup_class(self):
         normalizer = Normalizer(lang="en", input_case="cased")
-        cls.text_processor = BaseTextProcessor(normalizer)
+        self.text_processor = BaseTextProcessor(normalizer)
 
         g2p = IPAG2P(TestTTSPipeline.PHONEME_DICT_PATH, locale="en-US", apply_to_oov_word=lambda x: x, use_chars=True,)
         ipa_tokenizer = IPATokenizer(g2p=g2p)
-        cls.ipa_text_tokenizer = IPATextTokenizer(tokenizer=ipa_tokenizer)
-        cls.g2p = cls.ipa_text_tokenizer
+        self.ipa_text_tokenizer = IPATextTokenizer(tokenizer=ipa_tokenizer)
+        self.g2p = self.ipa_text_tokenizer
 
-        cls.spec_dim = 80
+        self.spec_dim = 80
         audio_mel_processor = AudioToMelSpectrogramPreprocessor(
             sample_rate=22050,
-            features=cls.spec_dim,
+            features=self.spec_dim,
             n_window_size=1024,
             n_window_stride=256,
             window_size=False,
@@ -59,51 +55,59 @@ class TestTTSPipeline(unittest.TestCase):
             highfreq=None,
             pad_to=0,
         )
-        cls.audio_processor = MelSpectrogramProcessor(preprocessor=audio_mel_processor)
+        self.audio_processor = MelSpectrogramProcessor(preprocessor=audio_mel_processor)
 
+    @pytest.fixture
+    def spec_synthesizer(self):
         fastpitch_model = FastPitchModel.from_pretrained("tts_en_fastpitch_multispeaker").eval().to("cpu")
-        cls.spec_synthesizer = FastPitchSpectrogramSynthesizer(model=fastpitch_model)
+        spec_synthesizer = FastPitchSpectrogramSynthesizer(model=fastpitch_model)
+        return spec_synthesizer
 
+    @pytest.fixture
+    def vocoder(self):
         hifigan_model = HifiGanModel.from_pretrained("tts_en_hifitts_hifigan_ft_fastpitch").eval().to("cpu")
-        cls.vocoder = HifiGanVocoder(model=hifigan_model)
+        vocoder = HifiGanVocoder(model=hifigan_model)
+        return vocoder
 
-        cls.tts_pipeline = TTSPipeline(
-            text_processor=cls.text_processor,
-            g2p=cls.ipa_text_tokenizer,
-            text_tokenizer=cls.ipa_text_tokenizer,
-            audio_processor=cls.audio_processor,
-            spectrogram_synthesizer=cls.spec_synthesizer,
-            vocoder=cls.vocoder,
+    @pytest.fixture
+    def tts_pipeline(self, spec_synthesizer, vocoder):
+        tts_pipeline = TextToSpeechPipeline(
+            text_processor=self.text_processor,
+            g2p=self.ipa_text_tokenizer,
+            text_tokenizer=self.ipa_text_tokenizer,
+            audio_processor=self.audio_processor,
+            spectrogram_synthesizer=spec_synthesizer,
+            vocoder=vocoder,
         )
+        return tts_pipeline
 
-    @pytest.mark.with_downloads()
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_empty_pipeline(self):
-        input_text = "Hello  world 0!"
-        pipeline = TTSPipeline()
+        input_text = "Hello world"
+        pipeline = TextToSpeechPipeline()
 
         with pytest.raises(AssertionError):
             pipeline.text_to_speech(text=input_text)
 
-    @pytest.mark.with_downloads()
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.nightly
+    @pytest.mark.with_downloads
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
-    def test_process_text(self):
+    def test_process_text(self, tts_pipeline):
         input_text = "Hello  world 0!"
         expected_output = "Hello world zero!"
 
-        processed_text = self.tts_pipeline.process_text(text=input_text)
+        processed_text = tts_pipeline.process_text(text=input_text)
 
         assert processed_text == expected_output
 
-    @pytest.mark.with_downloads()
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_process_text_only_text_modules(self):
         input_text = "Hello  world 1!"
         expected_output = "Hello world one!"
-        pipeline = TTSPipeline(
+        pipeline = TextToSpeechPipeline(
             text_processor=self.text_processor, g2p=self.g2p, text_tokenizer=self.ipa_text_tokenizer
         )
 
@@ -111,27 +115,29 @@ class TestTTSPipeline(unittest.TestCase):
 
         assert processed_text == expected_output
 
-    @pytest.mark.with_downloads()
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.nightly
+    @pytest.mark.with_downloads
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
-    def test_text_to_speech(self):
+    def test_text_to_speech(self, tts_pipeline):
         input_text = "Hello world"
         speaker = 1
         pitch = 0.1
         pace = 1.5
 
-        audio = self.tts_pipeline.text_to_speech(text=input_text, speaker=speaker, pitch=pitch, pace=pace)
+        audio = tts_pipeline.text_to_speech(text=input_text, speaker=speaker, pitch=pitch, pace=pace)
 
         assert len(audio.shape) == 1
         assert audio.shape[0] > len(input_text)
 
-    @pytest.mark.with_downloads()
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.nightly
+    @pytest.mark.with_downloads
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
-    def test_get_spectrogram(self):
+    def test_get_spectrogram(self, tts_pipeline):
         audio_len = 10000
         input_audio = np.random.uniform(size=[audio_len])
-        spec = self.tts_pipeline.get_spectrogram(audio=input_audio)
+        spec = tts_pipeline.get_spectrogram(audio=input_audio)
 
         assert len(spec.shape) == 2
         assert spec.shape[0] == self.spec_dim

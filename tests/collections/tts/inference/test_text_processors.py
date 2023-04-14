@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import unittest
 
 import pytest
 from nemo_text_processing.text_normalization.normalize import Normalizer
@@ -23,22 +22,19 @@ from nemo.collections.tts.g2p.modules import IPAG2P
 from nemo.collections.tts.inference.text_processors import BaseTextProcessor, IPATextTokenizer
 
 
-class TestTextProcessors(unittest.TestCase):
+class TestTextProcessors:
 
     PHONEME_DICT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict", "test_dict.txt")
 
-    @classmethod
-    def setUpClass(cls):
-        super(TestTextProcessors, cls).setUpClass()
-
+    def setup_class(self):
         normalizer = Normalizer(lang="en", input_case="cased")
-        cls.text_processor = BaseTextProcessor(normalizer)
+        self.text_processor = BaseTextProcessor(normalizer)
 
         g2p = IPAG2P(
             TestTextProcessors.PHONEME_DICT_PATH, locale="en-US", apply_to_oov_word=lambda x: x, use_chars=True,
         )
         ipa_tokenizer = IPATokenizer(g2p=g2p)
-        cls.ipa_text_tokenizer = IPATextTokenizer(tokenizer=ipa_tokenizer)
+        self.ipa_text_tokenizer = IPATextTokenizer(tokenizer=ipa_tokenizer)
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
