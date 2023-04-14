@@ -52,9 +52,24 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
+from typing import Tuple
 
 
-def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c, force):
+def ngrammerge(arpa_a: str, alpha: float, arpa_b: str, beta: float, arpa_c: str, force: bool) -> str:
+    """
+    Merge two ARPA n-gram language models using the ngrammerge command-line tool and output the result in ARPA format.
+    
+    Args:
+        arpa_a (str): Path to the first input ARPA file.
+        alpha (float): Interpolation weight for the first model.
+        arpa_b (str): Path to the second input ARPA file.
+        beta (float): Interpolation weight for the second model.
+        arpa_c (str): Path to the output ARPA file.
+        force (bool): Whether to overwrite existing output files.
+    
+    Returns:
+        str: Path to the output ARPA file in mod format.
+    """
     mod_a = arpa_a + ".mod"
     mod_b = arpa_b + ".mod"
     mod_c = arpa_c + ".mod"
@@ -79,7 +94,17 @@ def ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c, force):
     return mod_c
 
 
-def arpa2mod(arpa_path, force):
+def arpa2mod(arpa_path: str, force: bool):
+    """
+    This function reads an ARPA n-gram model and converts it to a binary format. The binary model is saved to the same directory as the ARPA model with a ".mod" extension. If the binary model file already exists and force argument is False, then the function skips conversion and returns a message. Otherwise, it executes the command to create a binary model using the subprocess.run method.
+
+    Parameters:
+        arpa_path (string): The file path to the ARPA n-gram model.
+        force (bool): If True, the function will convert the ARPA model to binary even if the binary file already exists. If False and the binary file exists, the function will skip the conversion.
+    Returns:
+        If the binary model file already exists and force argument is False, returns a message indicating that the file exists and the conversion is skipped.
+        Otherwise, returns a subprocess.CompletedProcess object, which contains information about the executed command. The subprocess's output and error streams are redirected to stdout and stderr, respectively.
+    """
     mod_path = arpa_path + ".mod"
     if os.path.isfile(mod_path) and not force:
         return "File " + mod_path + " exists. Skipping."
@@ -93,7 +118,22 @@ def arpa2mod(arpa_path, force):
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def merge(arpa_a, alpha, arpa_b, beta, out_path, force):
+def merge(arpa_a: str, alpha: float, arpa_b: str, beta: float, out_path: str, force: bool) -> Tuple[str, str]:
+    """
+    Merges two ARPA language models using the ngrammerge tool.
+
+    Args:
+        arpa_a (str): Path to the first ARPA language model file.
+        alpha (float): Interpolation weight for the first model.
+        arpa_b (str): Path to the second ARPA language model file.
+        beta (float): Interpolation weight for the second model.
+        out_path (str): Path to the output directory for the merged ARPA model.
+        force (bool): Whether to force overwrite of existing files.
+
+    Returns:
+        Tuple[str, str]: A tuple containing the path to the merged binary language model file and the path to the 
+        merged ARPA language model file.
+    """
     logging.info("\n" + str(arpa2mod(arpa_a, force)) + "\n")
 
     logging.info("\n" + str(arpa2mod(arpa_b, force)) + "\n")
@@ -103,6 +143,22 @@ def merge(arpa_a, alpha, arpa_b, beta, out_path, force):
 
 
 def make_symbol_list(tokenizer_model_file, symbols, force):
+    """
+    Function: make_symbol_list
+
+    Create a symbol table for the input tokenizer model file.
+
+    Args:
+        tokenizer_model_file (str): Path to the tokenizer model file.
+        symbols (str): Path to the file where symbol list will be saved.
+        force (bool): Flag to force creation of symbol list even if it already exists.
+    
+    Returns:
+        None
+
+    Raises:
+        None
+    """
     if os.path.isfile(symbols) and not force:
         logging.info("File " + symbols + " exists. Skipping.")
     else:
@@ -128,8 +184,35 @@ def make_symbol_list(tokenizer_model_file, symbols, force):
 
 
 def farcompile(
-    symbols, text_file, test_far, tokenizer_model_file, do_lowercase, rm_punctuation, separate_punctuation, force,
-):
+    symbols: str,
+    text_file: str,
+    test_far: str,
+    tokenizer_model_file: str,
+    do_lowercase: bool,
+    rm_punctuation: bool,
+    separate_punctuation: bool,
+    force: bool,
+) -> Tuple[bytes, bytes]:
+    """
+    Compiles a text file into a FAR file using the given symbol table or tokenizer.
+
+    Args:
+        symbols (str): The path to the symbol table file.
+        text_file (str): The path to the text file to compile.
+        test_far (str): The path to the resulting FAR file.
+        tokenizer_model_file (str): The path to the tokenizer model file.
+        do_lowercase (bool): If True, converts all text to lowercase before compiling.
+        rm_punctuation (bool): If True, removes punctuation before compiling.
+        separate_punctuation (bool): If True, separates punctuation into separate symbols before compiling.
+        force (bool): If True, overwrites any existing FAR file.
+
+    Returns:
+        Tuple[bytes, bytes]: The standard output and standard error messages generated during the compilation.
+
+    Example:
+        >>> farcompile("/path/to/symbol_table", "/path/to/text_file", "/path/to/far_file", "/path/to/tokenizer_model", True, False, True, True)
+        (b'', b'')
+    """
     if os.path.isfile(test_far) and not force:
         logging.info("File " + test_far + " exists. Skipping.")
         return
@@ -172,7 +255,24 @@ def farcompile(
         return stdout, stderr
 
 
-def perplexity(ngram_mod, test_far):
+def perplexity(ngram_mod: str, test_far: str) -> str:
+    """
+    Calculates perplexity of a given ngram model on a test file.
+
+    Args:
+        ngram_mod (str): The path to the ngram model file.
+        test_far (str): The path to the test file.
+
+    Returns:
+        str: A string representation of the perplexity calculated.
+
+    Raises:
+        AssertionError: If the subprocess to calculate perplexity returns a non-zero exit code.
+
+    Example:
+        >>> perplexity("/path/to/ngram_model", "/path/to/test_file")
+        'Perplexity: 123.45'
+    """
     sh_args = [
         "ngramperplexity",
         "--v=1",
@@ -188,7 +288,22 @@ def perplexity(ngram_mod, test_far):
     return perplexity_out
 
 
-def make_arpa(ngram_mod, ngram_arpa, force):
+def make_arpa(ngram_mod: str, ngram_arpa: str, force: bool) -> None:
+    """
+    Converts an ngram model in binary format to ARPA format.
+
+    Args:
+    - ngram_mod (str): The path to the ngram model in binary format.
+    - ngram_arpa (str): The desired path for the ARPA format output file.
+    - force (bool): If True, the ARPA format file will be generated even if it already exists.
+
+    Returns:
+    - None
+
+    Raises:
+    - AssertionError: If the shell command execution returns a non-zero exit code.
+    - FileNotFoundError: If the binary ngram model file does not exist.
+    """
     if os.path.isfile(ngram_arpa) and not force:
         logging.info("File " + ngram_arpa + " exists. Skipping.")
         return
@@ -202,7 +317,22 @@ def make_arpa(ngram_mod, ngram_arpa, force):
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def make_kenlm(kenlm_bin_path, ngram_arpa, force):
+def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
+    """
+    Builds a language model from an ARPA format file using the KenLM toolkit.
+
+    Args:
+    - kenlm_bin_path (str): The path to the KenLM toolkit binary.
+    - ngram_arpa (str): The path to the ARPA format file.
+    - force (bool): If True, the KenLM language model will be generated even if it already exists.
+
+    Returns:
+    - None
+
+    Raises:
+    - AssertionError: If the shell command execution returns a non-zero exit code.
+    - FileNotFoundError: If the KenLM binary or ARPA format file does not exist.
+    """
     ngram_kenlm = ngram_arpa + ".kenlm"
     if os.path.isfile(ngram_kenlm) and not force:
         logging.info("File " + ngram_kenlm + " exists. Skipping.")
@@ -212,14 +342,52 @@ def make_kenlm(kenlm_bin_path, ngram_arpa, force):
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def test_perplexity(mod_c, symbols, test_txt, tokenizer_model_file, tmp_path, force):
+def test_perplexity(mod_c: str, symbols: str, test_txt: str, tokenizer_model_file: str, tmp_path: str, force: bool) -> str:
+    """
+    Tests the perplexity of a given ngram model on a test file.
+
+    Args:
+        mod_c (str): The path to the ngram model file.
+        symbols (str): The path to the symbol table file.
+        test_txt (str): The path to the test text file.
+        tokenizer_model_file (str): The path to the tokenizer model file.
+        tmp_path (str): The path to the temporary directory where the test far file will be created.
+        force (bool): If True, overwrites any existing far file.
+
+    Returns:
+        str: A string representation of the perplexity calculated.
+
+    Example:
+        >>> test_perplexity("/path/to/ngram_model", "/path/to/symbol_table", "/path/to/test_file", "/path/to/tokenizer_model", "/path/to/tmp_dir", True)
+        'Perplexity: 123.45'
+    """
     test_far = os.path.join(tmp_path, os.path.split(test_txt)[1] + ".far")
     farcompile(symbols, test_txt, test_far, tokenizer_model_file, False, False, False, force)
     res_p = perplexity(mod_c, test_far)
     return res_p
 
 
-def main(kenlm_bin_path, arpa_a, alpha, arpa_b, beta, out_path, test_file, symbols, tokenizer_model_file, force):
+def main(kenlm_bin_path: str, arpa_a: str, alpha: float, arpa_b: str, beta: float, 
+         out_path: str, test_file: str, symbols: str, tokenizer_model_file: str, force: bool) -> None:
+    """
+    Entry point function for merging ARPA format language models, testing perplexity, creating symbol list, 
+    and making ARPA and Kenlm models.
+
+    Args:
+    - kenlm_bin_path (str): The path to the Kenlm binary.
+    - arpa_a (str): The path to the first ARPA format language model.
+    - alpha (float): The weight given to the first language model during merging.
+    - arpa_b (str): The path to the second ARPA format language model.
+    - beta (float): The weight given to the second language model during merging.
+    - out_path (str): The path where the output files will be saved.
+    - test_file (str): The path to the file on which perplexity needs to be calculated.
+    - symbols (str): The path to the file where symbol list for the tokenizer model will be saved.
+    - tokenizer_model_file (str): The path to the tokenizer model file.
+    - force (bool): If True, overwrite existing files, otherwise skip the operations.
+
+    Returns:
+    - None
+    """
 
     mod_c, arpa_c = merge(arpa_a, alpha, arpa_b, beta, out_path, force)
 
@@ -241,16 +409,16 @@ def main(kenlm_bin_path, arpa_a, alpha, arpa_b, beta, out_path, test_file, symbo
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Avg pytorch weights")
+    parser = argparse.ArgumentParser(description="Merge ARPA N-gram language models and make KenLM binary model to be used with beam search decoder of ASR models.")
     parser.add_argument(
-        "--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM",
-    )  # Use /workspace/nemo/decoders/kenlm/build/bin/build_binary if installed it with scripts/installers/install_beamsearch_decoders.sh
+        "--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM.",
+    )  # Use /workspace/nemo/decoders/kenlm/build/bin/build_binary if installed it with scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh
     parser.add_argument("--arpa_a", required=True, type=str, help="Path to the arpa_a")
     parser.add_argument("--alpha", required=True, type=float, help="Weight of arpa_a")
     parser.add_argument("--arpa_b", required=True, type=str, help="Path to the arpa_b")
     parser.add_argument("--beta", required=True, type=float, help="Weight of arpa_b")
     parser.add_argument(
-        "--out_path", required=True, type=str, help="Path to write tmp and resulted files",
+        "--out_path", required=True, type=str, help="Path to write tmp and resulted files.",
     )
     parser.add_argument(
         "--test_file",
@@ -264,7 +432,7 @@ def _parse_args():
         required=False,
         type=str,
         default=None,
-        help="Path to symbols file. Could be calculated if it is not provided. Used as: --symbols /path/to/earnest.syms",
+        help="Path to symbols (.syms) file . Could be calculated if it is not provided. Use as: --symbols /path/to/earnest.syms",
     )
     parser.add_argument(
         "--tokenizer_model_file",
@@ -273,7 +441,7 @@ def _parse_args():
         default=None,
         help="The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model",
     )
-    parser.add_argument("--force", "-f", action="store_true", help="Whether to compile and rewrite all files")
+    parser.add_argument("--force", "-f", action="store_true", help="Whether to recompile and rewrite all files")
     return parser.parse_args()
 
 
