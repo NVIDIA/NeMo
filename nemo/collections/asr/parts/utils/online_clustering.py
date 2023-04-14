@@ -31,7 +31,7 @@
 # https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
-from typing import List, Tuple
+from typing import List, Set, Tuple
 
 import numpy as np
 import torch
@@ -67,7 +67,7 @@ def get_lsa_speaker_mapping(
             Mapped labels that minimizes the cost
     """
     all_spks_labels = [[x] for x in range(len(U_set))]
-    PandQ_list: List[int] = [int(x.item()) for x in PandQ]
+    common_inds: List[int] = [int(x.item()) for x in PandQ]
 
     # Create tensors for one-hot encoding
     enc_P = torch.zeros((len(cmm_P), len(all_spks_labels))).to(cmm_P.device)
@@ -84,7 +84,7 @@ def get_lsa_speaker_mapping(
     # If number of are speakers in each vector is not the same
     mapping_array = torch.arange(0, len(U_set)).to(PandQ.device)
     for x in range(col_ind.shape[0]):
-        if x not in PandQ_list:
+        if x not in common_inds:
             mapping_array[x] = x
         else:
             mapping_array[x] = col_ind[x]
