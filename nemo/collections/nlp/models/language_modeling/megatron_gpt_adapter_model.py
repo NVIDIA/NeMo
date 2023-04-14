@@ -101,6 +101,7 @@ class AdapterWrapper(ModelPT):
 class MegatronGPTBaseAdapterModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+        self.setup_complete = False
         self.adapter_name_keys = [AdapterName.PRE_ATTN_ADAPTER, AdapterName.POST_ATTN_ADAPTER]
         adapter_tuning_cfg = cfg.adapter_tuning
 
@@ -129,18 +130,22 @@ class MegatronGPTBaseAdapterModel(MegatronGPTSFTModel):
         self.adapter_keys = self.adapter_and_base_keys - self.base_keys
         print("done")
     
+    def setup(self, stage=None):
+        super().setup(stage)
+        print("setup completed")
+        self.setup_complete = True
+    
     def _get_keys(self,):
         k = [n for n, p in self.named_parameters()]
         return set(k)
     
     def get_adapter_state_dict(self,):
-        state_dict = self.state_dict()
+        state_dict = self.model.state_dict(prefix="model.")
         adapter_state_dict = {}
         for k in self.adapter_keys:
             adapter_state_dict[k] = state_dict[k]
         return adapter_state_dict 
 
-        
     def init_adapters(self):
         logging.info(f'Before adding adapters:\n{self.summarize()}')
         for name, module in self.named_modules():
@@ -155,23 +160,17 @@ class MegatronGPTBaseAdapterModel(MegatronGPTSFTModel):
         logging.info(f'After adding adapters:\n{self.summarize()}')
         return torch.nn.Linear(10,10)
     
-    def on_save_checkpoint(self, checkpoint):
-        # We dont want to save the full model at this point.
-        checkpoint["state_dict"] = self.get_adapter_state_dict()
-        print("done")
-        
-        
-    def ____state_dict(self, destination=None, prefix=None, keep_vars=False): 
-        if self.adapter_modules:
-            return self.adapter_modules.state_dict(self.model, destination, prefix, keep_vars)
+    def state_dict(self, destination=None, prefix=None, keep_vars=False): 
+        if self.setup_complete:
+            return self.get_adapter_state_dict()
         else:
-            super().state_dict(destination, prefix, keep_vars)
+            return self.model.state_dict(prefix="model.")
     
-    def ___load_state_dict(self, state_dict, strict: bool = True):
-        if self.adapter_modules:
-            return self.adapter_modules.load_state_dict(self.model, state_dict, strict = True)
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if self.setup_complete:
+            super().load_state_dict(state_dict, strict=False)
         else:
-            return super().load_state_dict(state_dict, strict=True)
+            super().load_state_dict(state_dict, strict=True)
                 
     def setup_optimizer_param_groups(self):
         """
