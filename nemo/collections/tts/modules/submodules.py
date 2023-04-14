@@ -451,9 +451,12 @@ class ConditionalLayerNorm(torch.nn.LayerNorm):
         signal = super().forward(signal)
 
         # Normalize along channel
-        if self.condition and conditioning is not None:
-            signal *= self.cond_weight(conditioning)
-            signal += self.cond_bias(conditioning)
+        if self.condition: 
+            if conditioning is None:
+                raise ValueError('You should add additional data types as conditions e.g. speaker id or reference audio')
+            else:
+                signal = signal * self.cond_weight(conditioning)
+                signal = signal + self.cond_bias(conditioning)
 
         return signal
 
@@ -483,17 +486,18 @@ class ConditionalInput(torch.nn.Module):
         signal: B x T x C
         conditioning: B x 1 x C
         """
-        if len(self.condition_types) > 0 and conditioning is None:
-            raise ValueError('You should add additional data types as conditions e.g. speaker id or reference audio')
+        if len(self.condition_types) > 0:
+            if conditioning is None:
+                raise ValueError('You should add additional data types as conditions e.g. speaker id or reference audio')
 
-        if "add" in self.condition_types:
-            if self.condition_dim != self.hidden_dim:
-                conditioning = self.add_proj(conditioning)
-            signal = signal + conditioning
+            if "add" in self.condition_types:
+                if self.condition_dim != self.hidden_dim:
+                    conditioning = self.add_proj(conditioning)
+                signal = signal + conditioning
 
-        if "concat" in self.condition_types:
-            conditioning = conditionting.repeat(1, signal.shape[1], 1)
-            signal = torch.cat([signal, conditioning])
-            signal = self.concat_proj(signal)
+            if "concat" in self.condition_types:
+                conditioning = conditionting.repeat(1, signal.shape[1], 1)
+                signal = torch.cat([signal, conditioning])
+                signal = self.concat_proj(signal)
 
         return signal
