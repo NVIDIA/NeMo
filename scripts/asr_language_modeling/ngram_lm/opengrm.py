@@ -44,6 +44,7 @@ import argparse
 import os
 import subprocess
 import sys
+from typing import Tuple
 
 import kenlm_utils
 import torch
@@ -52,7 +53,6 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
-from typing import Tuple
 
 
 def ngrammerge(arpa_a: str, alpha: float, arpa_b: str, beta: float, arpa_c: str, force: bool) -> str:
@@ -342,7 +342,9 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def test_perplexity(mod_c: str, symbols: str, test_txt: str, tokenizer_model_file: str, tmp_path: str, force: bool) -> str:
+def test_perplexity(
+    mod_c: str, symbols: str, test_txt: str, tokenizer_model_file: str, tmp_path: str, force: bool
+) -> str:
     """
     Tests the perplexity of a given ngram model on a test file.
 
@@ -367,8 +369,18 @@ def test_perplexity(mod_c: str, symbols: str, test_txt: str, tokenizer_model_fil
     return res_p
 
 
-def main(kenlm_bin_path: str, arpa_a: str, alpha: float, arpa_b: str, beta: float, 
-         out_path: str, test_file: str, symbols: str, tokenizer_model_file: str, force: bool) -> None:
+def main(
+    kenlm_bin_path: str,
+    arpa_a: str,
+    alpha: float,
+    arpa_b: str,
+    beta: float,
+    out_path: str,
+    test_file: str,
+    symbols: str,
+    tokenizer_model_file: str,
+    force: bool,
+) -> None:
     """
     Entry point function for merging ARPA format language models, testing perplexity, creating symbol list, 
     and making ARPA and Kenlm models.
@@ -409,7 +421,9 @@ def main(kenlm_bin_path: str, arpa_a: str, alpha: float, arpa_b: str, beta: floa
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Merge ARPA N-gram language models and make KenLM binary model to be used with beam search decoder of ASR models.")
+    parser = argparse.ArgumentParser(
+        description="Merge ARPA N-gram language models and make KenLM binary model to be used with beam search decoder of ASR models."
+    )
     parser.add_argument(
         "--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM.",
     )  # Use /workspace/nemo/decoders/kenlm/build/bin/build_binary if installed it with scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh
