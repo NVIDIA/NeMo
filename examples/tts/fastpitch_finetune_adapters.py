@@ -71,7 +71,7 @@ def add_global_adapter_cfg(model, global_adapter_cfg):
         model.update_adapter_cfg(model.cfg.adapters)
 
 
-@hydra_runner(config_path="conf", config_name="fastpitch_speaker_adaptation")
+@hydra_runner(config_path="conf", config_name="fastpitch_align_44100_adapter")
 def main(cfg):
     if hasattr(cfg.model.optim, 'sched'):
         logging.warning("You are using an optimizer scheduler while finetuning. Are you sure this is intended?")

@@ -105,11 +105,11 @@ model:
     # This can be useful in order to select *which type of adapter* is added, *what adapters to enable*,
     # and further global operations that can decide dynamically how to support the requested adapter.
     global_cfg:
-      check_encoder_adapter: True  # ASR adapter key, determines whether to check if encoder adapter modules is supported
-      check_decoder_adapter: True  # ASR adapter key, determines whether to check if decoder adapter modules is supported
-      check_duration_predictor_adapter: True  # ASR adapter key, determines whether to check if check_duration_predictor_adapter adapter modules is supported
-      check_pitch_predictor_adapter: True  # ASR adapter key, determines whether to check if check_duration_predictor_adapter adapter modules is supported
-      check_aligner_adapter: True  # ASR adapter key, determines whether to check if check_duration_predictor_adapter adapter modules is supported
+      check_encoder_adapter: True  # determines whether to check if encoder adapter modules is supported
+      check_decoder_adapter: True  # determines whether to check if decoder adapter modules is supported
+      check_duration_predictor_adapter: True  # determines whether to check if duration_predictor adapter modules is supported
+      check_pitch_predictor_adapter: True  # determines whether to check if pitch_predictor adapter modules is supported
+      check_aligner_adapter: True  # determines whether to check if aligner adapter modules is supported
       
   train_ds:
     dataset:
@@ -210,7 +210,7 @@ model:
     dropatt: 0.1
     dropemb: 0.0
     d_embed: ${model.symbols_embedding_dim}
-    condition_types: [ "add", "layernorm" ]
+    condition_types: [ "add", "layernorm" ] # options: [ "add", "cat", "layernorm" ]
 
   output_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
@@ -223,12 +223,12 @@ model:
     dropout: 0.1
     dropatt: 0.1
     dropemb: 0.0
-    condition_types: [ "add", "layernorm" ]
+    condition_types: [ "add", "layernorm" ] # options: [ "add", "cat", "layernorm" ]
 
   alignment_module:
     _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
     n_text_channels: ${model.symbols_embedding_dim}
-    condition_types: [ "add" ]
+    condition_types: [ "add" ] # options: [ "add", "cat" ]
     
   duration_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
@@ -237,7 +237,7 @@ model:
     filter_size: 256
     dropout: 0.1
     n_layers: 2
-    condition_types: [ "add", "layernorm" ]
+    condition_types: [ "add", "layernorm" ] # options: [ "add", "cat", "layernorm" ]
 
   pitch_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
@@ -246,7 +246,7 @@ model:
     filter_size: 256
     dropout: 0.1
     n_layers: 2
-    condition_types: [ "add", "layernorm" ]
+    condition_types: [ "add", "layernorm" ] # options: [ "add", "cat", "layernorm" ]
 
   optim:
     name: adamw
