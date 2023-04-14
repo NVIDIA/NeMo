@@ -22,6 +22,15 @@ from torch.nn import functional as F
 from nemo.core.classes import adapter_mixins
 
 
+SUPPORTED_CONDITION_TYPES = ["add", "concat", "layernorm"]
+
+
+def check_support_condition_types(condition_types):
+    for tp in condition_types:
+        if tp not in SUPPORTED_CONDITION_TYPES:
+            raise ValueError(f"Unknown conditioning type {tp}")
+
+
 def masked_instance_norm(
     input: Tensor, mask: Tensor, weight: Tensor, bias: Tensor, momentum: float, eps: float = 1e-5,
 ) -> Tensor:
@@ -418,20 +427,13 @@ class WaveNet(torch.nn.Module):
         return self.end(output)
 
 
-def check_support_condition_types(condition_types):
-    support_types = ["add", "concat", "layernorm"]
-    for tp in condition_types:
-        if tp not in support_types:
-            raise ValueError(f"Unknown conditioning type {tp}")
-
-
 class ConditionalLayerNorm(torch.nn.LayerNorm):
     """
     This module is used to condition torch.nn.LayerNorm.
     If we don't have any conditions, this will be a normal LayerNorm.
     """
 
-    def __init__(self, hidden_dim, condition_dim, condition_types=[]):
+    def __init__(self, hidden_dim, condition_dim=None, condition_types=[]):
         check_support_condition_types(condition_types)
         self.condition = "layernorm" in condition_types
         super().__init__(hidden_dim, elementwise_affine=not self.condition)
@@ -447,8 +449,8 @@ class ConditionalLayerNorm(torch.nn.LayerNorm):
         torch.nn.init.constant_(self.cond_bias.weight, 0.0)
         torch.nn.init.constant_(self.cond_bias.bias, 0.0)
 
-    def forward(self, signal, conditioning=None):
-        signal = super().forward(signal)
+    def forward(self, inputs, conditioning=None):
+        inputs = super().forward(inputs)
 
         # Normalize along channel
         if self.condition:
@@ -456,11 +458,10 @@ class ConditionalLayerNorm(torch.nn.LayerNorm):
                 raise ValueError(
                     'You should add additional data types as conditions e.g. speaker id or reference audio'
                 )
-            else:
-                signal = signal * self.cond_weight(conditioning)
-                signal = signal + self.cond_bias(conditioning)
+            inputs = inputs * self.cond_weight(conditioning)
+            inputs = inputs + self.cond_bias(conditioning)
 
-        return signal
+        return inputs
 
 
 class ConditionalInput(torch.nn.Module):
@@ -483,10 +484,11 @@ class ConditionalInput(torch.nn.Module):
         if "concat" in self.condition_types:
             self.concat_proj = torch.nn.Linear(hidden_dim + condition_dim, hidden_dim)
 
-    def forward(self, signal, conditioning=None):
+    def forward(self, inputs, conditioning=None):
         """
-        signal: B x T x C
-        conditioning: B x 1 x C
+        Args:
+            inputs (torch.tensor): B x T x C tensor.
+            conditioning (torch.tensor): B x 1 x C conditioning embedding.
         """
         if len(self.condition_types) > 0:
             if conditioning is None:
@@ -497,11 +499,11 @@ class ConditionalInput(torch.nn.Module):
             if "add" in self.condition_types:
                 if self.condition_dim != self.hidden_dim:
                     conditioning = self.add_proj(conditioning)
-                signal = signal + conditioning
+                inputs = inputs + conditioning
 
             if "concat" in self.condition_types:
-                conditioning = conditionting.repeat(1, signal.shape[1], 1)
-                signal = torch.cat([signal, conditioning])
-                signal = self.concat_proj(signal)
+                conditioning = conditionting.repeat(1, inputs.shape[1], 1)
+                inputs = torch.cat([inputs, conditioning])
+                inputs = self.concat_proj(inputs)
 
-        return signal
+        return inputs
