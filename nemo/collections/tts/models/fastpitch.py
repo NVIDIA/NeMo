@@ -34,7 +34,6 @@ from nemo.collections.tts.parts.utils.helpers import (
     process_batch,
     sample_tts_input,
 )
-from nemo.collections.tts.torch.tts_data_types import ReferenceAudio
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
