@@ -86,7 +86,7 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                   |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| ngram_prun       | int      | 0           | Whitespace separated digits. Example: 0 0 1. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
+| ngram_prune      | int      | 0           | Whitespace separated digits. Example: 0 0 1. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | cache_path       | str      | None        | Cache path to save tokenized files.                                                             |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+

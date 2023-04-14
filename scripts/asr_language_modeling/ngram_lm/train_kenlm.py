@@ -78,7 +78,7 @@ def main():
     )
     parser.add_argument("--ngram_length", required=True, type=int, help="The order of N-gram LM")
     parser.add_argument(
-        "--ngram_prun",
+        "--ngram_prune",
         default="0",
         required=False,
         nargs="+",
@@ -110,8 +110,8 @@ def main():
 
     train_path = kenlm_utils.get_train_list(args.train_path)
 
-    if isinstance(args.ngram_prun, str):
-        args.ngram_prun = [args.ngram_prun]
+    if isinstance(args.ngram_prune, str):
+        args.ngram_prune = [args.ngram_prune]
 
     tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(args.tokenizer_model_file)
 
@@ -130,7 +130,7 @@ def main():
         arpa_file,
         discount_arg,
         "--prune",
-    ] + args.ngram_prun
+    ] + args.ngram_prune
 
     if args.cache_path:
         if not os.path.exists(args.cache_path):
@@ -163,7 +163,7 @@ def main():
         )
 
         first_process_args = ["cat"] + encoded_train_files
-        first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE)
+        first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE, stderr=sys.stderr)
 
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.run(
