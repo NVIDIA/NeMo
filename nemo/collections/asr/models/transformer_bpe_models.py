@@ -650,7 +650,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return ctc_log_probs, transf_log_probs, encoded_len, greedy_predictions, enc_states, enc_mask
     
     def compute_text_loss(self, batch):
-
+        assert not self.tts_model.training
         if batch is None:
             return 0, 0
 
@@ -669,6 +669,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             signal, signal_len, *_ = self.tts_model(
                 text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0)
             if self.enhancer_model is not None:
+                assert not self.enhancer_model.training
                 signal = self.enhancer_model.forward(input_spectrograms=signal, lengths=signal_len)
             transcript_len = tgt_mask.sum(dim=-1)
             signal = normalize_batch(signal, signal_len, self._cfg.preprocessor["normalize"])[0]
