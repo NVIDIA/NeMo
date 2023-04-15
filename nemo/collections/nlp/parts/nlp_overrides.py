@@ -384,22 +384,23 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 class AdapterNLPSaveRestoreConnector(NLPSaveRestoreConnector):
-    def __init__(self,  base_model_path : str, adapter_model_path: Optional[str] = None) -> None:
+    def __init__(self, adapter_model_path: Optional[str] = None) -> None:
         super().__init__()
-        self.base_model_path = base_model_path
         self.adapter_model_path = adapter_model_path
+        if os.path.isdir(self.adapter_model_path):
+            raise NotImplementedError("Only .nemo adapter path is currently supported")
 
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
-        if self.adapter_model_path:
-            _adapter_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)  # loading adapter weights
-        else:
-            _adapter_state_dict = {}
+        _base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)  # loading based model weights
         # We want to load base model's weights from disk .nemo file 
         # So we need to untar the .nemo if its still tarred
-        with tempfile.TemporaryDirectory() as tmpdir:
-            self._unpack_nemo_file(self.base_model_path, tmpdir)
-            model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
-            _base_model_state_dict = torch.load(model_weights_path, map_location)
+        if self.adapter_model_path:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                self._unpack_nemo_file(self.adapter_model_path, tmpdir)
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
+                _adapter_state_dict = torch.load(model_weights_path, map_location)
+        else:
+            _adapter_state_dict = {}
         _base_model_state_dict.update(_adapter_state_dict)
         return _base_model_state_dict
 

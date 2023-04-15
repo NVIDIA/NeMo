@@ -97,10 +97,10 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
 def load_from_nemo(cls, cfg, trainer, gpt_cfg, modify_confg_fn):
     gpt_cfg = modify_confg_fn(gpt_cfg, cfg, add_cfg_to_tree=False)
-    save_restore_connector = AdapterNLPSaveRestoreConnector(cfg.model.restore_from_path, None)
-    #save_restore_connector = NLPSaveRestoreConnector()
+    save_restore_connector = AdapterNLPSaveRestoreConnector(cfg.model.adapter_tuning.restore_from_path)
     if os.path.isdir(cfg.model.restore_from_path):
-        save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        raise NotImplementedError("Currently supporting loading from .nemo models")
+        #save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
     model = cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
@@ -189,10 +189,10 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     if cfg.model.restore_from_path:
-        #save_restore_connector = NLPSaveRestoreConnector()
-        save_restore_connector = AdapterNLPSaveRestoreConnector(cfg.model.restore_from_path, None)
-        #if os.path.isdir(cfg.model.restore_from_path):
-        #    save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        save_restore_connector = AdapterNLPSaveRestoreConnector(cfg.model.adapter_tuning.restore_from_path)
+        if os.path.isdir(cfg.model.restore_from_path):
+            #save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+            raise NotImplementedError("Currently only .nemo model loading is supported")
         gpt_cfg = MegatronGPTBaseAdapterModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
