@@ -42,8 +42,13 @@ RUN apt-get update && \
   libavdevice-dev && \
   rm -rf /var/lib/apt/lists/*
 
-WORKDIR /tmp/
+WORKDIR /workspace/
+# Install Megatron-core
+RUN git clone https://github.com/aklife97/Megatron-LM.git && \
+  cd Megatron-LM && \
+  pip install -e .
 
+WORKDIR /tmp/
 # TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
@@ -104,13 +109,6 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
   python -c "import nemo.collections.tts as nemo_tts" && \
   python -c "import nemo_text_processing.text_normalization as text_normalization"
 
-# TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
-# install pinned numba version
-# RUN conda install -c conda-forge numba==0.54.1
-
-# Pinned to numba==0.53.1 to avoid bug in training with num_workers > 0
-# The bug still exists with PTL 1.8.4, this is just a temporary workaround.
-RUN pip install numba==0.53.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
