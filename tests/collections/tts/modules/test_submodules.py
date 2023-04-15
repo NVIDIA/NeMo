@@ -20,19 +20,19 @@ from nemo.collections.tts.modules import submodules
 
 @pytest.mark.unit
 def test_conditional_layer_norm():
-    
+
     # NLP Example
     batch, sentence_length, embedding_dim = 20, 5, 10
     embedding = torch.randn(batch, sentence_length, embedding_dim)
     ln = torch.nn.LayerNorm(embedding_dim)
     cln = submodules.ConditionalLayerNorm(embedding_dim)
     assert torch.all(ln(embedding) == cln(embedding))
-    
+
     weight = torch.nn.Parameter(torch.randn(embedding_dim))
     bias = torch.nn.Parameter(torch.randn(embedding_dim))
     ln.weight, ln.bias = weight, bias
-    cln.weight, cln.bias  = weight, bias
-    assert torch.all(ln(embedding) == cln(embedding)) # Simulate trained weights
+    cln.weight, cln.bias = weight, bias
+    assert torch.all(ln(embedding) == cln(embedding))  # Simulate trained weights
 
     # Image Example
     N, C, H, W = 20, 5, 10, 10
@@ -40,9 +40,9 @@ def test_conditional_layer_norm():
     ln = torch.nn.LayerNorm([C, H, W])
     cln = submodules.ConditionalLayerNorm([C, H, W])
     assert torch.all(ln(image) == cln(image))
-    
+
     weight = torch.nn.Parameter(torch.randn(C, H, W))
     bias = torch.nn.Parameter(torch.randn(C, H, W))
     ln.weight, ln.bias = weight, bias
-    cln.weight, cln.bias  = weight, bias
-    assert torch.all(ln(image) == cln(image)) # Simulate trained weights
+    cln.weight, cln.bias = weight, bias
+    assert torch.all(ln(image) == cln(image))  # Simulate trained weights
