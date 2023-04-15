@@ -456,7 +456,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.get('rampup_batch_size', None):
             micro_batch_size = self.cfg.get('micro_batch_size', 1)
-            current_global_batch_size = get_num_microbatches() * micro_batch_size
+            total_gpus_number = self.trainer.num_devices * self.trainer.num_nodes
+            current_global_batch_size = get_num_microbatches() * micro_batch_size * total_gpus_number
             self.log('global_batch_size', current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -839,6 +840,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
         self.init_global_step = self.trainer.global_step
+
+        rampup_batch_size = self.cfg.get('rampup_batch_size', None)
+        if rampup_batch_size:
+            start_batch_size = rampup_batch_size[0]
+            batch_size_increment = rampup_batch_size[1]
+            total_gpus_number = self.trainer.num_devices * self.trainer.num_nodes
+
+            assert start_batch_size % (total_gpus_number) == 0, (
+                'expected'
+                ' start batch size ({}) to be divisible by total number of GPUs'
+                ' ({})'.format(start_batch_size, total_gpus_number)
+            )
+
+            tensor_model_parallel_size = self.cfg.get('tensor_model_parallel_size', 1)
+            pipeline_model_parallel_size = self.cfg.get('pipeline_model_parallel_size', 1)
+            total_data_parallel_size = total_gpus_number // (tensor_model_parallel_size * pipeline_model_parallel_size)
+
+            assert batch_size_increment % (total_data_parallel_size) == 0, (
+                'expected'
+                ' batch size increment ({}) to be divisible by total data parallel size'
+                ' ({})'.format(batch_size_increment, total_data_parallel_size)
+            )
 
         if stage == 'predict':
             return
