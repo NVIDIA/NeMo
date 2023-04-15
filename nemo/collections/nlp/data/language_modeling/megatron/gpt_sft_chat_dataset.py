@@ -34,6 +34,7 @@ CONVERSATION = {
     "gpt": "Assistant",
 }
 
+
 def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids):
     cur_idx = header_len
     tgt_len = target.shape[0]
