@@ -664,8 +664,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         batch_size = src_ids.shape[0]
 
         with torch.no_grad():
-            speaker_id = random.choice(self.speakers)
-            speaker = torch.tensor([speaker_id]).to(src_ids.device)
+            # speaker_id = random.choice(self.speakers)
+            speaker = torch.tensor([random.choice(self.speakers) for _ in range(batch_size)]).to(src_ids.device)
             signal, signal_len, *_ = self.tts_model(
                 text=src_ids, durs=None, pitch=None, speaker=speaker, pace=1.0)
             if self.enhancer_model is not None:
