@@ -283,6 +283,26 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 #             log_prediction=self._cfg.get("log_prediction", False),
 #         )
 
+    def unfreeze(self) -> None:
+        super().unfreeze()
+        self.tts_model.freeze()  # tts model should be always frozen
+        if self.enhancer_model is not None:
+            self.enhancer_model.freeze()
+
+    def on_fit_start(self):
+        super().on_fit_start()
+        self.tts_model.freeze()
+        if self.enhancer_model is not None:
+            self.enhancer_model.freeze()
+
+    def train(self, mode: bool = True):
+        """Train mode, ensure TTS model is frozen"""
+        super().train(mode)
+        self.tts_model.eval()
+        if self.enhancer_model is not None:
+            self.enhancer_model.eval()
+        return self
+
     @torch.no_grad()
     def transcribe(
         self,
@@ -861,6 +881,13 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
+    def setup_optimization(
+        self, *args, **kwargs
+    ):
+        self.tts_model.freeze()
+        if self.enhancer_model is not None:
+            self.enhancer_model.freeze()
+        super().setup_optimization(*args, **kwargs)
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
