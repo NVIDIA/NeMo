@@ -273,10 +273,13 @@ def main(cfg) -> None:
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
+                if cfg.chat:
+                    web_ui = get_chatbot_demo
+                else:
+                    web_ui = get_demo
                 loop = asyncio.new_event_loop()
                 thread = threading.Thread(
-     #               target=get_chatbot_demo,
-                    target=get_demo,
+                    target=web_ui,
                     daemon=True,
                     args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
                 )

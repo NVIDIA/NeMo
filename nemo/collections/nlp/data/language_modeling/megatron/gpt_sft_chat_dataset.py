@@ -108,6 +108,7 @@ def preprocess(
 
     _mask_targets(target, tokenized_lens, speakers, header_len, ids)
     mask = (target != IGNORE_INDEX).bool()
+    assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
 
 
