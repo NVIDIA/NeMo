@@ -14,8 +14,8 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 5 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_epochs: 1 # PTL default. In practice we don't usually train for more than 1 epoch.
+  max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 0.1
   limit_val_batches: null
@@ -99,8 +99,8 @@ model:
   seed: 1234
 
   data:
-    train_ds:
-      file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
+    train_ds: # landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted
+      file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
@@ -109,7 +109,7 @@ model:
       seed: 1234
       neighbors: 9  # number of retrieved neighbors
     val_ds:
-      file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
+      file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
@@ -118,7 +118,7 @@ model:
       seed: 1234
       neighbors: 9  # number of retrieved neighbors
     test_ds:
-      file_name: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+      file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
       seq_length: 2048  # must be multiple of the chunk_size in your dataset
@@ -139,12 +139,12 @@ model:
     splits_string: 100,250,650
     seq_length: 2048  # must be multiple of the chunk_size in your dataset
     skip_warmup: True
-    num_workers: 0
+    num_workers: 1
     dataloader_type: single # cyclic
     neighbors: 9  # number of retrieved neighbors
 
     max_seq_length: 1024
-    retrieved_doc_length: 150
+    retrieved_doc_length: 64
 
   optim:
     name: fused_adam
@@ -155,14 +155,14 @@ model:
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 0
+      warmup_steps: 50
       constant_steps: 0
       min_lr: 1e-4
 
 
   adapter_tuning:
     type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-    adapter_dim: 20
+    adapter_dim: 16
     adapter_dropout: 0.1
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
