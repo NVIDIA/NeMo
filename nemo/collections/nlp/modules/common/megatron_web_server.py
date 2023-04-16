@@ -137,7 +137,7 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 repetition_penality = gr.Slider(
                     minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
-                end_strings = gr.Textbox(label="End strings (comma separated)", value=f"<|endoftext|>,", lines=1,)
+                end_strings = gr.Textbox(label="End strings (comma separated)", value=f"<|endoftext|>,Human,", lines=1,)
             with gr.Column(scale=1, min_width=800):
                 human_name = gr.Textbox(label="Human Name", value="Human", line=1,)
                 assistant_name = gr.Textbox(label="Human Name", value="Assistant", line=1,)

@@ -157,8 +157,9 @@ class Chatbot(Changeable, Selectable, IOComponent, JSONSerializable):
             ), f"Expected a list of lists of length 2 or list of tuples of length 2. Received: {message_pair}"
             processed_messages.append(
                 (
-                    '<pre style="font-family: var(--font)">' +
-                    message_pair[0] + "</pre>",
+#                    '<pre style="font-family: var(--font)">' +
+#                    message_pair[0] + "</pre>",
+                    message_pair[0],
                     self._process_chat_messages(message_pair[1]),
                 )
             )
