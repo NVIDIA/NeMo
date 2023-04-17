@@ -1208,19 +1208,14 @@ store = []
     [Input('utt_graph', 'clickData')],
 )
 def real_select_click(hoverData):
-
-
     if hoverData is not None:
         path = str(hoverData['points'][0]['customdata'][-1])
         for t in range(len(data)):
             if data[t]['audio_filepath'] == path:
                 ind = t
                 s = t % DATA_PAGE_SIZE
-                logging.error("CODE 1|" + str(s))
-                #sel = [s-1]
                 sel = s
                 pg = math.ceil(ind // DATA_PAGE_SIZE)
-                logging.error("CODE 2| " + str(pg))
         return pg, sel
     else:
         return 1, 1
@@ -1235,67 +1230,109 @@ def real_select_click(num):
 
 
 
+CALCULATED_METRIC = [False, False]
+
+
 
 @app.callback(
      [Output('utt_graph', 'figure'), Output('clicked_aidopath', 'value'),
-    Input('choose_metric', 'value'), Input("datatable-advanced-filtering", "derived_virtual_data"), Input('utt_graph', 'clickData')
-     ]
+      Input('choose_metric', 'value'), Input('utt_graph', 'clickData'),],
 )
-def calculate_metrics(met, data, hoverData):
-
+def calculate_metrics(met, hoverData,):
+    da = pd.DataFrame.from_records(data)
     Ox = name_1
     Oy = name_2
-    from collections import defaultdict
-    tmp_d = defaultdict(list)
-    with open(args.manifest) as f:
-        for line_json in f:
-            line = json.loads(line_json)
-            gt = line["text"]
-            tt_1 = line[Ox]
-            tt_2 = line[Oy]
-            wer_tt1, cer_tt1 = metric(gt, tt_1, met)
-            wer_tt2, cer_tt2 = metric(gt, tt_2, met)
-
-            tmp = {'length': len(gt), 'numwords': len(gt.split()), 'wer_' + Ox: wer_tt1, 'wer_' + Oy: wer_tt2,
-                   'cer_' + Ox: cer_tt1, 'cer_' + Oy: cer_tt2, }
-            line.update(tmp)
-            for k, v in line.items():
-                tmp_d[k].append(v)
-
-
-    a = pd.DataFrame.from_dict(tmp_d)
-
     if met == "WER":
         cerower = 'wer_'
     else:
         cerower = 'cer_'
-    c = a[a[cerower + Ox] != a[cerower + Oy]]
-    #c = a
-    fig = px.scatter(c, x=cerower + Ox, y=cerower + Oy, color='length', width=1000, height=900,
+
+    if (met == "WER" and (CALCULATED_METRIC[0] is False)) or (met == "CER" and (CALCULATED_METRIC[1] is False)):
+        from collections import defaultdict
+        #tmp_d = defaultdict(list)
+        # with open(args.manifest) as f:
+        #     for line_json in f:
+        #         line = json.loads(line_json)
+        #         gt = line["text"]
+        #         tt_1 = line[Ox]
+        #         tt_2 = line[Oy]
+        #         wer_tt1, cer_tt1 = metric(gt, tt_1, met)  # first model
+        #         wer_tt2, cer_tt2 = metric(gt, tt_2, met)  # second model
+        #
+        #         tmp = {'length': len(gt), 'numwords': len(gt.split()), 'wer_' + Ox: wer_tt1, 'wer_' + Oy: wer_tt2,
+        #                'cer_' + Ox: cer_tt1, 'cer_' + Oy: cer_tt2, }
+        #         line.update(tmp)
+        #         for k, v in line.items():
+        #             tmp_d[k].append(v)
+        # a = pd.DataFrame.from_dict(tmp_d)
+
+        gt = da['text']
+        tt_1 = da[Ox]
+        tt_2 = da[Oy]
+        #logging.error("CODE 4", str(gt))
+        wer_tt1_c, cer_tt1_c = [], []
+        wer_tt2_c, cer_tt2_c = [], []
+        #logging.error("CODE 1 | ", str(da))
+        for j in range(len(gt)):
+            wer_tt1, cer_tt1 = metric(gt[j], tt_1[j], met)  # first model
+            wer_tt2, cer_tt2 = metric(gt[j], tt_2[j], met)  # second model
+            wer_tt1_c.append(wer_tt1)
+            cer_tt1_c.append(cer_tt1)
+            wer_tt2_c.append(wer_tt2)
+            cer_tt2_c.append(cer_tt2)
+
+        da['wer_' + Ox] = pd.Series(wer_tt1_c, index=da.index)
+        da['wer_' + Oy] = pd.Series(wer_tt2_c, index=da.index)
+        da['cer_' + Ox] = pd.Series(cer_tt1_c, index=da.index)
+        da['cer_' + Oy] = pd.Series(cer_tt2_c, index=da.index)
+        a = da
+
+
+    else:
+        if len(CALCULATED_METRIC) == 3:
+            a = CALCULATED_METRIC[2]
+        else:
+            if CALCULATED_METRIC[0] is not False and CALCULATED_METRIC[1] is not False:
+                a = CALCULATED_METRIC[0]
+                a['cer_' + Ox] = CALCULATED_METRIC[1]['cer_' + Ox]
+                a['cer_' + Oy] = CALCULATED_METRIC[1]['cer_' + Oy]
+                CALCULATED_METRIC.append(a)
+            else:
+                if met == "WER":
+                    a = CALCULATED_METRIC[0]
+                if met == "CER":
+                    a = CALCULATED_METRIC[1]
+
+
+    if met == "WER":
+        cerower = 'wer_'
+        CALCULATED_METRIC[0] = a
+    else:
+        cerower = 'cer_'
+        CALCULATED_METRIC[1] = a
+
+
+    c = a
+    fig = px.scatter(a, x=cerower + Ox, y=cerower + Oy, width=1000, height=900, color='num_words',
                      hover_data={'text': True, Ox: True, Oy: True,
                                  'wer_' + Ox: True, 'wer_' + Oy: True,
                                  'cer_' + Ox: True, 'cer_' + Oy: True,
-                                 'length': True, 'numwords': True, 'audio_filepath': True}, )
+                                'audio_filepath': True}, ) #'numwords': True,
     fig.add_shape(
         type="line", x0=0, y0=0, x1=200, y1=200, line=dict(color="Red", width=1, dash="dot", )
     )
     fig.update_layout(clickmode='event+select')
     fig.update_traces(marker_size=10)
     path = None
-    #[{'curveNumber': 0, 'pointNumber': 485, 'pointIndex': 485, 'x': 66.67, 'y': 100, 'marker.color': 16, 'bbox': {'x0': 1356.95, 'x1': 1358.95, 'y0': 2093.12, 'y1': 2095.12}, 'customdata': ['this frees woman', 'this free women', 'this frezwomen', -1, -1, 16, 3, '/LibriSpeech/test-other-processed/5764-299665-0095.wav']}]
-    #{'curveNumber': 0, 'pointNumber': 485, 'pointIndex': 485, 'x': 66.67, 'y': 100, 'marker.color': 16, 'bbox': {'x0': 1356.95, 'x1': 1358.95, 'y0': 2093.12, 'y1': 2095.12}, 'customdata': ['this frees woman', 'this free women', 'this frezwomen', -1, -1, 16, 3, '/LibriSpeech/test-other-processed/5764-299665-0095.wav']}
-    #['this frees woman', 'this free women', 'this frezwomen', -1, -1, 16, 3,
-    # '/LibriSpeech/test-other-processed/5764-299665-0095.wav']
+
     if hoverData is not None:
-        #path = hoverData['audio_filepath']
         path = str(hoverData['points'][0]['customdata'][-1])
-        #path = data[1]  #['audio_filepath']#['audio_filepath']
 
     return fig, path
 
-
+import torchmetrics
 def metric(a, b, met):
-    import torchmetrics
+
     if met == "WER":
         wer = torchmetrics.functional.word_error_rate(a, b)
         cer = -1
