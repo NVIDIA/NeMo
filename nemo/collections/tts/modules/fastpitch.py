@@ -378,15 +378,10 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         reference_spec_lens=None,
     ):
 
-        if self.speaker_emb is None or speaker is None:
-            spk_emb = None
-        else:
-            spk_emb = self.speaker_emb(speaker).unsqueeze(1)
-
-        if self.speaker_encoder is not None:
-            spk_emb = self.speaker_encoder(
-                spk_emb=spk_emb, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
-            )
+        # Calculate speaker embedding
+        spk_emb = self.get_speaker_embedding(
+            speaker=speaker, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens,
+        )
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
