@@ -309,7 +309,8 @@ try:
            Equivalent LayerNorm module
         """
         if not isinstance(n, FusedScaleMaskSoftmax):
-            raise ValueError("This function can only change the FusedScaleMaskSoftmax module.")
+            logging.warning("This function can only change the FusedScaleMaskSoftmax module.")
+            return n
 
         # disable the fusion only
         mod = FusedScaleMaskSoftmax(
@@ -454,7 +455,9 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     }
 
     replace_modules(model, default_Apex_replacements)
-    replace_modules(model, default_replacements)
+    # Apply CastToFloat for torch.float32
+    if model.dtype==torch.float32:
+        replace_modules(model, default_replacements)
     # This one has to be the last
     replace_modules(model, script_replacements)
 
