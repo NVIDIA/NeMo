@@ -33,7 +33,7 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
-from pytorch_lightning.loops import TrainingEpochLoop
+from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 
 from nemo.collections.common.callbacks import EMA
@@ -934,7 +934,7 @@ class StatelessTimer(Timer):
 
 
 def configure_no_restart_validation_training_loop(trainer: pytorch_lightning.Trainer) -> None:
-    if type(trainer.fit_loop.epoch_loop) != TrainingEpochLoop:
+    if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
         warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
         return
     loop = SkipResumeTrainingValidationLoop(trainer.min_steps, trainer.max_steps)
@@ -942,7 +942,7 @@ def configure_no_restart_validation_training_loop(trainer: pytorch_lightning.Tra
     trainer.fit_loop.epoch_loop = loop
 
 
-class SkipResumeTrainingValidationLoop(TrainingEpochLoop):
+class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
     """
     Extend the PTL Epoch loop to skip validating when resuming.
     This happens when resuming a checkpoint that has already run validation, but loading restores

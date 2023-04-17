@@ -23,7 +23,7 @@ import torch
 from omegaconf import OmegaConf
 from omegaconf.errors import OmegaConfBaseException
 from pytorch_lightning import Callback
-from pytorch_lightning.loops import TrainingEpochLoop
+from pytorch_lightning.loops import _TrainingEpochLoop
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.core.classes import ModelPT
@@ -593,7 +593,7 @@ class TestExpManager:
         """
         tmp_path = tmp_path / "test_3"
 
-        class CustomLoop(TrainingEpochLoop):
+        class CustomLoop(_TrainingEpochLoop):
             ...
 
         trainer = pl.Trainer(
