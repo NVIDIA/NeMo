@@ -14,7 +14,7 @@
 
 import torch
 import torch.multiprocessing as mp
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -80,6 +80,21 @@ def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+
+    if (
+        cfg.tensor_model_parallel_size < 0
+        or cfg.pipeline_model_parallel_size < 0
+        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+    ):
+        model_config = MegatronGPTPromptLearningModel.restore_from(
+            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+        )
+
+        with open_dict(cfg):
+            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
