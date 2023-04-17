@@ -747,7 +747,7 @@ class SpeakerEncoder(NeuralModule):
                 )
             out = self.gst_module(reference_spec, reference_spec_lens)
             embs = out if embs is None else embs + out
-            
+
         elif self.gst_module is None and reference_spec is not None and reference_spec_lens is not None:
             logging.warning("You may add `gst_module` in speaker_encoder to use reference_audio.")
 
