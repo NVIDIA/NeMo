@@ -7,10 +7,17 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.models import SpeechEncDecSelfSupervisedModel
-from nemo.collections.asr.modules.audio_preprocessing import RandomBlockMaskingAugmentation
-from nemo.collections.asr.parts.submodules.ssl_quantizers import RandomProjectionVectorQuantizer
+from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
+    AudioSignal,
+    LabelsType,
+    LengthsType,
+    LogprobsType,
+    NeuralType,
+    SpectrogramType,
+)
 
 
 class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
@@ -42,6 +49,37 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         self.decoder = self.from_config_dict(cfg.decoder)
         self.loss = self.from_config_dict(cfg.loss)
 
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        if hasattr(self.preprocessor, '_sample_rate'):
+            input_signal_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
+        else:
+            input_signal_eltype = AudioSignal()
+        return {
+            "input_signal": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
+            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "targets": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "target_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        if self.cfg.num_books == 1 and self.cfg.squeeze_single:
+            logprobs = NeuralType(('B', 'T', 'C'), LogprobsType())
+            tokens = NeuralType(('B', 'T'), LabelsType())
+        else:
+            logprobs = NeuralType(('B', 'T', 'C', 'H'), LogprobsType())
+            tokens = NeuralType(('B', 'T', 'H'), LabelsType())
+        return {
+            "logprobs": logprobs,
+            "encoded_len": NeuralType(tuple('B'), LengthsType()),
+            "masks": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "tokens": tokens,
+        }
+
+    @typecheck()
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
     ):
