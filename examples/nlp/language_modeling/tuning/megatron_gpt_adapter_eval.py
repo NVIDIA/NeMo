@@ -15,11 +15,11 @@
 
 import torch
 import torch.multiprocessing as mp
-from torch.utils.data import DataLoader, Dataset
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -42,6 +42,7 @@ Usage:
 
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
+
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
@@ -133,6 +134,7 @@ def validate_checkpoint_loading_args(cfg):
     if cfg.hparams_file is None or not os.path.isfile(cfg.hparams_file):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_inference")
 def main(cfg) -> None:
 
@@ -181,7 +183,6 @@ def main(cfg) -> None:
     print(model.summarize())
     model.freeze()
 
-
     # Have to turn off activations_checkpoint_method for inference
     try:
         model.model.language_model.encoder.activations_checkpoint_method = None
@@ -205,11 +206,13 @@ def main(cfg) -> None:
         trainer.strategy.setup_environment()
 
     _test_ds = model._build_dataset(adapter_tuning_cfg.data.test_ds, is_train=False)
-    #_test_dl = model.setup_eval_dataloader(_test_ds, cfg.model.data.test_ds)
-    #config = OmegaConf.to_container(cfg.inference)
-    #model.set_inference_config(config)
-    #response = trainer.predict(model, _test_dl)
-    request_dl = DataLoader(dataset=_test_ds[0], batch_size=cfg.inference.batch_size, collate_fn=_test_ds[0].collate_fn)
+    # _test_dl = model.setup_eval_dataloader(_test_ds, cfg.model.data.test_ds)
+    # config = OmegaConf.to_container(cfg.inference)
+    # model.set_inference_config(config)
+    # response = trainer.predict(model, _test_dl)
+    request_dl = DataLoader(
+        dataset=_test_ds[0], batch_size=cfg.inference.batch_size, collate_fn=_test_ds[0].collate_fn
+    )
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
