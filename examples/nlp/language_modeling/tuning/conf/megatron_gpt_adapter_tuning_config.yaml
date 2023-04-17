@@ -30,7 +30,7 @@ exp_manager:
     save_top_k: 1
     mode: max
     save_nemo_on_train_end: True
-    filename: 'megatron_gpt_sft--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
+    filename: 'megatron_gpt_adapter--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     always_save_nemo: True
     save_best_model: False
@@ -42,7 +42,7 @@ model:
   
   global_batch_size: 128
   micro_batch_size: 4
-  restore_from_path: ??? # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
+  restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
   sync_batch_comm: False

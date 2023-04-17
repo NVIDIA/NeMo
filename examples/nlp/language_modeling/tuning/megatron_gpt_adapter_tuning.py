@@ -13,27 +13,31 @@
 # limitations under the License.
 
 
+import os
+import tempfile
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTBaseAdapterModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    AdapterNLPSaveRestoreConnector,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
-    AdapterNLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
-import os
-import tempfile
 
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 mp.set_start_method("spawn", force=True)
 
 """
@@ -57,6 +61,7 @@ Usage:
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
             trainer.max_epochs=2
 """
+
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
@@ -93,21 +98,6 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
             gpt_cfg.cfg = gpt_cfg
 
     return gpt_cfg
-
-
-def load_from_nemo(cls, cfg, trainer, gpt_cfg, modify_confg_fn):
-    gpt_cfg = modify_confg_fn(gpt_cfg, cfg, add_cfg_to_tree=False)
-    save_restore_connector = AdapterNLPSaveRestoreConnector(cfg.model.adapter_tuning.restore_from_path)
-    if os.path.isdir(cfg.model.restore_from_path):
-        raise NotImplementedError("Currently supporting loading from .nemo models")
-        #save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    model = cls.restore_from(
-        restore_path=cfg.model.restore_from_path,
-        trainer=trainer,
-        override_config_path=gpt_cfg,
-        save_restore_connector=save_restore_connector,
-    )
-    return model
 
 
 def load_from_checkpoint_dir(cls, cfg, trainer, modify_confg_fn):
@@ -150,7 +140,6 @@ def validate_checkpoint_loading_args(cfg):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
 
-
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -183,26 +172,44 @@ def main(cfg) -> None:
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
     exp_manager(trainer, cfg.exp_manager)
+    # update resume from checkpoint found by exp_manager
+    if cfg.model.resume_from_checkpoint is not None:
+        resume_from_checkpoint = cfg.model.resume_from_checkpoint
+    else:
+        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+
+    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
     if cfg.model.restore_from_path:
-        save_restore_connector = AdapterNLPSaveRestoreConnector(cfg.model.adapter_tuning.restore_from_path)
+        base_model_save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.model.restore_from_path):
-            #save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-            raise NotImplementedError("Currently only .nemo model loading is supported")
-        gpt_cfg = MegatronGPTBaseAdapterModel.restore_from(
+            base_model_save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        base_model_cfg = MegatronGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             return_config=True,
+            save_restore_connector=base_model_save_restore_connector,
+        )
+        # model = load_from_nemo(MegatronGPTBaseAdapterModel, cfg, trainer, base_model_cfg, modify_confg_fn=_modify_config)
+        base_model_cfg = _modify_config(base_model_cfg, cfg, add_cfg_to_tree=False)
+        save_restore_connector = AdapterNLPSaveRestoreConnector(
+            adapter_nemo_path=cfg.model.adapter_tuning.restore_from_path, adapter_ckpt_path=resume_from_checkpoint
+        )
+        if os.path.isdir(cfg.model.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        model = MegatronGPTBaseAdapterModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=base_model_cfg,
             save_restore_connector=save_restore_connector,
         )
-        model = load_from_nemo(MegatronGPTBaseAdapterModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
-        validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-        model = load_from_checkpoint_dir(MegatronGPTBaseAdapterModel, cfg, trainer, modify_confg_fn=_modify_config)
+        raise RuntimeError("Adapter training needs a trained base model present.")
 
     trainer.fit(model)
 
