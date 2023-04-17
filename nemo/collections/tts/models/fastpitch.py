@@ -144,10 +144,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
 
         # [TODO] may remove if we change the pre-trained config
+        # cfg: condition_types = [ "add" ]
+        n_speakers = cfg.get("n_speakers", 0)
         speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
         speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
         speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
-        if cfg.n_speakers > 1 and "add" not in input_fft.cond_input.condition_types:
+        if n_speakers > 1 and "add" not in input_fft.cond_input.condition_types:
             input_fft.cond_input.condition_types.append("add")
         if speaker_emb_condition_prosody:
             duration_predictor.cond_input.condition_types.append("add")
@@ -165,7 +167,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             energy_predictor,
             self.aligner,
             speaker_encoder,
-            cfg.n_speakers,
+            n_speakers,
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
             energy_embedding_kernel_size,
