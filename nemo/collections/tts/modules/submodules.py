@@ -695,9 +695,9 @@ class LookupTable(torch.nn.Module):
     LookupTable based Speaker Embedding
     """
 
-    def __init__(self, num_speakers, embedding_dim):
+    def __init__(self, n_speakers, embedding_dim):
         super(LookupTable, self).__init__()
-        self.table = torch.nn.Embedding(num_speakers, embedding_dim)
+        self.table = torch.nn.Embedding(n_speakers, embedding_dim)
 
     def forward(self, speaker):
         return self.table(speaker)
