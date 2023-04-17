@@ -1,0 +1,2 @@
+from nemo.collections.asr.modules.ssl_modules.multi_softmax_decoder import MultiSoftmaxDecoder
+from nemo.collections.asr.modules.ssl_modules.quantizers import RandomProjectionVectorQuantizer

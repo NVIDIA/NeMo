@@ -19,6 +19,7 @@ from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToSpectrogram,
     CropOrPadSpectrogramAugmentation,
     MaskedPatchAugmentation,
+    RandomBlockMaskingAugmentation,
     SpectrogramAugmentation,
     SpectrogramToAudio,
 )
@@ -47,3 +48,4 @@ from nemo.collections.asr.modules.rnnt import (
     StatelessTransducerDecoder,
 )
 from nemo.collections.asr.modules.squeezeformer_encoder import SqueezeformerEncoder, SqueezeformerEncoderAdapter
+from nemo.collections.asr.modules.ssl_modules import MultiSoftmaxDecoder, RandomProjectionVectorQuantizer
