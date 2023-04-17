@@ -59,7 +59,7 @@ class ForwardSumLoss(Loss):
         # Note: Mask out probs beyond key_len
         key_inds = torch.arange(max_key_len + 1, device=attn_logprob.device, dtype=torch.long)
         attn_logprob.masked_fill_(
-            key_inds.view(1, 1, -1) > key_lens.view(1, -1, 1), -float("inf")  # key_inds >= key_lens+1
+            key_inds.view(1, 1, -1) > key_lens.view(1, -1, 1), -1e15  # key_inds >= key_lens+1
         )
         attn_logprob = self.log_softmax(attn_logprob)
 
