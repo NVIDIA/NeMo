@@ -35,7 +35,6 @@ model:
   learn_alignment: true
   bin_loss_warmup_epochs: 100
   
-  n_speakers: 1 # [TODO] removed after we change previous config
   max_token_duration: 75
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3
@@ -250,8 +249,8 @@ model:
   speaker_encoder:
     _target_: nemo.collections.tts.modules.submodules.SpeakerEncoder
     lookup_module:
-      _target_: nemo.collections.tts.modules.submodules.LookupTable
-      n_speakers: 1
+      _target_: nemo.collections.tts.modules.submodules.SpeakerLookupTable
+      n_speakers: ???
       embedding_dim: ${model.symbols_embedding_dim}
     gst_module:
       _target_: nemo.collections.tts.modules.submodules.GlobalStyleToken

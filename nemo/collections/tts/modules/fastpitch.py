@@ -179,6 +179,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.binarize = False
 
         # TODO: combine self.speaker_emb with self.speaker_encoder
+        # cfg: remove `n_speakers`, create `speaker_encoder.lookup_module`
+        # state_dict: move `speaker_emb.weight` to `speaker_encoder.lookup_module.table.weight`
         if n_speakers > 1 and speaker_encoder is None:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:

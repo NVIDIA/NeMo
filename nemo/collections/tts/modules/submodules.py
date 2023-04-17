@@ -547,9 +547,9 @@ class StyleAttention(NeuralModule):
         }
 
     def forward(self, inputs):
-        bs = inputs.size(0)
+        batch_size = inputs.size(0)
         query = inputs.unsqueeze(1)
-        tokens = F.tanh(self.tokens).unsqueeze(0).expand(bs, -1, -1)
+        tokens = F.tanh(self.tokens).unsqueeze(0).expand(batch_size, -1, -1)
 
         style_emb, _ = self.mha(query=query, key=tokens, value=tokens)
         style_emb = style_emb.squeeze(1)
@@ -690,13 +690,13 @@ class GlobalStyleToken(NeuralModule):
         return gst
 
 
-class LookupTable(torch.nn.Module):
+class SpeakerLookupTable(torch.nn.Module):
     """
     LookupTable based Speaker Embedding
     """
 
     def __init__(self, n_speakers, embedding_dim):
-        super(LookupTable, self).__init__()
+        super(SpeakerLookupTable, self).__init__()
         self.table = torch.nn.Embedding(n_speakers, embedding_dim)
 
     def forward(self, speaker):
@@ -740,13 +740,14 @@ class SpeakerEncoder(NeuralModule):
             embs = self.lookup_module(speaker)
 
         # Get GST based speaker embedding
-        if self.gst_module is not None and reference_spec is not None and reference_spec_lens is not None:
+        if self.gst_module is not None:
+            if reference_spec is None or reference_spec_lens is None:
+                raise ValueError(
+                    "You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config."
+                )
             out = self.gst_module(reference_spec, reference_spec_lens)
             embs = out if embs is None else embs + out
-        elif self.gst_module is not None and reference_spec is None and reference_spec_lens is None:
-            raise ValueError(
-                "You should add `reference_audio` in sup_data_types or remove `speaker_encoder`in config."
-            )
+            
         elif self.gst_module is None and reference_spec is not None and reference_spec_lens is not None:
             logging.warning("You may add `gst_module` in speaker_encoder to use reference_audio.")
 
