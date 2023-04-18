@@ -105,7 +105,6 @@ def main(cfg) -> None:
 
     model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
     # model = MegatronRetrievalModel(cfg.model, trainer)
-
     trainer.fit(model)
 
 

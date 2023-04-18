@@ -114,18 +114,22 @@ class RetroQAFineTuneDataset(Dataset):
         Process a single example from the dataset into IDs and other T0-related metadata.
         """
         question = example['question'].strip()
-        tokenized_input = self.tokenizer.text_to_ids(f" \nQuestion: {question} \n")
+        tokenized_input = self.tokenizer.text_to_ids(f"\nquestion: {question}\n")
         # add a space between input and output
         if 'answers' in example:
             # sample one answer from answers
             answer = sample(example['answers'], 1)[0].strip()
-            tokenized_output = self.tokenizer.text_to_ids(f"Answer: {answer}")
+            tokenized_output = self.tokenizer.text_to_ids(f"\nanswer: {answer}")
         elif 'answer' in example:
             answer = example['answer']
-            tokenized_output = self.tokenizer.text_to_ids(f"Answer: {answer}")
+            tokenized_output = self.tokenizer.text_to_ids(f"\nanswer: {answer}")
         else:
-            tokenized_output = self.tokenizer.text_to_ids('Answer: ')
+            tokenized_output = self.tokenizer.text_to_ids('\nanswer: ')
 
+        
+
+        
+        
         chunks = []
         contexts = example['ctxs'] # are these neighbors ordered???????????????????????????????????????????????
         assert self.neighbors <= len(
