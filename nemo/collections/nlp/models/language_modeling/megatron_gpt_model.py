@@ -170,6 +170,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
 
+    def get_gpt_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
+        else:
+            return [self.model]
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -448,7 +456,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         for param in module.parameters():
             sequence_parallel_param = getattr(param, 'sequence_parallel', False)
-            if sequence_parallel_param:
+            # (@adithyare) adapter training now extends MegatronGPTModel
+            # so we have to add this check here to ensure we do not
+            # perform all_reduce when grad is None.
+            # grad can be None when performing PeFT training.
+            if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_o2:
                     grad = param.main_grad
                 else:
@@ -496,12 +508,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module = self.model
             if module.share_token_embeddings:
                 word_embeddings_weight = module.word_embeddings_weight()
-                if self.megatron_amp_o2:
-                    # O2 recipe stores a "main" copy of weights and grads
-                    grad = word_embeddings_weight.main_grad
-                else:
-                    grad = word_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+                # (@adithyare) adapter training now extends MegatronGPTModel so we have to add this check here to ensure we do not perform all_reduce when grad is None.
+                # grad can be None when performing PeFT training.
+                if word_embeddings_weight.requires_grad:
+                    if self.megatron_amp_o2:
+                        # O2 recipe stores a "main" copy of weights and grads
+                        grad = word_embeddings_weight.main_grad
+                    else:
+                        grad = word_embeddings_weight.grad
+                    torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
@@ -1002,3 +1017,75 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+    def _reset_activation_checkpointing_args(self):
+        """ Disables activation checkpointing completely and saves the values so that 
+            _restore_activation_checkpointing_args can restore them later. This function must always be 
+            called before _restore_activation_checkpointing_args.
+        """
+        # Store values to restore them later.
+        self.last_activations_checkpoint_granularity = self.cfg.activations_checkpoint_granularity
+        self.last_activations_checkpoint_method = self.cfg.activations_checkpoint_method
+        self.last_activations_checkpoint_num_layers = self.cfg.activations_checkpoint_num_layers
+        self.last_activations_checkpoint_layers_per_pipeline = self.cfg.activations_checkpoint_layers_per_pipeline
+
+        # Reset config values. Needed for calling generate.
+        self.cfg.activations_checkpoint_granularity = None
+        self.cfg.activations_checkpoint_method = None
+        self.cfg.activations_checkpoint_num_layers = None
+        self.cfg.activations_checkpoint_layers_per_pipeline = None
+
+        # Reset model parameters.
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.activations_checkpoint_granularity = None
+            module.language_model.encoder.activations_checkpoint_method = None
+            module.language_model.encoder.activations_checkpoint_num_layers = None
+            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
+
+    def _restore_activation_checkpointing_args(self):
+        """ Restores the activation checkpointing parameters using the values saved by  
+            _reset_activation_checkpointing_args. This function must never be called before 
+            _reset_activation_checkpointing_args.
+        """
+        # Restore config values.
+        self.cfg.activations_checkpoint_granularity = self.last_checkpointing_granularity
+        self.cfg.activations_checkpoint_method = self.last_checkpointing_method
+        self.cfg.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+        self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
+
+        # Restore model parameters.
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.activations_checkpoint_granularity = self.last_checkpointing_granularity
+            module.language_model.encoder.activations_checkpoint_method = self.last_checkpointing_method
+            module.language_model.encoder.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
+                self.last_activations_checkpoint_layers_per_pipeline
+            )
+
+    def _reset_sequence_parallelism_args(self):
+        """ Disables sequence parallelism completely and saves the values so that 
+            _restore_sequence_parallelism_args can restore them later. This function must always be 
+            called before _restore_sequence_parallelism_args.
+        """
+        # Store values to restore them later.
+        self.last_sequence_parallel = self.cfg.sequence_parallel
+
+        # Reset config values. Needed for calling generate.
+        self.cfg.sequence_parallel = None
+
+        # Reset model parameters.
+
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.sequence_parallel = None
+
+    def _restore_sequence_parallelism_args(self):
+        """ Restores the sequence parallelism parameters using the values saved by  
+            _reset_sequence_parallelism_args. This function must never be called before 
+            _reset_sequence_parallelism_args.
+        """
+        # Restore config values.
+        self.cfg.sequence_parallel = self.last_sequence_parallel
+
+        # Restore model parameters.
+        for module in self.get_gpt_module_list():
+            module.language_model.encoder.sequence_parallel = self.last_sequence_parallel

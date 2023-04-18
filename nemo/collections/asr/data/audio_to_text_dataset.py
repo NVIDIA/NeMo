@@ -346,6 +346,9 @@ def get_tarred_dataset(
     ):
         if len(tarred_audio_filepath) == 1:
             tarred_audio_filepath = tarred_audio_filepath[0]
+        if len(manifest_filepath) == 1:
+            manifest_filepath = manifest_filepath[0]
+
         if tokenizer is None:
             dataset = audio_to_text.TarredAudioToCharDataset(
                 audio_tar_filepaths=tarred_audio_filepath,
@@ -363,6 +366,7 @@ def get_tarred_dataset(
                 trim=config.get('trim_silence', False),
                 parser=config.get('parser', 'en'),
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+                shard_manifests=config.get('shard_manifests', False),
                 global_rank=global_rank,
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
@@ -381,6 +385,7 @@ def get_tarred_dataset(
                 trim=config.get('trim_silence', False),
                 use_start_end_token=config.get('use_start_end_token', True),
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+                shard_manifests=config.get('shard_manifests', False),
                 global_rank=global_rank,
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
@@ -518,16 +523,14 @@ def get_audio_to_text_char_dataset_from_config(
                 f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
             )
             return None
-
-        if not 'concat_sampling_probabilities' in config:
-            logging.warning(
-                f"Concat dataset requires `concat_sampling_probabilities` list but it was not provided. Config: {config}"
-            )
-            return None
-        else:
-            if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
-                logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
+        if config['concat_sampling_technique'] == 'random':
+            if not 'concat_sampling_probabilities' in config:
+                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
                 return None
+            else:
+                if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
+                    logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
+                    return None
 
     shuffle = config['shuffle']
     device = 'gpu' if torch.cuda.is_available() else 'cpu'
@@ -618,15 +621,14 @@ def get_audio_to_text_bpe_dataset_from_config(
             )
             return None
 
-        if not 'concat_sampling_probabilities' in config:
-            logging.warning(
-                f"Concat dataset requires `concat_sampling_probabilities` list but it was not provided. Config: {config}"
-            )
-            return None
-        else:
-            if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
-                logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
+        if config['concat_sampling_technique'] == 'random':
+            if not 'concat_sampling_probabilities' in config:
+                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
                 return None
+            else:
+                if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
+                    logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
+                    return None
 
     shuffle = config['shuffle']
     device = 'gpu' if torch.cuda.is_available() else 'cpu'
