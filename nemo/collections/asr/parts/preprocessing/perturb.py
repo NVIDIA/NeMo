@@ -362,10 +362,7 @@ class ImpulsePerturbation(Perturbation):
 
     def perturb(self, data):
         impulse = read_one_audiosegment(
-            self._manifest,
-            data.sample_rate,
-            tarred_audio=self._tarred_audio,
-            audio_dataset=self._data_iterator,
+            self._manifest, data.sample_rate, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator,
         )
         if not self._shift_impulse:
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
@@ -478,10 +475,7 @@ class NoisePerturbation(Perturbation):
             ref_mic (int): reference mic index for scaling multi-channel audios
         """
         noise = read_one_audiosegment(
-            self._manifest,
-            data.sample_rate,
-            tarred_audio=self._tarred_audio,
-            audio_dataset=self._data_iterator,
+            self._manifest, data.sample_rate, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator,
         )
         self.perturb_with_input_noise(data, noise, ref_mic=ref_mic)
 
@@ -612,13 +606,13 @@ class NoiseNormPerturbation(Perturbation):
         epsilon=0.01,
     ):
         from nemo.collections.asr.data.audio_to_text import RandomizedChainDataset
-        
+
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
         self._tarred_audio = False
         self._orig_sr = orig_sr
         self._data_iterator = None
-        
+
         random.seed(rng) if rng else None
         self._rng = rng
 
@@ -630,11 +624,20 @@ class NoiseNormPerturbation(Perturbation):
                 audio_tar_filepaths = [audio_tar_filepaths]
             datasets = []
             for tarred_audio_filepath, manifest_filepath in zip(audio_tar_filepaths, manifest_path):
-                dataset = AugmentationDataset(manifest_filepath, tarred_audio_filepath, shuffle_n, rank=global_rank, world_size=world_size, shard_strategy=shard_strategy)
+                dataset = AugmentationDataset(
+                    manifest_filepath,
+                    tarred_audio_filepath,
+                    shuffle_n,
+                    rank=global_rank,
+                    world_size=world_size,
+                    shard_strategy=shard_strategy,
+                )
                 datasets.append(dataset)
             self._audiodataset = RandomizedChainDataset(datasets, rnd_seed=(rng if rng else 123) + global_rank)
             if len(self._audiodataset) == 0:
-                raise RuntimeError("NoiseNormPerturbation detected a zero length RandomizedChainDataset, should never happen")
+                raise RuntimeError(
+                    "NoiseNormPerturbation detected a zero length RandomizedChainDataset, should never happen"
+                )
             self._data_iterator = iter(self._audiodataset)
 
         self._min_snr_db = min_snr_db
@@ -646,7 +649,7 @@ class NoiseNormPerturbation(Perturbation):
     @property
     def orig_sr(self):
         return self._orig_sr
-    
+
     def read_one_audiosegment(self, target_sr):
         if self._tarred_audio:
             if self._data_iterator is None:
@@ -656,10 +659,10 @@ class NoiseNormPerturbation(Perturbation):
             except StopIteration:
                 self._data_iterator = iter(self._audiodataset)
                 audio_file, file_id, manifest_entry = next(self._data_iterator)
-    
+
             offset = 0 if manifest_entry.offset is None else manifest_entry.offset
             duration = 0 if manifest_entry.duration is None else manifest_entry.duration
-    
+
         else:
             audio_record = random.sample(self._manifest.data, 1)[0]
             audio_file = audio_record.audio_file
@@ -678,28 +681,28 @@ class NoiseNormPerturbation(Perturbation):
         noise = self.read_one_audiosegment(data.sample_rate)
         while noise.duration < 1:
             noise = self.read_one_audiosegment(data.sample_rate)
-        
+
         self.perturb_with_input_noise(data, noise, ref_mic=ref_mic, norm_to_db=self._norm_to_db)
-    
+
     def snr_mixer(self, clean, noise, snr, norm_to_db=-25.0):
-        rmsclean = (clean**2).mean(axis=0)**0.5
+        rmsclean = (clean ** 2).mean(axis=0) ** 0.5
         rmsclean = np.where(np.isclose(rmsclean, 0), self._epsilon, rmsclean)
         scalarclean = 10 ** (norm_to_db / 20) / rmsclean
         clean = clean * scalarclean
-        rmsclean = (clean**2).mean(axis=0)**0.5
-    
-        rmsnoise = (noise**2).mean(axis=0)**0.5
+        rmsclean = (clean ** 2).mean(axis=0) ** 0.5
+
+        rmsnoise = (noise ** 2).mean(axis=0) ** 0.5
         rmsnoise = np.where(np.isclose(rmsnoise, 0), self._epsilon, rmsnoise)
         scalarnoise = 10 ** (norm_to_db / 20) / rmsnoise
         noise = noise * scalarnoise
-        rmsnoise = (noise**2).mean(axis=0)**0.5
+        rmsnoise = (noise ** 2).mean(axis=0) ** 0.5
         rmsnoise = np.where(np.isclose(rmsnoise, 0), self._epsilon, rmsnoise)
-        
+
         # Set the noise level for a given SNR
-        noisescalar = np.sqrt(rmsclean / (10**(snr/20)) / rmsnoise)
+        noisescalar = np.sqrt(rmsclean / (10 ** (snr / 20)) / rmsnoise)
         noisenewlevel = noise * noisescalar
         noisyspeech = clean + noisenewlevel
-        
+
         return clean, noisenewlevel, noisyspeech
 
     def norm_audio_to_db(self, x, norm_to_db):
@@ -707,16 +710,16 @@ class NoiseNormPerturbation(Perturbation):
         rms = np.where(np.isclose(rms, 0), self._epsilon, rms)
         scalar = 10 ** (norm_to_db / 20.0) / rms
         return x * scalar
-    
+
     def concatenate_noise_sample(self, clean, noise, fs, silence_length=0.25):
         while len(noise) < len(clean):
             if noise.ndim > 1:
-                zeros = np.zeros((int(fs*silence_length), noise.shape[-1]))
+                zeros = np.zeros((int(fs * silence_length), noise.shape[-1]))
             else:
-                zeros = np.zeros((int(fs*silence_length),))
+                zeros = np.zeros((int(fs * silence_length),))
             noiseconcat = np.append(noise, zeros, axis=0)
             noise = np.append(noiseconcat, noise, axis=0)
-    
+
         return noise
 
     def perturb_with_input_noise(self, data, noise, data_rms=None, ref_mic=0, norm_to_db=-25.0):
@@ -747,19 +750,19 @@ class NoiseNormPerturbation(Perturbation):
 
         if norm_to_db is None:
             norm_to_db = data_rms
-        
+
         data_norm = self.norm_audio_to_db(data._samples, norm_to_db)
         noise_norm = self.norm_audio_to_db(noise._samples, norm_to_db)
-        
+
         if len(data_norm) == 0:
             return
-        
+
         if len(noise_norm) < len(data_norm):
             noise_norm = self.concatenate_noise_sample(data_norm, noise_norm, data.sample_rate)
-        noise_norm = noise_norm[0:len(data_norm)]
-        
+        noise_norm = noise_norm[0 : len(data_norm)]
+
         _, _, noisy_snr = self.snr_mixer(clean=data_norm, noise=noise_norm, snr=snr_db, norm_to_db=norm_to_db)
-        
+
         data._samples = noisy_snr
 
 
@@ -1212,12 +1215,22 @@ class AugmentationDataset(IterableDataset):
         See the WebDataset documentation for more information about accepted data and input formats.
     """
 
-    def __init__(self, manifest_path: str, tar_filepaths: Union[str, List[str]], shuffle_n: int = 128, rank: int = 0, world_size: int = 1, shard_strategy: str = "replicate"):
+    def __init__(
+        self,
+        manifest_path: str,
+        tar_filepaths: Union[str, List[str]],
+        shuffle_n: int = 128,
+        rank: int = 0,
+        world_size: int = 1,
+        shard_strategy: str = "replicate",
+    ):
         from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
-        
+
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
 
-        tar_filepaths = expand_audio_filepaths(tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank)
+        tar_filepaths = expand_audio_filepaths(
+            tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
+        )
 
         if not HAVE_OMEGACONG_WEBDATASET:
             raise LightningNotInstalledException(self)
@@ -1228,11 +1241,15 @@ class AugmentationDataset(IterableDataset):
         else:
             logging.info("WebDataset will not shuffle files within the tar files.")
 
-        self.audio_dataset = self.audio_dataset.rename(audio='wav;ogg;flac', key='__key__').to_tuple('audio', 'key').pipe(self._loop_offsets)
+        self.audio_dataset = (
+            self.audio_dataset.rename(audio='wav;ogg;flac', key='__key__')
+            .to_tuple('audio', 'key')
+            .pipe(self._loop_offsets)
+        )
 
     def __len__(self):
         return len(self._manifest)
-    
+
     def _loop_offsets(self, iterator):
         """This function is used to iterate through utterances with different offsets for each file.
         """
@@ -1263,17 +1280,17 @@ class AugmentationDataset(IterableDataset):
                 return self.current_bytes, self.current_fn, self.offset_id
 
         return TarredAudioLoopOffsets(self._manifest)
-    
+
     def __iter__(self):
         audio_iter = iter(self.audio_dataset)
-        
+
         while True:
             try:
                 audio_bytes, audio_filename, offset_id = next(audio_iter)
                 file_id, _ = os.path.splitext(os.path.basename(audio_filename))
                 manifest_idx = self._manifest.mapping[file_id][offset_id]
                 manifest_entry = self._manifest[manifest_idx]
-        
+
                 # Convert audio bytes to IO stream for processing (for SoundFile to read)
                 audio_file = io.BytesIO(audio_bytes)
                 yield audio_file, file_id, manifest_entry
