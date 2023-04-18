@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Union
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_audio_filepaths
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
@@ -1168,7 +1168,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             self.labels = []
             self.num_classes = 1
 
-        audio_tar_filepaths = expand_audio_filepaths(
+        audio_tar_filepaths = expand_sharded_filepaths(
             audio_tar_filepaths=audio_tar_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
