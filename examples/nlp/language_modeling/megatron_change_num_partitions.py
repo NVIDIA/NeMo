@@ -193,7 +193,6 @@ def compute_tp_merge(idx, name, param, partitions_pp, model_cfg):
     """
     swiglu_activation = 'swiglu' in str(model_cfg.get('activation', '')).lower()
 
-    print(name, param.shape, partitions_pp[0][idx].shape)
     # Logic from original TP rank change
     if param.shape == partitions_pp[0][idx].shape:
         concated = partitions_pp[0][idx].data
