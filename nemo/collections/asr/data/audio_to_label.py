@@ -737,9 +737,6 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
         is_regression_task (bool): Whether it is a regression task. Defualts to False.
     """
 
-    # self.labels = labels if labels else self.collection.uniq_labels
-    # self.num_commands = len(self.labels)
-
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=0)
 
@@ -856,7 +853,7 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         return _fixed_seq_collate_fn(self, batch)
 
     def sliced_seq_collate_fn(self, batch):
-        return _sliced_seq_collate_fn(self, batch)
+        raise NotImplementedError
 
     def vad_frame_seq_collate_fn(self, batch):
         return _vad_frame_seq_collate_fn(self, batch)
@@ -1169,7 +1166,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             self.num_classes = 1
 
         audio_tar_filepaths = expand_sharded_filepaths(
-            audio_tar_filepaths=audio_tar_filepaths,
+            sharded_filepaths=audio_tar_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
             global_rank=global_rank,
