@@ -129,7 +129,7 @@ def compute_tp_splits(
     # alias the global index to idx
     idx = global_idx
 
-    swiglu_activation = 'swiglu' in model_cfg.get('activation').lower()
+    swiglu_activation = 'swiglu' in str(model_cfg.get('activation', '')).lower()
 
     if param.shape == partitions[0][idx].shape:
         split = [partitions[0][idx].data] * tp_size
@@ -191,7 +191,7 @@ def compute_tp_merge(idx, name, param, partitions_pp, model_cfg):
     Returns:
         The concatenated parameter for TP 1 PP 1.
     """
-    swiglu_activation = 'swiglu' in model_cfg.get('activation').lower()
+    swiglu_activation = 'swiglu' in str(model_cfg.get('activation', '')).lower()
 
     print(name, param.shape, partitions_pp[0][idx].shape)
     # Logic from original TP rank change
