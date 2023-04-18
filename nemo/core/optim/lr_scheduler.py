@@ -656,7 +656,12 @@ def register_scheduler(name: str, scheduler: _LRScheduler, scheduler_params: Sch
 
     AVAILABLE_SCHEDULERS[name] = scheduler
 
+    # Register scheduler params
     sched_name = "{}_params".format(scheduler.__name__)
+    register_scheduler_params(name=sched_name, scheduler_params=scheduler_params)
+
+    # Alias scheduler params
+    sched_name = "{}Params".format(scheduler.__name__)
     register_scheduler_params(name=sched_name, scheduler_params=scheduler_params)
 
 
@@ -799,26 +804,35 @@ def prepare_lr_scheduler(
             return None
 
         # If class path was not provided, perhaps `name` is provided for resolution
-        if 'name' in scheduler_args:
+        if 'name' in scheduler_config:
             # If `auto` is passed as name for resolution of optimizer name,
             # then lookup optimizer name and resolve its parameter config
-            if scheduler_args['name'] == 'auto':
+            if scheduler_config['name'] == 'auto':
                 scheduler_params_name = "{}Params".format(scheduler_name)
             else:
-                scheduler_params_name = scheduler_args['name']
+                scheduler_params_name = scheduler_config['name']
+                if 'Params' not in scheduler_params_name:
+                    scheduler_params_name += 'Params'
 
             # Get override arguments provided in the config yaml file / Dict Config
-            scheduler_params_override = scheduler_args.get('params', {})
+            if 'params' in scheduler_args:
+                scheduler_params_override = scheduler_args.get('params', {})
+            else:
+                scheduler_params_override = copy.deepcopy(scheduler_args)
 
             # If params is itself a dict config object provided explicitly in Dict Config
             # Resolve to dictionary for convenience
             if isinstance(scheduler_params_override, DictConfig):
                 scheduler_params_override = OmegaConf.to_container(scheduler_params_override, resolve=True)
 
+            scheduler_params_override = copy.deepcopy(scheduler_params_override)
+            scheduler_params_override.pop('max_steps', None)  # this will be computed later
+
             # Get and instantiate the Config dataclass for this scheduler
             scheduler_params_cls = get_scheduler_config(scheduler_params_name, **scheduler_params_override)
+
             scheduler_params = scheduler_params_cls()  # instantiate the parameters object
-            scheduler_args = vars(scheduler_params)  # extract just the dictionary from the Config object
+            scheduler_args = dataclasses.asdict(scheduler_params)  # extract just the dictionary from the Config object
 
         else:
             # assume the input dictionary is schedular args (from dataclasses / omegaconf)
@@ -898,7 +912,7 @@ def prepare_lr_scheduler(
     scheduler_args['max_steps'] = max_steps
 
     # Get the scheduler class from the config
-    scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
+    scheduler_cls = get_scheduler(scheduler_name)
 
     # Pop 'max_steps' if it's not required by the scheduler
     if 'max_steps' not in inspect.signature(scheduler_cls).parameters:

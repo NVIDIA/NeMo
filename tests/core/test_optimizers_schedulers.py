@@ -20,6 +20,7 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import torch.optim
+from pydantic import dataclasses
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import config, optim
@@ -274,6 +275,7 @@ class TestOptimizersSchedulers:
         opt_cls = optim.get_optimizer('novograd')
         opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
         sched_cls = optim.lr_scheduler.get_scheduler('TempSched')
+        sched_cfg = optim.lr_scheduler.get_scheduler_config('TempSchedParams')
         sched = sched_cls(opt, max_steps=self.MAX_STEPS)
 
         assert isinstance(sched, TempSched)
@@ -309,6 +311,37 @@ class TestOptimizersSchedulers:
         dict_config = omegaconf.OmegaConf.create(basic_sched_config)
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], optim.lr_scheduler.CosineAnnealing)
+
+    @pytest.mark.unit
+    def test_sched_config_register_override_config(self):
+        class TempLinearSched(torch.optim.lr_scheduler.LinearLR):
+            pass
+
+        @dataclasses.dataclass
+        class TempLinearSchedParams(config.schedulers.SchedulerParams):
+            start_factor: float = 0.1
+            end_factor: float = 0.001
+
+        optim.lr_scheduler.register_scheduler('TempLinearSched', TempLinearSched, TempLinearSchedParams)
+
+        model = TempModel()
+        opt_cls = optim.get_optimizer('novograd')
+        opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+
+        basic_sched_config = {
+            'name': f'TempLinearSched',
+            'end_factor': 0.002,
+            'max_steps': self.MAX_STEPS,
+        }
+        scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, basic_sched_config)
+        assert isinstance(scheduler_setup['scheduler'], torch.optim.lr_scheduler.LinearLR)
+
+        dict_config = omegaconf.OmegaConf.create(basic_sched_config)
+        scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
+        assert isinstance(scheduler_setup['scheduler'], torch.optim.lr_scheduler.LinearLR)
+
+        assert scheduler_setup['scheduler'].start_factor == 0.1
+        assert scheduler_setup['scheduler'].end_factor == 0.002
 
     @pytest.mark.unit
     def test_sched_config_parse_reduce_on_plateau(self):
