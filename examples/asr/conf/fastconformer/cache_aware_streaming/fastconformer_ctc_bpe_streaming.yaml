@@ -1,24 +1,17 @@
-# It contains the default values for training a FastConformer-Hybrid-Transducer-CTC ASR model, large size (~115M) with sub-word encoding.
-# The model would have two decoders: RNNT (Transducer) and CTC
+# It contains the default values for training a cache-aware streaming FastConformer-CTC ASR model, large size (~115M) with sub-word encoding.
 
 # You may find more detail:
 # FastConformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
-# Hybrid ASR: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#hybrid-transducer-ctc
-# FastConformer-CTC's architecture config: NeMo/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml
-# FastConformer-Transducer's architecture config, along with the optimal batch size and precision: NeMo/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml
+# Cache-aware Conformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer
+# FastConformer-CTC's architecture config, along with the optimal batch size and precision: NeMo/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml
 
-name: "FastConformer-Hybrid-Transducer-CTC-BPE"
+name: "FastConformer-CTC-BPE-Streaming"
 
 model:
   sample_rate: 16000
-  compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
   log_prediction: true # enables logging sample predictions in the output during training
+  ctc_reduction: 'mean_batch'
   skip_nan_grad: false
-
-  model_defaults:
-    enc_hidden: ${model.encoder.d_model}
-    pred_hidden: 640
-    joint_hidden: 640
 
   train_ds:
     manifest_filepath: ???
@@ -64,7 +57,7 @@ model:
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     sample_rate: ${model.sample_rate}
-    normalize: "per_feature"
+    normalize: "NA" # No normalization for mel-spectogram makes streaming easier
     window_size: 0.025
     window_stride: 0.01
     window: "hann"
@@ -92,6 +85,7 @@ model:
     subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
     subsampling_factor: 8 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
+    causal_downsampling: true
 
     # Feed forward module's params
     ff_expansion_factor: 4
@@ -99,15 +93,26 @@ model:
     # Multi-headed Attention Module's params
     self_attention_model: rel_pos # rel_pos or abs_pos
     n_heads: 8 # may need to be lower for smaller d_models
+
     # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
-    att_context_size: [-1, -1] # -1 means unlimited context
-    att_context_style: regular # regular or chunked_limited
+    # for att_context_style=regular, the right context is recommended to be a small number around 0 to 3 as multiple-layers may increase the effective right context too large
+    # for att_context_style=chunked_limited, the left context need to be dividable by the right context plus one
+    # for chunked_limited you may calculate the look-ahead or right context by the following formula:
+    # look-ahead(secs) = att_context_size[1]*subsampling_factor*window_stride, example: 13*8*0.01=1.04s
+    att_context_size: [70, 13] # -1 means unlimited context
+    att_context_style: chunked_limited # regular or chunked_limited
+
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     pos_emb_max_len: 5000
 
     # Convolution module's params
     conv_kernel_size: 9
-    conv_norm_type: 'batch_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
+    conv_norm_type: 'layer_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
+
+    # conv_context_size can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
+    # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
+    # Recommend to use causal convolutions as it would increase the effective right context and therefore the look-ahead significantly
+    conv_context_size: causal
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
@@ -121,65 +126,10 @@ model:
     stochastic_depth_start_layer: 1
 
   decoder:
-    _target_: nemo.collections.asr.modules.RNNTDecoder
-    normalization_mode: null # Currently only null is supported for export.
-    random_state_sampling: false # Random state sampling: https://arxiv.org/pdf/1910.11455.pdf
-    blank_as_pad: true # This flag must be set in order to support exporting of RNNT models + efficient inference.
-
-    prednet:
-      pred_hidden: ${model.model_defaults.pred_hidden}
-      pred_rnn_layers: 1
-      t_max: null
-      dropout: 0.2
-
-  joint:
-    _target_: nemo.collections.asr.modules.RNNTJoint
-    log_softmax: null  # 'null' would set it automatically according to CPU/GPU device
-    preserve_memory: false  # dramatically slows down training, but might preserve some memory
-
-    # Fuses the computation of prediction net + joint net + loss + WER calculation
-    # to be run on sub-batches of size `fused_batch_size`.
-    # When this flag is set to true, consider the `batch_size` of *_ds to be just `encoder` batch size.
-    # `fused_batch_size` is the actual batch size of the prediction net, joint net and transducer loss.
-    # Using small values here will preserve a lot of memory during training, but will make training slower as well.
-    # An optimal ratio of fused_batch_size : *_ds.batch_size is 1:1.
-    # However, to preserve memory, this ratio can be 1:8 or even 1:16.
-    # Extreme case of 1:B (i.e. fused_batch_size=1) should be avoided as training speed would be very slow.
-    fuse_loss_wer: true
-    fused_batch_size: 4
-
-    jointnet:
-      joint_hidden: ${model.model_defaults.joint_hidden}
-      activation: "relu"
-      dropout: 0.2
-
-  decoding:
-    strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
-
-    # greedy strategy config
-    greedy:
-      max_symbols: 10
-
-    # beam strategy config
-    beam:
-      beam_size: 2
-      return_best_hypothesis: False
-      score_norm: true
-      tsd_max_sym_exp: 50  # for Time Synchronous Decoding
-      alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
-
-  # The section which would contain the decoder and decoding configs of the auxiliary CTC decoder
-  aux_ctc:
-    ctc_loss_weight: 0.3 # the weight used to combine the CTC loss with the RNNT loss
-    use_cer: false
-    ctc_reduction: 'mean_batch'
-    decoder:
-      _target_: nemo.collections.asr.modules.ConvASRDecoder
-      feat_in: null
-      num_classes: -1
-      vocabulary: []
-    decoding:
-      strategy: "greedy"
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    feat_in: null
+    num_classes: -1
+    vocabulary: []
 
   # config for InterCTC loss: https://arxiv.org/abs/2102.03216
   # specify loss weights and which layers to use for InterCTC
@@ -190,12 +140,9 @@ model:
     loss_weights: []
     apply_at_layers: []
 
-  loss:
-    loss_name: "default"
-
   optim:
     name: adamw
-    lr: 5.0
+    lr: 2.0
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3

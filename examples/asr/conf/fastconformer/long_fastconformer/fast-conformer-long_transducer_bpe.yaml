@@ -1,28 +1,9 @@
 # It contains the default values for training a Fast Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
 # This version uses Longformer-style attention in order to handle longer audio
 
-# You may find more info about FastConformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
-
-# We suggest to use trainer.precision=bf16 for GPUs which support it otherwise trainer.precision=16 is recommended.
-# Using bf16 or 16 would makes it possible to double the batch size and speedup training/inference. If fp16 is not stable and model diverges after some epochs, you may use fp32.
-# Here are the suggested batch size per GPU for each precision and memory sizes:
-
-#  +-----------+------------+------------+
-#  | Precision | GPU Memory | Batch Size |
-#  +===========+============+============+
-#  | 32        |    16GB    |     8      |
-#  |           |    32GB    |     16     |
-#  |           |    80GB    |     32     |
-#  +-----------+------------+------------+
-#  | fp16 or   |    16GB    |     16     |
-#  | bf16      |    32GB    |     32     |
-#  |           |    80GB    |     64     |
-#  +-----------+------------+------------+
-# Note:  They are based on the assumption of max_duration of 20. If you have longer or shorter max_duration, then batch sizes may need to get updated accordingly.
-
-# Default learning parameters in this config are set for global batch size of 2K while you may use lower values.
-# To increase the global batch size with limited number of GPUs, you may use higher accumulate_grad_batches.
-# However accumulate_grad_batches is better to be avoided as long as the global batch size is large enough and training is stable.
+# You may find more detail:
+# FastConformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
+# FastConformer-Transducer's architecture config: NeMo/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml
 
 # Differences from baseline config are in
 # model.encoder.global_tokens

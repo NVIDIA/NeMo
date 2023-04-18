@@ -9,13 +9,13 @@
 #  +-----------+------------+------------+
 #  | Precision | GPU Memory | Batch Size |
 #  +===========+============+============+
-#  | 32        |    16GB    |     8      |
-#  |           |    32GB    |     16     |
-#  |           |    80GB    |     32     |
+#  | 32        |    16GB    |     16     |
+#  |           |    32GB    |     32     |
+#  |           |    80GB    |     128    |
 #  +-----------+------------+------------+
-#  | fp16 or   |    16GB    |     16     |
-#  | bf16      |    32GB    |     32     |
-#  |           |    80GB    |     64     |
+#  | fp16 or   |    16GB    |     32     |
+#  | bf16      |    32GB    |     64     |
+#  |           |    80GB    |     128    |
 #  +-----------+------------+------------+
 # Note:  They are based on the assumption of max_duration of 20. If you have longer or shorter max_duration, then batch sizes may need to get updated accordingly.
 
