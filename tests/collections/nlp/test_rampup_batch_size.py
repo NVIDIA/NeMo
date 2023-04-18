@@ -151,6 +151,7 @@ def rampup_batch_size():
 
     return [4, 4, 100]
 
+
 @pytest.fixture()
 def rampup_batch_size_schedule():
 
@@ -175,10 +176,9 @@ class TestRampupBatchSize:
             current_global_batch_size = get_num_microbatches() * micro_batch_size * num_devices * num_nodes
             consumed_samples += current_global_batch_size
             num_microbatch_calculator.update(consumed_samples=consumed_samples, consistency_check=True)
-            
+
             if current_global_batch_size not in global_batch_size_schedule:
                 global_batch_size_schedule.append(current_global_batch_size)
 
         assert gpt_model.cfg.rampup_batch_size == rampup_batch_size
         assert global_batch_size_schedule == rampup_batch_size_schedule
-
