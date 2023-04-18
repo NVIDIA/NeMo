@@ -734,6 +734,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
+        if len(outputs) == 0:
+            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
