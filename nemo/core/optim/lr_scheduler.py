@@ -912,7 +912,7 @@ def prepare_lr_scheduler(
     scheduler_args['max_steps'] = max_steps
 
     # Get the scheduler class from the config
-    scheduler_cls = get_scheduler(scheduler_name)
+    scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
 
     # Pop 'max_steps' if it's not required by the scheduler
     if 'max_steps' not in inspect.signature(scheduler_cls).parameters:
