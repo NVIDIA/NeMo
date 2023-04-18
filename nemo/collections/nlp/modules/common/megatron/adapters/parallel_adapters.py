@@ -188,6 +188,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
     The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
     token embeddings for p-tuning. It only have two layers.
+    TODO: (@adithyare) Need to add all the functionality from the PromptEncoder class
     """
 
     def __init__(
