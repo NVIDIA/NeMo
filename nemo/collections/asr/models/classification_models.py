@@ -1112,7 +1112,7 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
                 labels_len = labels_len * floor(ratio)
                 if res > 0:
                     labels = torch.cat([labels, labels[:, -res:]], dim=1)
-                    labels_len = labels_len  # ignore additional "res" padded labels
+                    # no need to update `labels_len` since we ignore additional "res" padded labels
             return labels.contiguous(), labels_len.contiguous()
         else:
             return labels, labels_len
