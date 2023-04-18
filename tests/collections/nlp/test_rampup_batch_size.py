@@ -19,8 +19,19 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+
+try:
+    import apex.transformer.pipeline_parallel.utils
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -33,8 +44,8 @@ def model_cfg(test_data_dir):
     model_cfg = {
         'precision': 16,
         'micro_batch_size': 4,
-        'global_batch_size': 8,
-        'rampup_batch_size': [4, 2, 100],
+        'global_batch_size': 16,
+        'rampup_batch_size': [4, 4, 100],
         'tensor_model_parallel_size': 1,
         'pipeline_model_parallel_size': 1,
         'resume_from_checkpoint': None,
@@ -110,8 +121,8 @@ def trainer_cfg():
         'logger': False,
         'enable_checkpointing': False,
         'replace_sampler_ddp': False,
-        'max_epochs': 1000,
-        'max_steps': 100000,
+        'max_epochs': 1,
+        'max_steps': 150,
         'log_every_n_steps': 10,
         'val_check_interval': 100,
         'limit_val_batches': 50,
@@ -125,6 +136,7 @@ def trainer_cfg():
 
 @pytest.fixture()
 def gpt_model(model_cfg, trainer_cfg):
+
     strategy = NLPDDPStrategy()
     trainer = Trainer(strategy=strategy, **trainer_cfg)
     cfg = DictConfig(model_cfg)
@@ -137,11 +149,36 @@ def gpt_model(model_cfg, trainer_cfg):
 @pytest.fixture()
 def rampup_batch_size():
 
-    return [4, 2, 100]
+    return [4, 4, 100]
+
+@pytest.fixture()
+def rampup_batch_size_schedule():
+
+    return [4, 8, 12, 16]
 
 
 @pytest.mark.run_only_on('GPU')
 class TestRampupBatchSize:
     @pytest.mark.unit
-    def test_rampup_bs(self, gpt_model, rampup_batch_size):
+    def test_rampup_bs(self, gpt_model, trainer_cfg, rampup_batch_size, rampup_batch_size_schedule):
+
+        num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        micro_batch_size = gpt_model.cfg.micro_batch_size
+        num_devices = trainer_cfg["devices"]
+        num_nodes = trainer_cfg["num_nodes"]
+        max_steps = trainer_cfg["max_steps"]
+
+        global_batch_size_schedule = []
+        step, consumed_samples = 0, 0
+        while step <= max_steps:
+            step += 1
+            current_global_batch_size = get_num_microbatches() * micro_batch_size * num_devices * num_nodes
+            consumed_samples += current_global_batch_size
+            num_microbatch_calculator.update(consumed_samples=consumed_samples, consistency_check=True)
+            
+            if current_global_batch_size not in global_batch_size_schedule:
+                global_batch_size_schedule.append(current_global_batch_size)
+
         assert gpt_model.cfg.rampup_batch_size == rampup_batch_size
+        assert global_batch_size_schedule == rampup_batch_size_schedule
+
