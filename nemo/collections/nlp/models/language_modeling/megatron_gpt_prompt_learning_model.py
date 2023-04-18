@@ -21,7 +21,6 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
@@ -230,37 +229,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
-
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
-        """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_encoder'. 
-        params:
-            input_ids: the input token ids
-            taskname_ids: the NLP task tag token ids
-        returns:
-            the token embedding for the LM model.
-        """
-        # Replace virtual token ids with padding for forward pass through vocab embeddings
-        discrete_token_ids = input_ids.clone()
-        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
-
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            # taskname_embeddings = self.word_embeddings(taskname_ids)
-            batch_size, _ = discrete_token_ids.size()
-            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
-            num_vt = self.prompt_encoder.total_virtual_tokens
-            assert (
-                discrete_token_ids[:, :num_vt] == self.pad_token_id
-            ).all(), "Some inputs that the virtual embeddings will override non-pad tokens."
-            discrete_token_embeds = discrete_token_embeds[:, num_vt:, :]  # throw away first num_vt representations
-            discrete_token_embeds = torch.cat(
-                [virtual_token_embeds, discrete_token_embeds], dim=1
-            )  # add virtual token embeds on the left
-        else:
-            raise ValueError("invalid VirtualPromptSource.")
-
-        return discrete_token_embeds
 
     def forward(
         self,
