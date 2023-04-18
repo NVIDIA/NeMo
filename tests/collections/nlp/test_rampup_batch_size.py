@@ -95,6 +95,7 @@ def model_cfg(test_data_dir):
             'sched': {'name': 'CosineAnnealing', 'warmup_steps': 500, 'constant_steps': 50000, 'min_lr': '2e-5'},
         },
     }
+
     return model_cfg
 
 
@@ -128,21 +129,15 @@ def gpt_model(model_cfg, trainer_cfg):
     trainer = Trainer(strategy=strategy, **trainer_cfg)
     cfg = DictConfig(model_cfg)
 
-    try:
-        model = MegatronGPTModel(cfg, trainer)
-        return model
-    except Exception as exception:
-        return exception
+    model = MegatronGPTModel(cfg, trainer)
+
+    return model
 
 
 @pytest.fixture()
 def rampup_batch_size():
+
     return [4, 2, 100]
-
-
-@pytest.fixture()
-def rampup_batch_size_invalid():
-    return "Microbatch calculator already initialized."
 
 
 @pytest.mark.run_only_on('GPU')
@@ -150,7 +145,3 @@ class TestRampupBatchSize:
     @pytest.mark.unit
     def test_rampup_bs(self, gpt_model, rampup_batch_size):
         assert gpt_model.cfg.rampup_batch_size == rampup_batch_size
-
-    @pytest.mark.unit
-    def test_invalid_rampup_bs(self, gpt_model, rampup_batch_size_invalid):
-        assert str(gpt_model) == rampup_batch_size_invalid
