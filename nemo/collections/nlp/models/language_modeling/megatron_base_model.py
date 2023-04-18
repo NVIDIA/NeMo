@@ -121,6 +121,7 @@ class MegatronBaseModel(NLPModel):
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             use_fp8=cfg.get('fp8', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -524,6 +525,14 @@ class MegatronBaseModel(NLPModel):
             ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
                 'Make sure the number of model chunks is the same across all pipeline stages.'
             )
+
+        if self.cfg.get('ub_tp_comm_overlap', False):
+            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():

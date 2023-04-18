@@ -164,10 +164,12 @@ class NLPDDPStrategy(DDPStrategy):
             parallel_state.destroy_model_parallel()
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                    tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
+                    virtual_pipeline_model_parallel_size_=app_state.virtual_pipeline_model_parallel_size,
+                    use_fp8_=app_state.use_fp8,
+                    init_mpi_proc_group=app_state.init_mpi_proc_group,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
