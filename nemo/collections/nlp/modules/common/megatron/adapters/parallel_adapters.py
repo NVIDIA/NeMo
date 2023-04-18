@@ -216,12 +216,10 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
         sequence_parallel = False
         gradient_accumulation_fusion = False
-        no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
-        )
-        self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))))
+        # (@adithyare) the persistent=False will not pollute the indices into the state_dict of this module.
+        self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))), persistent=False)
         self.embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
-        self.first = tensor_parallel.ColumnParallelLinear(
+        self.first = ColumnParallelLinear(
             self.embedding_dim,
             self.bottleneck_dim,
             gather_output=False,
@@ -230,10 +228,9 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             use_cpu_initialization=False,
             bias=True,
             sequence_parallel_enabled=sequence_parallel,
-            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
-        self.second = tensor_parallel.RowParallelLinear(
+        self.second = RowParallelLinear(
             self.bottleneck_dim,
             self.output_dim,
             input_is_parallel=True,

@@ -397,50 +397,50 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
-class AdapterNLPSaveRestoreConnector(NLPSaveRestoreConnector):
-    def __init__(self, adapter_nemo_path: Optional[str] = None, adapter_ckpt_path: Optional[str] = None) -> None:
+class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
+    def __init__(self, peft_model_nemo_path: Optional[str] = None, peft_model_ckpt_path: Optional[str] = None) -> None:
         super().__init__()
-        self.adapter_ckpt_name = "model_weights.ckpt"
-        if adapter_ckpt_path:
+        self.peft_model_ckpt_name = "model_weights.ckpt"
+        if peft_model_ckpt_path:
             # First we will try to load a adapter ckpt path
             # this is given priority over loading from nemo path to make resumption of training possible
-            ckpt_name = os.path.basename(adapter_ckpt_path)
+            ckpt_name = os.path.basename(peft_model_ckpt_path)
             if not ckpt_name.strip() == '':
-                self.adapter_ckpt_name = ckpt_name
-            self.adapter_ckpt_dir = os.path.dirname(adapter_ckpt_path)
-            assert os.path.isdir(self.adapter_ckpt_dir)
-            self.adapter_nemo_path = None
-        elif adapter_nemo_path:
+                self.peft_model_ckpt_name = ckpt_name
+            self.peft_model_ckpt_dir = os.path.dirname(peft_model_ckpt_path)
+            assert os.path.isdir(self.peft_model_ckpt_dir)
+            self.peft_model_nemo_path = None
+        elif peft_model_nemo_path:
             # If resumption is not possible we will try to load a adapter nemo path
-            self.adapter_nemo_path = adapter_nemo_path
-            assert os.path.exists(self.adapter_nemo_path)
-            self.adapter_ckpt_dir = None
+            self.peft_model_nemo_path = peft_model_nemo_path
+            assert os.path.exists(self.peft_model_nemo_path)
+            self.peft_model_ckpt_dir = None
         else:
             # We are not resuming training from a nemo file or a ckpt
             # We are training the adapter from randomly initialization
-            self.adapter_nemo_path = None
-            self.adapter_ckpt_dir = None
+            self.peft_model_nemo_path = None
+            self.peft_model_ckpt_dir = None
 
     def _load_state_dict_from_disk(self, model_weights, map_location=None):
-        _base_model_state_dict = super()._load_state_dict_from_disk(
+        base_model_state_dict = super()._load_state_dict_from_disk(
             model_weights, map_location
         )  # loading based model weights
         # We want to load base model's weights from disk .nemo file
         # So we need to untar the .nemo if its still tarred
-        if self.adapter_nemo_path:
+        if self.peft_model_nemo_path:
             with tempfile.TemporaryDirectory() as tmpdir:
-                self._unpack_nemo_file(self.adapter_nemo_path, tmpdir)
-                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.adapter_ckpt_name)
-                _adapter_state_dict = torch.load(model_weights_path, map_location)
-        elif self.adapter_ckpt_dir:
+                self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
+                peft_state_dict = torch.load(model_weights_path, map_location)
+        elif self.peft_model_ckpt_dir:
             model_weights_path = self._inject_model_parallel_rank_for_ckpt(
-                self.adapter_ckpt_dir, self.adapter_ckpt_name
+                self.peft_model_ckpt_dir, self.peft_model_ckpt_name
             )
-            _adapter_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+            peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
         else:
-            _adapter_state_dict = {}
-        _base_model_state_dict.update(_adapter_state_dict)
-        return _base_model_state_dict
+            peft_state_dict = {}
+        base_model_state_dict.update(peft_state_dict)
+        return base_model_state_dict
 
     def restore_from(
         self,
@@ -485,10 +485,10 @@ class AdapterNLPSaveRestoreConnector(NLPSaveRestoreConnector):
         state_dict = self.modify_state_dict(conf, state_dict)
 
         if (
-            self.adapter_nemo_path is None and self.adapter_ckpt_dir is None
+            self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
         ):  # we have this check only for training adapters from scratch
-            adapter_state_dict = instance.get_adapter_state_dict()
-            state_dict.update(adapter_state_dict)
+            peft_state_dict = instance.get_adapter_state_dict()
+            state_dict.update(peft_state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
