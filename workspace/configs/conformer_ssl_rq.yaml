@@ -25,14 +25,14 @@ name: "Conformer-SSL-RQ"
 model:
   sample_rate: 16000
   num_classes: 8192
-  num_books: 3
+  num_books: 1
   code_dim: 16
   squeeze_single: false
   
   train_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
-    batch_size: 4 # you may increase batch_size if your memory allows
+    batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 8
     pin_memory: false
@@ -51,7 +51,7 @@ model:
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
-    batch_size: 4 # you may increase batch_size if your memory allows
+    batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: false
     num_workers: 8
     pin_memory: true
@@ -194,8 +194,8 @@ exp_manager:
     save_top_k: 5
 
   # you need to set these two to True to continue the training
-  resume_if_exists: false
-  resume_ignore_no_checkpoint: false
+  resume_if_exists: true
+  resume_ignore_no_checkpoint: true
 
   # You may use this section to create a W&B logger
   create_wandb_logger: false

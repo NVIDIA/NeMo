@@ -134,7 +134,14 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
 
     def validation_step(self, batch, batch_idx):
         input_signal, input_signal_length, _, _ = batch
-        log_probs, encoded_len, masks, tokens = self.forward(input_signal, input_signal_length)
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, masks, tokens = self.forward(
+                processed_signal=input_signal, processed_signal_length=input_signal_length
+            )
+        else:
+            log_probs, encoded_len, masks, tokens = self.forward(
+                input_signal=input_signal, input_signal_length=input_signal_length
+            )
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
 
