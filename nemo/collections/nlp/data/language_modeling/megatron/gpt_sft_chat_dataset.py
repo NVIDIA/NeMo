@@ -30,31 +30,35 @@ IGNORE_INDEX = -100
 CONVERSATION = {
     "system": "A chat between a curious human and an artificial intelligence assistant. "
            "The assistant gives helpful, detailed, and polite answers to the human's questions.",
-    "human": "Human",
-    "gpt": "Assistant",
+    "human": "<extra_id_1>",
+    "gpt": "<extra_id_2>",
 }
 
 
 def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids):
     cur_idx = header_len
     tgt_len = target.shape[0]
-    for tokenized_len, speaker, s_id in zip(tokenized_lens, speakers, s_ids):
+    for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
             # Check whether the mask is applied to the correct position
-            if not torch.equal(target[cur_idx + 2:cur_idx + tokenized_len],
+            if not torch.equal(target[cur_idx + 1:cur_idx + tokenized_len],
                                s_id[2:]):
                 logging.warning("a sentence mismatches the corresponding piece "
                                 "in the conversation")
-        if speaker == "human":
+        if i == 0 and speaker == "human":
+            # mask the first human reponse 
             target[cur_idx:cur_idx + tokenized_len] = IGNORE_INDEX
+        elif speaker == "human":
+            # leave the first human tag unmasked
+            target[cur_idx + 1:cur_idx  + tokenized_len] = IGNORE_INDEX
         cur_idx += tokenized_len
 
 
 def _add_speaker_and_signal(header, source, get_conversation=True):
     """Add speaker and start/end signal on each round."""
-    BEGIN_SIGNAL = "### "
+    BEGIN_SIGNAL = ""
     END_SIGNAL = "\n"
     conversation = header
     unknown_role = "unknown"  # use default unknown role
@@ -62,17 +66,19 @@ def _add_speaker_and_signal(header, source, get_conversation=True):
         "human": CONVERSATION['human'],  # human role
         "gpt": CONVERSATION['gpt'],  # gpt role
     }
-    for sentence in source:
+    for i, sentence in enumerate(source):
         sentence_from = sentence["from"].lower()
         sentence["value"] = (
             BEGIN_SIGNAL
             + roles.get(sentence_from, unknown_role)
-            + ": "
             + sentence["value"]
             + END_SIGNAL
         )
         if get_conversation:
             conversation += sentence["value"]
+            # the last turn is from the gpt, add human prefix as the end of the conversation
+            if sentence_from == 'gpt' and i == len(source) - 1:
+                conversation += CONVERSATION['human']
     return conversation
 
 
@@ -100,7 +106,8 @@ def preprocess(
     for s in source:
         tokenized_sentence = tokenizer.text_to_ids(s["value"])
         ids.append(torch.tensor(tokenized_sentence))
-        tokenized_lens.append(len(tokenized_sentence))
+        # remove one token as it adds an empty token in front
+        tokenized_lens.append(len(tokenized_sentence) - 1)
     speakers = [sentence["from"] for sentence in source]
     target = torch.LongTensor(target)
     # not going to train on the header
