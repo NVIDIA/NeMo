@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'pytorch_23.02:apex_eec72500b073581edf1bc9183f0337338478ba9b_te_f06e2d85619376b9db0ca86847df2f1a5cb71388'
+          image 'pytorch_23.04:tp-overlap'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
