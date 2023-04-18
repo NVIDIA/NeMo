@@ -856,6 +856,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         else:
             collate_fn = dataset.inference_collate_fn
 
+        if num_workers == 0:
+            persistent_workers = False
+        else:
+            persistent_workers = True
         dataloader = torch.utils.data.DataLoader(
             dataset,
             collate_fn=collate_fn,
@@ -864,7 +868,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            persistent_workers=True,  # (@adithyare and @eharper) We need this to make spawn=True to work.
+            persistent_workers=persistent_workers,  # (@adithyare and @eharper) We need this to make spawn=True to work.
         )
 
         return dataset, dataloader
