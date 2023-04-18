@@ -239,7 +239,6 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
 
 
 class RussianCharsTokenizer(BaseCharsTokenizer):
-
     def __init__(
         self,
         punct=True,
