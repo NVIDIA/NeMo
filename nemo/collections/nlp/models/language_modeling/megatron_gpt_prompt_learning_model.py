@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import os
-import re
 from functools import partial
 from typing import Any, List, Optional, Union
 
@@ -21,45 +21,47 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import (
-    PromptEncoder,
-    PromptEncoderType,
-    VirtualPromptPlaceholderToken,
-    VirtualPromptSource,
-    VirtualPromptStyle,
+from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_iterator_k_split,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_micro_batch_size
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.enums import ModelType
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 __all__ = ['MegatronGPTPromptLearningModel']
@@ -146,6 +148,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )  # TODO: for backward compatibility (@adithyare) in general these tasks lists should be depricated
 
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
+        self.model_type = ModelType.encoder_or_decoder
 
         if self.pipeline_parallel:
             assert (
@@ -193,6 +196,36 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
         self.prompt_encoder = None
+
+        # default inference related params -> for evaluation metrics
+        if hasattr(self.cfg, 'inference') and self.cfg.get("report_validation_metric", False):
+            self.length_params: LengthParam = {
+                "max_length": self.cfg.inference.get('tokens_to_generate', 30),
+                "min_length": self.cfg.inference.get('min_tokens_to_generate', 0),
+            }
+
+            self.sampling_params: SamplingParam = {
+                "use_greedy": self.cfg.inference.get('greedy', False),
+                "temperature": self.cfg.inference.get('temperature', 1.0),
+                "top_k": self.cfg.inference.get('tok_k', 0),
+                "top_p": self.cfg.inference.get('top_p', 0.9),
+                "repetition_penalty": self.cfg.inference.get('repetition_penalty', 1.2),
+                "add_BOS": True,
+                "all_probs": False,
+                "compute_logprob": False,
+            }
+        elif self.cfg.get("report_validation_metric", False) and not hasattr(self.cfg, 'inference'):
+            raise ValueError("Must provide inference parameters for reporting validation metric!")
+
+        # define validation metric
+        if self.cfg.get('report_validation_metric', False):
+            validation_metric = self.cfg.get('validation_metric', 'accuracy')
+            if validation_metric == 'accuracy':
+                self.validation_metric = AccuracyScore()
+            elif validation_metric == 'bleu':
+                self.validation_metric = BLEUScore()
+            elif validation_metric == 'rouge':
+                self.validation_metric = ROUGEScores()
 
     def first_stage_of_pipeline(self):
         return self.frozen_model.model.pre_process
@@ -253,38 +286,30 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
 
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+            Dataloader produces a global batch which is turned into an iterator of microbatches.
+            The iterator of microbatches is then piped through the pipeline using Core's fwd/bwd functions.
         """
         # Get seq length of batch
+        batch = next(dataloader_iter)
         _, seq_length = batch[0].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
-        if self.pipeline_parallel:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
-                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
-            )
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
-            )
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=data_iter,
+            model=[self],
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+        )
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
@@ -298,10 +323,11 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return loss_mean
 
-    def training_step(self, batch, batch_idx):
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+    def training_step(self, dataloader_iter, batch_idx):
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        batch = next(dataloader_iter)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
         self.allreduce_gradients()
 
         ## logging
@@ -312,17 +338,17 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
         return loss_mean
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            We want this to do nothing since we run backward in the fwd/bwd functions from megatron-core.
             No need to call it here.
         """
         return
@@ -333,37 +359,52 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         """
         return
 
-    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
-        # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
-            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx):
+        batch = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
-        return loss_mean
+        if self.cfg.get('report_validation_metric', False):
+            preds_text, labels_text = [], []
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            input_lenghts = torch.argmax(loss_mask, 1, keepdim=True)
 
-    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=gbs,
-            micro_batch_size=mbs,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+            res = megatron_gpt_generate(
+                self.cuda(),
+                (
+                    torch.cat(
+                        (
+                            input_ids,
+                            torch.zeros(
+                                input_ids.shape[0], self.length_params['max_length'], dtype=input_ids.dtype
+                            ).to(self.device),
+                        ),
+                        axis=1,
+                    ),
+                    input_lenghts.squeeze(1),
+                ),
+                self.tokenizer,
+                self.length_params,
+                self.sampling_params,
+                task_ids=taskname_ids,
+            )
+
+            for pred, label in zip(res['token_ids'], labels):
+                # ids_to_text ignores special tokens by default
+                pred = self.tokenizer.ids_to_text(pred)
+                label = self.tokenizer.ids_to_text(label)
+                preds_text.append(pred)
+                labels_text.append(label)
+
+            return {
+                'loss': loss_mean,
+                'preds': preds_text,
+                'labels': labels_text,
+            }
+        return {'loss': loss_mean}
 
     def on_train_epoch_start(self) -> None:
         gbs = self.cfg.global_batch_size
@@ -378,24 +419,61 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return super().on_validation_epoch_start()
 
     def validation_epoch_end(self, outputs):
+        if len(outputs) == 0:
+            return
+
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(outputs).mean()
+            averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         logging.info(f'val_loss: {averaged_loss}')
+
+        if self.cfg.get("report_validation_metric", False):
+            gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+
+            all_preds = list(itertools.chain(*[item['preds'] for item in outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+
+            assert len(all_preds) == len(all_labels)
+
+            # Gather inputs, preds, labels from all workers
+            torch.distributed.all_gather_object(
+                gather_results,
+                [(pred, label) for (pred, label) in zip(all_preds, all_labels)],
+                group=parallel_state.get_data_parallel_group(),
+            )
+
+            # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+            if parallel_state.get_data_parallel_rank() == 0:
+
+                gather_results_dedup = list(set(itertools.chain(*gather_results)))
+
+                val_metric_dict = self.validation_metric.get_score(
+                    [i[1] for i in gather_results_dedup], [i[0] for i in gather_results_dedup],
+                )
+
+                for metric, val in val_metric_dict.items():
+                    logging.info(f'Validation {metric}: {val}')
+                val_metric = list(val_metric_dict.items())[0][1]
+                metric_name = list(val_metric_dict.items())[0][0]
+            else:
+                val_metric = torch.tensor(0.0).cuda()
+                metric_name = ''
+
+            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter, batch_idx):
+        return self.validation_step(dataloader_iter, batch_idx)
 
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
@@ -405,7 +483,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.data.get('train_ds', None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
             if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
-                max_seq_length = self.cfg.data.max_seq_length
+                max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
@@ -426,7 +504,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.data.get('validation_ds', None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
             if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
-                max_seq_length = self.cfg.data.max_seq_length
+                max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
             self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.validation_ds,
                 batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
@@ -542,7 +620,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.frozen_model.model.set_input_tensor(input_tensor)
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
             input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
             output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
