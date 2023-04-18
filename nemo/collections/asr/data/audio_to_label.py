@@ -1165,7 +1165,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             self.labels = []
             self.num_classes = 1
 
-        audio_tar_filepaths = expand_audio_filepaths(
+        audio_tar_filepaths = expand_sharded_filepaths(
             audio_tar_filepaths=audio_tar_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
