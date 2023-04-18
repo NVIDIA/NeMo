@@ -43,14 +43,14 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         super().__init__(cfg, trainer)
         self.setup_complete = False
         self.base_keys = self.get_all_keys()
-        self.init_adapters()
+        self.init_peft_modules()
         self.adapter_keys = self.get_all_keys() - self.base_keys
 
     def first_stage_of_pipeline(self):
         return self.model.pre_process
 
     @abc.abstractmethod
-    def init_adapters(self,):
+    def init_peft_modules(self,):
         return
 
     def setup(self, stage=None):
@@ -64,20 +64,20 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
-    def get_adapter_state_dict(self,):
+    def get_peft_state_dict(self,):
         """ 
         Gets the keys associated with the adapters only.
         """
         state_dict = self.model.state_dict(prefix="model.")
-        adapter_state_dict = {}
+        peft_state_dict = {}
         for k in self.adapter_keys:
-            adapter_state_dict[k] = state_dict[k]
-        return adapter_state_dict
+            peft_state_dict[k] = state_dict[k]
+        return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.setup_complete:
             # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
-            return self.get_adapter_state_dict()
+            return self.get_peft_state_dict()
         else:
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
@@ -160,7 +160,7 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
 
         super().__init__(cfg, trainer)
 
-    def init_adapters(self):
+    def init_peft_modules(self):
         """ 
         Randomly initialize the adapter params and add them to the appropriate modules.
         """
@@ -210,7 +210,7 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
                 raise ValueError(f"Adapter Key {k} is unknown.")
         super().__init__(cfg, trainer)
 
-    def init_adapters(self):
+    def init_peft_modules(self):
         logging.info(f"Before adding adapters:\n{self.summarize()}")
 
         for _, module in self.named_modules():
@@ -242,7 +242,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         super().__init__(cfg, trainer)
 
-    def init_adapters(self,):
+    def init_peft_modules(self,):
         if not self.first_stage_of_pipeline():
             # There are no params to add if we are not in the first state of the pipeline
             return True
@@ -264,7 +264,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.setup_complete:
             if self.first_stage_of_pipeline():
-                return self.get_adapter_state_dict()
+                return self.get_peft_state_dict()
             else:
                 # if we are not in the first state of pipeline after setup is done
                 # there should be no params in the state_dict

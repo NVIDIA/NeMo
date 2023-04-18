@@ -487,7 +487,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if (
             self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
         ):  # we have this check only for training adapters from scratch
-            peft_state_dict = instance.get_adapter_state_dict()
+            peft_state_dict = instance.get_peft_state_dict()
             state_dict.update(peft_state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
