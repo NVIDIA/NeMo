@@ -24,14 +24,14 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Opti
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.fetching import DataFetcher
+from pytorch_lightning.loops.fetchers import _DataFetcher
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -115,7 +115,7 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self._model = LightningDistributedModule(self.model)
+            self._model = _LightningModuleWrapperBase(self.model)
         else:
             app_state = AppState()
 
@@ -130,7 +130,7 @@ class NLPDDPStrategy(DDPStrategy):
                 self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
-                    LightningDistributedModule(self.model),
+                    _LightningModuleWrapperBase(self.model),
                     process_group=parallel_state.get_data_parallel_group(),
                     **self._ddp_kwargs,
                 )
@@ -503,7 +503,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         return instance
 
 
-class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
+class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
         We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
@@ -706,7 +706,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
             self._hysteresis_tracker = 1
 
 
-class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
+class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
     """
     Plugin for Half (FP16 and BF16) precision training.
     This plugin assumes the use of the optimizer with master parameters (fp32).
@@ -780,7 +780,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             pass
 
 
-class GlobalBatchDataFetcher(DataFetcher):
+class GlobalBatchDataFetcher(_DataFetcher):
     """ Overrides PTL DataFetcher. Used to fetch global batches."""
 
     def __init__(self, prefetch_batches: int = 0, store_on_device: bool = False) -> None:

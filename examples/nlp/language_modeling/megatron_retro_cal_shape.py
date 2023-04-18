@@ -15,7 +15,7 @@
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.megatron.mup.shape import make_base_shapes
@@ -48,7 +48,7 @@ def main(cfg) -> None:
         if megatron_amp_o2:
             plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
         else:
-            plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugins.append(MixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())

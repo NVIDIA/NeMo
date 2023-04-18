@@ -21,7 +21,7 @@ import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -356,7 +356,7 @@ class MegatronBaseModel(NLPModel):
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
         if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+            self.trainer.precision_plugin, MixedPrecisionPlugin
         ):
             precision_plugin = self.trainer.precision_plugin
 
