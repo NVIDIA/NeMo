@@ -492,7 +492,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         params = []
         for param_group in self.optimizer.param_groups:
             for param in param_group['params']:
-                if param.requires_grad: # (@adithyare) added to enable pp>1 training for adapters
+                if param.requires_grad:  # (@adithyare) added to enable pp>1 training for adapters
                     params.append(param)
         return params
 

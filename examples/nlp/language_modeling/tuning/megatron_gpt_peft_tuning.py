@@ -30,11 +30,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    PEFTSaveRestoreConnector,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
+    PEFTSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
@@ -103,6 +103,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
     return gpt_cfg
 
+
 def _get_peft_scheme(cfg):
     if cfg.peft.peft_scheme == "adapter":
         peft_cls = MegatronGPTAdapterModel
@@ -113,7 +114,8 @@ def _get_peft_scheme(cfg):
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls
-    
+
+
 def load_from_checkpoint_dir(cls, cfg, trainer, modify_confg_fn):
     app_state = AppState()
     if cfg.model.tensor_model_parallel_size > 1 or cfg.model.pipeline_model_parallel_size > 1:
@@ -218,7 +220,7 @@ def main(cfg) -> None:
         )
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-        peft_cls = _get_peft_scheme(cfg.model) 
+        peft_cls = _get_peft_scheme(cfg.model)
         model = peft_cls.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,

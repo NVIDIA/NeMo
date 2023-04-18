@@ -101,7 +101,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
     # Calculate norm.
     if norm_type == inf:
-        if grads_for_norm: # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+        if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
             total_norm = max(grad.abs().max() for grad in grads_for_norm)
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
         # Take max across all model-parallel GPUs.
@@ -116,7 +116,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
-            if grads_for_norm: # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+            if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
                 grad_norm, _ = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm, dummy_overflow_buf, [grads_for_norm], False  # no per-parameter norm
                 )
@@ -132,7 +132,9 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
                 total_norm += grad_norm ** norm_type
 
         # Sum across all model-parallel GPUs.
-        total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
+        total_norm_cuda = torch.cuda.FloatTensor(
+            [float(total_norm)]
+        )  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
         torch.distributed.all_reduce(
             total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
         )
@@ -141,7 +143,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
     # Scale.
     clip_coeff = max_norm / (total_norm + 1.0e-6)
-    if clip_coeff < 1.0 and grads: # (@adithyare) grads can be empty for adapter training.
+    if clip_coeff < 1.0 and grads:  # (@adithyare) grads can be empty for adapter training.
         dummy_overflow_buf = torch.cuda.IntTensor([0])
         multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf, [grads, grads], clip_coeff)
 
