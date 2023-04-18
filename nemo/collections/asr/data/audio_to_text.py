@@ -1358,5 +1358,9 @@ class RandomizedChainDataset(ChainDataset):
         for dataset_idx in shuffled_order:
             d = self.datasets[dataset_idx]
             assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
-            for x in d:
+            for idx, x in enumerate(d):
                 yield x
+                # in case d is an infinite dataset, we want to break the loop
+                # so that the other datasets get a chance to yield too
+                if idx >= len(d) - 1:
+                    break
