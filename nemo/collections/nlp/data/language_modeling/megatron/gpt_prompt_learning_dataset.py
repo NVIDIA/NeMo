@@ -75,6 +75,7 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.examples = []
+
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
 
@@ -133,13 +134,16 @@ class GPTPromptLearningDataset(Dataset):
             prompt_template = self.task_templates[taskname]["prompt_template"]
             prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
             total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+            virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
             truncation_field = self.task_templates[taskname]['truncate_field']
             answer_only_loss = self.task_templates[taskname]["answer_only_loss"]
             answer_field = self.task_templates[taskname]["answer_field"]
+
             input_example = prompt_template
 
             self._input_sanity_checks(
                 total_virtual_tokens,
+                virtual_token_splits,
                 prompt_template,
                 prompt_template_fields,
                 truncation_field,
@@ -149,10 +153,8 @@ class GPTPromptLearningDataset(Dataset):
             )
 
             # Format the input example according to the template
-            input_example = input_example.replace(
-                "<|VIRTUAL_PROMPT_0|>", ""
-            ).strip()  # Ignores virtual prompt positions in template...
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
+            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
             input_ids = self.tokenizer.text_to_ids(input_example)
 
             # Add BOS/EOS if desired, adds EOS by default
@@ -160,14 +162,17 @@ class GPTPromptLearningDataset(Dataset):
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
-            pad = [
-                self.pad_token_id
-            ] * total_virtual_tokens  # Pad tokens are placed and will be replaced by virtual embeddings.
-            input_ids = pad + input_ids
+
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
                 input_ids = self._truncate_input(
-                    truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields,
+                    truncation_field,
+                    input_ids,
+                    taskname,
+                    doc,
+                    prompt_template,
+                    prompt_template_fields,
+                    virtual_token_splits,
                 )
 
             # Skip example if the final length doesn't fit length requirements even after truncation
@@ -193,6 +198,7 @@ class GPTPromptLearningDataset(Dataset):
     def _input_sanity_checks(
         self,
         total_virtual_tokens,
+        virtual_token_splits,
         prompt_template,
         prompt_template_fields,
         truncation_field,
@@ -204,6 +210,16 @@ class GPTPromptLearningDataset(Dataset):
         assert (
             total_virtual_tokens < self.max_seq_length
         ), "virtual prompt tokens should not exceed max sequence length"
+
+        # Make sure virtual token splits add up to the total number of virtual tokens
+        assert (
+            sum(virtual_token_splits) == total_virtual_tokens
+        ), "Sum of prompt token split values must equal total number of prompt tokens"
+
+        # Make sure number of virtual prompt locations match the number of virtual prompt splits
+        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
+            virtual_token_splits
+        ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
         # Check if input example has fields not present in template
         keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
@@ -238,8 +254,21 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_example.strip(" ")
 
+    def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
+        """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
+        total_inserted_tokens = 0
+
+        for idx in range(len(virtual_token_splits)):
+            split_start = total_inserted_tokens
+            split_end = total_inserted_tokens + virtual_token_splits[idx]
+            pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
+            input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
+            total_inserted_tokens = split_end
+
+        return input_example
+
     def _truncate_input(
-        self, truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields,
+        self, truncation_field, input_ids, taskname, doc, prompt_template, prompt_template_fields, virtual_token_splits
     ):
         """ Try to truncate input text to fit into the max sequence length """
         logging.info(
@@ -260,6 +289,7 @@ class GPTPromptLearningDataset(Dataset):
             # Re-insert the truncated text string into the text prompt
             input_example = prompt_template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
+            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # Re-tokenize the whole prompt
             input_ids = self.tokenizer.text_to_ids(input_example)
