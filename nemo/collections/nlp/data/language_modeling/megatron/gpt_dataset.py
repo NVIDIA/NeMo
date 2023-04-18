@@ -32,13 +32,13 @@ from nemo.core import Dataset
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length, seed, skip_warmup, tokenizer, name):
@@ -303,9 +303,9 @@ class GPTDataset(Dataset):
         seed,
         drop_last=True,
     ):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         super().__init__()
@@ -432,9 +432,9 @@ class MockGPTDataset(Dataset):
     def __init__(
         self, cfg, tokenizer, name, num_samples, seq_length, seed,
     ):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "Megatron core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         super().__init__()
@@ -443,6 +443,11 @@ class MockGPTDataset(Dataset):
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
         self.seed = seed
+
+        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+        self.attention_mask = self.attention_mask < 0.5
+        self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+        self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self):
         return self.length
@@ -457,18 +462,12 @@ class MockGPTDataset(Dataset):
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
-        with torch.no_grad():
-            attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-            attention_mask = attention_mask < 0.5
-            loss_mask = torch.ones(self.seq_length, dtype=torch.float)
-            position_ids = torch.arange(self.seq_length, dtype=torch.int64)
-
         return {
             'tokens': tokens,
             'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
+            'attention_mask': self.attention_mask,
+            'loss_mask': self.loss_mask,
+            'position_ids': self.position_ids,
         }
 
 
