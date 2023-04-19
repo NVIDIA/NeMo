@@ -256,8 +256,7 @@ class RussianCharsTokenizer(BaseCharsTokenizer):
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
-             Currently, it only applies lower() function.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer. By default, it only applies lower() function.
         """
 
         ru_ipa = "əɪɐɨaʊioueʉæɵɛ" + "vrmtpsnʂkflzɫbdjɕxɡʐ" + "аеёиоуыэюя" + "бвгджзйклмнпрстфхцчшщъь"
