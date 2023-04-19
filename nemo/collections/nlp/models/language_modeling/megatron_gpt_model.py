@@ -675,6 +675,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.eval()
+
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward passes for an entire global batch
@@ -692,6 +696,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
+
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.train()
 
         # only the last stage of the pipeline returns losses
         if losses_reduced_per_micro_batch:
