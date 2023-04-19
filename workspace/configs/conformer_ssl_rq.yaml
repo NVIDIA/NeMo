@@ -76,16 +76,19 @@ model:
   # spec_augment is not actually used, just to avoid init error
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    freq_masks: 2 # set to zero to disable it
+    freq_masks: 0 # set to zero to disable it
     # you may use lower time_masks for smaller models to have a faster convergence
     time_masks: 0 # set to zero to disable it
     freq_width: 27
     time_width: 0.05
 
+  mask_embedding:
+    freeze: true
+
   masking:
     _target_: nemo.collections.asr.modules.RandomBlockMaskingAugmentation
     block_size: 40
-    mask_prob: 0.3
+    mask_prob: 0.2
 
   quantizer:
     _target_: nemo.collections.asr.modules.RandomProjectionVectorQuantizer
@@ -140,7 +143,7 @@ model:
 
   loss:
     _target_: nemo.collections.asr.losses.MultiMLMLoss
-    combine_time_steps: 4  # conformer sub-sampling ratio
+    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio
     mask_threshold: 0.8
     num_decoders: ${model.num_books}
     squeeze_single: ${model.squeeze_single}
@@ -170,7 +173,7 @@ trainer:
   accelerator: auto
   strategy: ddp
   accumulate_grad_batches: 1
-  gradient_clip_val: 1.0
+  gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
   enable_progress_bar: True

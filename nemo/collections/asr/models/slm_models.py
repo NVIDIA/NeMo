@@ -127,7 +127,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         tensorboard_logs = {
             'learning_rate': self._optimizer.param_groups[0]['lr'],
             'global_step': self.trainer.global_step,
-            'train_loss': loss_value.item(),
+            'train_loss': loss_value,
         }
 
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -145,7 +145,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
 
-        return {'val_loss': loss_value.item()}
+        return {'val_loss': loss_value}
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)

@@ -561,7 +561,7 @@ class RandomBlockMaskingAugmentation(NeuralModule):
         return {
             "input_feats": NeuralType(('B', 'D', 'T'), SpectrogramType()),
             "input_lengths": NeuralType(tuple('B'), LengthsType()),
-            "mask_value": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
+            "mask_value": NeuralType(('D',), SpectrogramType(), optional=True),
         }
 
     @property
