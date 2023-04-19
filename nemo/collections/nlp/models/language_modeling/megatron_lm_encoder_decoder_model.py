@@ -659,11 +659,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
     def validation_epoch_end(self, outputs):
-        if parallel_state.is_pipeline_last_stage():
+        # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
+        valid_outputs = len(outputs) > 0
+        if parallel_state.is_pipeline_last_stage() and valid_outputs:
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
+            if not valid_outputs:
+                logging.warning("validation_epoch_end: outputs is empty")
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
