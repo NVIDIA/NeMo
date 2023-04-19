@@ -15,7 +15,7 @@
 
 import os
 import tempfile
-
+from torch.utils.data import DataLoader, Dataset
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -231,7 +231,23 @@ def main(cfg) -> None:
         raise RuntimeError("PEFT training needs a trained base model present.")
 
     trainer.fit(model)
-
+    model.freeze()
+    _test_ds = model._build_dataset(cfg.model.data.test_ds, is_train=False)
+    request_dl = DataLoader(dataset=_test_ds[0], batch_size=cfg.inference.batch_size, collate_fn=_test_ds[0].collate_fn)
+    config = OmegaConf.to_container(cfg.inference)
+    model.set_inference_config(config)
+    response = trainer.predict(model, request_dl)
+    print("***************************")
+    if cfg.model.data.test_ds.output_file_path_prefix is not None:
+        with open(cfg.model.data.test_ds.output_file_path_prefix, "w", encoding="utf-8") as f:
+            for batch in response:
+                for sentence in batch['sentences']:
+                    s = ' '.join(sentence.split('\n'))
+                    f.write(s + "\n")
+        print("predictions saved to {}".format(cfg.model.data.test_ds.output_file_path_prefix))
+    else:
+        print(response)
+    print("***************************")
 
 if __name__ == '__main__':
     main()
