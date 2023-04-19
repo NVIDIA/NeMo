@@ -66,49 +66,48 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         else:
             raise ValueError(f"precision: {model.cfg['precision']} is not supported.")
 
-    def forward(self, id_tensors, masks_and_position_ids):
-        output_tensors = []
-        for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
-            attn_mask, _, pos_ids = attn_mask_and_pos_ids
-            assert tokens.shape == pos_ids.shape
-            assert attn_mask.shape[2] == attn_mask.shape[3] == tokens.shape[1] == pos_ids.shape[1]
-            with torch.autocast('cuda', dtype=self.dtype):
-                output_tensor = self.model.forward(
-                        tokens=tokens.cuda(),
-                        text_position_ids=pos_ids.cuda(),
-                        attention_mask=attn_mask.cuda(),
-                        labels=None,
-                    )
+    def forward(self, tokens, position_ids, attention_mask):
+        assert tokens.shape == position_ids.shape
+        assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+        with torch.autocast('cuda', dtype=self.dtype):
+            output_tensor = self.model.forward(
+                    tokens=tokens.cuda(),
+                    text_position_ids=position_ids.cuda(),
+                    attention_mask=attention_mask.cuda(),
+                    labels=None,
+                )
 
-            output_tensors.append(output_tensor)
-        return output_tensors
+        return output_tensor
 
     def freeze(self):
         for param in self.parameters():
             param.requires_grad = False
 
     def input_example(self, max_batch=1, max_dim=768, seq_len=6):
-        ids = [self.model.tokenizer.text_to_ids(text) for text in ['hi there']]
+        ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on           Sunday"]]
         id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
         masks_and_position_ids = [
             get_ltor_masks_and_position_ids(id_tensor, self.model.tokenizer.eos_id, False, False, False)
             for id_tensor in id_tensors
         ]
-
-        return id_tensors, masks_and_position_ids
+        for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+            attn_mask, _, pos_ids = attn_mask_and_pos_ids
+            return tokens, pos_ids, attn_mask
     
     def get_dynamic_axes(self):
         dynamic_axes = {
                 'id_tensors': {0: "BS", 1: "sequence"},
-                'masks_and_position_ids': {0: "BS", 2: "sequence", 3: "sequence"},
+                'position_ids': {0: "BS", 1: "sequence"},
+                'attention_mask': {0: "BS", 2: "sequence", 3: "sequence"},
         }
         return dynamic_axes
     
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "id_tensors": NeuralType(('B'), ChannelType()),
-            "masks_and_position_ids": NeuralType(('B'), ChannelType()),
+            "id_tensors": NeuralType(('B', 'T'), ChannelType()),
+            "position_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'D', 'T', 'T'), ChannelType()),
         }
 
     @property
@@ -117,7 +116,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
 
     @property
     def input_names(self) -> List[str]:
-        return ['id_tensors', 'masks_and_position_ids']
+        return ['id_tensors', 'position_ids', 'attention_mask']
 
     @property
     def output_names(self) -> List[str]:
@@ -186,12 +185,9 @@ def nemo_export(cfg):
         logging.info("Caching support is enabled.")
         model.encoder.setup_streaming_params()
 
-    autocast = nullcontext
-    if cfg.export_options.autocast:
-        autocast = torch.cuda.amp.autocast
     fp8_recipe = recipe.DelayedScaling(margin=0, interval=1, fp8_format=recipe.Format.E4M3)
     try:
-        with autocast(), torch.no_grad(), torch.inference_mode(), te.onnx_export(True), \
+        with torch.no_grad(), torch.inference_mode(), te.onnx_export(True), \
             te.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe), warnings.catch_warnings():
             warnings.filterwarnings(
                 action='ignore',
