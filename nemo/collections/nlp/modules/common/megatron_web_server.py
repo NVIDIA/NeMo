@@ -25,11 +25,13 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import
 
 __all__ = ['RetroDemoWebApp', 'get_demo']
 
+HUMAN_TOKEN = '<extra_id_1>'
+ASSITANT_TOKEN = '<extra_id_2>'
 
-DEFAULT_SYSTEM = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\nHuman: Hello, Assistant.\nAssistant: Hello. How may I help you today?\nHuman: Please tell me the largest city in Europe.\nAssistant: Sure. The largest city in Europe is Moscow, the capital of Russia.\n"
+DEFAULT_SYSTEM = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n"
 SYSTEM_TOKEN = ''
-HUMAN_TOKEN = 'Human:'
-ASSITANT_TOKEN = 'Assistant:'
+# HUMAN_TOKEN = 'Human:'
+# ASSITANT_TOKEN = 'Assistant:'
 
 
 def create_gen_function(port=5555, chat=False):
@@ -137,26 +139,27 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 repetition_penality = gr.Slider(
                     minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
-                end_strings = gr.Textbox(label="End strings (comma separated)", value=f"<|endoftext|>,Human,", lines=1,)
+                end_strings = gr.Textbox(label="End strings (comma separated)", value=f"<|endoftext|>,<extra_id_1>,", lines=1,)
             with gr.Column(scale=1, min_width=800):
-                human_name = gr.Textbox(label="Human Name", value="Human", line=1,)
-                assistant_name = gr.Textbox(label="Human Name", value="Assistant", line=1,)
+                human_name = gr.Textbox(label="Human Name", value="<extra_id_1>", line=1,)
+                assistant_name = gr.Textbox(label="Human Name", value="<extra_id_2>", line=1,)
                 preamble = gr.Textbox(label="System", value=DEFAULT_SYSTEM, lines=2,)
                 chatbot = Chatbot()
                 msg = gr.Textbox(label="User", value="", lines=1,)
                 clear = gr.Button("Clear")
 
                 def user(user_message, history):
+                    user_message = user_message.replace('\n', '<br>')
                     return "", history + [[user_message, None]]
 
                 def bot(history, preamble, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings, human_name, assistant_name):
                     prompts = history[:-1]
                     prompt_text = ''
                     for prompt in prompts:
-                        prompt_text += human_name + ':'  + prompt[
-                            0].replace('<br>', '\n') + '\n' + assistant_name + ':' + prompt[1].replace('<br>', '\n') + '\n'
-                    prompt_text += human_name + ':' + history[-1][
-                        0].replace('<br>', '\n') + '\n' + assistant_name + ':'
+                        prompt_text += human_name + prompt[
+                            0].replace('<br>', '\n') + '\n' + assistant_name + prompt[1].replace('<br>', '\n') + '\n'
+                    prompt_text += human_name + history[-1][
+                        0].replace('<br>', '\n') + '\n' + assistant_name
                     bot_message = create_gen_function(server_port, chat=True)(
                         prompt_text, preamble, greedy_flag, add_BOS,
                         token_to_gen, min_token_to_gen,
