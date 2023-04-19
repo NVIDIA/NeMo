@@ -25,7 +25,7 @@
 # The checkpoint of the large model trained on LibriSpeech with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
 
 # We suggest to use trainer.precision=bf16 for GPUs which support it otherwise trainer.precision=16 is recommended.
-# Using bf16 or 16 would makes it possible to double the batch size and speedup training/inference. If fp16 is not stable and model diverges after some epochs, you may use fp32.
+# Using bf16 or 16 would make it possible to double the batch size and speedup training/inference. If fp16 is not stable and model diverges after some epochs, you may use fp32.
 # Here are the suggested batch size per GPU for each precision and memory sizes:
 #  +-----------+------------+------------+
 #  | Precision | GPU Memory | Batch Size |
