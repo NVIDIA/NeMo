@@ -38,6 +38,10 @@ if torch.cuda.is_available():
     DEVICE_CAPABILITY = torch.cuda.get_device_capability()
 
 
+def reset_microbatch_calculator():
+    apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+
+
 @pytest.fixture()
 def model_cfg(test_data_dir):
 
@@ -141,6 +145,7 @@ def gpt_model(model_cfg, trainer_cfg):
     trainer = Trainer(strategy=strategy, **trainer_cfg)
     cfg = DictConfig(model_cfg)
 
+    reset_microbatch_calculator()
     model = MegatronGPTModel(cfg, trainer)
 
     return model
@@ -161,7 +166,12 @@ def rampup_batch_size_schedule():
 @pytest.mark.run_only_on('GPU')
 class TestRampupBatchSize:
     @pytest.mark.unit
-    def test_rampup_bs(self, gpt_model, trainer_cfg, rampup_batch_size, rampup_batch_size_schedule):
+    def test_rampup_bs(self, gpt_model, rampup_batch_size):
+
+        assert gpt_model.cfg.rampup_batch_size == rampup_batch_size
+
+    @pytest.mark.unit
+    def test_rampup_bs_schedule(self, gpt_model, trainer_cfg, rampup_batch_size_schedule):
 
         num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
         micro_batch_size = gpt_model.cfg.micro_batch_size
@@ -180,5 +190,6 @@ class TestRampupBatchSize:
             if current_global_batch_size not in global_batch_size_schedule:
                 global_batch_size_schedule.append(current_global_batch_size)
 
-        assert gpt_model.cfg.rampup_batch_size == rampup_batch_size
+        reset_microbatch_calculator()
+
         assert global_batch_size_schedule == rampup_batch_size_schedule
