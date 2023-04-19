@@ -633,7 +633,7 @@ class NoiseNormPerturbation(Perturbation):
                     shard_strategy=shard_strategy,
                 )
                 datasets.append(dataset)
-            self._audiodataset = RandomizedChainDataset(datasets, rnd_seed=(rng if rng else 123) + global_rank)
+            self._audiodataset = RandomizedChainDataset(datasets, rnd_seed=(rng if rng else random.randint(0, 30000)) + global_rank)
             if len(self._audiodataset) == 0:
                 raise RuntimeError(
                     "NoiseNormPerturbation detected a zero length RandomizedChainDataset, should never happen"
