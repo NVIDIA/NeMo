@@ -60,6 +60,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core import dist_checkpointing
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
 
     HAVE_MEGATRON_CORE = True
 
@@ -315,6 +316,17 @@ class NLPDDPStrategy(DDPStrategy):
         # self.lightning_module.load_state_dict(checkpoint)
         pass
 
+    def _fix_tensors_device(self, ckpt: Dict) -> Dict:
+        assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
+        cur_dev = torch.device("cuda", index=torch.cuda.current_device())
+
+        def _fix_device(t):
+            if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:
+                t = t.to(cur_dev)
+            return t
+
+        return dict_list_map_outplace(_fix_device, ckpt)
+
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """ PTL method which we override to integrate distributed checkpoints for model parallel models.
             In order to load distributed checkpoints we need to provide the sharded_state_dict to 
@@ -335,11 +347,16 @@ class NLPDDPStrategy(DDPStrategy):
 
         sharded_state_dict = self.lightning_module.sharded_state_dict()
 
-        sharded_state_dict = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=checkpoint_path
-        )
+        checkpoint = {}
 
-        return sharded_state_dict
+        # after dist_checkpointing.load, sharded tensors will be replaced with tensors
+        checkpoint['state_dict'] = sharded_state_dict
+
+        checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
+
+        checkpoint = self._fix_tensors_device(checkpoint)
+
+        return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint

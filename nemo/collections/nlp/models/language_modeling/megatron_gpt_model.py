@@ -114,7 +114,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.set_transformer_config()
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        self._model = build_model(
+        self.model = build_model(
             model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
             virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
@@ -122,26 +122,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
-            self._model = self._model[0]
+            self.model = self.model[0]
 
         if self.megatron_amp_o2:
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                if isinstance(self._model, list):
-                    for module in self._model:
+                if isinstance(self.model, list):
+                    for module in self.model:
                         module.cuda(torch.cuda.current_device())
                 else:
-                    self._model.cuda(torch.cuda.current_device())
+                    self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            if isinstance(self._model, list):
+            if isinstance(self.model, list):
                 converted_model = []
-                for module in self._model:
+                for module in self.model:
                     converted_model.append(Float16Module(config=self.get_transformer_config(), module=module))
-                    self._model = converted_model
+                    self.model = converted_model
             else:
-                self._model = Float16Module(config=self.get_transformer_config(), module=self._model)
+                self.model = Float16Module(config=self.get_transformer_config(), module=self.model)
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
@@ -165,14 +165,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
-    @property
-    def model(self):
-        if isinstance(self._model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self._model]
-        elif isinstance(self._model, Float16Module):
-            return self._model.module
+    def get_gpt_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
         else:
-            return self._model
+            return [self.model]
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -387,7 +386,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=dataloader_iter,
-            model=self._model if isinstance(self._model, list) else [self._model],
+            model=self.model if isinstance(self.model, list) else [self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
@@ -646,7 +645,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
             data_iterator=dataloader_iter,
-            model=self._model if isinstance(self._model, list) else [self._model],
+            model=self.model if isinstance(self.model, list) else [self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
@@ -1008,41 +1007,48 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         We use this hook to save the sharded for GPTModel
         """
         if isinstance(self.model, list):
+            checkpoint['sharded_state_dict'] = {}
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                checkpoint[f'model{i}'] = self.model[i].sharded_state_dict()
+                model_i_prefix = f'model_{i}.'
+                model_i_sharded_state_dict = self.model.sharded_state_dict(prefix=model_i_prefix)
+                checkpoint['sharded_state_dict'].update(model_i_sharded_state_dict)
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            checkpoint[f'model'] = self.model.sharded_state_dict()
+            model_sharded_state_dict = self.model.sharded_state_dict(prefix='model.')
+            checkpoint['sharded_state_dict'] = model_sharded_state_dict
 
-    # def load_state_dict(self, state_dict, strict=True):
-    #     """ Loads GPTModel state_dict.
-    #         state_dict must contain the sharded_state_dict defined in on_save_checkpoint
-    #     """
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
 
-    #     if isinstance(self.model, list):
-    #         for i in range(len(self.model)):
-    #             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-    #             self.model[i].load_state_dict(state_dict[f'model{i}'], strict=strict)
-    #         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-    #     else:
-    #         self.model.load_state_dict(state_dict['model'], strict=strict)
-
-    # def on_load_checkpoint(self, checkpoint) -> None:
-    #     """LightningModule hook:
-    #     https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
-
-    #     We use this hook to call load_state_dict for GPTModel
-    #     """
-    #     if isinstance(self.model, list):
-    #         for i in range(len(self.model)):
-    #             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-    #             self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
-    #         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-    #     else:
-    #         self.model.load_state_dict(checkpoint['model'], strict=True)
+        We use this hook to call load_state_dict for GPTModel
+        """
+        # TODO: ideally want to PTL to call load_state_dict when it normally does but have everything work
+        if isinstance(self.model, list):
+            # TODO: need to figure out how to do this for interleaved
+            for i in range(len(self.model)):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        else:
+            # unwrap the model if it is wrapped in Float16Module,
+            # this fixes self.state_dict()
+            if isinstance(self.model, Float16Module):
+                self.model = self.model.module
+            self.load_state_dict(checkpoint['state_dict'], strict=True)
+            # wrap the model again
+            self.model = Float16Module(config=self.get_transformer_config(), module=self.model)
 
     def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
+        """
+        Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
+
+        When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to 
+        self.state_dict().
+
+        The sharded tensor mapping is defined in the GPTModel class.
+        """
         sharded_state_dict = {}
         # if isinstance(self.model, list):
         #     for i in range(len(self.model)):
@@ -1054,13 +1060,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                model_i_prefix = f'{prefix}model_{i}.'  # if prefix else f'model_{i}.'
-                model_i_sharded_state_dict = self.model[i].sharded_state_dict(prefix=key)
+                model_i_prefix = f'{prefix}model_{i}.'
+                model_i_sharded_state_dict = self.model[i].sharded_state_dict(prefix=model_i_prefix)
                 sharded_state_dict[model_i_sharded_state_dict.keys()[0]] = model_i_sharded_state_dict.values()[0]
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            key = f'{prefix}model.'  # if prefix else 'model.'
-            sharded_state_dict = self.model.sharded_state_dict(prefix=key)
+            prefix = f'{prefix}model.'
+            sharded_state_dict = self.model.sharded_state_dict(prefix=prefix)
 
         return sharded_state_dict
 
@@ -1107,3 +1113,4 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
+
