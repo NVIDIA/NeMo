@@ -7,8 +7,7 @@ Language models have shown to help the accuracy of ASR models. NeMo supports the
 *  :ref:`ngram_modeling`
 *  :ref:`neural_rescoring`
 
-It is possible to use both approaches on the same CTC ASR model.
-RNNT and Hybrid Autoregressive Transducer (HAT) models support only N-gram language modeling.
+It is possible to use both approaches on the same ASR model.
 
 
 .. _ngram_modeling:
