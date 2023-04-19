@@ -268,10 +268,10 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         """ Main function for Inference
 
         Args:
-            infer_cfg: config for dataloader
+            dataloader_cfg: config for dataloader
             input_name: Input file with tab-separated text records. Each record consists of 2 items:
                 - ASR hypothesis
-                - candidate customization entry
+                - candidate phrases separated by semicolon
 
         Returns:
             all_preds: A list of tab-separated text records, same size as input list. Each record consists of 4 items:
@@ -282,7 +282,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         mode = self.training
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        all_tag_preds = []
+        all_tag_preds = []  # list of 
         try:
             # Switch model to evaluation mode
             self.eval()
@@ -315,7 +315,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 all_tag_preds.extend(tag_preds)
 
             all_preds = []
-            for i, example in enumerate(infer_datalayer.dataset.examples):
+            for i in range(len(infer_datalayer.dataset.examples)):
                 tag_preds = all_tag_preds[i]
                 hyp, ref = infer_datalayer.dataset.hyps_refs[i]
                 letters = hyp.split(" ")
@@ -328,24 +328,17 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     if tag != last_tag:
                         if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_') and letters[idx] == "_":
                             source = " ".join(letters[tag_begin:idx])
-                            source_len = source.count(" ") + 1
                             target = candidates[last_tag - 1]
-                            target_len = target.count(" ") + 1
-                            len_ratio = target_len / source_len
                             report_str += (
-                                "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\t" + str(len_ratio) + "\n"
+                                "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
                             )
                         tag_begin = idx
                     last_tag = tag
                 if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_'):
                     source = " ".join(letters[tag_begin:])
-                    source_len = source.count(" ") + 1
                     target = candidates[last_tag - 1]
-                    target_len = target.count(" ") + 1
-                    len_ratio = target_len / source_len
-                    report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\t" + str(len_ratio) + "\n"
+                    report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
 
-                # pdb.set_trace()
                 all_preds.append(
                     "\n"
                     + " ".join(letters)
