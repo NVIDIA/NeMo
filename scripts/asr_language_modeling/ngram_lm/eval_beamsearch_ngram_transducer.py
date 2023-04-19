@@ -105,7 +105,7 @@ class EvalBeamSearchNGramConfig:
     decoding_strategy: str = "greedy_batch" # ["greedy_batch", "beam", "tsd", "alsd", "maes"]
 
     # Beam Search hyperparameters
-    beam_width: List[int] = field(default_factory=lambda: [128])  # The width or list of the widths for the beam search decoding
+    beam_width: List[int] = field(default_factory=lambda: [8])  # The width or list of the widths for the beam search decoding
     beam_alpha: List[float] = field(default_factory=lambda: [0.2])  # The alpha parameter or list of the alphas for the beam search decoding
 
     maes_prefix_alpha: List[int] = field(default_factory=lambda: [2])  # The maes_prefix_alpha or list of the maes_prefix_alpha for the maes decoding
