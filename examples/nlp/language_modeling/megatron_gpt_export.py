@@ -29,28 +29,22 @@
 import os
 import sys
 import warnings
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 import torch
+import transformer_engine.pytorch as te
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-
-from nemo.core.config import hydra_runner
-from nemo.core.classes import Exportable
-from nemo.core.neural_types import ChannelType, NeuralType
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.utils import logging
-
-import transformer_engine.pytorch as te
 from transformer_engine.common import recipe
 
-try:
-    from contextlib import nullcontext
-except ImportError:
-    # handle python < 3.7
-    from contextlib import suppress as nullcontext
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.core.classes import Exportable
+from nemo.core.config import hydra_runner
+from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.utils import logging
+
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     def __init__(self, model):
@@ -71,11 +65,11 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
         with torch.autocast('cuda', dtype=self.dtype):
             output_tensor = self.model.forward(
-                    tokens=tokens.cuda(),
-                    text_position_ids=position_ids.cuda(),
-                    attention_mask=attention_mask.cuda(),
-                    labels=None,
-                )
+                tokens=tokens.cuda(),
+                text_position_ids=position_ids.cuda(),
+                attention_mask=attention_mask.cuda(),
+                labels=None,
+            )
 
         return output_tensor
 
@@ -93,21 +87,21 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
             attn_mask, _, pos_ids = attn_mask_and_pos_ids
             return tokens, pos_ids, attn_mask
-    
+
     def get_dynamic_axes(self):
         dynamic_axes = {
-                'id_tensors': {0: "BS", 1: "sequence"},
-                'position_ids': {0: "BS", 1: "sequence"},
-                'attention_mask': {0: "BS", 2: "sequence", 3: "sequence"},
+            'id_tensors': {0: "BS", 1: "sequence"},
+            'position_ids': {0: "BS", 1: "sequence"},
+            'attention_mask': {0: "BS", 2: "sequence", 3: "sequence"},
         }
         return dynamic_axes
-    
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "id_tensors": NeuralType(('B', 'T'), ChannelType()),
             "position_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'D', 'T', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('D', 'D', 'T', 'T'), ChannelType()),
         }
 
     @property
@@ -122,6 +116,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     def output_names(self) -> List[str]:
         return ['log_probs']
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_export")
 def nemo_export(cfg):
     """Convert a .nemo saved model into .onnx ONNX format."""
@@ -133,7 +128,6 @@ def nemo_export(cfg):
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
-
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
@@ -180,20 +174,21 @@ def nemo_export(cfg):
     #
     check_trace = cfg.export_options.runtime_check
 
-    if cfg.export_options.cache_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_cache_support"):
+    if (
+        cfg.export_options.cache_support
+        and hasattr(model, "encoder")
+        and hasattr(model.encoder, "export_cache_support")
+    ):
         model.encoder.export_cache_support = True
         logging.info("Caching support is enabled.")
         model.encoder.setup_streaming_params()
 
     fp8_recipe = recipe.DelayedScaling(margin=0, interval=1, fp8_format=recipe.Format.E4M3)
     try:
-        with torch.no_grad(), torch.inference_mode(), te.onnx_export(True), \
-            te.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe), warnings.catch_warnings():
-            warnings.filterwarnings(
-                action='ignore',
-                category=torch.jit.TracerWarning,
-                module=r'.*'
-            )
+        with torch.no_grad(), torch.inference_mode(), te.onnx_export(True), te.fp8_autocast(
+            enabled=True, fp8_recipe=fp8_recipe
+        ), warnings.catch_warnings():
+            warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
 
             model.to(device=cfg.export_options.device).freeze()
             model.eval()
