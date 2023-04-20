@@ -126,6 +126,7 @@ def perform_streaming(
                         transcribed_texts,
                         cache_last_channel_next,
                         cache_last_time_next,
+                        cache_last_channel_len,
                         best_hyp,
                     ) = asr_model.conformer_stream_step(
                         processed_signal=processed_signal,
