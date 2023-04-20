@@ -54,7 +54,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: *sample_rate
+    sample_rate: ${model.sample_rate}
     normalize: "NA" # No normalization for mel-spectogram makes streaming easier
     window_size: 0.025
     window_stride: 0.01
