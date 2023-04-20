@@ -124,7 +124,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
 
         # setting the RNNT decoder as the default one
-        self.use_rnnt_decoder = True
+        self.cur_decoder = "rnnt"
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -446,7 +446,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             with open_dict(self.cfg.aux_ctc.decoding):
                 self.cfg.aux_ctc.decoding = decoding_cfg
 
-            self.use_rnnt_decoder = False
+            self.cur_decoder = "ctc"
             logging.info(
                 f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
             )

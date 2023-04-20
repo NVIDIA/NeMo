@@ -491,8 +491,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
 
-        if isinstance(self, asr_models.EncDecCTCModel) or (isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and not self.use_rnnt_decoder):
-            if hasattr(self, ctc_decoder):
+        if isinstance(self, asr_models.EncDecCTCModel) or (isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"):
+            if hasattr(self, "ctc_decoder"):
                 decoding = self.ctc_decoding
                 decoder = self.ctc_decoder
             else:

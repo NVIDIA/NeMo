@@ -42,8 +42,12 @@ python speech_to_text_streaming_infer.py \
 
 You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation.
 If compare_vs_offline is not used, then significantly larger batch_size can be used.
-
 To best compare output with offline output (i.e. `--compare_vs_offline` is set) `--pad-and-drop-preencoded` should also be set.
+
+# Hybrid ASR models
+For Hybrid ASR models which have two decoders, you may select the decoder by --set_decoder DECODER_TYPE, where DECODER_TYPE can be "ctc" or "rnnt".
+If decoder is not set, then the default decoder would be used which is the RNNT decoder for Hybrid ASR models.
+
 
 ## Evaluate a model trained with full context for offline mode
 
@@ -260,6 +264,13 @@ def main():
         help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for the first step. It makes the outputs of the downsampling exactly as the offline mode for some techniques like striding.",
     )
 
+    parser.add_argument(
+        "--set_decoder",
+        choices=["ctc", "rnnt"],
+        default=None,
+        help="Selects the decoder for Hybrid ASR models which has both the CTC and RNNT decoder. Supported decoders are ['ctc', 'rnnt']",
+    )
+
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
@@ -274,6 +285,8 @@ def main():
         asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)
 
     logging.info(asr_model.encoder.streaming_cfg)
+    if args.set_decoder is not None:
+        asr_model.cur_decoder = args.set_decoder
 
     global autocast
     if (
