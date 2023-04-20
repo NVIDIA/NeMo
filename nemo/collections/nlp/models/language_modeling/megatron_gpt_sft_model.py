@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import json
+from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from typing import Any, Optional
+
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -26,7 +27,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.text_generation_utils import LengthParam, SamplingParam, megatron_gpt_generate, generate
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    LengthParam,
+    SamplingParam,
+    generate,
+    megatron_gpt_generate,
+)
 from nemo.utils import AppState, logging
 
 try:

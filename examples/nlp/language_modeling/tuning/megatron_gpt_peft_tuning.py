@@ -15,12 +15,13 @@
 
 import os
 import tempfile
-from torch.utils.data import DataLoader, Dataset
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
@@ -233,7 +234,9 @@ def main(cfg) -> None:
     trainer.fit(model)
     model.freeze()
     _test_ds = model._build_dataset(cfg.model.data.test_ds, is_train=False)
-    request_dl = DataLoader(dataset=_test_ds[0], batch_size=cfg.inference.batch_size, collate_fn=_test_ds[0].collate_fn)
+    request_dl = DataLoader(
+        dataset=_test_ds[0], batch_size=cfg.inference.batch_size, collate_fn=_test_ds[0].collate_fn
+    )
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
@@ -248,6 +251,7 @@ def main(cfg) -> None:
     else:
         print(response)
     print("***************************")
+
 
 if __name__ == '__main__':
     main()
