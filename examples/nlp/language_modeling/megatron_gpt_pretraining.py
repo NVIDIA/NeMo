@@ -71,7 +71,7 @@ def main(cfg) -> None:
     if cfg.model.resume_from_checkpoint is not None:
         resume_from_checkpoint = cfg.model.resume_from_checkpoint
     else:
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_from_checkpoint = trainer._checkpoint_connector._ckpt_path
 
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 

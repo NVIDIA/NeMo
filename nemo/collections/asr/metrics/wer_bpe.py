@@ -221,7 +221,7 @@ class WERBPE(Metric):
             wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
             return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self, outputs):
             ...
             wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
             wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()

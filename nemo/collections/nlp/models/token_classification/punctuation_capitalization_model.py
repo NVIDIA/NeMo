@@ -22,7 +22,6 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from tqdm import tqdm
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
@@ -291,7 +290,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         return self.eval_step(batch, 'test', dataloader_idx)
 
-    def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def training_epoch_end(self) -> None:
         """
         Called at the end of training epoch. This method properly shuffles
         :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`.

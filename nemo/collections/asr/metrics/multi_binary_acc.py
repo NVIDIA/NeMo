@@ -38,7 +38,7 @@ class MultiBinaryAccuracy(Metric):
             f1_acc = self._accuracy.compute()
             return {'val_loss': loss, 'val_f1_acc': f1_acc}
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self, outputs):
             ...
             val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
             correct_counts = torch.stack([x['val_correct_counts'] for x in outputs]).sum(axis=0)

@@ -248,7 +248,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
-                trainer._checkpoint_connector.resume_from_checkpoint_fit_path so that the trainer should auto-resume. exp_manager will move files
+                trainer._checkpoint_connector._ckpt_path so that the trainer should auto-resume. exp_manager will move files
                 under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
                 we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
@@ -541,7 +541,7 @@ def check_resume(
     dirpath: str = None,
 ):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
-    trainer._checkpoint_connector.resume_from_checkpoint_fit_path as necessary.
+    trainer._checkpoint_connector._ckpt_path as necessary.
 
     Returns:
         log_dir (Path): The log_dir
@@ -599,7 +599,7 @@ def check_resume(
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer._checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
+    trainer._checkpoint_connector._ckpt_path = str(checkpoint)
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
@@ -897,7 +897,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer._checkpoint_connector.resume_from_checkpoint_fit_path or ""
+    checkpoint_callback.last_model_path = trainer._checkpoint_connector._ckpt_path or ""
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)

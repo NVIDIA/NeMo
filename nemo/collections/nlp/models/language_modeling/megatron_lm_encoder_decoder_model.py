@@ -851,7 +851,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
             f'Total number of model parameters: {total_num_parameters:.2e}\n'
         )
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer._checkpoint_connector._ckpt_path
 
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)

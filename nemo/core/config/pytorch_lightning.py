@@ -67,7 +67,7 @@ class TrainerConfig:
     benchmark: bool = False
     deterministic: bool = False
     auto_lr_find: Any = False
-    replace_sampler_ddp: bool = True
+    use_distributed_sampler: bool = True
     detect_anomaly: bool = False
     auto_scale_batch_size: Any = False
     amp_backend: str = 'native'
