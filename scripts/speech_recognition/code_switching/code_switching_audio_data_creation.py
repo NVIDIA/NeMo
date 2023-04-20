@@ -61,10 +61,10 @@ parser.add_argument(
     "--sample_end_pause_msec", default=20, type=int, help='Pause to be added at the end of the sample (msec)'
 )
 parser.add_argument(
-    "--agg_tokenizer_manifest",
+    "--is_lid_manifest",
     default=True,
     type=bool,
-    help='If true, generate manifest in the aggregate tokenizer format, else the standard manifest format',
+    help='If true, generate manifest in the multi-sample lid format, else the standard manifest format',
 )
 parser.add_argument("--workers", default=1, type=int, help='Number of worker processes')
 
@@ -122,7 +122,7 @@ def create_cs_data(
     pause_join_msec: int,
     pause_end_msec: int,
     cs_data_sampling_rate: int,
-    use_agg_tokenizer_manifest: bool,
+    is_lid_manifest: bool,
 ):
 
     """
@@ -135,7 +135,7 @@ def create_cs_data(
         pause_join_msec: Pause to be added between different phrases of the sample (msec)
         pause_end_msec: Pause to be added at the end of the sample (msec)
         cs_data_sampling_rate: Desired sampling rate of the generated samples
-        use_agg_tokenizer_manifest: If true, generate manifest in the aggregate tokenizer format, else the standard manifest format
+        is_lid_manifest: If true, generate manifest in the multi-sample lid format, else the standard manifest format
 
     Returns:
 
@@ -209,7 +209,7 @@ def create_cs_data(
             metadata_json = {}
             metadata_json['audio_filepath'] = audio_file_path
             metadata_json['duration'] = float(len(combined_audio) / fs)
-            if use_agg_tokenizer_manifest:
+            if is_lid_manifest:
                 metadata_json['text'] = text_entry_list
             else:
                 metadata_json['text'] = ' '.join(data['texts'])
@@ -233,7 +233,7 @@ def main():
     pause_join_msec = args.sample_joining_pause_msec
     pause_end_msec = args.sample_end_pause_msec
     cs_data_sampling_rate = args.cs_data_sampling_rate
-    use_agg_tokenizer_manifest = args.agg_tokenizer_manifest
+    is_lid_manifest = args.is_lid_manifest
     num_process = args.workers
 
     # Sanity Checks
@@ -270,7 +270,7 @@ def main():
             pause_join_msec,
             pause_end_msec,
             cs_data_sampling_rate,
-            use_agg_tokenizer_manifest,
+            is_lid_manifest,
         )
         for idx, split_manifest in enumerate(data_split)
     )
