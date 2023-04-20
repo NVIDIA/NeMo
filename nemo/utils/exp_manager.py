@@ -36,6 +36,7 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
@@ -68,6 +69,20 @@ class LoggerMisconfigurationError(NeMoBaseException):
 class CheckpointMisconfigurationError(NeMoBaseException):
     """ Raised when a mismatch between trainer.callbacks and exp_manager occurs"""
 
+
+@dataclass
+class EarlyStoppingParams:
+    monitor: str = "val_loss"  # The metric that early stopping should consider.
+    mode: str = "min"  # inform early stopping whether to look for increase or decrease in monitor.
+    min_delta: float = 0.001  # smallest change to consider as improvement.
+    patience: int = 10  # how many (continuous) validation cycles to wait with no improvement and stopping training.
+    verbose: bool = True
+    strict: bool = True
+    check_finite: bool = True
+    stopping_threshold: Optional[float] = None
+    divergence_threshold: Optional[float] = None
+    check_on_train_epoch_end: Optional[bool] = None
+    log_rank_zero_only: bool = False
 
 @dataclass
 class CallbackParams:
@@ -153,6 +168,8 @@ class ExpManagerConfig:
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
+    create_early_stopping_callback: Optional[bool] = False
+    early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
@@ -424,6 +441,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         configure_checkpointing(
             trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params
         )
+    if cfg.create_early_stopping_callback:
+        early_stop_callback = EarlyStopping(**cfg.early_stopping_callback_params)
+        trainer.callbacks.append(early_stop_callback)
 
     if cfg.disable_validation_on_resume:
         # extend training loop to skip initial validation when resuming from checkpoint
