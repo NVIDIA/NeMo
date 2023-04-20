@@ -17,7 +17,7 @@ import json
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-
+from typing import Any, Optional
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.text_generation_utils import LengthParam, SamplingParam, megatron_gpt_generate
+from nemo.collections.nlp.modules.common.text_generation_utils import LengthParam, SamplingParam, megatron_gpt_generate, generate
 from nemo.utils import AppState, logging
 
 try:
@@ -455,6 +455,29 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 self.log(f"test_{self.test_metric_name}", averaged_metric)
 
         return averaged_loss, averaged_metric
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        inference_config = self.get_inference_config()
+        if inference_config is None:
+            return None
+        else:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
+            compute_logprob = inference_config['compute_logprob']
+            if compute_logprob:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                inference_config['tokens_to_generate'] = 1
+                inference_config['all_probs'] = True
+                inference_config["add_BOS"] = False
+                inference_config['greedy'] = True
+                response = generate(self, **inference_config)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                return compute_prob_response
+            else:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = (batch['tokens'].cuda(), batch['context_lengths'].cuda())
+                return generate(self, **inference_config)
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
