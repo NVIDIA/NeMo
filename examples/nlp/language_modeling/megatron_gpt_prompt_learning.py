@@ -31,7 +31,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-mp.set_start_method("spawn", force=True)
+# mp.set_start_method("spawn", force=True)
 
 """
 This is an example of how to ptune/prompt-tune a pretrained GPT model.

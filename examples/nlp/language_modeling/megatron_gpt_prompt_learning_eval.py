@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
-mp.set_start_method("spawn", force=True)
+# mp.set_start_method("spawn", force=True)
 
 """
 This is the script to run GPT text generation.

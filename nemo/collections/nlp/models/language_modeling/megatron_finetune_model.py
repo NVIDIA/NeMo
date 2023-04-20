@@ -566,6 +566,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
     def setup_training_data(self):

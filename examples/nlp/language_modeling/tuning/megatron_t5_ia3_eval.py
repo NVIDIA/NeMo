@@ -26,7 +26,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 
-mp.set_start_method("spawn", force=True)
+# mp.set_start_method("spawn", force=True)
 
 """
 This is the script to run an Adapter Tuned GPT Model for text generation.

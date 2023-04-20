@@ -577,6 +577,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             collate_fn=collate_fn,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
     def setup_training_dataloader(self):
