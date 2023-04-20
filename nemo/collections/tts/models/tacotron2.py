@@ -289,7 +289,7 @@ class Tacotron2Model(SpectrogramGenerator):
             "alignments": alignments,
         }
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
             logger = self.logger.experiment
             for logger in self.trainer.loggers:

@@ -140,7 +140,7 @@ class HeteronymClassificationModel(NLPModel):
         tp, fn, fp, _ = self.classification_report(tag_preds, targets)
         return {f'{split}_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-    def validation_epoch_end(self, outputs, split="val"):
+    def on_validation_epoch_end(self, outputs, split="val"):
         """
         Args:
             outputs: list of individual outputs of each test step.
@@ -186,7 +186,7 @@ class HeteronymClassificationModel(NLPModel):
         Args:
             outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs, "test")
+        return self.on_validation_epoch_end(outputs, "test")
 
     def set_wordid_to_phonemes(self, wordid_to_phonemes_file: str):
         if wordid_to_phonemes_file is None or not os.path.exists(wordid_to_phonemes_file):

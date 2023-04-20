@@ -361,7 +361,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
@@ -455,7 +455,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
-            loss = super().validation_epoch_end([x['loss'] for x in output])
+            loss = super().on_validation_epoch_end([x['loss'] for x in output])
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss)
@@ -787,6 +787,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             )
 
     def on_train_epoch_start(self) -> None:
-        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()

@@ -37,7 +37,7 @@ class TopKClassificationAccuracy(Metric):
             correct_count, total_count = self._accuracy(logits, labels)
             return {'val_loss': loss_value, 'val_correct_count': correct_count, 'val_total_count': total_count}
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self, outputs):
             ...
             val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
             correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])

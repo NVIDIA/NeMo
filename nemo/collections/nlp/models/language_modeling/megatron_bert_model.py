@@ -452,7 +452,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         return loss_mean[0]
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             averaged_loss = torch.stack(outputs).mean()
         else:

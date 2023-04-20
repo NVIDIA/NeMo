@@ -849,7 +849,7 @@ class ModelPT(LightningModule, Model):
         if self._test_dl is not None:
             return self._test_dl
 
-    def validation_epoch_end(
+    def on_validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
@@ -1045,7 +1045,7 @@ class ModelPT(LightningModule, Model):
         so as to obtain appropriate logs for each of the dataloaders.
 
         Args:
-            outputs: Same as that provided by LightningModule.validation_epoch_end()
+            outputs: Same as that provided by LightningModule.on_validation_epoch_end()
                 for a single dataloader.
             dataloader_idx: int representing the index of the dataloader.
 
@@ -1058,7 +1058,7 @@ class ModelPT(LightningModule, Model):
             "`multi_validation_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
             "If you require multi data loader support for validation sets, please override this method.\n"
             "If you do not require multi data loader support, please instead override "
-            "`validation_epoch_end(outputs)."
+            "`on_validation_epoch_end(outputs)."
         )
 
     def multi_test_epoch_end(
@@ -1069,7 +1069,7 @@ class ModelPT(LightningModule, Model):
         so as to obtain appropriate logs for each of the dataloaders.
 
         Args:
-            outputs: Same as that provided by LightningModule.validation_epoch_end()
+            outputs: Same as that provided by LightningModule.on_validation_epoch_end()
                 for a single dataloader.
             dataloader_idx: int representing the index of the dataloader.
 

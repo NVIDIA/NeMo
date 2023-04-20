@@ -124,9 +124,9 @@ class DialogueNearestNeighbourModel(NLPModel):
         return {'preds': torch.stack(preds), 'labels': torch.stack(gts), 'inputs': torch.stack(inputs)}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx):
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end(outputs)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
         """

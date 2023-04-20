@@ -341,7 +341,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self.frozen_model.eval()
         return metrics
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
@@ -404,7 +404,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
+        self.on_validation_epoch_end(outputs)
 
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory

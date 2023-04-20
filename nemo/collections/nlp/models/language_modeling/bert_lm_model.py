@@ -179,7 +179,7 @@ class BERTLMModel(ModelPT):
         self.validation_perplexity(logits=mlm_log_probs)
         return {'val_loss': loss}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """Called at the end of validation to aggregate outputs.
 
         Args:

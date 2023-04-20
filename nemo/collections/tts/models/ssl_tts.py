@@ -480,7 +480,7 @@ class SSLDisentangler(ModelPT):
             'cer': torch.tensor(cers).mean().cpu(),
         }
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         collect = lambda key: torch.stack([x[key] for x in outputs if torch.isfinite(x[key])]).mean()
         val_loss = collect("val_loss")
         val_sv_loss = collect("sv_loss")

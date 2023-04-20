@@ -560,7 +560,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             "mel_pred": mels_pred if batch_idx == 0 else None,
         }
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         collect = lambda key: torch.stack([x[key] for x in outputs]).mean()
         val_loss = collect("val_loss")
         mel_loss = collect("mel_loss")

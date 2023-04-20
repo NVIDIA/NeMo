@@ -114,7 +114,7 @@ class EntityLinkingModel(NLPModel, Exportable):
 
         return {"val_loss": val_loss}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
 

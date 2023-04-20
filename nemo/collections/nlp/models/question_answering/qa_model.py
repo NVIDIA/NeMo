@@ -99,7 +99,7 @@ class QAModel(NLPModel):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         if self.trainer.testing:
             prefix = 'test'
         else:
@@ -161,7 +161,7 @@ class QAModel(NLPModel):
         self.log(f'{prefix}_f1', f1)
 
     def test_epoch_end(self, outputs):
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end(outputs)
 
     @torch.no_grad()
     def inference(

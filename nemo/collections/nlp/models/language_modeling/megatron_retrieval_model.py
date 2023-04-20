@@ -333,7 +333,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
         return reduced_loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         if len(outputs) == 0:
             return
         averaged_loss = torch.stack(outputs).mean()

@@ -232,7 +232,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "audiopaths": "audio_1" if batch_idx == 0 else None,
         }
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
 
         loss_outputs = outputs[0]["loss_outputs"]
 

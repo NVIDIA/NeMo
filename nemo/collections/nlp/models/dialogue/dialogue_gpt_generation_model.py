@@ -79,7 +79,7 @@ class DialogueGPTGenerationModel(NLPModel):
     def validation_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, mode='val')
 
     def test_epoch_end(self, outputs):

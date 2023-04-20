@@ -424,7 +424,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_validation_epoch_start()
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         if len(outputs) == 0:
             return
 

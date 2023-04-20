@@ -111,7 +111,7 @@ class BaseIRModel(NLPModel):
         }
         return data_for_val
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.

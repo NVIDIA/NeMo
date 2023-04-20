@@ -392,7 +392,7 @@ class IntentSlotClassificationModel(NLPModel):
 
         return slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
@@ -455,7 +455,7 @@ class IntentSlotClassificationModel(NLPModel):
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end(outputs)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, dataset_split='train')

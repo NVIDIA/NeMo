@@ -81,7 +81,6 @@ Modules
 .. autoclass:: nemo.collections.nlp.modules.common.megatron.module.Float16Module
     :show-inheritance: 
 
-
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron.gpt_model.GPTModel
     :show-inheritance: 
     :no-members:

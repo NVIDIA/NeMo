@@ -146,7 +146,7 @@ class TokenClassificationModel(NLPModel):
 
         return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.

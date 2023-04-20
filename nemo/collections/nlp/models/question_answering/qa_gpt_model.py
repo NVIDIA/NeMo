@@ -76,7 +76,7 @@ class GPTQAModel(BaseQAModel):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         prefix = "test" if self.trainer.testing else "val"
 
         loss_terms = [x[f"{prefix}_loss"] for x in outputs]
@@ -97,7 +97,7 @@ class GPTQAModel(BaseQAModel):
             self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
 
     def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
+        self.on_validation_epoch_end(outputs)
 
     @typecheck()
     def forward(self, input_ids, input_attn_mask, labels):

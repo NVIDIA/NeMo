@@ -179,7 +179,7 @@ class TransformerLMModel(ModelPT):
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} PPL: {np.round(eval_ppl.item(), 2)}")
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.

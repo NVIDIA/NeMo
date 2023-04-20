@@ -216,7 +216,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             'labels': labels,
         }
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
         """

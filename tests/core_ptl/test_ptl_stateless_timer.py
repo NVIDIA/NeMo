@@ -74,7 +74,7 @@ class ExampleModel(ModelPT):
     def setup_validation_data(self):
         pass
 
-    def validation_epoch_end(self, loss):
+    def on_validation_epoch_end(self, loss):
         if not loss:
             return
         self.log("val_loss", torch.stack(loss).mean(), sync_dist=True)

@@ -81,7 +81,7 @@ class BERTQAModel(BaseQAModel):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         prefix = "test" if self.trainer.testing else "val"
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
@@ -141,7 +141,7 @@ class BERTQAModel(BaseQAModel):
             self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
 
     def test_epoch_end(self, outputs):
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end(outputs)
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):

@@ -124,7 +124,7 @@ class TextClassificationModel(NLPModel, Exportable):
 
         return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
@@ -160,7 +160,7 @@ class TextClassificationModel(NLPModel, Exportable):
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end(outputs)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config or not train_data_config.file_path:

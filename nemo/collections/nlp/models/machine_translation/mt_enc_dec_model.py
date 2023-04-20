@@ -528,7 +528,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(sb_score_list), sync_dist=True)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.

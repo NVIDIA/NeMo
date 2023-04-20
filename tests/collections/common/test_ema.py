@@ -105,7 +105,7 @@ class ExampleModel(ModelPT):
     def setup_test_data(self, val_data_config: Union[DictConfig, Dict]):
         pass
 
-    def validation_epoch_end(self, loss):
+    def on_validation_epoch_end(self, loss):
         self.log("val_loss", torch.stack(loss).mean())
 
 
