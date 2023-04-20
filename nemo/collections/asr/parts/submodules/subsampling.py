@@ -161,29 +161,38 @@ class ConvSubsampling(torch.nn.Module):
 
             for i in range(self._sampling_num - 1):
                 if self.is_causal:
-                    layers.append(CausalConv2D(
-                                    in_channels=in_channels,
-                                    out_channels=in_channels,
-                                    kernel_size=self._kernel_size,
-                                    stride=self._stride,
-                                    padding=None,
-                                    groups=in_channels))
+                    layers.append(
+                        CausalConv2D(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=None,
+                            groups=in_channels,
+                        )
+                    )
                 else:
-                    layers.append(torch.nn.Conv2d(
-                                    in_channels=in_channels,
-                                    out_channels=in_channels,
-                                    kernel_size=self._kernel_size,
-                                    stride=self._stride,
-                                    padding=self._left_padding,
-                                    groups=in_channels))
+                    layers.append(
+                        torch.nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=self._left_padding,
+                            groups=in_channels,
+                        )
+                    )
 
-                layers.append(torch.nn.Conv2d(
-                                in_channels=in_channels,
-                                out_channels=conv_channels,
-                                kernel_size=1,
-                                stride=1,
-                                padding=0,
-                                groups=1))
+                layers.append(
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                        groups=1,
+                    )
+                )
                 layers.append(activation)
                 in_channels = conv_channels
 

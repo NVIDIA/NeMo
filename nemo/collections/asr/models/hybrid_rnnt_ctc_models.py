@@ -126,7 +126,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
         if self.cur_decoder not in ["ctc", "rnnt"]:
-            raise ValueError(f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']")
+            raise ValueError(
+                f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
+            )
         if self.cur_decoder == "rnnt":
             return super().transcribe(
                 paths2audio_files=paths2audio_files,
