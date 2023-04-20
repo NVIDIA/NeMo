@@ -309,7 +309,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
                 logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
         """
         Changes decoding strategy used during RNNT decoding process.
 

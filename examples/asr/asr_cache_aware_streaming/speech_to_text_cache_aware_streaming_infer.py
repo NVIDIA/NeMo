@@ -286,7 +286,8 @@ def main():
 
     logging.info(asr_model.encoder.streaming_cfg)
     if args.set_decoder is not None:
-        asr_model.cur_decoder = args.set_decoder
+        asr_model.change_decoding_strategy(decoder_type=args.set_decoder)
+        #asr_model.cur_decoder = args.set_decoder
 
     global autocast
     if (
