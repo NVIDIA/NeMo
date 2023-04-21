@@ -50,16 +50,12 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     # make log_probs_padded tensor of shape (B, T_max, V +1 ) where all of
     # log_probs_padded[:,:,-1] is the 'V_NEGATIVE_NUM'
     log_probs_padded = torch.cat((log_probs_batch, padding_for_log_probs), dim=2)
-    # make log_probs_reordered tensor of shape (B, T_max, U_max)
-    # it contains the log_probs for only the tokens that are in the Ground Truth, and in the order
-    # that they occur
-    log_probs_reordered = torch.gather(input=log_probs_padded, dim=2, index=y_batch.unsqueeze(1).repeat(1, T_max, 1))
 
-    # initialize tensors of viterbi probabilies
+    # initialize tensor of viterbi probabilies, of shape (B, T_max, U_max)
     # and backpointers_rel - which contains values like 0 to indicate the backpointer is to the same u index,
     # 1 to indicate the backpointer pointing to the u-1 index and 2 to indicate the backpointer is pointing to the u-2 index
-    v_matrix = V_NEGATIVE_NUM * torch.ones_like(log_probs_reordered)
-    v_matrix[:, 0, :2] = log_probs_reordered[:, 0, :2]
+    v_matrix = V_NEGATIVE_NUM * torch.ones((B, T_max, U_max), device=viterbi_device)
+    v_matrix[:, 0, :2] = torch.gather(input=log_probs_padded[:, 0, :], dim=1, index=y_batch[:, :2])
 
     backpointers_rel = -99 * torch.ones_like(v_matrix, dtype=torch.int8)
 
@@ -76,7 +72,7 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     for t in range(1, T_max):
 
         # e_current is a tensor of shape (B, U_max) of the log probs of every possible token at the current timestep
-        e_current = log_probs_reordered[:, t, :]
+        e_current = torch.gather(input=log_probs_padded[:, t, :], dim=1, index=y_batch)
 
         # v_prev is a tensor of shape (B, U_max) of the viterbi probabilities 1 timestep back and in the same token position
         v_prev = v_matrix[:, t - 1, :]
