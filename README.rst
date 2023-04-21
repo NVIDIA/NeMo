@@ -75,8 +75,8 @@ Key Features
 * Speech processing
     * `HuggingFace Space for Audio Transcription (File, Microphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
-        * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, FastConformer-CTC, FastConformer-Transducer...
-        * Supports CTC and Transducer/RNNT losses/decoders
+        * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, FastConformer-CTC, FastConformer-Transducer, Conformer-HAT...
+        * Supports CTC, Transducer/RNNT and Hybrid losses/decoders
             * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_
         * Beam Search decoding
         * `Language Modelling for ASR <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
@@ -167,18 +167,16 @@ We recommend installing NeMo in a fresh Conda environment.
 
 .. code-block:: bash
 
-    conda create --name nemo python==3.8
+    conda create --name nemo python==3.8.10
     conda activate nemo
 
 Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_. 
 
 .. code-block:: bash
 
-    conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
+    conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
-.. note::
-
-  The command used to install PyTorch may depend on your system.
+The command used to install PyTorch may depend on your system. Please use the configurator linked above to find the right command for your system.
 
 Pip
 ~~~
@@ -190,9 +188,7 @@ Use this installation mode if you want the latest released version.
     pip install Cython
     pip install nemo_toolkit['all']
 
-.. note::
-
-    Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -216,10 +212,8 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
-.. note::
-
-    If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
-    with ``pip install -e .`` when your PWD is the root of the NeMo repository.
+If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
+with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
 RNNT
 ~~~~
@@ -240,8 +234,26 @@ Install it manually if not using the NVIDIA PyTorch container.
 
     git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout a32d7a6dddcf4e39d241b0d139c222a97c91887d
+    git checkout 57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+
+It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies. 
+
+While installing Apex, it may raise an error if the CUDA version on your system does not match the CUDA version torch was compiled with.
+This raise can be avoided by commenting it here: https://github.com/NVIDIA/apex/blob/master/setup.py#L32
+
+cuda-nvprof is needed to install Apex. The version should match the CUDA version that you are using:
+
+.. code-block:: bash
+
+  conda install -c nvidia cuda-nvprof=11.8
+
+packaging is also needed:
+
+.. code-block:: bash
+  
+  pip install -y packaging
+
 
 Transformer Engine
 ~~~~~~~~~~~~~~~~~~
@@ -249,9 +261,13 @@ NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://g
 Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 `Install <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_ it manually if not using the NVIDIA PyTorch container.
 
-.. note::
+.. code-block:: bash
 
-  Transformer Engine requires PyTorch to be built with CUDA 11.8.
+  pip install --upgrade git+https://github.com/NVIDIA/TransformerEngine.git@stable
+
+It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Transformer Engine or any other dependencies. 
+
+Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
@@ -274,13 +290,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.02-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.03-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.02-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.03-py3
 
 Examples
 --------
