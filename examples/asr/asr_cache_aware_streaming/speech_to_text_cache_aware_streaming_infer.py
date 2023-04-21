@@ -42,7 +42,9 @@ python speech_to_text_streaming_infer.py \
 
 You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation.
 If compare_vs_offline is not used, then significantly larger batch_size can be used.
-To best compare output with offline output (i.e. `--compare_vs_offline` is set) `--pad-and-drop-preencoded` should also be set.
+Setting `--pad_and_drop_preencoded` would perform the caching for all steps including the first step.
+It may result in slightly different outputs from the sub-sampling module compared to offline mode for some techniques like striding and sw_striding.
+Enabling it would make it easier to export the model to ONNX.
 
 # Hybrid ASR models
 For Hybrid ASR models which have two decoders, you may select the decoder by --set_decoder DECODER_TYPE, where DECODER_TYPE can be "ctc" or "rnnt".
@@ -259,9 +261,9 @@ def main():
         "--output_path", type=str, help="path to output file when manifest is used as input", default=None
     )
     parser.add_argument(
-        "--pad-and-drop-preencoded",
+        "--pad_and_drop_preencoded",
         action="store_true",
-        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for the first step. It makes the outputs of the downsampling exactly as the offline mode for some techniques like striding.",
+        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.",
     )
 
     parser.add_argument(
