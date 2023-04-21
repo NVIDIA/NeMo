@@ -182,14 +182,14 @@ model:
     post_decoder: True
     encoder : True
 
-  hidden_size: 2304
-  ffn_hidden_size: 9216
-  hidden_dropout: 0
-  init_method_std: 0.023
-  attention_dropout: 0
-  apply_query_key_layer_scaling: False
-  normalization: rmsnorm
-  fp32_residual_connection: True
-  activations_checkpoint_num_layers: null
+  # hidden_size: 2304
+  # ffn_hidden_size: 9216
+  # hidden_dropout: 0
+  # init_method_std: 0.023
+  # attention_dropout: 0
+  # apply_query_key_layer_scaling: False
+  # normalization: rmsnorm
+  # fp32_residual_connection: True
+  # activations_checkpoint_num_layers: null
 
 
