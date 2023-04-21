@@ -282,7 +282,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         mode = self.training
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        all_tag_preds = []  # list of 
+        all_tag_preds = []  # list of
         try:
             # Switch model to evaluation mode
             self.eval()
@@ -329,9 +329,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                         if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_') and letters[idx] == "_":
                             source = " ".join(letters[tag_begin:idx])
                             target = candidates[last_tag - 1]
-                            report_str += (
-                                "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
-                            )
+                            report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
                         tag_begin = idx
                     last_tag = tag
                 if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_'):
