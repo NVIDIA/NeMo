@@ -365,7 +365,7 @@ def get_index(
     ban_ngram_global: Set[str],
     min_log_prob: float = -4.0,
     max_phrases_per_ngram: int = 100,
-) -> Tuple[List[str], Dict[str, int]]:
+) -> Tuple[List[str], Dict[str, List[Tuple[int, int, int, float]]]]:
     """Given a restricted vocabulary of replacements,
     loops through custom phrases,
     generates all possible conversions and creates index.
@@ -418,7 +418,7 @@ def get_index(
 
     phrases = []  # id to phrase
     phrase2id = {}  # phrase to id
-    ngram2phrases = defaultdict(list)  # ngram to list of phrase ids
+    ngram2phrases = defaultdict(list)  # ngram to list of tuples (phrase_id, begin, length, logprob)
 
     for ngram in ngram_to_phrase_and_position:
         for phrase, b, length, lp in ngram_to_phrase_and_position[ngram]:
@@ -430,7 +430,7 @@ def get_index(
     return phrases, ngram2phrases
 
 
-def load_index(input_name: str) -> Tuple[List[str], Dict[str, int]]:
+def load_index(input_name: str) -> Tuple[List[str], Dict[str, List[Tuple[int, int, int, float]]]]:
     phrases = []  # id to phrase
     phrase2id = {}  # phrase to id
     ngram2phrases = defaultdict(list)  # ngram to list of phrase ids
@@ -447,7 +447,9 @@ def load_index(input_name: str) -> Tuple[List[str], Dict[str, int]]:
     return phrases, ngram2phrases
 
 
-def search_in_index(ngram2phrases, phrases, letters):
+def search_in_index(ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]], phrases: List[str], letters: List[str]):
+    if " " in letters:
+        raise ValueError("letters should not contain space: " + str(letters))
     phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
     # positions mapped to sets of ngrams starting from that position
     position2ngrams = [set() for _ in range(len(letters))]
@@ -505,7 +507,7 @@ def get_all_candidates_coverage(phrases, phrases2positions):
         moving_sum = np.sum(phrases2positions[i, 0:phrase_length])
         max_sum = moving_sum
         best_pos = 0
-        for pos in range(1, phrases2positions.shape[1] - phrase_length):
+        for pos in range(1, phrases2positions.shape[1] - phrase_length + 1):
             moving_sum -= phrases2positions[i, pos - 1]
             moving_sum += phrases2positions[i, pos + phrase_length - 1]
             if moving_sum > max_sum:
