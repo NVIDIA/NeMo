@@ -165,14 +165,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
-    def get_gpt_module_list(self):
-        if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
-        elif isinstance(self.model, Float16Module):
-            return [self.model.module]
-        else:
-            return [self.model]
-
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -524,6 +516,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module = self.model[-1]  # only the last virtual rank has the embeddings
                 else:
                     module = self.model
+            if isinstance(module, Float16Module):
+                module = module.module
             if module.share_embeddings_and_output_weights:
                 word_embeddings_weight = module.word_embeddings_weight()
                 if self.megatron_amp_o2:
@@ -835,15 +829,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
+            module_list = self.get_unwrapped_module_list(self.model)
+            if len(module_list) > 1:
+                # interleaved case
+                for i, module in enumerate(module_list):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     if self.cfg.get('share_embeddings_and_output_weights', True):
                         module.sync_first_and_last_stage_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 if self.cfg.get('share_embeddings_and_output_weights', True):
-                    self.model.sync_first_and_last_stage_word_embeddings()
+                    module_list[0].sync_first_and_last_stage_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()

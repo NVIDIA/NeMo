@@ -46,6 +46,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank, ckpt_to_dir
 
 try:
@@ -286,7 +287,8 @@ class NLPDDPStrategy(DDPStrategy):
         checkpoint_dir = ckpt_to_dir(filepath)
 
         fs = get_filesystem(checkpoint_dir)
-        fs.makedirs(checkpoint_dir, exist_ok=True)
+        if is_global_rank_zero():
+            fs.makedirs(checkpoint_dir, exist_ok=True)
 
         dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
 
@@ -334,7 +336,7 @@ class NLPDDPStrategy(DDPStrategy):
             which makes it convenient to have the loading logic happen at the strategy level.
         """
 
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(checkpoint_path)

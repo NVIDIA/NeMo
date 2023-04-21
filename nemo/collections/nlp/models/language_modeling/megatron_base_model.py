@@ -515,26 +515,45 @@ class MegatronBaseModel(NLPModel):
             else:
                 return False
 
+    def get_unwrapped_module_list(self, model):
+        """ model could be a module or a list of modules or modules wrapped with Flat16Module.
+            This function returns a list of modules regardless.
+
+        Args:
+            model: module or list of modules or modules wrapped with Flat16Module
+
+        Returns:
+            list of modules
+        """
+        if isinstance(model, list):
+            return [module.module if isinstance(module, Float16Module) else module for module in model]
+        elif isinstance(model, Float16Module):
+            return [model.module]
+        else:
+            return [model]
+
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""
+
+        module_list = self.get_unwrapped_module_list(model)
         # log number of parameters
-        if isinstance(model, list):
-            num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
-            )
+        if len(module_list) > 1:
+            # interleaved case
+            num_parameters_on_device = sum([sum([p.nelement() for p in module.parameters()]) for module in model])
             if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
                 ignore_virtual=True
             ):
                 # substract the embedding weights on the last virtual stage
-                num_word_embedding_parameters = sum([p.nelement() for p in model[-1].word_embeddings_weight()])
+                num_word_embedding_parameters = sum([p.nelement() for p in module_list[-1].word_embeddings_weight()])
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
-            num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
+            num_parameters_on_device = sum([p.nelement() for p in module_list[0].parameters()])
             if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
                 ignore_virtual=True
             ):
+
                 # substract the embedding weights on the last stage
-                num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
+                num_word_embedding_parameters = sum([p.nelement() for p in module_list[0].word_embeddings_weight()])
                 num_parameters_on_device -= num_word_embedding_parameters
 
         # to be summed across data parallel group
