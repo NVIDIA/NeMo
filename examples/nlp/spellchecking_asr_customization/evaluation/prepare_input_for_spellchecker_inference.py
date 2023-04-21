@@ -178,8 +178,8 @@ for name in os.listdir(args.hypotheses_folder):
                 dummy = " ".join(list(dummy.replace(" ", "_")))
                 candidates.append((dummy, -1, dummy.count(" ") + 1, 0.0, 0.0))
 
-            random.shuffle(candidates)
             candidates = candidates[:10]
+            random.shuffle(candidates)
             if len(candidates) != 10:
                 print("WARNING: cannot get 10 candidates", candidates)
                 continue

@@ -286,7 +286,7 @@ for name in os.listdir(args.spellchecker_results_folder):
             if not s.startswith("REPLACE"):
                 continue
             parts = s.split("\t")
-            _, src, dst, short_sent, _ = parts
+            _, src, dst, short_sent = parts
             if short_sent not in short2full_sent:
                 continue
             if check_banned_replacements(src, dst):
