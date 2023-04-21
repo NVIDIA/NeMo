@@ -110,7 +110,7 @@ def main(cfg) -> None:
     with open_dict(model_cfg):
         # model_cfg.restore_from_path = "/workspaces/research/downloaded/megatron_retro_converted.nemo"
         # work around for the fused softmax bug
-        model_cfg.masked_softmax_fusion = False
+        # model_cfg.masked_softmax_fusion = False
         model_cfg.precision = trainer.precision
         model_cfg.eval = True
         if "shape_file" in model_cfg:

@@ -52,7 +52,8 @@ model:
 
 
   # restore_path: /workspaces/research/results/megatron_retro/2023-04-12_19-06-10/checkpoints/megatron_retro.nemo
-  restore_path: /workspaces/research/downloaded/megatron_retro.nemo
+  # /workspaces/research/results/megatron_retro/2023-04-21_12-02-08/checkpoints/megatron_retro.nemo
+  restore_path: /workspaces/research/results/megatron_retro/2023-04-21_12-02-08/checkpoints/megatron_retro.nemo
   original_model: /dataset/retro/megatron_retro_converted_9B
 
   # restore_path: /dataset/retro/megatron_retro_test.nemo
