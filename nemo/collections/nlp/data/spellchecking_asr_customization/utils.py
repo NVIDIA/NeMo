@@ -447,7 +447,9 @@ def load_index(input_name: str) -> Tuple[List[str], Dict[str, List[Tuple[int, in
     return phrases, ngram2phrases
 
 
-def search_in_index(ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]], phrases: List[str], letters: List[str]):
+def search_in_index(
+    ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]], phrases: List[str], letters: List[str]
+):
     if " " in letters:
         raise ValueError("letters should not contain space: " + str(letters))
     phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
