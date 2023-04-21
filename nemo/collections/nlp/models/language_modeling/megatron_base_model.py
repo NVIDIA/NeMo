@@ -15,6 +15,7 @@
 import os
 import re
 from typing import Any, Dict, Optional, Union
+import gc
 
 import torch
 from omegaconf import open_dict
@@ -134,6 +135,14 @@ class MegatronBaseModel(NLPModel):
             "default_on_step": True,
             "default_on_epoch": False,
         }
+
+        self.gc_interval = cfg.get('gc_interval', 0)
+        assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
+        # If gc_interval > 0, memory garbage collection is manually controlled.
+        # The automatic garbage collector sould be disabled before training starts.
+        if self.gc_interval > 0:
+            gc.disable()
+            self.global_batch_count = 0
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -336,6 +345,12 @@ class MegatronBaseModel(NLPModel):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
+
+        if self.gc_interval > 0:
+            self.global_batch_count += 1
+            if self.global_batch_count % self.gc_interval == 0:
+                gc.collect()
+                self.gglobal_batch_count = 0
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
