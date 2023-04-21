@@ -236,7 +236,7 @@ class _FeatureTextDataset(Dataset):
                 sid += 1
             if t < segments[sid][0] or t > segments[sid][1]:
                 # not in speech segment
-                if self.mask_mode == "drop":
+                if self.rttm_mode == "drop":
                     # drop the frame
                     continue
                 else:
