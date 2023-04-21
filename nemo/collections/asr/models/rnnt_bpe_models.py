@@ -260,7 +260,6 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
-
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
