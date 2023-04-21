@@ -570,7 +570,7 @@ class NoisePerturbation(Perturbation):
             data._samples[noise_idx : noise_idx + noise_samples.shape[0]] += noise_samples
 
 
-class NoiseNormPerturbation(Perturbation):
+class NoisePerturbationWithNormalization(Perturbation):
     """
     Perturbation that adds noise to input audio, with normalisation to specific decibel level.
     Also tiles shorter noise samples up to their corresponding clean audio length.
@@ -605,6 +605,7 @@ class NoiseNormPerturbation(Perturbation):
         shard_strategy='replicate',
         epsilon=0.01,
     ):
+        # import here to avoid circular import error
         from nemo.collections.asr.data.audio_to_text import RandomizedChainDataset
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
@@ -687,16 +688,18 @@ class NoiseNormPerturbation(Perturbation):
         self.perturb_with_input_noise(data, noise, ref_mic=ref_mic, norm_to_db=self._norm_to_db)
 
     def snr_mixer(self, clean, noise, snr, norm_to_db=-25.0):
-        rmsclean = (clean ** 2).mean(axis=0) ** 0.5
-        rmsclean = np.where(np.isclose(rmsclean, 0), self._epsilon, rmsclean)
-        scalarclean = 10 ** (norm_to_db / 20) / rmsclean
-        clean = clean * scalarclean
+        """
+        Mixes the clean audio with the noise
+        Args:
+            clean (numpy array): the clean audio data
+            noise (numpy array): the noise audio data
+            snr (float): the SNR value for the mixing
+            norm_to_db (float): the DB value to normalise to before mixing
+        """
+        clean = self.norm_audio_to_db(clean, norm_to_db)
         rmsclean = (clean ** 2).mean(axis=0) ** 0.5
 
-        rmsnoise = (noise ** 2).mean(axis=0) ** 0.5
-        rmsnoise = np.where(np.isclose(rmsnoise, 0), self._epsilon, rmsnoise)
-        scalarnoise = 10 ** (norm_to_db / 20) / rmsnoise
-        noise = noise * scalarnoise
+        noise = self.norm_audio_to_db(noise, norm_to_db)
         rmsnoise = (noise ** 2).mean(axis=0) ** 0.5
         rmsnoise = np.where(np.isclose(rmsnoise, 0), self._epsilon, rmsnoise)
 
@@ -708,12 +711,26 @@ class NoiseNormPerturbation(Perturbation):
         return clean, noisenewlevel, noisyspeech
 
     def norm_audio_to_db(self, x, norm_to_db):
+        """
+        Normalises audio signal to particular db, with some epsilon in-case of divide by zero
+        Args:
+            x (numpy array): input audio signal
+            norm_to_db (float): the db to normalise to
+        """
         rms = (x ** 2).mean(axis=0) ** 0.5
         rms = np.where(np.isclose(rms, 0), self._epsilon, rms)
         scalar = 10 ** (norm_to_db / 20.0) / rms
         return x * scalar
 
     def concatenate_noise_sample(self, clean, noise, fs, silence_length=0.25):
+        """
+        Tiles the noise array to match the clean audio array, with small silence between the joins
+        Args:
+            clean (numpy array): clean audio data
+            noise (numpy array): noise audio data
+            fs (int): sample rate used by both clean and noise audio data
+            silence_length (float): the amount of silence (in secs) to insert before tiling
+        """
         while len(noise) < len(clean):
             if noise.ndim > 1:
                 zeros = np.zeros((int(fs * silence_length), noise.shape[-1]))
@@ -1025,7 +1042,7 @@ perturbation_types = {
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,
-    "noise_norm": NoiseNormPerturbation,
+    "noise_norm": NoisePerturbationWithNormalization,
     "white_noise": WhiteNoisePerturbation,
     "rir_noise_aug": RirAndNoisePerturbation,
     "transcode_aug": TranscodePerturbation,
@@ -1226,11 +1243,12 @@ class AugmentationDataset(IterableDataset):
         world_size: int = 1,
         shard_strategy: str = "replicate",
     ):
-        from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
+        # import here to avoid circular import error
+        from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
 
-        tar_filepaths = expand_audio_filepaths(
+        tar_filepaths = expand_sharded_filepaths(
             tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
         )
 
