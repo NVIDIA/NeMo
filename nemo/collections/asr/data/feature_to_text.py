@@ -86,7 +86,7 @@ class _FeatureTextDataset(Dataset):
     {"feature_filepath": "/path/to/audio_feature.pt", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
     Args:
-        manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
+        manifest_filepath (str): Path to manifest json as described above. Can be comma-separated paths.
         parser: Str for a language specific preprocessor or a callable.
         normalize (bool): whether and where to normalize feature, must be one of [None, "post_norm", "pre_norm"]
         normalize_type (Union[str, dict]): how to normalize feature, see `nemo.collections.asr.parts.preprocessing.features.normalize_batch`
@@ -284,12 +284,12 @@ class FeatureToCharDataset(_FeatureTextDataset):
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
 
     Args:
-        manifest_filepath: Path to manifest json as described above. Can
+        manifest_filepath (str): Path to manifest json as described above. Can
             be comma-separated paths.
-        labels: String containing all the possible characters to map to
-        normalize: how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
+        labels (str): String containing all the possible characters to map to
+        normalize (str): how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
         normalize_type (Union[str, dict]): how to normalize feature, see `nemo.collections.asr.parts.preprocessing.features.normalize_batch`
-        use_rttm: whether to use RTTM files if there is any, default to False
+        use_rttm (bool): whether to use RTTM files if there is any, default to False
         rttm_mode (str): how to use RTTM files, must be one of ['mask', 'drop'], default to 'mask'
         feat_min_len (int): minimum length of feature, default to 4
         feat_mask_val (Optional[float]): value used to mask features with RTTM files, default to None to use zero mel-spectralgram
@@ -383,14 +383,14 @@ class FeatureToBPEDataset(_FeatureTextDataset):
     the manifest.
 
     Args:
-        manifest_filepath: Path to manifest json as described above. Can
+        manifest_filepath (str): Path to manifest json as described above. Can
             be comma-separated paths.
         tokenizer: A subclass of the Tokenizer wrapper found in the common collection,
             nemo.collections.common.tokenizers.TokenizerSpec. ASR Models support a subset of
             all available tokenizers.
-        normalize: how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
+        normalize (str): how to normalize feature, must be one of [None, "post_norm", "pre_norm"]
         normalize_type (Union[str, dict]): how to normalize feature, see `nemo.collections.asr.parts.preprocessing.features.normalize_batch`
-        use_rttm: whether to use RTTM files if there is any, default to False
+        use_rttm (bool): whether to use RTTM files if there is any, default to False
         rttm_mode (str): how to use RTTM files, must be one of ['mask', 'drop'], default to 'mask'
         feat_min_len (int): minimum length of feature, default to 4
         feat_mask_val (Optional[float]): value used to mask features with RTTM files, default to None to use zero mel-spectralgram
