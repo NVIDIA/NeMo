@@ -305,13 +305,13 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, 
-        d_model, 
-        kernel_size, 
+        self,
+        d_model,
+        kernel_size,
         norm_type='batch_norm',
-        conv_pointwise_type='conv1d', 
-        conv_context_size=None, 
-        pointwise_activation='glu_'
+        conv_pointwise_type='conv1d',
+        conv_context_size=None,
+        pointwise_activation='glu_',
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
@@ -386,7 +386,7 @@ class ConformerConvolution(nn.Module):
         if self.conv_pointwise_type == 'conv1d':
             x = x.transpose(1, 2)
             x = self.pointwise_conv1(x)
-        else: # linear
+        else:  # linear
             x = self.pointwise_conv1(x)
             x = x.transpose(1, 2)
 
@@ -415,7 +415,7 @@ class ConformerConvolution(nn.Module):
         if self.conv_pointwise_type == 'conv1d':
             x = x.transpose(1, 2)
             x = self.pointwise_conv2(x)
-        else: # linear
+        else:  # linear
             x = self.pointwise_conv2(x)
             x = x.transpose(1, 2)
         return x
