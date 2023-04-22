@@ -290,7 +290,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         return self.eval_step(batch, 'test', dataloader_idx)
 
-    def training_epoch_end(self) -> None:
+    def on_train_epoch_end(self) -> None:
         """
         Called at the end of training epoch. This method properly shuffles
         :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`.

@@ -121,8 +121,8 @@ class HeteronymClassificationModel(NLPModel):
         self.log('train_loss', loss)
         return loss
 
-    def training_epoch_end(self, outputs):
-        return super().training_epoch_end(outputs)
+    def on_train_epoch_end(self, outputs):
+        return super().on_train_epoch_end(outputs)
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx, split="val"):
@@ -179,7 +179,7 @@ class HeteronymClassificationModel(NLPModel):
         """
         return self.validation_step(batch, batch_idx, "test")
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         """
         Called at the end of test to aggregate outputs.
 

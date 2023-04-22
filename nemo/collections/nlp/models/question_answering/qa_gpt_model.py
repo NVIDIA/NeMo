@@ -96,7 +96,7 @@ class GPTQAModel(BaseQAModel):
             logging.info(f"{prefix} {eval_key}: {eval_results[eval_key]}")
             self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         self.on_validation_epoch_end(outputs)
 
     @typecheck()

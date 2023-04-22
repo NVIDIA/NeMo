@@ -403,7 +403,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         self.on_validation_epoch_end(outputs)
 
     def build_virtual_prompt_dataset(

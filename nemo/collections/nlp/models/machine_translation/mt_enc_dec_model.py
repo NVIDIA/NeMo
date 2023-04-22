@@ -535,7 +535,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         """
         self.eval_epoch_end(outputs, 'val', self.global_rank)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, 'test', self.global_rank)
 
     @classmethod

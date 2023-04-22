@@ -160,7 +160,7 @@ class QAModel(NLPModel):
         self.log(f'{prefix}_exact_match', exact_match)
         self.log(f'{prefix}_f1', f1)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         return self.on_validation_epoch_end(outputs)
 
     @torch.no_grad()

@@ -188,7 +188,7 @@ class TransformerLMModel(ModelPT):
         self.eval_loss.reset()
         self.eval_ppl.reset()
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, 'test')
 
     def setup_tokenizer(

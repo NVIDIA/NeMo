@@ -276,7 +276,7 @@ class ThutmoseTaggerModel(NLPModel):
         """
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         """
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.

@@ -94,7 +94,7 @@ class DialogueS2SGenerationModel(NLPModel):
     def on_validation_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, mode='val')
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, mode='test')
 
     def eval_epoch_end(self, outputs, mode='val'):

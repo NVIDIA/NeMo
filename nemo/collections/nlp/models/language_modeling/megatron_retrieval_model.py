@@ -346,7 +346,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
         self.log('test_loss', averaged_loss, prog_bar=True, batch_size=1)
         logging.info(f'test_loss: {averaged_loss} ')

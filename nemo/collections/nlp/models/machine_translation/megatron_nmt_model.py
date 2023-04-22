@@ -440,7 +440,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def on_validation_epoch_endend(self, outputs):
         return self.eval_epoch_end(outputs, 'val')
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):

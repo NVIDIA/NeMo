@@ -178,7 +178,7 @@ class TokenClassificationModel(NLPModel):
 
         return {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
