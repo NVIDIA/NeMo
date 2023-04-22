@@ -333,11 +333,11 @@ class ConformerConvolution(nn.Module):
             self.pointwise_activation = pointwise_activation
             dw_conv_input_dim = d_model
 
-        if self.conv_pointwise_type = 'conv1d':
+        if self.conv_pointwise_type == 'conv1d':
             self.pointwise_conv1 = nn.Conv1d(
                 in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
             )
-        elif self.conv_pointwise_type = 'linear':
+        elif self.conv_pointwise_type == 'linear':
             self.pointwise_conv1 = torch.nn.Linear(d_model, d_model * 2)
         else:
             raise ValueError(
@@ -370,11 +370,11 @@ class ConformerConvolution(nn.Module):
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
         self.activation = Swish()
-        if self.conv_pointwise_type = 'conv1d':
+        if self.conv_pointwise_type == 'conv1d':
             self.pointwise_conv2 = nn.Conv1d(
                 in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
             )
-        elif self.conv_pointwise_type = 'linear':
+        elif self.conv_pointwise_type == 'linear':
             self.pointwise_conv2 = torch.nn.Linear(dw_conv_input_dim, d_model)
         else:
             raise ValueError(
@@ -383,7 +383,7 @@ class ConformerConvolution(nn.Module):
             )
 
     def forward(self, x, pad_mask=None, cache=None, cache_next=None):
-        if self.conv_pointwise_type = 'conv1d':
+        if self.conv_pointwise_type == 'conv1d':
             x = x.transpose(1, 2)
             x = self.pointwise_conv1(x)
         else: # linear
@@ -412,7 +412,7 @@ class ConformerConvolution(nn.Module):
             x = self.batch_norm(x)
 
         x = self.activation(x)
-        if self.conv_pointwise_type = 'conv1d':
+        if self.conv_pointwise_type == 'conv1d':
             x = x.transpose(1, 2)
             x = self.pointwise_conv2(x)
         else: # linear
