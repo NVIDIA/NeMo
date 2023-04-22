@@ -36,6 +36,7 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
             Looks like: [[0, 0, 1, 2, 2, 3, 3, ...,  ], ..., [0, 1, 2, 2, 2, 3, 4, ....]].
             Each list inside alignments_batch is of length T_batch[location of utt in batch].
     """
+
     B, T_max, _ = log_probs_batch.shape
     U_max = y_batch.shape[1]
 
@@ -51,13 +52,13 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     # log_probs_padded[:,:,-1] is the 'V_NEGATIVE_NUM'
     log_probs_padded = torch.cat((log_probs_batch, padding_for_log_probs), dim=2)
 
-    # initialize tensor of viterbi probabilies, of shape (B, T_max, U_max)
-    # and backpointers_rel - which contains values like 0 to indicate the backpointer is to the same u index,
-    # 1 to indicate the backpointer pointing to the u-1 index and 2 to indicate the backpointer is pointing to the u-2 index
-    v_matrix = V_NEGATIVE_NUM * torch.ones((B, T_max, U_max), device=viterbi_device)
-    v_matrix[:, 0, :2] = torch.gather(input=log_probs_padded[:, 0, :], dim=1, index=y_batch[:, :2])
+    # initialize v_prev - tensor of previous timestep's viterbi probabilies, of shape (B, U_max)
+    v_prev = V_NEGATIVE_NUM * torch.ones((B, U_max), device=viterbi_device)
+    v_prev[:, :2] = torch.gather(input=log_probs_padded[:, 0, :], dim=1, index=y_batch[:, :2])
 
-    backpointers_rel = -99 * torch.ones_like(v_matrix, dtype=torch.int8)
+    # initialize backpointers_rel - which contains values like 0 to indicate the backpointer is to the same u index,
+    # 1 to indicate the backpointer pointing to the u-1 index and 2 to indicate the backpointer is pointing to the u-2 index
+    backpointers_rel = -99 * torch.ones((B, T_max, U_max), dtype=torch.int8, device=viterbi_device)
 
     # Make a letter_repetition_mask the same shape as y_batch
     # the letter_repetition_mask will have 'True' where the token (including blanks) is the same
@@ -74,8 +75,18 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         # e_current is a tensor of shape (B, U_max) of the log probs of every possible token at the current timestep
         e_current = torch.gather(input=log_probs_padded[:, t, :], dim=1, index=y_batch)
 
-        # v_prev is a tensor of shape (B, U_max) of the viterbi probabilities 1 timestep back and in the same token position
-        v_prev = v_matrix[:, t - 1, :]
+        # apply a mask to e_current to cope with the fact that we do not keep the whole v_matrix and continue
+        # calculating viterbi probabilities during some 'padding' timesteps
+        t_exceeded_T_batch = t >= T_batch
+
+        U_can_be_final = torch.logical_or(
+            torch.arange(0, U_max, device=viterbi_device).unsqueeze(0) == (U_batch.unsqueeze(1) - 0),
+            torch.arange(0, U_max, device=viterbi_device).unsqueeze(0) == (U_batch.unsqueeze(1) - 1),
+        )
+
+        mask = torch.logical_not(torch.logical_and(t_exceeded_T_batch.unsqueeze(1), U_can_be_final,)).long()
+
+        e_current = e_current * mask
 
         # v_prev_shifted is a tensor of shape (B, U_max) of the viterbi probabilities 1 timestep back and 1 token position back
         v_prev_shifted = torch.roll(v_prev, shifts=1, dims=1)
@@ -99,10 +110,10 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         # candidates_v_current are our candidate viterbi probabilities for every token position, from which
         # we will pick the max and record the argmax
         candidates_v_current = v_prev_dup + e_current.unsqueeze(2)
-        v_current, bp_relative = torch.max(candidates_v_current, dim=2)
+        # we straight away save results in v_prev instead of v_current, so that the variable v_prev will be ready for the
+        # next iteration of the for-loop
+        v_prev, bp_relative = torch.max(candidates_v_current, dim=2)
 
-        # update our tensors containing all the viterbi probabilites and backpointers
-        v_matrix[:, t, :] = v_current
         backpointers_rel[:, t, :] = bp_relative
 
     # trace backpointers
@@ -114,11 +125,12 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         if U_b == 1:  # i.e. we put only a blank token in the reference text because the reference text is empty
             current_u = 0  # set initial u to 0 and let the rest of the code block run as usual
         else:
-            current_u = int(torch.argmax(v_matrix[b, T_b - 1, U_b - 2 : U_b])) + U_b - 2
+            current_u = int(torch.argmax(v_prev[b, U_b - 2 : U_b])) + U_b - 2
         alignment_b = [current_u]
-        for t in range(T_b - 1, 0, -1):
+        for t in range(T_max - 1, 0, -1):
             current_u = current_u - int(backpointers_rel[b, t, current_u])
             alignment_b.insert(0, current_u)
+        alignment_b = alignment_b[:T_b]
         alignments_batch.append(alignment_b)
 
     return alignments_batch
