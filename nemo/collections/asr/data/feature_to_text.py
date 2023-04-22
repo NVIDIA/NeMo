@@ -234,7 +234,7 @@ class _FeatureTextDataset(Dataset):
             t = offset + i * self.frame_unit_time_secs
             while sid < len(segments) - 1 and segments[sid][1] < t:
                 sid += 1
-            if t < segments[sid][0] or t > segments[sid][1]:
+            if segments[sid][1] == 0 or t < segments[sid][0] or t > segments[sid][1]:
                 # not in speech segment
                 if self.rttm_mode == "drop":
                     # drop the frame
@@ -248,7 +248,7 @@ class _FeatureTextDataset(Dataset):
                 new_features[:, fid] = features[:, i]
                 fid += 1
 
-        if fid < self.feat_min_len:
+        if fid < self.feat_min_len and self.rttm_mode == "drop":
             new_features[:, : self.feat_min_len] = mask_val
             return new_features[:, : self.feat_min_len]
         return new_features[:, :fid]
