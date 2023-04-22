@@ -415,7 +415,7 @@ class ConformerConvolution(nn.Module):
         if self.conv_pointwise_type == 'conv1d':
             x = self.pointwise_conv2(x)
             x = x.transpose(1, 2)
-        else: # linear
+        else:  # linear
             x = x.transpose(1, 2)
             x = self.pointwise_conv2(x)
         return x
