@@ -98,6 +98,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to 31.
         conv_norm_type (str): the type of the normalization in the convolutional modules
             Defaults to 'batch_norm'.
+        conv_pointwise_type (str): conv1d or linear. 
+            Defaults to conv1d.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
         dropout_pre_encoder (float): the dropout rate used before the encoder
@@ -233,6 +235,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         pos_emb_max_len=5000,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
+        conv_pointwise_type='conv1d',
         conv_context_size=None,
         dropout=0.1,
         dropout_pre_encoder=0.1,
@@ -400,6 +403,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 n_heads=n_heads,
                 conv_kernel_size=conv_kernel_size,
                 conv_norm_type=conv_norm_type,
+                conv_pointwise_type=conv_pointwise_type,
                 conv_context_size=self.conv_context_size,
                 dropout=dropout,
                 dropout_att=dropout_att,

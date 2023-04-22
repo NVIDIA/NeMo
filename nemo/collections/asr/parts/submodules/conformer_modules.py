@@ -54,6 +54,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             Defaults to False.
         n_heads (int): number of heads for multi-head attention
         conv_kernel_size (int): kernel size for depthwise convolution in convolution module
+        conv_norm_type (str): layer_norm or batch_norm
+        conv_pointwise_type (str): conv1d or linear. defaults to conv1d
         dropout (float): dropout probabilities for linear layers
         dropout_att (float): dropout probabilities for attention distributions
     """
@@ -69,6 +71,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         n_heads=4,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
+        conv_pointwise_type='conv1d',
         conv_context_size=None,
         dropout=0.1,
         dropout_att=0.1,
@@ -92,6 +95,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             d_model=d_model,
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
+            conv_pointwise_type=conv_pointwise_type,
             conv_context_size=conv_context_size,
         )
 
@@ -301,13 +305,20 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_'
+        self, 
+        d_model, 
+        kernel_size, 
+        norm_type='batch_norm',
+        conv_pointwise_type='conv1d', 
+        conv_context_size=None, 
+        pointwise_activation='glu_'
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
         self.kernel_size = kernel_size
         self.norm_type = norm_type
+        self.conv_pointwise_type = conv_pointwise_type
 
         if conv_context_size is None:
             conv_context_size = (kernel_size - 1) // 2
@@ -322,9 +333,17 @@ class ConformerConvolution(nn.Module):
             self.pointwise_activation = pointwise_activation
             dw_conv_input_dim = d_model
 
-        self.pointwise_conv1 = nn.Conv1d(
-            in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
-        )
+        if self.conv_pointwise_type = 'conv1d':
+            self.pointwise_conv1 = nn.Conv1d(
+                in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
+            )
+        elif self.conv_pointwise_type = 'linear':
+            self.pointwise_conv1 = torch.nn.Linear(d_model, d_model * 2)
+        else:
+            raise ValueError(
+                f"'{conv_pointwise_type}' is not not a valid value for 'conv_pointwise_type', "
+                f"valid values can be from ['conv1d', 'linear']"
+            )
 
         self.depthwise_conv = CausalConv1D(
             in_channels=dw_conv_input_dim,
@@ -351,13 +370,25 @@ class ConformerConvolution(nn.Module):
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
         self.activation = Swish()
-        self.pointwise_conv2 = nn.Conv1d(
-            in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
-        )
+        if self.conv_pointwise_type = 'conv1d':
+            self.pointwise_conv2 = nn.Conv1d(
+                in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
+            )
+        elif self.conv_pointwise_type = 'linear':
+            self.pointwise_conv2 = torch.nn.Linear(dw_conv_input_dim, d_model)
+        else:
+            raise ValueError(
+                f"'{conv_pointwise_type}' is not not a valid value for 'conv_pointwise_type', "
+                f"valid values can be from ['conv1d', 'linear']"
+            )
 
     def forward(self, x, pad_mask=None, cache=None, cache_next=None):
-        x = x.transpose(1, 2)
-        x = self.pointwise_conv1(x)
+        if self.conv_pointwise_type = 'conv1d':
+            x = x.transpose(1, 2)
+            x = self.pointwise_conv1(x)
+        else: # linear
+            x = self.pointwise_conv1(x)
+            x = x.transpose(1, 2)
 
         # Compute the activation function or use GLU for original Conformer
         if self.pointwise_activation == 'glu_':
@@ -381,8 +412,12 @@ class ConformerConvolution(nn.Module):
             x = self.batch_norm(x)
 
         x = self.activation(x)
-        x = self.pointwise_conv2(x)
-        x = x.transpose(1, 2)
+        if self.conv_pointwise_type = 'conv1d':
+            x = x.transpose(1, 2)
+            x = self.pointwise_conv2(x)
+        else: # linear
+            x = self.pointwise_conv2(x)
+            x = x.transpose(1, 2)
         return x
 
     def reset_parameters_conv(self):
