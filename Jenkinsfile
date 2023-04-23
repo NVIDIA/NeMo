@@ -60,8 +60,9 @@ pipeline {
     // TODO: remove when pip package is available
     stage('Megatron Core installation') {
       steps {
-        sh 'git clone https://github.com/aklife97/Megatron-LM.git && \
+        sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
+            git checkout 3db2063b1ff992a971ba18f7101eecc9c4e90f03 && \
             pip install -e .'
       }
     }
@@ -2561,6 +2562,8 @@ pipeline {
         model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
         model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.num_workers=1 \
+        model.validation_ds.num_workers=1 \
         ~model.test_ds \
         model.train_ds.dataset_type=text_memmap \
         model.encoder_tokenizer.library=sentencepiece \
@@ -2602,6 +2605,8 @@ pipeline {
         model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
         model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.num_workers=1 \
+        model.validation_ds.num_workers=1 \
         ~model.test_ds \
         model.train_ds.dataset_type=text_memmap \
         model.encoder_tokenizer.library=sentencepiece \
