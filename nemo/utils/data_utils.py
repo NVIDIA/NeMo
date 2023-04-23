@@ -49,12 +49,6 @@ def is_datastore_path(path) -> bool:
     return path.startswith('ais://')
 
 
-def is_tarred_path(path) -> bool:
-    """Check if a path is for a tarred file.
-    """
-    return path.endswith('.tar')
-
-
 def is_datastore_cache_shared() -> bool:
     """Check if store cache is shared.
     """
