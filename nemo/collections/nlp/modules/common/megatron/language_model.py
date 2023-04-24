@@ -273,6 +273,13 @@ class Embedding(MegatronModule):
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
 
+        if self.position_embedding_type == 'learned_parameters':
+            # Position embedding (learn parameters directly).
+            self.position_embeddings = torch.nn.Parameter(torch.empty(max_sequence_length, self.hidden_size))
+            self._position_embeddings_key = 'position_embeddings'
+            # Initialize the position embeddings.
+            self.init_method(self.position_embeddings)
+
         # Token type embedding.
         # Add this as an optional field that can be added through
         # method call so we can load a pretrain model without
@@ -323,6 +330,8 @@ class Embedding(MegatronModule):
             assert position_ids is not None
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
+        elif self.position_embedding_type == 'learned_parameters':
+            embeddings = words_embeddings + self.position_embeddings
         else:
             embeddings = words_embeddings
         if token_type_ids is not None:

@@ -83,9 +83,9 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # TODO does not support PP yet
         self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
 
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
-        if self.megatron_amp_o2:
+        if self.megatron_amp_O2:
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
@@ -273,7 +273,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self.with_distributed_adam:
             # gradients are reduced internally in distributed optimizer
             pass
-        elif self.megatron_amp_o2:
+        elif self.megatron_amp_O2:
             # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
             # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
             # we cannot start weight update until all async grad AR works are done.

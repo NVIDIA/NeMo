@@ -59,4 +59,4 @@ def get_layer_norm(hidden_size, eps=1e-5, persist_layer_norm=False, sequence_par
     if persist_layer_norm:
         return FastLayerNorm(hidden_size, eps, sequence_parallel_enabled=sequence_parallel)
     else:
-        return MixedFusedLayerNorm(hidden_size, eps, sequence_parallel_enbaled=sequence_parallel)
+        return MixedFusedLayerNorm(hidden_size, eps, sequence_parallel_enabled=sequence_parallel)
