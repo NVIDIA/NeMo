@@ -15,26 +15,21 @@
 
 import os
 import tempfile
-from torch.utils.data import DataLoader, Dataset
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import (
-    CheckpointConnector,
-)
+from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
     MegatronGPTIA3Model,
     MegatronGPTPTuningModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import (
-    MegatronGPTModel,
-)
-from nemo.collections.nlp.modules.common.megatron.megatron_init import (
-    fake_initialize_model_parallel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -83,15 +78,9 @@ def _modify_config(gpt_cfg, peft_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.micro_batch_size = peft_cfg.data.train_ds.micro_batch_size
         gpt_cfg.global_batch_size = peft_cfg.data.train_ds.global_batch_size
         gpt_cfg.sequence_parallel = peft_cfg.get("sequence_parallel", False)
-        gpt_cfg.activations_checkpoint_granularity = peft_cfg.get(
-            "activations_checkpoint_granularity", None
-        )
-        gpt_cfg.activations_checkpoint_num_layers = peft_cfg.get(
-            "activations_checkpoint_num_layers", None
-        )
-        gpt_cfg.activations_checkpoint_method = peft_cfg.get(
-            "activations_checkpoint_method", None
-        )
+        gpt_cfg.activations_checkpoint_granularity = peft_cfg.get("activations_checkpoint_granularity", None)
+        gpt_cfg.activations_checkpoint_num_layers = peft_cfg.get("activations_checkpoint_num_layers", None)
+        gpt_cfg.activations_checkpoint_method = peft_cfg.get("activations_checkpoint_method", None)
         gpt_cfg.data = peft_cfg.data
         gpt_cfg.optim = peft_cfg.optim
         gpt_cfg.answer_only_loss = peft_cfg.answer_only_loss
@@ -132,7 +121,6 @@ def _get_peft_scheme(cfg):
     return peft_cls
 
 
-
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -160,17 +148,9 @@ def main(cfg) -> None:
                 else True,  # turn off the grad scale for pipeline parallel LM model
             )
         if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(
-                MegatronHalfPrecisionPlugin(
-                    precision=cfg.trainer.precision, device="cuda", scaler=scaler
-                )
-            )
+            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
         else:
-            plugins.append(
-                PipelineMixedPrecisionPlugin(
-                    precision=cfg.trainer.precision, device="cuda", scaler=scaler
-                )
-            )
+            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
 
     if cfg.get("cluster_type", None) == "BCP":
         plugins.append(TorchElasticEnvironment())
@@ -178,9 +158,7 @@ def main(cfg) -> None:
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
     peft_cls = _get_peft_scheme(cfg.model)
     peft_model_cfg = peft_cls.restore_from(
-        restore_path=cfg.model.peft.restore_from_path,
-        trainer=trainer,
-        return_config=True,
+        restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
     )
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
@@ -189,21 +167,16 @@ def main(cfg) -> None:
 
     base_model_save_restore_connector = NLPSaveRestoreConnector()
     if os.path.isdir(cfg.model.restore_from_path):
-        base_model_save_restore_connector.model_extracted_dir = (
-            cfg.model.restore_from_path
-        )
+        base_model_save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
     base_model_cfg = MegatronGPTModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         return_config=True,
         save_restore_connector=base_model_save_restore_connector,
     )
-    base_model_cfg = _modify_config(
-        base_model_cfg, peft_model_cfg, cfg, add_cfg_to_tree=False
-    )
+    base_model_cfg = _modify_config(base_model_cfg, peft_model_cfg, cfg, add_cfg_to_tree=False)
     save_restore_connector = PEFTSaveRestoreConnector(
-        peft_model_nemo_path=cfg.model.peft.restore_from_path,
-        peft_model_ckpt_path=None,
+        peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
     )
     if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
@@ -228,18 +201,12 @@ def main(cfg) -> None:
     if model.global_rank == 0:
         print("***************************")
         if cfg.inference.outfile_path is not None:
-            with open(
-                cfg.inference.outfile_path, "w", encoding="utf-8"
-            ) as f:
+            with open(cfg.inference.outfile_path, "w", encoding="utf-8") as f:
                 for batch in response:
                     for sentence in batch["sentences"]:
                         s = " ".join(sentence.split("\n"))
                         f.write(s + "\n")
-            print(
-                "predictions saved to {}".format(
-                    cfg.inference.outfile_path
-                )
-            )
+            print("predictions saved to {}".format(cfg.inference.outfile_path))
         else:
             print(response)
     print("***************************")
