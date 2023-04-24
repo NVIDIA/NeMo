@@ -118,15 +118,15 @@ class TTSDatasetResynthesizer:
         batch = to_device_recursive(batch, self.device)
 
         mels, mel_lens = self.model.preprocessor(input_signal=batch["audio"], length=batch["audio_lens"])
-        
+
         reference_audio = batch.get("reference_audio", None)
         reference_audio_len = batch.get("reference_audio_lens", None)
         reference_spec, reference_spec_len = None, None
         if reference_audio is not None:
             reference_spec, reference_spec_len = self.model.preprocessor(
                 input_signal=reference_audio, length=reference_audio_len
-        )
-            
+            )
+
         outputs_tuple = self.model.forward(
             text=batch["text"],
             durs=None,
