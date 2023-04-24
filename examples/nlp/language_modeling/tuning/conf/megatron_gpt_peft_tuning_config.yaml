@@ -28,7 +28,7 @@ exp_manager:
   checkpoint_callback_params:
     monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 1
-    mode: max
+    mode: min
     save_nemo_on_train_end: True
     filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
@@ -151,9 +151,16 @@ model:
         num_classes: null
   
   optim:
-    name: fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
-    lr: 3e-5
+    name: fused_adam
+    lr: 1e-4
     weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      min_lr: 0.0 # min_lr must be 0.0 for prompt learning when pipeline parallel > 1
+      constant_steps: 0 # Constant steps should also be 0 when min_lr=0
+      monitor: val_loss
+      reduce_on_plateau: false
