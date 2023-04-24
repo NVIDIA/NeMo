@@ -682,15 +682,15 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             if self.is_adapter_available():
                 _sq, _bs, _hs = encoder_input.size()
                 ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
-                if ptuning_adapter:
+                v = ptuning_adapter.virtual_tokens
+                if ptuning_adapter and _sq >= v:  # The sequence should be longer the v to insert virtual embeddings.
                     strategy = ptuning_adapter.adapter_strategy
                     virtual_embeddings = self.forward_single_enabled_adapter_(
                         _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
                     )
-                    _v = ptuning_adapter.virtual_tokens
                     encoder_input = encoder_input[
-                        _v:, :, :
-                    ]  # the first _v tokens are pads so that they can be swapped out with virtual embeddings.
+                        v:, :, :
+                    ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
                     encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
         else:
             pass

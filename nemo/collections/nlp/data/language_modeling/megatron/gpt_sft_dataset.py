@@ -44,6 +44,7 @@ class GPTSFTDataset(Dataset):
         pad_to_max_length: bool = True,
         index_mapping_dir: str = None,
         prompt_template: str = None,
+        virtual_tokens: int = 0,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -84,6 +85,8 @@ class GPTSFTDataset(Dataset):
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
+        self.virtual_tokens = virtual_tokens
+        self.pad_id = self.tokenizer.eos_id   #TODO: (@adithyare) probably safer to check if tokenizer has a pad_id first
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
@@ -150,10 +153,21 @@ class GPTSFTDataset(Dataset):
             context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
             # Replace the input and output placeholders with the actual input and output
             text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
+            if self.virtual_tokens:
+                # (@adithyare) we are going to insert "pad" tokens in the beginning of the text and context
+                # these pad tokens are placeholders for virtual tokens
+                context = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + context
+                text= ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + text 
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            if self.virtual_tokens:
+                # (@adithyare) we are going to insert "pad" tokens in the beginning of the context
+                # these pad tokens are placeholders for virtual tokens
+                context = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + context
             text = context + '\n' + output
         elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            if self.virtual_tokens:
+                context = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + context
             text = context + ' ' + output
 
         tokenized_text = self.tokenizer.text_to_ids(text)
@@ -265,11 +279,11 @@ class GPTSFTDataset(Dataset):
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
-            self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
+            self._collate_item(input_ids, max_length=max_length, pad_id=self.pad_id)
         )
-        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.pad_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.pad_id))
 
         processed_batch = {
             'tokens': input_ids,

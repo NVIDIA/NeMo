@@ -75,6 +75,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
+        self.virtual_tokens = 0
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -239,6 +240,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 truncation_field=data_cfg.get('truncation_field', 'context'),
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
+                virtual_tokens=self.virtual_tokens,
             )
             datasets.append(dataset)
 

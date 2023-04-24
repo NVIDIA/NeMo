@@ -241,6 +241,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         )
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         super().__init__(cfg, trainer)
+        self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
     def init_peft_modules(self,):
         if not self.first_stage_of_pipeline():
