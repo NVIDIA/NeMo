@@ -27,6 +27,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTAdapterModel,
     MegatronGPTIA3Model,
     MegatronGPTPTuningModel,
+    MegatronGPTAdapterPTuningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -112,6 +113,8 @@ def _get_peft_scheme(cfg):
         peft_cls = MegatronGPTIA3Model
     elif cfg.peft.peft_scheme == "ptuning":
         peft_cls = MegatronGPTPTuningModel
+    elif cfg.peft.peft_scheme == "adapter_and_ptuning":
+        peft_cls = MegatronGPTAdapterPTuningModel
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls

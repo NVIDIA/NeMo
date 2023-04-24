@@ -130,7 +130,7 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer,
     ):
-        self.adapter_name_keys = [
+        self.peft_name_keys = [
             AdapterName.PRE_ATTN_ADAPTER,
             AdapterName.POST_ATTN_ADAPTER,
         ]
@@ -155,7 +155,7 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
             )
 
         self.name_key_to_cfg = {}
-        for k in self.adapter_name_keys:
+        for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
 
         super().__init__(cfg, trainer)
@@ -164,16 +164,16 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
         """ 
         Randomly initialize the adapter params and add them to the appropriate modules.
         """
-        logging.info(f"Before adding adapters:\n{self.summarize()}")
+        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
         for _, module in self.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    adapter_cfg = self.name_key_to_cfg[adapter_key]
-                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
-                            name=adapter_key, cfg=adapter_cfg,
+                            name=peft_key, cfg=peft_cfg,
                         )
-        logging.info(f"After adding adapters:\n{self.summarize()}")
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
 
@@ -190,7 +190,7 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        self.adapter_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
+        self.peft_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
 
         mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
             in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
@@ -198,7 +198,7 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
         infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
 
         self.name_key_to_cfg = {}
-        for k in self.adapter_name_keys:
+        for k in self.peft_name_keys:
             if k == AdapterName.MLP_INFUSED:
                 self.name_key_to_cfg[k] = mlp_infused_adapter_cfg
             elif k in [
@@ -207,20 +207,18 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
             ]:
                 self.name_key_to_cfg[k] = infused_adapter_cfg
             else:
-                raise ValueError(f"Adapter Key {k} is unknown.")
+                raise ValueError(f"PEFT Key {k} is unknown.")
         super().__init__(cfg, trainer)
 
     def init_peft_modules(self):
-        logging.info(f"Before adding adapters:\n{self.summarize()}")
-
         for _, module in self.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    cfg = self.name_key_to_cfg[adapter_key]
-                    if model_utils.import_class_by_path(cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(name=adapter_key, cfg=cfg)
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(name=peft_key, cfg=peft_cfg)
 
-        logging.info(f"After adding adapters:\n{self.summarize()}")
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
 
@@ -230,7 +228,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        self.adapter_name_keys = [AdapterName.PTUNING_ADAPTER]
+        self.peft_name_keys = [AdapterName.PTUNING_ADAPTER]
 
         adapter_cfg = PromptEncoderAdapterConfig(
             cfg.peft.p_tuning.virtual_tokens,
@@ -248,18 +246,16 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             # There are no params to add if we are not in the first state of the pipeline
             return True
 
-        logging.info(f"Before adding adapters:\n{self.summarize()}")
-
         for _, module in self.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    cfg = self.name_key_to_cfg[adapter_key]
-                    if model_utils.import_class_by_path(cfg._target_) in module.get_accepted_adapter_types():
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
-                            name=adapter_key, cfg=cfg,
+                            name=peft_key, cfg=peft_cfg,
                         )
 
-        logging.info(f"After adding adapters:\n{self.summarize()}")
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -292,3 +288,65 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             self.freeze()  # Freeze the entire model
             self._optimizer_param_groups = ({"params": []},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
+
+
+class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
+    """
+    want to combine adapters and p-tuning? Why not? they are orthogonal methods.
+    This class includes both sets of params.
+    """
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.peft_name_keys = [
+            AdapterName.PRE_ATTN_ADAPTER,
+            AdapterName.POST_ATTN_ADAPTER,
+            AdapterName.PTUNING_ADAPTER
+        ]
+        ptuning_cfg = PromptEncoderAdapterConfig(
+            cfg.peft.p_tuning.virtual_tokens,
+            cfg.peft.p_tuning.bottleneck_dim,
+            cfg.peft.p_tuning.embedding_dim,
+            cfg.peft.p_tuning.init_std,
+            cfg.hidden_size,
+        )
+        adapter_tuning_cfg = cfg.peft.adapter_tuning
+        if adapter_tuning_cfg.type == "parallel_adapter":
+            adapter_cfg = ParallelLinearAdapterConfig(
+                in_features=cfg.hidden_size,
+                dim=adapter_tuning_cfg.adapter_dim,
+                norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+                norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+                column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
+                row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
+                dropout=adapter_tuning_cfg.adapter_dropout,
+            )
+        else:
+            adapter_cfg = LinearAdapterConfig(
+                in_features=cfg.hidden_size,
+                dim=adapter_tuning_cfg.adapter_dim,
+                norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+                dropout=adapter_tuning_cfg.adapter_dropout,
+            )
+
+        self.name_key_to_cfg = {
+            AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
+            AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
+            AdapterName.PTUNING_ADAPTER: ptuning_cfg,
+            }
+        super().__init__(cfg, trainer)
+        self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
+    
+    def init_peft_modules(self):
+        """ 
+        Randomly initialize the peft params and add them to the appropriate modules.
+        """
+        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
+        for _, module in self.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=peft_key, cfg=peft_cfg,
+                        )
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
+        return True
