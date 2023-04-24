@@ -135,7 +135,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise NotImplementedError("row_init_method should be zero, normal or xavier")
 
         if norm_type == 'mixedfusedlayernorm':
-            self.layer_norm = MixedFusedLayerNorm(in_features, 1e-5, sequence_parallel_enbaled=False)
+            self.layer_norm = MixedFusedLayerNorm(in_features, 1e-5, sequence_parallel_enabled=False)
         elif norm_type == 'layernorm':
             self.layer_norm = nn.LayerNorm(in_features)
         else:

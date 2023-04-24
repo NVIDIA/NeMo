@@ -111,7 +111,7 @@ class NLPDDPStrategy(DDPStrategy):
             Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
-        if (hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2) or (
+        if (hasattr(self.model, 'megatron_amp_O2') and self.model.megatron_amp_O2) or (
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
@@ -348,6 +348,26 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_key = key.replace('model.', 'model.module.', 1)
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
+
+        # compatibility for inductor in inference
+        if not conf.get('inductor', False):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('._orig_mod', '', 1)
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+
+        # Modify state key for Dreambooth inference
+        if conf.get('target') == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion':
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('unet', 'model.diffusion_model')
+                new_key = new_key.replace('vae', 'first_stage_model')
+                new_key = new_key.replace('text_encoder', 'cond_stage_model')
+                new_key = new_key.replace('.noise_scheduler', '')
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+
 
         return state_dict
 

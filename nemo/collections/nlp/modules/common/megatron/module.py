@@ -262,7 +262,7 @@ class Float16Module(MegatronModule):
         super().__init__()
         self.precision = precision
 
-        if precision == 16:
+        if precision == 16 or precision == '16':
             self.add_module('module', module.half())
 
             def float16_converter(val):
