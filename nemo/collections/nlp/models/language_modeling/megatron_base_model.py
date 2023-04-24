@@ -142,7 +142,6 @@ class MegatronBaseModel(NLPModel):
         # The automatic garbage collector sould be disabled before training starts.
         if self.gc_interval > 0:
             gc.disable()
-            self.global_batch_count = 0
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -346,11 +345,8 @@ class MegatronBaseModel(NLPModel):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
-        if self.gc_interval > 0:
-            self.global_batch_count += 1
-            if self.global_batch_count % self.gc_interval == 0:
-                gc.collect()
-                self.gglobal_batch_count = 0
+        if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
+            gc.collect()
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
