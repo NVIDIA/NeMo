@@ -522,7 +522,8 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
-
+        #Workaround for torch.multiprocessing.set_sharing_strategy('file_system')
+        torch.multiprocessing.set_sharing_strategy('file_system')
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
