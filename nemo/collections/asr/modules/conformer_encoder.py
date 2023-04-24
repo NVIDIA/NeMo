@@ -27,6 +27,7 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    DummyPositionalEncoding,
     LocalAttRelPositionalEncoding,
     MultiHeadAttention,
     PositionalEncoding,
@@ -82,6 +83,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
                 overlapping chunks. Attention context is determined by att_context_size parameter.
             'abs_pos': absolute positional embedding and Transformer
+            'non_pos': dont use positional embedding and Transformer
+            'post_': prefix for all options. Use for move attention after conv
             Default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
             Defaults to 5000
@@ -254,7 +257,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
 
+        if "post_" in self_attention_model:
+            self_attention_model = self_attention_model.replace("post_", "")
+            self.post_self_attention_model = True
+        else:
+            self.post_self_attention_model = False
         self.self_attention_model = self_attention_model
+
         self.global_tokens = global_tokens
         self.global_attn_separate = global_attn_separate
         self.global_tokens_spacing = global_tokens_spacing
@@ -385,6 +394,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             self.pos_enc = PositionalEncoding(
                 d_model=d_model, dropout_rate=dropout_pre_encoder, max_len=pos_emb_max_len, xscale=self.xscale
             )
+        elif self_attention_model == "non_pos":
+            pos_bias_u = None
+            pos_bias_v = None
+            self.pos_enc = DummyPositionalEncoding(
+                d_model=d_model, dropout_rate=dropout_pre_encoder, max_len=pos_emb_max_len, xscale=self.xscale
+            )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
@@ -394,6 +409,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 d_model=d_model,
                 d_ff=d_ff,
                 self_attention_model=self_attention_model,
+                post_self_attention_model=self.post_self_attention_model,
                 global_tokens=global_tokens,
                 global_tokens_spacing=global_tokens_spacing,
                 global_attn_separate=global_attn_separate,
@@ -574,6 +590,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if self.self_attention_model == 'abs_pos':
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
+        elif self.self_attention_model == 'non_pos':
+            pos_emb = None
         else:
             audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
@@ -844,6 +862,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
                     overlapping windows. Attention context is determined by att_context_size parameter.
                 'abs_pos': absolute positional embedding and Transformer
+                'non_pos': dont use positional embedding and Transformer
+                'post_': prefix for all options. Use for move attention after conv
                 If None is provided, the self_attention_model isn't changed. Defauts to None.
             att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
                 or None to keep as it is. Defauts to None.
@@ -860,6 +880,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if self_attention_model is None:
             self_attention_model = self._cfg.self_attention_model
+
+        if "post_" in self_attention_model:
+            self_attention_model = self_attention_model.replace("post_", "")
+            self.post_self_attention_model = True
+        else:
+            self.post_self_attention_model = False
 
         if self_attention_model == 'rel_pos_local_attn' and max(att_context_size) <= 0:
             raise ValueError("When using local attention, context size must be set > 0")
@@ -884,6 +910,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
         elif self_attention_model == "abs_pos":
             new_pos_enc = PositionalEncoding(
+                d_model=self._cfg.d_model,
+                dropout_rate=self._cfg.dropout,
+                max_len=self._cfg.pos_emb_max_len,
+                xscale=self.xscale,
+            )
+        elif self_attention_model == "non_pos":
+            new_pos_enc = DummyPositionalEncoding(
                 d_model=self._cfg.d_model,
                 dropout_rate=self._cfg.dropout,
                 max_len=self._cfg.pos_emb_max_len,
@@ -922,7 +955,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         pos_bias_u=None,
                         pos_bias_v=None,
                     )
-                elif self_attention_model == 'abs_pos':
+                elif self_attention_model in ['abs_pos', 'non_pos']:
                     new_attn = MultiHeadAttention(
                         n_head=self._cfg.n_heads,
                         n_feat=self._cfg.d_model,
@@ -932,7 +965,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 else:
                     raise ValueError(
                         f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
-                        f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos']"
+                        f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos', 'non_pos'], "
+                        f"and can add '_post' for each option"
                     )
                 if device is not None:
                     new_attn = new_attn.to(device=device)
@@ -940,8 +974,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 del m.self_attn
                 m.self_attn = new_attn
                 m.self_attention_model = self_attention_model
+                m.post_self_attention_model = self.post_self_attention_model
 
         if update_config:
+            if self.post_self_attention_model:
+                self_attention_model = f"post_{self_attention_model}"
             self._cfg.self_attention_model = self_attention_model
             self._cfg.att_context_size = att_context_size
 
@@ -1003,6 +1040,8 @@ class ConformerChangeConfig:
     #  'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
     #   overlapping chunks. Attention context is determined by att_context_size parameter.
     #  'abs_pos': absolute positional embedding and Transformer
+    #  'non_pos': dont use positional embedding and Transformer
+    #  'post_': prefix for all options. Use for move attention after conv
     # If None is provided, self_attention_model is not changed.
     self_attention_model: Optional[str] = None
 

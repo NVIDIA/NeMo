@@ -844,6 +844,39 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         return context.view(bsz, num_heads, seqlen, head_dim).transpose(1, 2)
 
 
+class DummyPositionalEncoding(torch.nn.Module):
+    """Dummy Fixed sinusoidal positional encoding.
+    Args:
+        d_model (int): embedding dim
+        dropout_rate (float): dropout rate
+        max_len (int): maximum input length
+        xscale (bool): whether to scale the input by sqrt(d_model)
+        dropout_rate_emb (float): dropout rate for the positional embeddings
+    """
+
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
+        """Construct an DummyPositionalEncoding object."""
+        super(DummyPositionalEncoding, self).__init__()
+        pass
+
+    def create_pe(self, positions):
+        pass
+
+    def extend_pe(self, length, device):
+        """Dummy Reset and extend the positional encodings if needed."""
+        pass
+
+    def forward(self, x: torch.Tensor):
+        """Dummy Adds positional encoding.
+        Args:
+            x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
+        Returns:
+            x+pos_emb (torch.Tensor): Its shape is (batch, time, feature_size)
+            None
+        """
+        return x, None
+
+
 class PositionalEncoding(torch.nn.Module):
     """Fixed sinusoidal positional encoding.
     Args:

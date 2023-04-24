@@ -44,6 +44,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
                 overlapping chunks. Attention context is determined by att_context_size parameter.
             'abs_pos': absolute positional embedding and Transformer
+            'non_pos': dont use positional embedding and Transformer
+            'post_': prefix for all options. Use for move attention after conv
             Default is rel_pos.
         global_tokens (int): number of tokens to be used for global attention.
             Only relevant if self_attention_model is 'rel_pos_local_attn'.
@@ -63,6 +65,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         d_model,
         d_ff,
         self_attention_model='rel_pos',
+        post_self_attention_model=False,
         global_tokens=0,
         global_tokens_spacing=1,
         global_attn_separate=False,
@@ -77,6 +80,11 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         att_context_size=[-1, -1],
     ):
         super(ConformerLayer, self).__init__()
+
+        self.post_self_attention_model = post_self_attention_model
+        if "post_" in self_attention_model or post_self_attention_model:
+            self_attention_model = self_attention_model.replace("post_", "")
+            self.post_self_attention_model = True
 
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
@@ -121,14 +129,15 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 global_tokens_spacing=global_tokens_spacing,
                 global_attn_separate=global_attn_separate,
             )
-        elif self_attention_model == 'abs_pos':
+        elif self_attention_model in ['abs_pos', 'non_pos']:
             self.self_attn = MultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
             )
         else:
             raise ValueError(
                 f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
-                f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos']"
+                f"valid values can be from ['rel_pos', 'rel_pos_local_attn', 'abs_pos', 'non_pos'], "
+                f"and can add '_post' for each option"
             )
 
         # second feed forward module
@@ -137,6 +146,59 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
+
+    def _forward_attention(
+        self,
+        x,
+        residual,
+        att_mask=None,
+        pos_emb=None,
+        pad_mask=None,
+        cache_last_channel=None,
+        cache_last_channel_next=None,
+    ):
+        """
+        Args:
+            x (torch.Tensor): input signals (B, T, d_model)
+            residual (torch.Tensor): residual signal (B, T, d_model)
+            att_mask (torch.Tensor): attention masks(B, T, T)
+            pos_emb (torch.Tensor): (L, 1, d_model)
+            pad_mask (torch.tensor): padding mask
+            cache_last_channel (torch.tensor) : cache for MHA layers (N, B, T_cache, d_model)
+            cache_last_channel_next (torch.tensor) : next cache for MHA layers (N, B, T_cache, d_model)
+        Returns:
+            x (torch.Tensor): (B, T, d_model)
+            residual (torch.Tensor): (B, T, d_model)
+        """
+        x = self.norm_self_att(residual)
+        if self.self_attention_model == 'rel_pos':
+            x = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                mask=att_mask,
+                pos_emb=pos_emb,
+                cache=cache_last_channel,
+                cache_next=cache_last_channel_next,
+            )
+        elif self.self_attention_model == 'rel_pos_local_attn':
+            x = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                pad_mask=pad_mask,
+                pos_emb=pos_emb,
+                cache=cache_last_channel,
+                cache_next=cache_last_channel_next,
+            )
+        elif self.self_attention_model == 'abs_pos' or self.self_attention_model == 'non_pos':
+            x = self.self_attn(
+                query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel, cache_next=cache_last_channel_next
+            )
+        else:
+            x = None
+        residual = residual + self.dropout(x)
+        return x, residual
 
     def forward(
         self,
@@ -167,34 +229,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         x = self.feed_forward1(x)
         residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_self_att(residual)
-        if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(
-                query=x,
-                key=x,
-                value=x,
-                mask=att_mask,
+        if not self.post_self_attention_model:
+            x, residual = self._forward_attention(
+                x=x,
+                residual=residual,
+                att_mask=att_mask,
                 pos_emb=pos_emb,
-                cache=cache_last_channel,
-                cache_next=cache_last_channel_next,
-            )
-        elif self.self_attention_model == 'rel_pos_local_attn':
-            x = self.self_attn(
-                query=x,
-                key=x,
-                value=x,
                 pad_mask=pad_mask,
-                pos_emb=pos_emb,
-                cache=cache_last_channel,
-                cache_next=cache_last_channel_next,
+                cache_last_channel=cache_last_channel,
+                cache_last_channel_next=cache_last_channel_next,
             )
-        elif self.self_attention_model == 'abs_pos':
-            x = self.self_attn(
-                query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel, cache_next=cache_last_channel_next
-            )
-        else:
-            x = None
-        residual = residual + self.dropout(x)
 
         if self.is_adapter_available():
             # Call the MHA adapters
@@ -210,6 +254,17 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
         residual = residual + self.dropout(x)
+
+        if self.post_self_attention_model:
+            x, residual = self._forward_attention(
+                x=x,
+                residual=residual,
+                att_mask=att_mask,
+                pos_emb=pos_emb,
+                pad_mask=pad_mask,
+                cache_last_channel=cache_last_channel,
+                cache_last_channel_next=cache_last_channel_next,
+            )
 
         x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)
@@ -274,7 +329,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
                 output = adapter_strategy(x, adapter_module, module=self)
 
-            elif self.self_attention_model == 'abs_pos':
+            elif self.self_attention_model in ['abs_pos', 'non_pos']:
                 x = dict(query=x, key=x, value=x, mask=att_mask)
                 output = adapter_strategy(x, adapter_module, module=self)
 
