@@ -311,6 +311,7 @@ class MegatronBertModel(MegatronBaseModel):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         if losses_reduced_per_micro_batch:
@@ -411,6 +412,7 @@ class MegatronBertModel(MegatronBaseModel):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         if losses_reduced_per_micro_batch:
@@ -643,7 +645,11 @@ class MegatronBertModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
     def setup_training_data(self, cfg):
