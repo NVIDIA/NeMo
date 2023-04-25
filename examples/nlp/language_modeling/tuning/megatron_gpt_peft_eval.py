@@ -32,13 +32,11 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
-    NLPSaveRestoreConnector,
     PEFTSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 mp.set_start_method("spawn", force=True)
 
