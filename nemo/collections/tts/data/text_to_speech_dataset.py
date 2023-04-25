@@ -169,8 +169,8 @@ class TextToSpeechDataset(Dataset):
         logging.info(dataset_name)
         logging.info(f"Original # of files: {len(entries)}")
         logging.info(f"Filtered # of files: {len(filtered_entries)}")
-        logging.info(f"Original duration: {total_hours} hours")
-        logging.info(f"Filtered duration: {filtered_hours} hours")
+        logging.info(f"Original duration: {total_hours:.2f} hours")
+        logging.info(f"Filtered duration: {filtered_hours:.2f} hours")
 
         samples = []
         sample_weights = []

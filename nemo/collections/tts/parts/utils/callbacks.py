@@ -229,6 +229,39 @@ class LoggingCallback(Callback):
             self._log_image(image=image, log_dir=log_dir, step=model.global_step)
 
 
+class VocoderArtifactGenerator(ArtifactGenerator):
+    """
+    Generator for logging Vocoder model outputs.
+    """
+
+    def generate_artifacts(
+        self, model: LightningModule, batch_dict: Dict
+    ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+
+        audio_artifacts = []
+
+        audio_filepaths = batch_dict.get("audio_filepaths")
+        audio_ids = [create_id(p) for p in audio_filepaths]
+
+        audio = batch_dict.get("audio")
+        audio_len = batch_dict.get("audio_lens")
+
+        spec, spec_len = model.audio_to_melspec_precessor(audio, audio_len)
+
+        with torch.no_grad():
+            # [B, T]
+            audio_pred = model.forward(spec=spec).squeeze(1)
+
+        for i, audio_id in enumerate(audio_ids):
+            audio_pred_i = audio_pred[i][: audio_len[i]].cpu().numpy()
+            audio_artifact = AudioArtifact(
+                id=f"audio_{audio_id}", data=audio_pred_i, filename=f"{audio_id}.wav", sample_rate=model.sample_rate,
+            )
+            audio_artifacts.append(audio_artifact)
+
+        return audio_artifacts, []
+
+
 class FastPitchArtifactGenerator(ArtifactGenerator):
     """
     Generator for logging FastPitch model outputs.

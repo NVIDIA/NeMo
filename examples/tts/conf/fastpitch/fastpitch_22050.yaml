@@ -1,4 +1,4 @@
-# This config contains the default values for training a FastPitch model with aligner.
+# This config contains the default values for training an English 22khz FastPitch model.
 # If you want to train a model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
@@ -116,7 +116,6 @@ model:
 
     dataloader_params:
       batch_size: ${batch_size}
-      drop_last: true
       num_workers: 8
 
   validation_ds:
