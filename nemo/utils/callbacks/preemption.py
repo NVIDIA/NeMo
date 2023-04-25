@@ -20,7 +20,7 @@ from pytorch_lightning.callbacks import Callback
 
 from nemo.utils import logging
 
-
+print("--hello---")
 class PreemptionCallback(Callback):
     """
     PreemptionCallback class creates a callback that checks for preemption during training at the end of every step.
