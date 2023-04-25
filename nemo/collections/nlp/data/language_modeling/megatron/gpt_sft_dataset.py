@@ -272,7 +272,9 @@ class GPTSFTDataset(Dataset):
         attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
-        input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        input_ids = torch.LongTensor(
+            self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
+        )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
         contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
