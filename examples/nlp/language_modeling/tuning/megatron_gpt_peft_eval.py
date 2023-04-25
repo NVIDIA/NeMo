@@ -25,9 +25,9 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
+    MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
     MegatronGPTPTuningModel,
-    MegatronGPTAdapterPTuningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -81,6 +81,7 @@ def _get_peft_scheme(cfg):
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
