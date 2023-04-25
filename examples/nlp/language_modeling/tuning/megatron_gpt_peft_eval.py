@@ -25,8 +25,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTAdapterModel,
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
-    MegatronGPTPTuningModel,
     MegatronGPTPEFTModel,
+    MegatronGPTPTuningModel,
 )
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -123,7 +123,7 @@ def main(cfg) -> None:
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
         peft_model_cfg.global_batch_size = cfg.model.global_batch_size
         peft_model_cfg.micro_batch_size = cfg.model.micro_batch_size
-    
+
     save_restore_connector = PEFTSaveRestoreConnector(
         peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
     )
@@ -140,9 +140,7 @@ def main(cfg) -> None:
     model.freeze()
     _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
     request_dl = DataLoader(
-        dataset=_test_ds[0],
-        batch_size=peft_model_cfg.global_batch_size,
-        collate_fn=_test_ds[0].collate_fn,
+        dataset=_test_ds[0], batch_size=peft_model_cfg.global_batch_size, collate_fn=_test_ds[0].collate_fn,
     )
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
