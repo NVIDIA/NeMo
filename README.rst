@@ -239,6 +239,7 @@ NeMo Megatron training requires NVIDIA Apex and Megatron-core to be installed.
 Install them manually if not using the NVIDIA PyTorch container.
 
 To install Apex, run
+
 .. code-block:: bash
 
     git clone https://github.com/NVIDIA/apex.git
@@ -247,6 +248,7 @@ To install Apex, run
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 To install Megatron-core, run
+
 .. code-block:: bash
 
     git clone https://github.com/NVIDIA/Megatron-LM.git
