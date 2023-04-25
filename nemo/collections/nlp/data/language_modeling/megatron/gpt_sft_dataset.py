@@ -155,25 +155,20 @@ class GPTSFTDataset(Dataset):
             context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
             # Replace the input and output placeholders with the actual input and output
             text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
-            if self.virtual_tokens:
-                # (@adithyare) we are going to insert "pad" tokens in the beginning of the text and context
-                # these pad tokens are placeholders for virtual tokens
-                context = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + context
-                text = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + text
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            if self.virtual_tokens:
-                # (@adithyare) we are going to insert "pad" tokens in the beginning of the context
-                # these pad tokens are placeholders for virtual tokens
-                context = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + context
             text = context + '\n' + output
         elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            if self.virtual_tokens:
-                context = ''.join([self.tokenizer.eos_token] * self.virtual_tokens) + context
             text = context + ' ' + output
 
-        tokenized_text = self.tokenizer.text_to_ids(text)
-        context_ids = self.tokenizer.text_to_ids(context)
+        if self.virtual_tokens:
+            # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
+            # these pad/eos tokens are placeholders for virtual tokens
+            pre_pad = [self.pad_id] * self.virtual_tokens
+        else:
+            pre_pad = []
+        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
+        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
         total_ids = len(context_ids) + len(answer_ids)
         if self.add_bos:
