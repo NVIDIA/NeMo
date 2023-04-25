@@ -86,9 +86,6 @@ class GPTSFTDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
-        self.pad_id = (
-            self.tokenizer.eos_id
-        )  # TODO: (@adithyare) probably safer to check if tokenizer has a pad_id first
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
@@ -164,7 +161,7 @@ class GPTSFTDataset(Dataset):
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
-            pre_pad = [self.pad_id] * self.virtual_tokens
+            pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
         else:
             pre_pad = []
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
@@ -275,10 +272,10 @@ class GPTSFTDataset(Dataset):
         attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
-        input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length, pad_id=self.pad_id))
-        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.pad_id))
+        input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.pad_id))
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,

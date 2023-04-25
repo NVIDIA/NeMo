@@ -36,7 +36,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 mp.set_start_method("spawn", force=True)
 
