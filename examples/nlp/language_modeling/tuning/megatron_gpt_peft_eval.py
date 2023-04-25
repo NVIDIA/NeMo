@@ -14,23 +14,20 @@
 
 
 import os
-import tempfile
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
     MegatronGPTPTuningModel,
+    MegatronGPTPEFTModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -90,7 +87,7 @@ def main(cfg) -> None:
     assert cfg.model.restore_from_path is not None
     assert cfg.model.peft.restore_from_path is not None
     megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
-    with_distributed_adam = cfg.model.optim.get("name") == "distributed_fused_adam"
+    with_distributed_adam = False
 
     plugins = []
     strategy = NLPDDPStrategy(
@@ -118,22 +115,23 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
-    peft_cls = _get_peft_scheme(cfg.model)
-    peft_model_cfg = peft_cls.restore_from(
+    peft_model_cfg = MegatronGPTPEFTModel.restore_from(
         restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
     )
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
-
-    peft_model_cfg.data.test_ds = cfg.model.data.test_ds
+    with open_dict(peft_model_cfg):
+        peft_model_cfg.precision = cfg.trainer.precision
+        peft_model_cfg.data.test_ds = cfg.model.data.test_ds
+        peft_model_cfg.global_batch_size = cfg.model.global_batch_size
+        peft_model_cfg.micro_batch_size = cfg.model.micro_batch_size
+    
     save_restore_connector = PEFTSaveRestoreConnector(
         peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
     )
     if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-
+    peft_cls = _get_peft_scheme(peft_model_cfg)
     model = peft_cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
@@ -145,7 +143,7 @@ def main(cfg) -> None:
     _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
     request_dl = DataLoader(
         dataset=_test_ds[0],
-        batch_size=peft_model_cfg.data.test_ds.global_batch_size,
+        batch_size=peft_model_cfg.global_batch_size,
         collate_fn=_test_ds[0].collate_fn,
     )
     config = OmegaConf.to_container(cfg.inference)
