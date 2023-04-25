@@ -682,7 +682,7 @@ class NoisePerturbationWithNormalization(Perturbation):
         """
 
         noise = self.read_one_audiosegment(data.sample_rate)
-        
+
         # noise samples need to be at least 1 second long to avoid strange oddities
         # in the RMS SNR mixing, so we have a fail-safe here to ensure at least 1 sec duration
         while noise.duration < 1:
