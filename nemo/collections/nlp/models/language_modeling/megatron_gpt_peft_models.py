@@ -295,11 +295,12 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
     want to combine adapters and p-tuning? Why not? they are orthogonal methods.
     This class includes both sets of params.
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.peft_name_keys = [
             AdapterName.PRE_ATTN_ADAPTER,
             AdapterName.POST_ATTN_ADAPTER,
-            AdapterName.PTUNING_ADAPTER
+            AdapterName.PTUNING_ADAPTER,
         ]
         ptuning_cfg = PromptEncoderAdapterConfig(
             cfg.peft.p_tuning.virtual_tokens,
@@ -331,10 +332,10 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
             AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
             AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
             AdapterName.PTUNING_ADAPTER: ptuning_cfg,
-            }
+        }
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
-    
+
     def init_peft_modules(self):
         """ 
         Randomly initialize the peft params and add them to the appropriate modules.
