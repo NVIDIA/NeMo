@@ -197,6 +197,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         # only the last stages of the pipeline return losses
@@ -440,7 +441,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            persistent_workers=True,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
+            persistent_workers=True
+            if num_workers > 0
+            else False,  # (@adithyare and @eharper) We need to set this to True to get around issues with spawn=True
         )
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
