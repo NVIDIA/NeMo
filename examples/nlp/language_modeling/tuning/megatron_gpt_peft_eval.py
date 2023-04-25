@@ -27,6 +27,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTAdapterModel,
     MegatronGPTIA3Model,
     MegatronGPTPTuningModel,
+    MegatronGPTAdapterPTuningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -67,48 +68,7 @@ Usage:
 """
 
 
-def _modify_config(gpt_cfg, peft_cfg, cfg, add_cfg_to_tree=False):
-    """
-    This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
-    The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
-    """
-    OmegaConf.set_struct(gpt_cfg, True)
-    with open_dict(gpt_cfg):
-        gpt_cfg.megatron_amp_O2 = peft_cfg.get("megatron_amp_O2", False)
-        gpt_cfg.micro_batch_size = peft_cfg.data.train_ds.micro_batch_size
-        gpt_cfg.global_batch_size = peft_cfg.data.train_ds.global_batch_size
-        gpt_cfg.sequence_parallel = peft_cfg.get("sequence_parallel", False)
-        gpt_cfg.activations_checkpoint_granularity = peft_cfg.get("activations_checkpoint_granularity", None)
-        gpt_cfg.activations_checkpoint_num_layers = peft_cfg.get("activations_checkpoint_num_layers", None)
-        gpt_cfg.activations_checkpoint_method = peft_cfg.get("activations_checkpoint_method", None)
-        gpt_cfg.data = peft_cfg.data
-        gpt_cfg.optim = peft_cfg.optim
-        gpt_cfg.answer_only_loss = peft_cfg.answer_only_loss
-        gpt_cfg.restore_from_path = peft_cfg.restore_from_path
-        gpt_cfg.resume_from_checkpoint = peft_cfg.resume_from_checkpoint
-        gpt_cfg.save_nemo_on_validation_end = peft_cfg.save_nemo_on_validation_end
-        gpt_cfg.gradient_as_bucket_view = peft_cfg.gradient_as_bucket_view
-        gpt_cfg.hidden_dropout = peft_cfg.get("hidden_dropout", 0.0)
-        gpt_cfg.attention_dropout = peft_cfg.get("attention_dropout", 0.0)
-        gpt_cfg.ffn_dropout = peft_cfg.ffn_dropout
-        gpt_cfg.peft = peft_cfg.peft
-        gpt_cfg.data = peft_cfg.data
-        gpt_cfg.data.test_ds.file_names = cfg.model.data.test_ds.file_names
-        gpt_cfg.data.test_ds.names = cfg.model.data.test_ds.names
-        gpt_cfg.data.test_ds.global_batch_size = cfg.model.data.test_ds.global_batch_size
-        gpt_cfg.data.test_ds.micro_batch_size = cfg.model.data.test_ds.micro_batch_size
-
-        gpt_cfg.precision = cfg.trainer.precision
-
-        # This is needed when modifying a hparam file directly to load `.ckpt` files.
-        # This is not needed to modify the cfg in `.nemo` files.
-        if add_cfg_to_tree:
-            OmegaConf.resolve(gpt_cfg)
-            gpt_cfg.cfg = gpt_cfg
-
-    return gpt_cfg
-
-
+# TODO: import from tuning script.
 def _get_peft_scheme(cfg):
     if cfg.peft.peft_scheme == "adapter":
         peft_cls = MegatronGPTAdapterModel
@@ -116,10 +76,11 @@ def _get_peft_scheme(cfg):
         peft_cls = MegatronGPTIA3Model
     elif cfg.peft.peft_scheme == "ptuning":
         peft_cls = MegatronGPTPTuningModel
+    elif cfg.peft.peft_scheme == "adapter_and_ptuning":
+        peft_cls = MegatronGPTAdapterPTuningModel
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls
-
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
@@ -165,16 +126,7 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    base_model_save_restore_connector = NLPSaveRestoreConnector()
-    if os.path.isdir(cfg.model.restore_from_path):
-        base_model_save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    base_model_cfg = MegatronGPTModel.restore_from(
-        restore_path=cfg.model.restore_from_path,
-        trainer=trainer,
-        return_config=True,
-        save_restore_connector=base_model_save_restore_connector,
-    )
-    base_model_cfg = _modify_config(base_model_cfg, peft_model_cfg, cfg, add_cfg_to_tree=False)
+    peft_model_cfg.data.test_ds = cfg.model.data.test_ds
     save_restore_connector = PEFTSaveRestoreConnector(
         peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
     )
@@ -184,15 +136,15 @@ def main(cfg) -> None:
     model = peft_cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
-        override_config_path=base_model_cfg,
+        override_config_path=peft_model_cfg,
         save_restore_connector=save_restore_connector,
     )
 
     model.freeze()
-    _test_ds = model._build_dataset(base_model_cfg.data.test_ds, is_train=False)
+    _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
     request_dl = DataLoader(
         dataset=_test_ds[0],
-        batch_size=base_model_cfg.data.test_ds.global_batch_size,
+        batch_size=peft_model_cfg.data.test_ds.global_batch_size,
         collate_fn=_test_ds[0].collate_fn,
     )
     config = OmegaConf.to_container(cfg.inference)
