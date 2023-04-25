@@ -31,13 +31,13 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-mp.set_start_method("spawn", force=True)
-
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    if cfg.model.data.get('data_impl') != 'text_mmap':
+        mp.set_start_method("spawn", force=True)
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
