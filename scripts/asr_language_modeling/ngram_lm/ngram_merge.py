@@ -44,8 +44,8 @@ import argparse
 import os
 import subprocess
 import sys
-from typing import Tuple
 from collections import namedtuple
+from typing import Tuple
 
 import kenlm_utils
 import torch
@@ -170,9 +170,7 @@ def make_symbol_list(nemo_model_file, symbols, force):
             logging.warning(
                 "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
             )
-            asr_model = nemo_asr.models.ASRModel.from_pretrained(
-                nemo_model_file, map_location=torch.device('cpu')
-            )
+            asr_model = nemo_asr.models.ASRModel.from_pretrained(nemo_model_file, map_location=torch.device('cpu'))
             vocab_size = len(asr_model.decoder.vocabulary)
 
         vocab = [chr(idx + DEFAULT_TOKEN_OFFSET) for idx in range(vocab_size)]
@@ -181,13 +179,7 @@ def make_symbol_list(nemo_model_file, symbols, force):
                 f.write(v + " " + str(i) + "\n")
 
 
-def farcompile(
-    symbols: str,
-    text_file: str,
-    test_far: str,
-    force: bool,
-    args,
-) -> Tuple[bytes, bytes]:
+def farcompile(symbols: str, text_file: str, test_far: str, force: bool, args,) -> Tuple[bytes, bytes]:
     """
     Compiles a text file into a FAR file using the given symbol table or tokenizer.
 
@@ -232,12 +224,12 @@ def farcompile(
         )
 
         kenlm_utils.iter_files(
-            source_path = [text_file],
-            dest_path = ps.stdin,
-            tokenizer = tokenizer,
-            encoding_level = encoding_level,
-            is_aggregate_tokenizer = is_aggregate_tokenizer,
-            args = args,
+            source_path=[text_file],
+            dest_path=ps.stdin,
+            tokenizer=tokenizer,
+            encoding_level=encoding_level,
+            is_aggregate_tokenizer=is_aggregate_tokenizer,
+            args=args,
         )
         stdout, stderr = ps.communicate()
 
@@ -337,9 +329,7 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
-def test_perplexity(
-    mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str, force: bool
-) -> str:
+def test_perplexity(mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str, force: bool) -> str:
     """
     Tests the perplexity of a given ngram model on a test file.
 
@@ -359,13 +349,17 @@ def test_perplexity(
         'Perplexity: 123.45'
     """
     test_far = os.path.join(tmp_path, os.path.split(test_txt)[1] + ".far")
-    Args = namedtuple('Args', 'nemo_model_file punctuation_marks do_lowercase rm_punctuation separate_punctuation verbose')
-    args = Args(nemo_model_file = nemo_model_file,
-                punctuation_marks = '.,?',
-                do_lowercase = False,
-                rm_punctuation = False,
-                separate_punctuation = True,
-                verbose = 0)
+    Args = namedtuple(
+        'Args', 'nemo_model_file punctuation_marks do_lowercase rm_punctuation separate_punctuation verbose'
+    )
+    args = Args(
+        nemo_model_file=nemo_model_file,
+        punctuation_marks='.,?',
+        do_lowercase=False,
+        rm_punctuation=False,
+        separate_punctuation=True,
+        verbose=0,
+    )
     farcompile(symbols, test_txt, test_far, force, args)
     res_p = perplexity(mod_c, test_far)
     return res_p

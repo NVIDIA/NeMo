@@ -40,15 +40,15 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from glob import glob
-from omegaconf import MISSING, OmegaConf
 from typing import List, Optional
 
 import kenlm_utils
 from kenlm_utils import CHUNK_BUFFER_SIZE, CHUNK_SIZE
+from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-from nemo.utils import logging
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
@@ -57,27 +57,32 @@ DEFAULT_TOKEN_OFFSET is the offset in the unicode table to be used to encode the
 the required memory significantly, and the LM and its binary blob format require less storage space.
 """
 
+
 @dataclass
-class TrainKenlmConfig():
+class TrainKenlmConfig:
     """
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
     """
+
     ## Path to the training files, or whitespace separated files, or folder with files. Files can be a text file, JSON manifest or .json.gz
-    train_path: List[str] = MISSING # [/path/to/manifest/file]
+    train_path: List[str] = MISSING  # [/path/to/manifest/file]
 
-    nemo_model_file: str = MISSING # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
-    kenlm_model_file: str = MISSING # The path to store the KenLM binary model file
-    ngram_length: int = MISSING # The order of N-gram LM
-    kenlm_bin_path: str = MISSING # The path to the bin folder of KenLM.
+    nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
+    kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
+    ngram_length: int = MISSING  # The order of N-gram LM
+    kenlm_bin_path: str = MISSING  # The path to the bin folder of KenLM.
 
-    preserve_arpa: bool = False # Whether to preserve the intermediate ARPA file.
-    ngram_prune: List[int] = field(default_factory=lambda: [0]) # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation 
-    cache_path: str = None # Cache path to save tokenized files.
-    do_lowercase: bool = False # Whether to apply lower case conversion on the training text.
-    punctuation_marks: str = None # Punctuation marks to process. Example: ".,?"
-    rm_punctuation: bool = False # Whether to remove punctuation marks from text.
-    separate_punctuation: bool = True # Whether to separate punctuation with the previouse word by space.
-    verbose: int = 1 # Verbose level, default is 1.
+    preserve_arpa: bool = False  # Whether to preserve the intermediate ARPA file.
+    ngram_prune: List[int] = field(
+        default_factory=lambda: [0]
+    )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
+    cache_path: str = None  # Cache path to save tokenized files.
+    do_lowercase: bool = False  # Whether to apply lower case conversion on the training text.
+    punctuation_marks: str = None  # Punctuation marks to process. Example: ".,?"
+    rm_punctuation: bool = False  # Whether to remove punctuation marks from text.
+    separate_punctuation: bool = True  # Whether to separate punctuation with the previouse word by space.
+    verbose: int = 1  # Verbose level, default is 1.
+
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=TrainKenlmConfig)
 def main(args: TrainKenlmConfig):
@@ -125,12 +130,12 @@ def main(args: TrainKenlmConfig):
             encoded_train_files.append(encoded_train_file)
 
         kenlm_utils.iter_files(
-            source_path = train_path,
-            dest_path = encoded_train_files,
-            tokenizer = tokenizer,
-            encoding_level = encoding_level,
-            is_aggregate_tokenizer = is_aggregate_tokenizer,
-            args = args,
+            source_path=train_path,
+            dest_path=encoded_train_files,
+            tokenizer=tokenizer,
+            encoding_level=encoding_level,
+            is_aggregate_tokenizer=is_aggregate_tokenizer,
+            args=args,
         )
 
         first_process_args = ["cat"] + encoded_train_files
@@ -152,12 +157,12 @@ def main(args: TrainKenlmConfig):
         kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
 
         kenlm_utils.iter_files(
-            source_path = train_path,
-            dest_path = kenlm_p.stdin,
-            tokenizer = tokenizer,
-            encoding_level = encoding_level,
-            is_aggregate_tokenizer = is_aggregate_tokenizer,
-            args = args,
+            source_path=train_path,
+            dest_path=kenlm_p.stdin,
+            tokenizer=tokenizer,
+            encoding_level=encoding_level,
+            is_aggregate_tokenizer=is_aggregate_tokenizer,
+            args=args,
         )
 
         kenlm_p.communicate()

@@ -82,7 +82,6 @@ def setup_tokenizer(args):
             "tokenizer_model_file does not end with .model or .nemo, therefore trying to load a pretrained model with this name."
         )
         model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
-    
 
     text_processing = model.cfg.decoding.get("text_processing", None)
     if text_processing:
@@ -110,12 +109,7 @@ def setup_tokenizer(args):
 
 
 def iter_files(
-    source_path,
-    dest_path,
-    tokenizer,
-    encoding_level,
-    is_aggregate_tokenizer,
-    args,
+    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, args,
 ):
     if isinstance(dest_path, list):
         paths = zip(dest_path, source_path)
@@ -123,11 +117,7 @@ def iter_files(
         paths = [(dest_path, path) for path in source_path]
 
     for dest_path, input_path in paths:
-        dataset = read_train_file(
-            input_path,
-            args,
-            is_aggregate_tokenizer=is_aggregate_tokenizer,
-        )
+        dataset = read_train_file(input_path, args, is_aggregate_tokenizer=is_aggregate_tokenizer,)
         if encoding_level == "subword":
             tokenize_text(
                 data=dataset,
@@ -147,9 +137,7 @@ def iter_files(
 
 
 def read_train_file(
-    path,
-    args,
-    is_aggregate_tokenizer: bool = False,
+    path, args, is_aggregate_tokenizer: bool = False,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
