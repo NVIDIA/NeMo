@@ -682,6 +682,9 @@ class NoisePerturbationWithNormalization(Perturbation):
         """
 
         noise = self.read_one_audiosegment(data.sample_rate)
+        
+        # noise samples need to be at least 1 second long to avoid strange oddities
+        # in the RMS SNR mixing, so we have a fail-safe here to ensure at least 1 sec duration
         while noise.duration < 1:
             noise = self.read_one_audiosegment(data.sample_rate)
 
@@ -765,7 +768,7 @@ class NoisePerturbationWithNormalization(Perturbation):
         else:
             snr_db = random.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
-            data_rms = data.rms_db
+            data_rms = data.rms_db if ref_mic is None else data.rms_db[ref_mic]
 
         if norm_to_db is None:
             norm_to_db = data_rms
