@@ -53,14 +53,14 @@ You may train the N-gram model as the following:
 
 .. code-block::
 
-    python train_kenlm.py --tokenizer_model_file <path to the .model or .nemo file of the model> \
-                              --train_path <path to the training text or JSON manifest files> \
-                              --kenlm_bin_path <path to the bin folder of KenLM library> \
-                              --kenlm_model_file <path to store the binary KenLM model> \
-                              --ngram_length <order of N-gram model> \
-                              --preserve_arpa
+    python train_kenlm.py nemo_model_file=<path to the .nemo file of the model> \
+                              train_path=<path to the training text or JSON manifest files> \
+                              kenlm_bin_path=<path to the bin folder of KenLM library> \
+                              kenlm_model_file=<path to store the binary KenLM model> \
+                              ngram_length=<order of N-gram model> \
+                              preserve_arpa=true
 
-The train file specified by `--train_path` can be a whitespace separeted list of text file, or JSON manifest, or folder. If the file's extension is anything
+The train file specified by `train_path` can be a whitespace separeted list of text file, or JSON manifest, or folder. If the file's extension is anything
 other than `.json`, it assumes that data format is plain text. For plain text format, each line should contain one
 sample. For JSON manifest file, the file need to contain json formatted samples per each line like this:
 
@@ -69,14 +69,14 @@ sample. For JSON manifest file, the file need to contain json formatted samples 
     {"audio_filepath": "/data_path/file1.wav", "text": "The transcript of the audio file."}
 
 It just extracts the `text` field from each line to create the training text file. After the N-gram model is trained,
-it is stored at the path specified by `--kenlm_model_file`.
+it is stored at the path specified by `kenlm_model_file`.
 
 The following is the list of the arguments for the training script:
 
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | **Argument**     | **Type** | **Default** | **Description**                                                                                 |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| tokenizer_model_file | str  | Required    | The path to `.model` file of the SentencePiece tokenizer, or `.nemo` file of the ASR model, or name of a pretrained NeMo model to extract a tokenizer. |
+| nemo_model_file  | str      | Required    | The path to `.nemo` file of the ASR model, or name of a pretrained NeMo model to extract a tokenizer. |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | train_path       | str      | Required    | Path to the training file, or whitespace separated files, or folder with files. It can be a text file or JSON manifest.  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
@@ -86,19 +86,21 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                   |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| ngram_prune      | int      | 0           | Whitespace separated digits. Example: 0 0 1. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
+| ngram_prune      | int      | 0           | List of digits to prune Ngrum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | cache_path       | str      | None        | Cache path to save tokenized files.                                                             |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | do_lowercase     | bool     | ``False``   | Whether to make the training text all lower case.                                               |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| rm_punctuation   | bool     | ``False``   | Whether to remove punctuation marks (.,?) from text.                                            |
+| punctuation_marks | str     | None        | String with punctuation marks to process. Example: ".,?"                                        |
++------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
+| rm_punctuation   | bool     | ``False``   | Whether to remove punctuation marks from text.                                                  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | separate_punctuation | bool | ``False``   | Whether to separate punctuation with the previouse word by space.                               |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | preserve_arpa    | bool     | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.              |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| verbose          | int      | 1           | Verbose level, default is 1                                                                     |
+| verbose          | int      | 1           | Verbose level.                                                                                  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 
 ** Note: Recommend to use 6 as the order of the N-gram model for BPE-based models. Higher orders may need the re-compilation of KenLM to support it.
@@ -448,6 +450,8 @@ You can then pass this file to your flashlight config object during decoding:
 Combine N-gram Language Models
 ==============================
 
+Before combining N-gram LMs install required OpenGrm NGram library using `scripts/installers/install_opengrm_ngram.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/install_opengrm_ngram.sh>`__.
+
 To combine two N-gram language models, you can use the script ngram_merge.py located at 
 `scripts/asr_language_modeling/ngram_lm/ngram_merge.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/ngram_merge.py>`__.
 
@@ -470,7 +474,7 @@ To combine two N-gram models, you can use the following command:
 
 
 
-If you provide --test_file and --tokenizer_model_file, the script will calculate the perplexity of the test set. 
+If you provide --test_file and --nemo_model_file, the script will calculate the perplexity of the test set. 
 The result of each step is cached in the temporary file in the --out_path. 
 You can use the --force flag to discard the cache and recalculate everything from scratch.
 
@@ -482,7 +486,7 @@ You can use the --force flag to discard the cache and recalculate everything fro
                     --arpa_b <path to the ARPA N-gram model file B> \
                     --beta <weight of N-gram model B> \
                     --out_path <path to folder to store the output files>
-                    --tokenizer_model_file <path to the .model or .nemo file of the model> \
+                    --nemo_model_file <path to the .nemo file of the model> \
                     --test_file <path to the test file> \
                     --symbols <Path to symbols (.syms) file. Could be calculated if it is not provided.> \
                     --force
@@ -503,13 +507,13 @@ The following is the list of the arguments for the opengrm script:
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | beta                 | float  | Required         | Weight of N-gram model B                                                |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
-| out_path             | str    | Required         | Path for writing temporary and resulting files.                                |
+| out_path             | str    | Required         | Path for writing temporary and resulting files.                         |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
-| test_file            | str    | None             | Path to test file to count perplexity if provided.                             |
+| test_file            | str    | None             | Path to test file to count perplexity if provided.                      |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | symbols              | str    | None             | Path to symbols (.syms) file . Could be calculated if it is not provided. |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
-| tokenizer_model_file | str    | None             | The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model.    |
+| nemo_model_file      | str    | None             | The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model.  |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | force                | bool   | ``False``        | Whether to recompile and rewrite all files                              |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+

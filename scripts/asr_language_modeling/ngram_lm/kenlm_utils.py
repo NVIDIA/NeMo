@@ -64,65 +64,69 @@ def get_train_list(args_train_path):
     return sorted(train_path)
 
 
-def setup_tokenizer(tokenizer_model_file):
-    """ TOKENIZER SETUP """
-    logging.info(f"Loading nemo model '{tokenizer_model_file}' ...")
-    if tokenizer_model_file.endswith('.model'):
-        tokenizer_nemo = SentencePieceTokenizer(tokenizer_model_file)
-    elif tokenizer_model_file.endswith('.nemo'):
-        model = nemo_asr.models.ASRModel.restore_from(tokenizer_model_file, map_location=torch.device('cpu'))
+def setup_tokenizer(args):
+    """ TOKENIZER SETUP 
+        args includes following:
+        args.nemo_model_file (str): The path to the NeMo model file (.nemo).
+        args.punctuation_marks (str): The punctuation marks to process. Example: .,?
+        args.do_lowercase (bool): If True, converts all text to lowercase before compiling.
+        args.rm_punctuation (bool): If True, removes punctuation before compiling.
+        args.separate_punctuation (bool): If True, punctuation mark separates from the previous word by space.
+        args.verbose (int): Verbose level.
+    """
+    logging.info(f"Loading nemo model '{args.nemo_model_file}' ...")
+    if args.nemo_model_file.endswith('.nemo'):
+        model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
     else:
         logging.warning(
             "tokenizer_model_file does not end with .model or .nemo, therefore trying to load a pretrained model with this name."
         )
-        model = nemo_asr.models.ASRModel.from_pretrained(tokenizer_model_file, map_location=torch.device('cpu'))
+        model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
+    
 
-    if tokenizer_model_file.endswith('.model'):
-        encoding_level = 'subword'
-        is_aggregate_tokenizer = False
+    text_processing = model.cfg.decoding.get("text_processing", None)
+    if text_processing:
+        args.punctuation_marks = text_processing.get("punctuation_marks", args.punctuation_marks)
+        args.rm_punctuation = text_processing.get("rm_punctuation", args.rm_punctuation)
+        args.separate_punctuation = text_processing.get("separate_punctuation", args.separate_punctuation)
+        args.do_lowercase = text_processing.get("do_lowercase", args.do_lowercase)
+
+    if type(model.tokenizer).__name__ == 'AggregateTokenizer':
+        is_aggregate_tokenizer = True
     else:
-        if type(model.tokenizer).__name__ == 'AggregateTokenizer':
-            is_aggregate_tokenizer = True
-        else:
-            is_aggregate_tokenizer = False
+        is_aggregate_tokenizer = False
 
-        encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
-        if not encoding_level:
-            logging.warning(
-                f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
-            )
-            encoding_level = 'char'
+    encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
+    if not encoding_level:
+        logging.warning(
+            f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
+        )
+        encoding_level = 'char'
 
-        tokenizer_nemo = model.tokenizer
-        del model
+    tokenizer_nemo = model.tokenizer
+    del model
 
-    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, args
 
 
 def iter_files(
+    source_path,
     dest_path,
-    train_path,
     tokenizer,
     encoding_level,
     is_aggregate_tokenizer,
-    do_lowercase,
-    rm_punctuation,
-    separate_punctuation,
-    verbose,
+    args,
 ):
     if isinstance(dest_path, list):
-        train_path = zip(dest_path, train_path)
+        paths = zip(dest_path, source_path)
     else:  # dest_path is stdin of KenLM
-        train_path = [(dest_path, path) for path in train_path]
+        paths = [(dest_path, path) for path in source_path]
 
-    for dest_path, input_path in train_path:
+    for dest_path, input_path in paths:
         dataset = read_train_file(
             input_path,
-            do_lowercase,
-            rm_punctuation,
-            separate_punctuation,
+            args,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            verbose=verbose,
         )
         if encoding_level == "subword":
             tokenize_text(
@@ -136,7 +140,7 @@ def iter_files(
             if isinstance(dest_path, str):
                 with open(dest_path, 'w', encoding='utf-8') as f:
                     for line in dataset:
-                        f.write(f"{line}\n")
+                        f.write(line + "\n")
             else:  # write to stdin of KenLM
                 for line in dataset:
                     dest_path.write((line + '\n').encode())
@@ -144,21 +148,18 @@ def iter_files(
 
 def read_train_file(
     path,
-    do_lowercase: bool = False,
-    rm_punctuation: bool = False,
-    separate_punctuation: bool = False,
+    args,
     is_aggregate_tokenizer: bool = False,
-    verbose: int = 0,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
-    punctuation_capitalization = PunctuationCapitalization('.,?')
+    punctuation_capitalization = PunctuationCapitalization(args.punctuation_marks)
     if path[-8:] == '.json.gz':  # for Common Crawl dataset
         fin = gzip.open(path, 'r')
     else:
         fin = open(path, 'r', encoding='utf-8')
 
-    if verbose > 0:
+    if args.verbose > 0:
         reader = tqdm(iter(lambda: fin.readline(), ''), desc="Read 0 lines", unit=' lines')
     else:
         reader = fin
@@ -175,11 +176,11 @@ def read_train_file(
                     lang = jline['lang']
 
             line_list = line.split("\n")
-            if rm_punctuation:
+            if args.rm_punctuation:
                 line_list = punctuation_capitalization.rm_punctuation(line_list)
-            if separate_punctuation:
+            if args.separate_punctuation:
                 line_list = punctuation_capitalization.separate_punctuation(line_list)
-            if do_lowercase:
+            if args.do_lowercase:
                 line_list = punctuation_capitalization.do_lowercase(line_list)
 
             line = " ".join(line_list)
@@ -188,7 +189,7 @@ def read_train_file(
                 if lang:
                     lang_dataset.append(lang)
                 lines_read += 1
-                if verbose > 0 and lines_read % 100000 == 0:
+                if args.verbose > 0 and lines_read % 100000 == 0:
                     reader.set_description(f"Read {lines_read} lines")
         else:
             break

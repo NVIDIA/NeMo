@@ -35,7 +35,7 @@ python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bi
                     --arpa_b /path/ngram_b.kenlm.tmp.arpa \
                     --beta 0.5 \
                     --out_path /path/out \
-                    --tokenizer_model_file /path/to/model_tokenizer.nemo \
+                    --nemo_model_file /path/to/model_tokenizer.nemo \
                     --test_file /path/to/test_manifest.json \
                     --force
 """
@@ -45,6 +45,7 @@ import os
 import subprocess
 import sys
 from typing import Tuple
+from collections import namedtuple
 
 import kenlm_utils
 import torch
@@ -142,14 +143,14 @@ def merge(arpa_a: str, alpha: float, arpa_b: str, beta: float, out_path: str, fo
     return mod_c, arpa_c
 
 
-def make_symbol_list(tokenizer_model_file, symbols, force):
+def make_symbol_list(nemo_model_file, symbols, force):
     """
     Function: make_symbol_list
 
     Create a symbol table for the input tokenizer model file.
 
     Args:
-        tokenizer_model_file (str): Path to the tokenizer model file.
+        nemo_model_file (str): Path to the NeMo model file.
         symbols (str): Path to the file where symbol list will be saved.
         force (bool): Flag to force creation of symbol list even if it already exists.
     
@@ -162,18 +163,15 @@ def make_symbol_list(tokenizer_model_file, symbols, force):
     if os.path.isfile(symbols) and not force:
         logging.info("File " + symbols + " exists. Skipping.")
     else:
-        if tokenizer_model_file.endswith('.model'):
-            tokenizer_nemo = SentencePieceTokenizer(tokenizer_model_file)
-            vocab_size = tokenizer_nemo.vocab_size
-        elif tokenizer_model_file.endswith('.nemo'):
-            asr_model = nemo_asr.models.ASRModel.restore_from(tokenizer_model_file, map_location=torch.device('cpu'))
+        if nemo_model_file.endswith('.nemo'):
+            asr_model = nemo_asr.models.ASRModel.restore_from(nemo_model_file, map_location=torch.device('cpu'))
             vocab_size = len(asr_model.decoder.vocabulary)
         else:
             logging.warning(
-                "tokenizer_model_file does not end with .model or .nemo, therefore trying to load a pretrained model with this name."
+                "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
             )
             asr_model = nemo_asr.models.ASRModel.from_pretrained(
-                tokenizer_model_file, map_location=torch.device('cpu')
+                nemo_model_file, map_location=torch.device('cpu')
             )
             vocab_size = len(asr_model.decoder.vocabulary)
 
@@ -187,11 +185,8 @@ def farcompile(
     symbols: str,
     text_file: str,
     test_far: str,
-    tokenizer_model_file: str,
-    do_lowercase: bool,
-    rm_punctuation: bool,
-    separate_punctuation: bool,
     force: bool,
+    args,
 ) -> Tuple[bytes, bytes]:
     """
     Compiles a text file into a FAR file using the given symbol table or tokenizer.
@@ -200,11 +195,14 @@ def farcompile(
         symbols (str): The path to the symbol table file.
         text_file (str): The path to the text file to compile.
         test_far (str): The path to the resulting FAR file.
-        tokenizer_model_file (str): The path to the tokenizer model file.
-        do_lowercase (bool): If True, converts all text to lowercase before compiling.
-        rm_punctuation (bool): If True, removes punctuation before compiling.
-        separate_punctuation (bool): If True, separates punctuation into separate symbols before compiling.
         force (bool): If True, overwrites any existing FAR file.
+        args includes following:
+        args.nemo_model_file (str): The path to the NeMo model file (.nemo).
+        args.do_lowercase (bool): If True, converts all text to lowercase before tokenizing.
+        args.punctuation_marks (str): String with punctuation marks to process.
+        args.rm_punctuation (bool): If True, removes punctuation before tokenizing.
+        args.separate_punctuation (bool): If True, punctuation mark separates from the previous word by space.
+        args.verbose (int): Level of verbose.
 
     Returns:
         Tuple[bytes, bytes]: The standard output and standard error messages generated during the compilation.
@@ -227,22 +225,19 @@ def farcompile(
             test_far,
         ]
 
-        tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(tokenizer_model_file)
+        tokenizer, encoding_level, is_aggregate_tokenizer, args = kenlm_utils.setup_tokenizer(args)
 
         ps = subprocess.Popen(
             " ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,
         )
 
         kenlm_utils.iter_files(
-            ps.stdin,
-            [text_file],
-            tokenizer,
-            encoding_level,
-            is_aggregate_tokenizer,
-            do_lowercase,
-            rm_punctuation,
-            separate_punctuation,
-            verbose=0,
+            source_path = [text_file],
+            dest_path = ps.stdin,
+            tokenizer = tokenizer,
+            encoding_level = encoding_level,
+            is_aggregate_tokenizer = is_aggregate_tokenizer,
+            args = args,
         )
         stdout, stderr = ps.communicate()
 
@@ -343,7 +338,7 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
 
 
 def test_perplexity(
-    mod_c: str, symbols: str, test_txt: str, tokenizer_model_file: str, tmp_path: str, force: bool
+    mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str, force: bool
 ) -> str:
     """
     Tests the perplexity of a given ngram model on a test file.
@@ -352,7 +347,7 @@ def test_perplexity(
         mod_c (str): The path to the ngram model file.
         symbols (str): The path to the symbol table file.
         test_txt (str): The path to the test text file.
-        tokenizer_model_file (str): The path to the tokenizer model file.
+        nemo_model_file (str): The path to the NeMo model file.
         tmp_path (str): The path to the temporary directory where the test far file will be created.
         force (bool): If True, overwrites any existing far file.
 
@@ -364,7 +359,14 @@ def test_perplexity(
         'Perplexity: 123.45'
     """
     test_far = os.path.join(tmp_path, os.path.split(test_txt)[1] + ".far")
-    farcompile(symbols, test_txt, test_far, tokenizer_model_file, False, False, False, force)
+    Args = namedtuple('Args', 'nemo_model_file punctuation_marks do_lowercase rm_punctuation separate_punctuation verbose')
+    args = Args(nemo_model_file = nemo_model_file,
+                punctuation_marks = '.,?',
+                do_lowercase = False,
+                rm_punctuation = False,
+                separate_punctuation = True,
+                verbose = 0)
+    farcompile(symbols, test_txt, test_far, force, args)
     res_p = perplexity(mod_c, test_far)
     return res_p
 
@@ -378,7 +380,7 @@ def main(
     out_path: str,
     test_file: str,
     symbols: str,
-    tokenizer_model_file: str,
+    nemo_model_file: str,
     force: bool,
 ) -> None:
     """
@@ -394,7 +396,7 @@ def main(
     - out_path (str): The path where the output files will be saved.
     - test_file (str): The path to the file on which perplexity needs to be calculated.
     - symbols (str): The path to the file where symbol list for the tokenizer model will be saved.
-    - tokenizer_model_file (str): The path to the tokenizer model file.
+    - nemo_model_file (str): The path to the NeMo model file.
     - force (bool): If True, overwrite existing files, otherwise skip the operations.
 
     Returns:
@@ -403,11 +405,11 @@ def main(
 
     mod_c, arpa_c = merge(arpa_a, alpha, arpa_b, beta, out_path, force)
 
-    if test_file and tokenizer_model_file:
+    if test_file and nemo_model_file:
         if not symbols:
-            symbols = os.path.join(out_path, os.path.split(tokenizer_model_file)[1] + ".syms")
-            make_symbol_list(tokenizer_model_file, symbols, force)
-        test_p = test_perplexity(mod_c, symbols, test_file, tokenizer_model_file, out_path, force)
+            symbols = os.path.join(out_path, os.path.split(nemo_model_file)[1] + ".syms")
+            make_symbol_list(nemo_model_file, symbols, force)
+        test_p = test_perplexity(mod_c, symbols, test_file, nemo_model_file, out_path, force)
         logging.info("Perplexity summary:" + test_p)
 
     logging.info("Making ARPA and Kenlm model " + arpa_c)
@@ -449,11 +451,11 @@ def _parse_args():
         help="Path to symbols (.syms) file . Could be calculated if it is not provided. Use as: --symbols /path/to/earnest.syms",
     )
     parser.add_argument(
-        "--tokenizer_model_file",
+        "--nemo_model_file",
         required=False,
         type=str,
         default=None,
-        help="The path to '.model' file of the SentencePiece tokenizer, or '.nemo' file of the ASR model, or name of a pretrained NeMo model",
+        help="The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model",
     )
     parser.add_argument("--force", "-f", action="store_true", help="Whether to recompile and rewrite all files")
     return parser.parse_args()
