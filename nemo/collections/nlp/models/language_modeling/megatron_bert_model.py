@@ -428,8 +428,11 @@ class MegatronBertModel(MegatronBaseModel):
 
     def validation_step(self, batch, batch_idx):
         batch_for_pipeline = self.process_batch(batch)
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-
+        if self.cfg.data.dataloader_type == "LDDL":
+            seq_length = batch_for_pipeline[0].shape[1]
+            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        else:
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         fwd_bwd_function = self._get_fwd_bwd_function()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
@@ -522,8 +525,6 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
-        #Workaround for torch.multiprocessing.set_sharing_strategy('file_system')
-        torch.multiprocessing.set_sharing_strategy('file_system')
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
@@ -553,9 +554,9 @@ class MegatronBertModel(MegatronBaseModel):
             sequence_length_alignment=8,
             ignore_index=-1,
         )
-        if len(self.cfg.data.data_prefix[1]) > 1:
+        if len(self.cfg.data.data_prefix) > 1:
             val_lddl_data_path = self.cfg.data.data_prefix[1]
-            self._val_dl = get_bert_pretrain_data_loader(
+            self._validation_dl = get_bert_pretrain_data_loader(
             val_lddl_data_path,
             dp_rank=parallel_state.get_data_parallel_rank(),
             local_rank=self.local_rank,
@@ -576,7 +577,7 @@ class MegatronBertModel(MegatronBaseModel):
             sequence_length_alignment=8,
             ignore_index=-1,
         )
-        if len(self.cfg.data.data_prefix[2]) > 2:
+        if len(self.cfg.data.data_prefix) > 2:
             test_lddl_data_path = self.cfg.data.data_prefix[2]
             self._test_dl = get_bert_pretrain_data_loader(
             test_lddl_data_path,
@@ -711,10 +712,12 @@ class MegatronBertModel(MegatronBaseModel):
                 data_parallel_size = parallel_state.get_data_parallel_world_size()
                 num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
                 dp_gbs = num_micro_batches * self.cfg.micro_batch_size
+                logging.info("Beginning winding forward dataloader")
                 wind_iters = self.compute_consumed_samples(0) // dp_gbs
                 loader_iter = it.cycle(self._train_dl)
                 for i in range(wind_iters):
                     next(loader_iter)
+                logging.info("Completed winding forward dataloader")
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
