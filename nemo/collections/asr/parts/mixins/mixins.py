@@ -558,6 +558,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             all_hyp_or_transcribed_texts,
             cache_last_channel_next,
             cache_last_time_next,
+            cache_last_channel_next_len,
             best_hyp,
         ]
         if return_log_probs:
@@ -641,6 +642,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             transcribed_texts,
                             cache_last_channel,
                             cache_last_time,
+                            cache_last_channel_len,
                             previous_hypotheses,
                             cur_chunk_log_probs,
                             encoded_len,
@@ -652,6 +654,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             transcribed_texts,
                             cache_last_channel,
                             cache_last_time,
+                            cache_last_channel_len,
                             previous_hypotheses,
                         ) = result
 
@@ -717,3 +720,4 @@ class DiarizationMixin(ABC):
             Speaker labels
         """
         pass
+
