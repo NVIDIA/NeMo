@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,28 +33,23 @@
 # You may find more info on how to use this script at:
 # https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
 
-import argparse
 import logging
 import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Optional
+from typing import List
 
 import kenlm_utils
-from kenlm_utils import CHUNK_BUFFER_SIZE, CHUNK_SIZE
-from omegaconf import MISSING, OmegaConf
+from omegaconf import MISSING
 
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
 use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
-DEFAULT_TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
-the required memory significantly, and the LM and its binary blob format require less storage space.
 """
 
 

@@ -15,6 +15,8 @@
 
 """
 Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
+DEFAULT_TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
+the required memory significantly, and the LM and its binary blob format require less storage space.
 """
 
 CHUNK_SIZE = 8192
