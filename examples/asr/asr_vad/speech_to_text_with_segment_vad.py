@@ -99,7 +99,7 @@ class InferenceConfig:
     vad_model: Optional[str] = None  # Path to a .nemo file or a pretrained NeMo model on NGC
     vad_config: Optional[str] = None  # Path to a yaml file containing VAD post-processing configs
     manifest_filepath: Optional[str] = None  # Path to dataset's JSON manifest
-    audio_dir: Optional[str] = None
+    audio_dir: Optional[str] = None  # Path to a directory containing audio files, use this if no manifest is provided
 
     use_rttm: bool = True  # whether to use RTTM
     rttm_mode: str = "mask"  # how to use RTTM files, choices=[`mask`, `drop`]
