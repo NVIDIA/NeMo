@@ -16,11 +16,10 @@ import os
 import tempfile
 from argparse import ArgumentParser
 from typing import Dict, List
-from omegaconf import OmegaConf
 
 import torch
 import torch.nn as nn
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
