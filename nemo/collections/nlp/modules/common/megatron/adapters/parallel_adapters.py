@@ -130,7 +130,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.linear_in = ColumnParallelLinear(in_features, dim, bias=False, init_method=init_method_const(0.0))
         else:
             raise NotImplementedError("column_init_method should be zero, normal or xavier")
-        
+
         if row_init_method == 'xavier':
             self.linear_out = RowParallelLinear(dim, out_features, bias=False)
         elif row_init_method == 'normal':
@@ -190,16 +190,20 @@ class ParallelLinearAdapterConfig:
     adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
+
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
     Lora Adapters are the same arch as regualr adapters but with potentially different input and output feature sizes 
     and they do not use an bottleneck activation function
     """
+
     pass
+
 
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapter.__module__, LoraKQVAdapter.__name__)
+
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """

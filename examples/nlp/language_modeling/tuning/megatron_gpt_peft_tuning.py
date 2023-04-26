@@ -25,9 +25,9 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
-    MegatronGPTLoRAModel,
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
+    MegatronGPTLoRAModel,
     MegatronGPTPTuningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel

@@ -23,9 +23,9 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
-    MegatronGPTLoRAModel,
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
+    MegatronGPTLoRAModel,
     MegatronGPTPEFTModel,
     MegatronGPTPTuningModel,
 )
@@ -69,7 +69,7 @@ def _get_peft_scheme(cfg):
     if cfg.peft.peft_scheme == "adapter":
         peft_cls = MegatronGPTAdapterModel
     elif cfg.peft.peft_scheme == "lora":
-       peft_cls = MegatronGPTLoRAModel
+        peft_cls = MegatronGPTLoRAModel
     elif cfg.peft.peft_scheme == "ia3":
         peft_cls = MegatronGPTIA3Model
     elif cfg.peft.peft_scheme == "ptuning":
