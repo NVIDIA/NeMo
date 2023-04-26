@@ -121,7 +121,7 @@ def set_virtual_parallel_rank_safely(rank: int):
     AppState().virtual_pipeline_model_parallel_rank = rank
 
     try:
-        from apex.transformer import parallel_state
+        from megatron.core import parallel_state
 
         parallel_state.set_virtual_pipeline_model_parallel_rank(rank)
 
