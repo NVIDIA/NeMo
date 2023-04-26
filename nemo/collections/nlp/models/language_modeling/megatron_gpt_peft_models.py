@@ -21,13 +21,13 @@ import abc
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
+    LoraKQVAdapterConfig,
     PromptEncoderAdapterConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
@@ -136,23 +136,16 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
         ]
         adapter_tuning_cfg = cfg.peft.adapter_tuning
 
-        if adapter_tuning_cfg.type == "parallel_adapter":
-            adapter_cfg = ParallelLinearAdapterConfig(
-                in_features=cfg.hidden_size,
-                dim=adapter_tuning_cfg.adapter_dim,
-                norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-                norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
-                column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
-                row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
-                dropout=adapter_tuning_cfg.adapter_dropout,
-            )
-        else:
-            adapter_cfg = LinearAdapterConfig(
-                in_features=cfg.hidden_size,
-                dim=adapter_tuning_cfg.adapter_dim,
-                norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-                dropout=adapter_tuning_cfg.adapter_dropout,
-            )
+        adapter_cfg = ParallelLinearAdapterConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=adapter_tuning_cfg.adapter_dim,
+            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
+            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
+            dropout=adapter_tuning_cfg.adapter_dropout,
+        )
 
         self.name_key_to_cfg = {}
         for k in self.peft_name_keys:
@@ -310,23 +303,17 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
             cfg.hidden_size,
         )
         adapter_tuning_cfg = cfg.peft.adapter_tuning
-        if adapter_tuning_cfg.type == "parallel_adapter":
-            adapter_cfg = ParallelLinearAdapterConfig(
-                in_features=cfg.hidden_size,
-                dim=adapter_tuning_cfg.adapter_dim,
-                norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-                norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
-                column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
-                row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
-                dropout=adapter_tuning_cfg.adapter_dropout,
-            )
-        else:
-            adapter_cfg = LinearAdapterConfig(
-                in_features=cfg.hidden_size,
-                dim=adapter_tuning_cfg.adapter_dim,
-                norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-                dropout=adapter_tuning_cfg.adapter_dropout,
-            )
+        adapter_cfg = ParallelLinearAdapterConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=adapter_tuning_cfg.adapter_dim,
+            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
+            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
+            dropout=adapter_tuning_cfg.adapter_dropout,
+        )
+        
 
         self.name_key_to_cfg = {
             AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
@@ -339,6 +326,66 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
     def init_peft_modules(self):
         """ 
         Randomly initialize the peft params and add them to the appropriate modules.
+        """
+        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
+        for _, module in self.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=peft_key, cfg=peft_cfg,
+                        )
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
+        return True
+
+class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
+    """
+    MegatronGPTAdapterLearningModel is a model that combines a base model (GPTModel) with a adapters.
+    This class only supports the canonical Adapter training described in Houlsby et al. (https://arxiv.org/pdf/1902.00751.pdf)
+
+    Two adapter's are inserted into each Transformer layer in the base GPT Model.
+
+    It is assumed that these set of adapters will then be trained for a specific task.
+    Once trained, the adapter weights will be saved and can be re-loaded 
+    and infused into the same GPT Model for inference. 
+    """
+
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        self.peft_name_keys = [
+            AdapterName.LORA_KQV_ADAPTER,
+        ]
+        lora_cfg = cfg.peft.lora_tuning
+        if cfg.kv_channels is None:
+            assert (
+                cfg.hidden_size % cfg.num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = cfg.hidden_size // cfg.num_attention_heads
+        projection_size = kv_channels * cfg.num_attention_heads
+        
+        adapter_cfg = LoraKQVAdapterConfig(
+            in_features=cfg.hidden_size,
+            out_features=3 * projection_size,
+            dim=lora_cfg.adapter_dim,
+            norm_position="none",
+            norm_type="none",
+            activation="identity",
+            column_init_method=lora_cfg.get("column_init_method", "xavier"),
+            row_init_method=lora_cfg.get("row_init_method", "zero"),
+            dropout=lora_cfg.adapter_dropout,
+        )
+
+        self.name_key_to_cfg = {}
+        for k in self.peft_name_keys:
+            self.name_key_to_cfg[k] = adapter_cfg
+
+        super().__init__(cfg, trainer)
+
+    def init_peft_modules(self):
+        """ 
+        Randomly initialize the adapter params and add them to the appropriate modules.
         """
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
         for _, module in self.named_modules():

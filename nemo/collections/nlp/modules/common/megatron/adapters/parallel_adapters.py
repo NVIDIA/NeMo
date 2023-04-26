@@ -58,6 +58,9 @@ class AdapterName(str, enum.Enum):
     PRE_ATTN_ADAPTER = 'adapter_1'
     POST_ATTN_ADAPTER = 'adapter_2'
     PTUNING_ADAPTER = "ptuning_adapter"
+    LORA_KQV_ADAPTER = "lora_kqv_adapter"
+    LORA_KV_ADAPTER = "lora_kv_adapter"
+    LORA_Q_ADAPTER = "lora_q_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
@@ -99,6 +102,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
         in_features: int,
+        out_features: int,
         dim: int,
         activation: str = 'swish',
         norm_position: str = 'post',
@@ -126,22 +130,24 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.linear_in = ColumnParallelLinear(in_features, dim, bias=False, init_method=init_method_const(0.0))
         else:
             raise NotImplementedError("column_init_method should be zero, normal or xavier")
-
+        
         if row_init_method == 'xavier':
-            self.linear_out = RowParallelLinear(dim, in_features, bias=False)
+            self.linear_out = RowParallelLinear(dim, out_features, bias=False)
         elif row_init_method == 'normal':
-            self.linear_out = RowParallelLinear(dim, in_features, bias=False, init_method=init_method_normal(0.2))
+            self.linear_out = RowParallelLinear(dim, out_features, bias=False, init_method=init_method_normal(0.2))
         elif row_init_method == 'zero':
-            self.linear_out = RowParallelLinear(dim, in_features, bias=False, init_method=init_method_const(0.0))
+            self.linear_out = RowParallelLinear(dim, out_features, bias=False, init_method=init_method_const(0.0))
         else:
             raise NotImplementedError("row_init_method should be zero, normal or xavier")
 
-        if norm_type == 'mixedfusedlayernorm':
-            self.layer_norm = MixedFusedLayerNorm(in_features, 1e-5, sequence_parallel_enbaled=False)
-        elif norm_type == 'layernorm':
-            self.layer_norm = nn.LayerNorm(in_features)
-        else:
-            raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
+        if self.norm_position in ["pre", "post"]:
+            ln_features = in_features if self.norm_position == "pre" else out_features
+            if norm_type == 'mixedfusedlayernorm':
+                self.layer_norm = MixedFusedLayerNorm(ln_features, 1e-5, sequence_parallel_enbaled=False)
+            elif norm_type == 'layernorm':
+                self.layer_norm = nn.LayerNorm(ln_features)
+            else:
+                raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
 
         if dropout > 0.0:
             self.dropout = nn.Dropout(dropout)
@@ -173,6 +179,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 @dataclass
 class ParallelLinearAdapterConfig:
     in_features: int
+    out_features: int
     dim: int
     activation: str = 'swish'
     norm_position: str = 'post'
@@ -183,6 +190,16 @@ class ParallelLinearAdapterConfig:
     adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
+class LoraKQVAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regualr adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+    pass
+
+@dataclass
+class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraKQVAdapter.__module__, LoraKQVAdapter.__name__)
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
