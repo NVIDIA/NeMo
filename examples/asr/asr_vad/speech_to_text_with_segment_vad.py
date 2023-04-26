@@ -360,8 +360,6 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
     logging.info(f"Generating segment tables with postprocessing params: {vad_cfg.vad.parameters.postprocessing}")
     segment_dir_name = "vad_rttm"
     for key, val in vad_cfg.vad.parameters.postprocessing.items():
-        if key == "use_rttm":
-            continue
         segment_dir_name = segment_dir_name + "-" + str(key) + str(val)
 
     segment_dir = Path(cfg.output_dir) / Path(segment_dir_name)
@@ -370,13 +368,13 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
     else:
         segment_dir.mkdir(parents=True)
         t0 = time.time()
-        vad_cfg.vad.parameters.postprocessing.use_rttm = True
         segment_dir = generate_vad_segment_table(
             vad_pred_dir=pred_dir,
             postprocessing_params=vad_cfg.vad.parameters.postprocessing,
             frame_length_in_sec=frame_length_in_sec,
             num_workers=cfg.num_workers,
             out_dir=segment_dir,
+            use_rttm=True,
         )
         t1 = time.time()
         logging.info(f"Time elapsed: {t1 - t0: .2f} seconds")
