@@ -24,7 +24,7 @@
 # to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 #
 # USAGE: python train_kenlm.py tokenizer_model_file=<path to the .nemo file of the model> \
-#                              train_path=<path to the training text or JSON manifest file> \
+#                              train_paths=<list of paths to the training text or JSON manifest file> \
 #                              kenlm_bin_path=<path to the bin folder of KenLM library> \
 #                              kenlm_model_file=<path to store the binary KenLM model> \
 #                              ngram_length=<order of N-gram model> \
@@ -59,8 +59,7 @@ class TrainKenlmConfig:
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
     """
 
-    ## Path to the training files, or whitespace separated files, or folder with files. Files can be a text file, JSON manifest or .json.gz
-    train_path: List[str] = MISSING  # [/path/to/manifest/file]
+    train_paths: List[str] = MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
 
     nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
     kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
@@ -81,7 +80,7 @@ class TrainKenlmConfig:
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=TrainKenlmConfig)
 def main(args: TrainKenlmConfig):
-    train_path = kenlm_utils.get_train_list(args.train_path)
+    train_paths = kenlm_utils.get_train_list(args.train_paths)
 
     if isinstance(args.ngram_prune, str):
         args.ngram_prune = [args.ngram_prune]
@@ -111,8 +110,8 @@ def main(args: TrainKenlmConfig):
 
         """ DATASET SETUP """
         encoded_train_files = []
-        for file_num, train_file in enumerate(train_path):
-            logging.info(f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_path)} ...")
+        for file_num, train_file in enumerate(train_paths):
+            logging.info(f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_paths)} ...")
 
             cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
             encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
@@ -125,7 +124,7 @@ def main(args: TrainKenlmConfig):
             encoded_train_files.append(encoded_train_file)
 
         kenlm_utils.iter_files(
-            source_path=train_path,
+            source_path=train_paths,
             dest_path=encoded_train_files,
             tokenizer=tokenizer,
             encoding_level=encoding_level,
@@ -152,7 +151,7 @@ def main(args: TrainKenlmConfig):
         kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
 
         kenlm_utils.iter_files(
-            source_path=train_path,
+            source_path=train_paths,
             dest_path=kenlm_p.stdin,
             tokenizer=tokenizer,
             encoding_level=encoding_level,

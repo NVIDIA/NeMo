@@ -55,13 +55,13 @@ You may train the N-gram model as the following:
 .. code-block::
 
     python train_kenlm.py nemo_model_file=<path to the .nemo file of the model> \
-                              train_path=<path to the training text or JSON manifest files> \
+                              train_paths=<list of paths to the training text or JSON manifest files> \
                               kenlm_bin_path=<path to the bin folder of KenLM library> \
                               kenlm_model_file=<path to store the binary KenLM model> \
                               ngram_length=<order of N-gram model> \
                               preserve_arpa=true
 
-The train file specified by `train_path` can be a whitespace separeted list of text file, or JSON manifest, or folder. If the file's extension is anything
+The train file specified by `train_paths` can be a list of text files, or JSON manifests, or folders. If the file's extension is anything
 other than `.json`, it assumes that data format is plain text. For plain text format, each line should contain one
 sample. For JSON manifest file, the file need to contain json formatted samples per each line like this:
 
@@ -79,7 +79,7 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | nemo_model_file  | str      | Required    | The path to `.nemo` file of the ASR model, or name of a pretrained NeMo model to extract a tokenizer. |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| train_path       | str      | Required    | Path to the training file, or whitespace separated files, or folder with files. It can be a text file or JSON manifest.  |
+| train_paths      | List[str] | Required    | List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | kenlm_model_file | str      | Required    | The path to store the KenLM binary model file.                                                  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
@@ -87,7 +87,7 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                   |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| ngram_prune      | int      | 0           | List of digits to prune Ngrum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
+| ngram_prune      | List[int] | [0]        | List of digits to prune Ngrum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | cache_path       | str      | None        | Cache path to save tokenized files.                                                             |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
@@ -97,7 +97,7 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | rm_punctuation   | bool     | ``False``   | Whether to remove punctuation marks from text.                                                  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| separate_punctuation | bool | ``False``   | Whether to separate punctuation with the previouse word by space.                               |
+| separate_punctuation | bool | ``True``    | Whether to separate punctuation with the previouse word by space.                               |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | preserve_arpa    | bool     | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.              |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
