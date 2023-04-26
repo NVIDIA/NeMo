@@ -57,6 +57,20 @@ python megatron_change_num_partitions.py \
     --target_pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_split_rank=0 \
     --precision=bf16
+    
+# Megatron GPT + Virtual Pipeline parallelism
+
+python megatron_change_num_partitions.py \
+    --model_extracted_dir="<Directory of Pytorch Lightning ckpt folders>" \
+    --target_file="<Name of the target NeMo file>" \
+    --ckpt_name="<Name of a single Pytorch Lightning ckpt file inside the extracted dir>" \
+    --tensor_model_parallel_size=<TP SIZE> \
+    --target_tensor_model_parallel_size=<TARGET TP SIZE> \
+    --pipeline_model_parallel_size=<PP SIZE> \
+    --target_pipeline_model_parallel_size=<TARGET PP SIZE> \
+    --virtual_pipeline_model_parallel_size=<VP SIZE> \
+    --hparams_file="<Path to HPARAMS.yaml file>" \
+    --precision=bf16
 
 ### Only Tensor Parallelism conversion ###
 
@@ -845,17 +859,18 @@ def main():
     vp_size = args.virtual_pipeline_model_parallel_size
     if vp_size is None:
         vp_size = 1
-    tgt_vp_size = 1  # VP size is enforced to 1 for inference (since it can be used only for training)
 
     convert_vp = vp_size > 1
     if convert_vp:
         hparams_filepath = args.hparams_file
         if hparams_filepath is None:
-            logging.warning('\n\n\n!!!!!!!!!\n'
-                            'You are converting a model with virtual pipeline parallelism enabled, \n'
-                            'but have not passed `hparams_file` argument. \n'
-                            'This will cause each ckpt file to be temporarily laoded onto GPU memory!\n\n'
-                            'It is highly recommended to pass `hparams_file` argument to avoid this.\n')
+            logging.warning(
+                '\n\n\n!!!!!!!!!\n'
+                'You are converting a model with virtual pipeline parallelism enabled, \n'
+                'but have not passed `hparams_file` argument. \n'
+                'This will cause each ckpt file to be temporarily laoded onto GPU memory!\n\n'
+                'It is highly recommended to pass `hparams_file` argument to avoid this.\n'
+            )
     else:
         hparams_filepath = None
 
@@ -937,8 +952,6 @@ def main():
 
             for pp_rank in range(pp_size):
                 app_state.pipeline_model_parallel_rank = pp_rank
-
-                # partitions[pp_rank] = {idx: [] for idx in range(tp_size)}
 
                 for tp_rank in range(tp_size):
                     app_state.tensor_model_parallel_rank = tp_rank
@@ -1028,8 +1041,10 @@ def main():
                                     tmp.seek(0)
 
                                     model = cls.load_from_checkpoint(
-                                        checkpoint_path=checkpoint_path, trainer=trainer,
-                                        map_location=torch.device("cpu"), hparams_file=tmp.name
+                                        checkpoint_path=checkpoint_path,
+                                        trainer=trainer,
+                                        map_location=torch.device("cpu"),
+                                        hparams_file=tmp.name,
                                     )
                                     model.freeze()
 
@@ -1129,8 +1144,6 @@ def main():
                 for tp in range(tp_size):
                     vp_param_count += len(partitions[vp][pp][tp])
 
-
-
         if vp_size > 1:
             logging.debug(f"Total params in TP PP VP = 1 : {len(list(model.parameters()))}")
             logging.debug(f"Total params in VP PP TP (og): {vp_param_count}")
@@ -1184,7 +1197,7 @@ def main():
             trainer=trainer,
             map_location=torch.device("cpu"),
             save_restore_connector=save_restore_connector,
-            return_config=True
+            return_config=True,
         )
 
         tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
