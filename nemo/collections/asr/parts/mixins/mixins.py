@@ -720,4 +720,3 @@ class DiarizationMixin(ABC):
             Speaker labels
         """
         pass
-
