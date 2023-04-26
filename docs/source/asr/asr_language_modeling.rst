@@ -22,6 +22,7 @@ best candidates. The beam search decoders in NeMo support language models traine
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM.
 Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh` on how to install them.
+Alternatively, you can build Docker image `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
 
 NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
 decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
@@ -473,7 +474,8 @@ You can then pass this file to your flashlight config object during decoding:
 Combine N-gram Language Models
 ==============================
 
-Before combining N-gram LMs install required OpenGrm NGram library using `scripts/installers/install_opengrm_ngram.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/install_opengrm_ngram.sh>`__.
+Before combining N-gram LMs install required OpenGrm NGram library using `scripts/installers/install_opengrm.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/install_opengrm.sh>`__.
+Alternatively, you can build Docker image `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
 
 To combine two N-gram language models, you can use the script ngram_merge.py located at 
 `scripts/asr_language_modeling/ngram_lm/ngram_merge.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/ngram_merge.py>`__.
@@ -481,6 +483,7 @@ To combine two N-gram language models, you can use the script ngram_merge.py loc
 This script merges two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.  
 You can specify weights (alpha and beta) for each of the models (ngram_a and ngram_b) correspondingly: alpha * ngram_a + beta * ngram_b.
 The script can also calculate the perplexity of the resulting N-gram language model on a test set.
+Note, each step during the process is cached in the out_path, to speed up further run. To avoid cache use the --force flag.
 
 This script supports both character level and BPE level encodings and models which is detected automatically from the type of the model.
 
@@ -504,6 +507,7 @@ You can use the --force flag to discard the cache and recalculate everything fro
 .. code-block::
 
     python ngram_merge.py  --kenlm_bin_path <path to the bin folder of KenLM library> \
+                    --ngram_bin_path  <path to the bin folder of OpenGrm Ngram library> \
                     --arpa_a <path to the ARPA N-gram model file A> \
                     --alpha <weight of N-gram model A> \
                     --arpa_b <path to the ARPA N-gram model file B> \
@@ -511,8 +515,8 @@ You can use the --force flag to discard the cache and recalculate everything fro
                     --out_path <path to folder to store the output files>
                     --nemo_model_file <path to the .nemo file of the model> \
                     --test_file <path to the test file> \
-                    --symbols <Path to symbols (.syms) file. Could be calculated if it is not provided.> \
-                    --force
+                    --symbols <path to symbols (.syms) file. Could be calculated if it is not provided.> \
+                    --force <flag to recompile and rewrite all files>
 
 
 The following is the list of the arguments for the opengrm script:
@@ -520,7 +524,9 @@ The following is the list of the arguments for the opengrm script:
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | **Argument**         |**Type**| **Default**      | **Description**                                                         |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
-| kenlm_bin_path       | str    | Required         | The path to the bin folder of KenLM. It is a folder named `bin` under where KenLM is installed. |
+| kenlm_bin_path       | str    | Required         | The path to the bin folder of KenLM library.                            |
++----------------------+--------+------------------+-------------------------------------------------------------------------+
+| ngram_bin_path       | str    | Required         | The path to the bin folder of OpenGrm Ngram. It is a folder named `bin` under where OpenGrm Ngram is installed. |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | arpa_a               | str    | Required         | Path to the ARPA N-gram model file A                                    |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+

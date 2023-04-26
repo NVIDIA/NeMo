@@ -14,11 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Install Miniconda3
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-    && mkdir /root/.conda \
-    && bash Miniconda3-latest-Linux-x86_64.sh -b \
-    && rm -f Miniconda3-latest-Linux-x86_64.sh
+# This script install OpenFST and Ngram tools from OpenGRM library
+# Optionally, you can specify a path where to install it as a first positional argument: scripts/installers/install_opengrm.sh /path/to/install/openfst .
+# Alternatively, in the Linux Debian you can use: sudo apt install libngram-tools
 
-# Install Opengrm Ngram using Miniconda3
-/root/miniconda3/bin/conda install -c conda-forge ngram -y
+DECODERS_PATH=/workspace/nemo/decoders  # Path to decoders folder: /workspace/nemo/decoders if you use NeMo/Dockerfile
+if [ "$#" -eq 1 ]
+then
+  NEMO_PATH=$1
+fi
+cd $DECODERS_PATH
+
+# Install OpenGrm OpenFST
+wget https://www.openfst.org/twiki/pub/FST/FstDownload/openfst-1.8.2.tar.gz --no-check-certificate && tar xvzf openfst-1.8.2.tar.gz && cd openfst-1.8.2 && ./configure --enable-grm && make -j4 && make -j4 install && cd ..
+
+# Install OpenGrm Ngram
+OPENFSTPREFIX=$DECODERS_PATH/openfst-1.8.2/src &&  wget https://www.opengrm.org/twiki/pub/GRM/NGramDownload/ngram-1.3.14.tar.gz --no-check-certificate && tar xvzf ngram-1.3.14.tar.gz && cd ngram-1.3.14 && LDFLAGS="-L${OPENFSTPREFIX}/lib" CXXFLAGS="-I${OPENFSTPREFIX}/include" ./configure --prefix ${OPENFSTPREFIX} && make -j4 && make -j4 install && cd ..

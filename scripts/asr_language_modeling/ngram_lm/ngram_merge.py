@@ -30,6 +30,7 @@ python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bi
 
 Merge two N-gram language models and calculate its perplexity with test_file.
 python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
+                    --ngram_bin_path /workspace/nemo/decoders/ngram-1.3.14/src/bin \
                     --arpa_a /path/ngram_a.kenlm.tmp.arpa \
                     --alpha 0.5 \
                     --arpa_b /path/ngram_b.kenlm.tmp.arpa \
@@ -421,8 +422,11 @@ def _parse_args():
         description="Merge ARPA N-gram language models and make KenLM binary model to be used with beam search decoder of ASR models."
     )
     parser.add_argument(
-        "--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM.",
+        "--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM library.",
     )  # Use /workspace/nemo/decoders/kenlm/build/bin/build_binary if installed it with scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh
+    parser.add_argument(
+        "--ngram_bin_path", required=True, type=str, help="The path to the bin folder of OpenGrm Ngram library.",
+    )  # Use /workspace/nemo/decoders/ngram-1.3.14/src/bin if installed it with scripts/installers/install_opengrm.sh
     parser.add_argument("--arpa_a", required=True, type=str, help="Path to the arpa_a")
     parser.add_argument("--alpha", required=True, type=float, help="Weight of arpa_a")
     parser.add_argument("--arpa_b", required=True, type=str, help="Path to the arpa_b")
