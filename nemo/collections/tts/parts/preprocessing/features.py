@@ -24,8 +24,10 @@ from torch import Tensor
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_audio_filepaths
+from nemo.utils.decorators import experimental
 
 
+@experimental
 class Featurizer(ABC):
     @abstractmethod
     def save(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> None:
@@ -37,7 +39,6 @@ class Featurizer(ABC):
             audio_dir: base directory where audio is stored.
             feature_dir: base directory where features will be stored.
         """
-        raise NotImplementedError
 
     @abstractmethod
     def load(self, manifest_entry: dict, audio_dir: Path, feature_dir: Path) -> Dict[str, Tensor]:
@@ -52,7 +53,6 @@ class Featurizer(ABC):
         Returns:
             Dictionary of feature names to Tensors
         """
-        raise NotImplementedError
 
 
 def _get_feature_filepath(manifest_entry: dict, audio_dir: Path, feature_dir: Path, feature_name: str) -> Path:
