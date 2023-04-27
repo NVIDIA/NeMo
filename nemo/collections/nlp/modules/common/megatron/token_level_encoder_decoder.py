@@ -563,10 +563,20 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_output = self.enc_dec_model.encoder_hidden_state
         
         if output_enc_hidden_only:
+            # FIXME: execute only in last pipeline of pipeline parallel
             if self.hidden_transforms is not None:
-                for transformation in self.hidden_transforms:
-                    output = enc_output["hiddens"] if type(enc_output) is dict else enc_output 
-                    enc_output = eval(transformation).transform(output)
+                hidden_transforms_dict = {"hiddens": enc_output["hiddens"]}
+                # collect all hidden transformations
+                for ht in self.hidden_transforms:
+                    hidden_transforms_dict.update(ht.transform(hidden_transforms_dict))
+                # compute and collect all hidden losses
+                if self.loss_transforms is not None:
+                    loss = 0.0
+                    loss_dict = {}
+                    for lt in self.loss_transforms:
+                        loss_dict.update(lt.loss(hidden_transforms_dict))
+                        # "loss" is already a weighted loss
+                        loss = loss_dict["loss"] + loss
             return {"output_tensor": enc_output["hiddens"]}
         else:
             if enc_output is None and self.hidden_transforms is not None:
