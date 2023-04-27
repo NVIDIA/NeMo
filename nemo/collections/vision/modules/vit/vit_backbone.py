@@ -31,7 +31,6 @@ from nemo.collections.vision.modules.common.megatron.vision_transformer import P
 
 try:
     import apex
-    from apex.transformer import tensor_parallel
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True

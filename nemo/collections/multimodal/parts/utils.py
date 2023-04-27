@@ -14,7 +14,7 @@
 import os
 import torch
 from PIL import Image
-from apex.transformer import parallel_state
+
 from omegaconf import OmegaConf, DictConfig, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -27,6 +27,14 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 def numpy_to_pil(images):
     """

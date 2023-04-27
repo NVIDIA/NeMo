@@ -29,18 +29,20 @@ from tqdm import tqdm
 
 from nemo.collections.multimodal.data.instruct_pix2pix.edit_dataset import EditDataset
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion, LatentDiffusion
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingSampler,
+    MegatronPretrainingRandomSampler,
 )
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 
 class LatentDiffusionEdit(LatentDiffusion):
@@ -229,7 +231,7 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
         if hasattr(self._cfg.data, 'dataloader_type') and self._cfg.data.dataloader_type is not None:
             # TODO (yuya): fix this
             if self._cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingBatchSampler(
+                batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self._cfg.micro_batch_size,
@@ -239,7 +241,7 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
                     drop_last=drop_last,
                 )
             elif self._cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
                     micro_batch_size=self._cfg.micro_batch_size,

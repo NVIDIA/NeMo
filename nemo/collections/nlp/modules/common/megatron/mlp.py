@@ -31,7 +31,6 @@ from nemo.core import adapter_mixins
 
 try:
     from apex.normalization import MixedFusedRMSNorm
-    from apex.transformer import parallel_state, tensor_parallel
 
     HAVE_APEX = True
 

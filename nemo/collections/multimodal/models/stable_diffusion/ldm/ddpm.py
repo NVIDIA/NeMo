@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from einops import rearrange, repeat
 from functools import partial
 from omegaconf import DictConfig, OmegaConf, open_dict
+from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.distributed import rank_zero_only
 from torch._dynamo import optimize
@@ -43,27 +44,29 @@ from nemo.collections.multimodal.modules.stable_diffusion.distributions.distribu
 from nemo.collections.multimodal.parts.stable_diffusion.utils import log_txt_as_img, exists, default, ismap, isimage, \
     mean_flat, count_params
 from nemo.collections.multimodal.parts.utils import randn_like
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
 from nemo.utils import logging
 
 try:
-    from apex.contrib.clip_grad import clip_grad_norm_
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
     from apex import amp
-    from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
-        _forward_backward_pipelining_with_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __conditioning_keys__ = {'concat': 'c_concat',
                          'crossattn': 'c_crossattn',
@@ -112,6 +115,7 @@ class DDPM(torch.nn.Module):
         self.channels = cfg.channels
         self.use_positional_encodings = cfg.use_positional_encodings
         self.model = DiffusionWrapper(cfg.unet_config, cfg.conditioning_key)
+        self.model_type = None
         count_params(self.model, verbose=True)
 
         self.v_posterior = cfg.v_posterior
@@ -1373,6 +1377,10 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
@@ -1396,6 +1404,14 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+    def get_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
+        else:
+            return [self.model]
+
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
         model = LatentDiffusion(cfg=self.cfg)
@@ -1414,7 +1430,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 batch[self.cfg.first_stage_key].cuda(non_blocking=True)
             self.model.on_train_batch_start(batch, batch_idx)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -1423,26 +1439,26 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
+        tensor_shape = None  # Placeholder
 
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
-
-        # we prepare the micro batches for the apex fwd/bwd function
-        batch_for_pipeline = self.process_global_batch(batch)
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
-        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=False,
-            tensor_shape=None,  # required by pipeline parallelism
+            tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            custom_sync_context_handler=None,
-            sequence_parallel_enabled=False,
-            sync_batch_comm=False,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         # losses_reduced_per_micro_batch is a list of dictionaries
@@ -1482,19 +1498,20 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
         self.log_dict(loss_dict, prog_bar=False,
-                      logger=True, on_step=True, rank_zero_only=True)
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+                      logger=True, on_step=True, rank_zero_only=True, batch_size=1)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
+            batch_size=1,
         )
         return loss_mean
 
@@ -1511,9 +1528,12 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         """
         pass
 
-    def _append_module_grads(self, module, grads):
+    def _append_sequence_parallel_module_grads(self, module, grads):
+        """ Helper method for allreduce_sequence_parallel_gradients"""
+
         for param in module.parameters():
-            if getattr(param, 'sequence_parallel_enabled', False):
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
                 else:
@@ -1522,7 +1542,35 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
     def get_forward_output_and_loss_func(self):
 
-        def fwd_output_and_loss_func(batch, model):
+        def process_batch(batch):
+            """ Prepares the global batch for apex fwd/bwd functions.
+                Global batch is a list of micro batches.
+            """
+            # noise_map, condition
+            batch[self.cfg.first_stage_key] = \
+                batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+            if isinstance(batch[self.cfg.cond_stage_key], torch.Tensor):
+                # in the case of precached text embeddings, cond_stage is also a tensor
+                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(non_blocking=True)
+
+            # SD has more dedicated structure for encoding, so we enable autocasting here as well
+            with torch.cuda.amp.autocast(
+                    self.autocast_dtype in (torch.half, torch.bfloat16),
+                    dtype=self.autocast_dtype,
+            ):
+                x, c = self.model.get_input(batch, self.cfg.first_stage_key)
+
+            if not isinstance(c, dict):
+                return [x, c]
+
+            if len(self.conditioning_keys) == 0:
+                self.conditioning_keys = list(c.keys())
+            c_list = [c[key] for key in self.conditioning_keys]
+            return [x, *c_list]
+
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+            batch = process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             if len(self.conditioning_keys) == 0:
                 x, c = batch
@@ -1547,18 +1595,22 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
         return fwd_output_only_func
 
-    @torch.no_grad()
-    def validation_step(self, batch, batch_idx):
-        batch_for_pipeline = self.process_global_batch(batch)
+    def validation_step(self, dataloader_iter, batch_idx):
+        tensor_shape = None  # Placeholder
+        fwd_bwd_function = get_forward_backward_func()
 
-        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+        losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=True,
-            tensor_shape=None,  # required by pipeline parallelism
+            tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
+
         # only the last stages of the pipeline return losses
         val_loss_dict = {}
         if losses_reduced_per_micro_batch:
@@ -1568,33 +1620,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 loss_tensor = torch.stack(loss_tensors_list)
                 val_loss_dict[key] = loss_tensor.mean()
 
-        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True)
-
-    def process_global_batch(self, global_batch, global_batch_size=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        # noise_map, condition
-        global_batch[self.cfg.first_stage_key] = \
-            global_batch[self.cfg.first_stage_key].cuda(non_blocking=True)
-        if isinstance(global_batch[self.cfg.cond_stage_key], torch.Tensor):
-            # in the case of precached text embeddings, cond_stage is also a tensor
-            global_batch[self.cfg.cond_stage_key] = global_batch[self.cfg.cond_stage_key].cuda(non_blocking=True)
-
-        # SD has more dedicated structure for encoding, so we enable autocasting here as well
-        with torch.cuda.amp.autocast(
-                self.autocast_dtype in (torch.half, torch.bfloat16),
-                dtype=self.autocast_dtype,
-        ):
-            x, c = self.model.get_input(global_batch, self.cfg.first_stage_key)
-
-        if not isinstance(c, dict):
-            return [x, c]
-
-        if len(self.conditioning_keys) == 0:
-            self.conditioning_keys = list(c.keys())
-        c_list = [c[key] for key in self.conditioning_keys]
-        return [x, *c_list]
+        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
 
     def setup(self, stage=None):
         """ PTL hook that is executed after DDP spawns.
@@ -1637,9 +1663,8 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         self.build_train_valid_test_datasets()
 
         # Batch size need to be provided for webdatset
-        self._num_micro_batches = self.cfg.global_batch_size // (
-                self.cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())
-        self._global_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.cfg.micro_batch_size
+        self._num_micro_batches = get_num_microbatches()
+        self._micro_batch_size = self.cfg.micro_batch_size
 
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
@@ -1679,7 +1704,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             )
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
-                batch_size=self._global_batch_size_on_this_data_parallel_rank,
+                batch_size=self._micro_batch_size,
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=True,
@@ -1694,7 +1719,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
             )
             self._validation_dl = torch.utils.data.DataLoader(
                 self._validation_ds,
-                batch_size=self._global_batch_size_on_this_data_parallel_rank,
+                batch_size=self._micro_batch_size,
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=False,
@@ -1708,7 +1733,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = torch.utils.data.DataLoader(
-                self._test_ds, batch_size=self._global_batch_size_on_this_data_parallel_rank,
+                self._test_ds, batch_size=self._micro_batch_size,
                 num_workers=cfg.num_workers, pin_memory=True,
             )
 

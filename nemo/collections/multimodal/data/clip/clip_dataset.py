@@ -13,22 +13,28 @@
 # limitations under the License.
 import torch
 from functools import partial
-from torch.utils.data import Dataset
+from torch.utils.data import default_collate, Dataset
 from typing import Any, List, Union, Dict, Optional
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import openai_imagenet_template, imagenet_classnames
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
+)
+
 from nemo.collections.vision.data.megatron.image_folder import ImageFolder
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 
 def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int = 77) -> torch.LongTensor:
@@ -147,21 +153,26 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
         root=imagenet_path,
         transform=val_image_transform,
     )
-    # image_dataset = RandomSeedDataset(val_data)
-    image_batch_sampler = MegatronPretrainingBatchSampler(
+
+    image_batch_sampler = MegatronPretrainingSampler(
         total_samples=len(image_dataset),
         consumed_samples=0,
         micro_batch_size=model_cfg.micro_batch_size,
-        global_batch_size=model_cfg.global_batch_size,
-        # TODO (yuya): if grad acc is not 1, this might not work as expected.
         data_parallel_rank=parallel_state.get_data_parallel_rank(),
         data_parallel_size=parallel_state.get_data_parallel_world_size(),
         drop_last=False,
     )
+
+    def custom_collate(batch):
+        if len(batch) == 0:
+            return None, None
+        else:
+            return default_collate(batch)
     imagenet_val["images"] = torch.utils.data.DataLoader(
         image_dataset,
         batch_sampler=image_batch_sampler,
         num_workers=min(data_cfg.num_workers, 2),
+        collate_fn=custom_collate,
         pin_memory=True,
         persistent_workers=True,
     )

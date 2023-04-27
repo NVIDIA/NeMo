@@ -34,11 +34,13 @@ from nemo.utils import logging
 from webdataset import WebDataset
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 Image.MAX_IMAGE_PIXELS = 933120000
 _IMG_EXTENSIONS = "jpg jpeg png ppm pgm pbm pnm".split()

@@ -16,8 +16,7 @@ import os
 import pytorch_lightning as pl
 import torch
 from abc import ABC
-from apex import amp
-from apex.contrib.clip_grad import clip_grad_norm_
+
 from functools import partial
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -33,8 +32,8 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     extract_into_tensor, noise_like
 from nemo.collections.multimodal.parts.stable_diffusion.utils import default, exists
 from nemo.collections.multimodal.parts.utils import randn_like
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingRandomBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank
 from nemo.core.classes import ModelPT
@@ -44,23 +43,23 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 try:
-    from apex.contrib.clip_grad import clip_grad_norm_
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
     from apex import amp
-    from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
-        _forward_backward_pipelining_with_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 def disabled_train(self, mode=True):
     """Overwrite model.train with this function to make sure train/eval mode
@@ -110,6 +109,7 @@ class DreamBooth(torch.nn.Module, Serialization):
         self.parameterization = self.cfg.noise_scheduler.parameterization
         self.get_noise_scheduler(self.cfg.noise_scheduler)
 
+        self.model_type = None
         self.rng = torch.Generator(device=torch.cuda.current_device(), )
 
     def instantiate_unet(self, cfg):
@@ -198,6 +198,10 @@ class MegatronDreamBooth(MegatronMultimodalModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
@@ -218,6 +222,14 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+    def get_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
+        else:
+            return [self.model]
+
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
         model = DreamBooth(cfg=self.cfg)
@@ -227,7 +239,7 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         output_tensor = self.model(batch)
         return output_tensor
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -240,22 +252,21 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # we prepare the micro batches for the apex fwd/bwd function
-        batch_for_pipeline = self.process_global_batch(batch)
-
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
-        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=False,
-            tensor_shape=None,  # required by pipeline parallelism
+            tensor_shape=None,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            custom_sync_context_handler=None,
-            sequence_parallel_enabled=False,
-            sync_batch_comm=False,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         # only the last stages of the pipeline return losses
@@ -291,32 +302,36 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
+            batch_size=1,
         )
         return loss_mean
 
-    @torch.no_grad()
-    def validation_step(self, batch, batch_idx):
-        batch_for_pipeline = self.process_global_batch(batch)
+    def validation_step(self, dataloader_iter, batch_idx):
+        fwd_bwd_function = get_forward_backward_func()
 
-        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+        losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=True,
-            tensor_shape=None,  # required by pipeline parallelism
+            tensor_shape=None,
             dtype=self.autocast_dtype,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
+
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -326,7 +341,7 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         else:
             val_loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
 
-        self.log(val_loss_mean, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+        self.log(val_loss_mean, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -341,38 +356,40 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         """
         pass
 
-    def _append_module_grads(self, module, grads):
+    def _append_sequence_parallel_module_grads(self, module, grads):
+        """ Helper method for allreduce_sequence_parallel_gradients"""
+
         for param in module.parameters():
-            if getattr(param, 'sequence_parallel_enabled', False):
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
                 else:
                     grad = param.grad
                 grads.append(grad.data)
 
-    def process_global_batch(self, global_batch, global_batch_size=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        # noise_map, condition
-        prompts, images = global_batch
-
-        # DB has more dedicated structure for encoding, so we enable autocasting here as well
-        with torch.cuda.amp.autocast(
-                self.autocast_dtype in (torch.half, torch.bfloat16),
-                dtype=self.autocast_dtype,
-        ):
-            images = images.cuda(non_blocking=True)
-
-            cond = self.model.text_encoder([t[0] for t in prompts])
-            if self.cfg.with_prior_preservation:
-                cond_prior = self.model.text_encoder([t[1] for t in prompts])
-                cond = torch.cat([cond, cond_prior], dim=0)
-
-        return images, cond
-
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def process_batch(batch):
+            # noise_map, condition
+            prompts, images = batch
+
+            # DB has more dedicated structure for encoding, so we enable autocasting here as well
+            with torch.cuda.amp.autocast(
+                    self.autocast_dtype in (torch.half, torch.bfloat16),
+                    dtype=self.autocast_dtype,
+            ):
+                images = images.cuda(non_blocking=True)
+
+                cond = self.model.text_encoder([t[0] for t in prompts])
+                if self.cfg.with_prior_preservation:
+                    cond_prior = self.model.text_encoder([t[1] for t in prompts])
+                    cond = torch.cat([cond, cond_prior], dim=0)
+
+            return images, cond
+
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+            batch = process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             loss = model(batch)
 
@@ -427,9 +444,8 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         self.init_global_step = self.trainer.global_step
 
         # Batch size need to be provided for webdatset
-        self._num_micro_batches = self.cfg.global_batch_size // (
-                self.cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())
-        self._global_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.cfg.micro_batch_size
+        self._num_micro_batches = get_num_microbatches()
+        self._micro_batch_size = self.cfg.micro_batch_size
 
         self.setup_training_data(self.cfg.data)
 
@@ -449,7 +465,7 @@ class MegatronDreamBooth(MegatronMultimodalModel):
             center_crop=cfg.center_crop,
         )
 
-        batch_sampler = MegatronPretrainingRandomBatchSampler(
+        batch_sampler = MegatronPretrainingRandomSampler(
             total_samples=len(train_dataset),
             consumed_samples=self.compute_consumed_samples(0),
             micro_batch_size=self.cfg.micro_batch_size,
@@ -461,7 +477,6 @@ class MegatronDreamBooth(MegatronMultimodalModel):
 
         self._train_dl = torch.utils.data.DataLoader(
             train_dataset,
-            # batch_size=self._global_batch_size_on_this_data_parallel_rank,
             batch_sampler=batch_sampler,
             collate_fn=partial(_collate_fn, with_prior_preservation=self.cfg.with_prior_preservation),
             num_workers=cfg.num_workers,
