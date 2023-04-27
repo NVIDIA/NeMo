@@ -22,11 +22,15 @@ import torch
 __all__ = ["MegatronMIMHiddenLoss"]
 
 
-class MegatronHiddenLoss(object):
+class BaseMegatronHiddenLoss(object):
     """Base class to calculate hidden state loss"""
 
     def __init__(self):
         pass
+
+    @property
+    def input_names(self):
+        return []
 
     def loss(self, hiddens_dict, **kwargs):
         """Implement your own loss calculations"""

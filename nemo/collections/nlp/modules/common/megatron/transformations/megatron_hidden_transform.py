@@ -13,37 +13,75 @@
 # limitations under the License.
 
 
-import os
-import sys
 import torch
 
 __all__ = ["MegatronGaussianHiddenTransform"]
 
 
-class MegatronHiddenTransform(object):
+class MegatronBaseHiddenTransform(object):
     """Base class to apply hidden state transformations"""
 
     def __init__(self):
         pass
 
-    def transform(self, hiddens, **kwargs):
-        """Apply your own transformations on the hiddens"""
-        pass
+    @property
+    def input_names(self):
+        return ["hiddens"]
+    
+    @property
+    def output_names(self):
+        return ["hiddens"]
+    
+    def _validate_inputs(self, inputs):
+        """Validate inputs"""
+        # validate inputs
+        if not set(self.input_names).isssubset(set(inputs.keys())):
+            raise ValueError(
+                f"Inputs should contain {self.input_names}, but got {inputs.keys()}"
+            )            
+        
+    def transform(self, **inputs):
+        """Apply your own transformations on the inputs (hiddens is always assumed)"""
+        # validate inputs
+        self._validate_inputs(inputs)
+        
+        return inputs
 
 
-class MegatronGaussianHiddenTransform(MegatronHiddenTransform):
-    # TODO: add docstring
-    def transform(self, hiddens):
-        # import pudb; pudb.set_trace()
-        self.hiddens = hiddens
-        e = torch.randn(hiddens.shape).cuda()
-        z_mean = self._hiddens_mean()
-        z_logvar = self._hiddens_logvar()
-        z = torch.exp(e * (z_logvar * 0.5)) + z_mean
-        return {"hiddens": z, "z_mean": z_mean, "z_logvar": z_logvar}
+class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
+    """
+    Constructes a diagonal Gaussian distribution from the hidden states and samples from it using reparametrization.
+    """
+    def __init__(self, hidden_size, min_logvar=-8):
+        # limit smaller allowed variance (for numerical stability)
+        self.min_logvar = min_logvar
+        self.hidden_size = hidden_size
+        # project hiddens to mean and log variance
+        self.hiddens_to_mean_logvar = torch.nn.Linear(hidden_size, hidden_size*2)
 
-    def _hiddens_mean(self):
-        return torch.mean(self.hiddens)
+    @property
+    def output_names(self):
+        return ["z_mean", "z_logvar", "z"]
 
-    def _hiddens_logvar(self):
-        return torch.log(torch.var(self.hiddens))
+    def transform(self, **inputs):
+        """
+        inputs:
+            hiddens: accepts a tensor of shape (batch_size, seq_len, hidden_size)    
+        
+        outputs:
+            z_mean: mean of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
+            z_logvar: log variance of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
+        """
+        # validate inputs
+        self._validate_inputs(inputs)
+        
+        hiddens = inputs["hiddens"]
+        # compute distribution
+        z_mean, z_logvar = self.hiddens_to_mean_logvar(hiddens).chunk(2, dim=-1)
+        # clamp logvar
+        z_logvar = z_logvar.clamp(min=self.min_logvar)
+        # sample z with reparametrization
+        e = torch.randn_like(hiddens)
+        z = (z_logvar * 0.5).exp() * e + z_mean
+
+        return {"z": z, "z_mean": z_mean, "z_logvar": z_logvar}

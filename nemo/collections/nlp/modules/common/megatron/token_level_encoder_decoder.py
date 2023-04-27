@@ -127,8 +127,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         add_decoder=True,
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
-        hidden_transforms=None,
-        loss_transforms=None
+        hidden_transforms=None, # allows for hidden state transformations before the decoder
+        loss_transforms=None # allows for loss transformations after the decoder based on hidden transforms
         tokens_head_bias=True,
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
@@ -151,6 +151,20 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
+        # validate that all loss transforms are supported by hidden transforms
+        hidden_outputs = set().union([ht.output_names for ht in self.hidden_transforms])
+        loss_inputs = set().union([lt.input_names for ht in self.loss_transforms])
+        if not loss_inputs.issubset(hidden_outputs):
+            raise ValueError(
+                f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
+            )
+        
+        # register all hidden / loss transforms as submodules to support learned parameters
+        if self.loss_transforms is not None:
+            self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
+        if self.hidden_transforms is not None:
+            self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
+        
         encoder, decoder = None, None
         if add_encoder:
             if pre_process:
