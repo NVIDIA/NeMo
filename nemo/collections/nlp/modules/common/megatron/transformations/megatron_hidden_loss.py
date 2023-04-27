@@ -54,13 +54,13 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         loss_dict = self._loss(inputs)
         # compute weighted loss ("loss" key is always assumed)
         weighted_loss = loss_dict["loss"] * self.loss_weight
-        
+
         # add name to loss values
         if self.name:
             loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
-        
+
         loss_dict["loss"] = weighted_loss
-        
+
         return loss_dict
 
 
