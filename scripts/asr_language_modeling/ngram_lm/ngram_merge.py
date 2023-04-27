@@ -195,7 +195,6 @@ def farcompile(symbols: str, text_file: str, test_far: str, force: bool, args,) 
         args.punctuation_marks (str): String with punctuation marks to process.
         args.rm_punctuation (bool): If True, removes punctuation before tokenizing.
         args.separate_punctuation (bool): If True, punctuation mark separates from the previous word by space.
-        args.verbose (int): Level of verbose.
 
     Returns:
         Tuple[bytes, bytes]: The standard output and standard error messages generated during the compilation.
@@ -230,7 +229,8 @@ def farcompile(symbols: str, text_file: str, test_far: str, force: bool, args,) 
             tokenizer=tokenizer,
             encoding_level=encoding_level,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            args=args,
+            text_processing_args=args,
+            verbose=1,
         )
         stdout, stderr = ps.communicate()
 
@@ -350,16 +350,13 @@ def test_perplexity(mod_c: str, symbols: str, test_txt: str, nemo_model_file: st
         'Perplexity: 123.45'
     """
     test_far = os.path.join(tmp_path, os.path.split(test_txt)[1] + ".far")
-    Args = namedtuple(
-        'Args', 'nemo_model_file punctuation_marks do_lowercase rm_punctuation separate_punctuation verbose'
-    )
+    Args = namedtuple('Args', 'nemo_model_file punctuation_marks do_lowercase rm_punctuation separate_punctuation')
     args = Args(
         nemo_model_file=nemo_model_file,
         punctuation_marks='.,?',
         do_lowercase=False,
         rm_punctuation=False,
         separate_punctuation=True,
-        verbose=0,
     )
     farcompile(symbols, test_txt, test_far, force, args)
     res_p = perplexity(mod_c, test_far)
@@ -423,7 +420,7 @@ def _parse_args():
     )
     parser.add_argument(
         "--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM library.",
-    )  # Use /workspace/nemo/decoders/kenlm/build/bin/build_binary if installed it with scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh
+    )  # Use /workspace/nemo/decoders/kenlm/build/bin if installed it with scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh
     parser.add_argument(
         "--ngram_bin_path", required=True, type=str, help="The path to the bin folder of OpenGrm Ngram library.",
     )  # Use /workspace/nemo/decoders/ngram-1.3.14/src/bin if installed it with scripts/installers/install_opengrm.sh

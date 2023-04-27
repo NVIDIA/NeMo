@@ -29,12 +29,12 @@ import os
 import numpy as np
 import torch
 from joblib import Parallel, delayed
+from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.utils import logging
 
 # List of the supported models to be used with N-gram LM and beam search decoding
@@ -85,12 +85,9 @@ def setup_tokenizer(args):
         )
         model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
 
-    text_processing = model.cfg.decoding.get("text_processing", None)
-    if text_processing:
-        args.punctuation_marks = text_processing.get("punctuation_marks", args.punctuation_marks)
-        args.rm_punctuation = text_processing.get("rm_punctuation", args.rm_punctuation)
-        args.separate_punctuation = text_processing.get("separate_punctuation", args.separate_punctuation)
-        args.do_lowercase = text_processing.get("do_lowercase", args.do_lowercase)
+    nemo_text_processing = model.cfg.decoding.get("text_processing", None)
+    if nemo_text_processing:
+        args.text_processing = OmegaConf.merge(nemo_text_processing, args.text_processing)
 
     if type(model.tokenizer).__name__ == 'AggregateTokenizer':
         is_aggregate_tokenizer = True
@@ -111,7 +108,7 @@ def setup_tokenizer(args):
 
 
 def iter_files(
-    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, args,
+    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, text_processing_args, verbose
 ):
     if isinstance(dest_path, list):
         paths = zip(dest_path, source_path)
@@ -119,7 +116,9 @@ def iter_files(
         paths = [(dest_path, path) for path in source_path]
 
     for dest_path, input_path in paths:
-        dataset = read_train_file(input_path, args, is_aggregate_tokenizer=is_aggregate_tokenizer,)
+        dataset = read_train_file(
+            input_path, text_processing_args, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose
+        )
         if encoding_level == "subword":
             tokenize_text(
                 data=dataset,
@@ -139,7 +138,7 @@ def iter_files(
 
 
 def read_train_file(
-    path, args, is_aggregate_tokenizer: bool = False,
+    path, args, is_aggregate_tokenizer: bool = False, verbose: int = 0,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
@@ -149,7 +148,7 @@ def read_train_file(
     else:
         fin = open(path, 'r', encoding='utf-8')
 
-    if args.verbose > 0:
+    if verbose > 0:
         reader = tqdm(iter(lambda: fin.readline(), ''), desc="Read 0 lines", unit=' lines')
     else:
         reader = fin
@@ -179,7 +178,7 @@ def read_train_file(
                 if lang:
                     lang_dataset.append(lang)
                 lines_read += 1
-                if args.verbose > 0 and lines_read % 100000 == 0:
+                if verbose > 0 and lines_read % 100000 == 0:
                     reader.set_description(f"Read {lines_read} lines")
         else:
             break

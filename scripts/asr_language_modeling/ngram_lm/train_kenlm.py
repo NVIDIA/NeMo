@@ -39,11 +39,12 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List
+from typing import List, Optional
 
 import kenlm_utils
 from omegaconf import MISSING
 
+from nemo.collections.asr.parts.utils.transcribe_utils import TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -59,7 +60,9 @@ class TrainKenlmConfig:
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
     """
 
-    train_paths: List[str] = MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    train_paths: List[
+        str
+    ] = MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
 
     nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
     kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
@@ -70,11 +73,10 @@ class TrainKenlmConfig:
     ngram_prune: List[int] = field(
         default_factory=lambda: [0]
     )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
-    cache_path: str = None  # Cache path to save tokenized files.
-    do_lowercase: bool = False  # Whether to apply lower case conversion on the training text.
-    punctuation_marks: str = None  # Punctuation marks to process. Example: ".,?"
-    rm_punctuation: bool = False  # Whether to remove punctuation marks from text.
-    separate_punctuation: bool = True  # Whether to separate punctuation with the previouse word by space.
+    cache_path: str = ""  # Cache path to save tokenized files.
+    text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
+        punctuation_marks=".,?", do_lowercase=False, rm_punctuation=False, separate_punctuation=True,
+    )
     verbose: int = 1  # Verbose level, default is 1.
 
 
@@ -129,7 +131,8 @@ def main(args: TrainKenlmConfig):
             tokenizer=tokenizer,
             encoding_level=encoding_level,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            args=args,
+            text_processing_args=args.text_processing,
+            verbose=args.verbose,
         )
 
         first_process_args = ["cat"] + encoded_train_files
@@ -156,7 +159,8 @@ def main(args: TrainKenlmConfig):
             tokenizer=tokenizer,
             encoding_level=encoding_level,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            args=args,
+            text_processing_args=args.text_processing,
+            verbose=args.verbose,
         )
 
         kenlm_p.communicate()

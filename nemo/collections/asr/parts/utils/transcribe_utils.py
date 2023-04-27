@@ -15,6 +15,7 @@ import glob
 import json
 import os
 import re
+from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -462,3 +463,18 @@ class PunctuationCapitalization:
             return [self.regex_punctuation.sub(' ', line).strip() for line in lines]
         else:
             return lines
+
+
+@dataclass
+class TextProcessingConfig:
+    # Punctuation marks to process. Example: ".,?"
+    punctuation_marks: str = ""
+
+    # Whether to apply lower case conversion on the training text.
+    do_lowercase: bool = False
+
+    # Whether to remove punctuation marks from text.
+    rm_punctuation: bool = False
+
+    # Whether to separate punctuation with the previouse word by space.
+    separate_punctuation: bool = True

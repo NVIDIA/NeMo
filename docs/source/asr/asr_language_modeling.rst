@@ -89,15 +89,15 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_prune      | List[int] | [0]        | List of digits to prune Ngrum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| cache_path       | str      | None        | Cache path to save tokenized files.                                                             |
+| cache_path       | str      | ""          | Cache path to save tokenized files.                                                             |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| do_lowercase     | bool     | ``False``   | Whether to make the training text all lower case.                                               |
+| text_processing.do_lowercase      | bool | ``False`` | Whether to make the training text all lower case.                                    |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| punctuation_marks | str     | None        | String with punctuation marks to process. Example: ".,?"                                        |
+| text_processing.punctuation_marks | str   | ""       | String with punctuation marks to process. Example: ".,?"                             |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| rm_punctuation   | bool     | ``False``   | Whether to remove punctuation marks from text.                                                  |
+| text_processing.rm_punctuation    |  bool | ``False``| Whether to remove punctuation marks from text.                                       |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| separate_punctuation | bool | ``True``    | Whether to separate punctuation with the previouse word by space.                               |
+| text_processing.separate_punctuation | bool |``True``| Whether to separate punctuation with the previouse word by space.                    |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | preserve_arpa    | bool     | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.              |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
@@ -524,7 +524,7 @@ The following is the list of the arguments for the opengrm script:
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | **Argument**         |**Type**| **Default**      | **Description**                                                         |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
-| kenlm_bin_path       | str    | Required         | The path to the bin folder of KenLM library.                            |
+| kenlm_bin_path       | str    | Required         | The path to the bin folder of KenLM library. It is a folder named `bin` under where KenLM is installed. |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | ngram_bin_path       | str    | Required         | The path to the bin folder of OpenGrm Ngram. It is a folder named `bin` under where OpenGrm Ngram is installed. |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
