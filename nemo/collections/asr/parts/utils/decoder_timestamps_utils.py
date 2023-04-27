@@ -245,10 +245,8 @@ class FrameBatchASRLogits(FrameBatchASR):
         frame_len: float = 1.6,
         total_buffer: float = 4.0,
         batch_size: int = 4,
-        force_keep_logits: bool = True,
     ):
         super().__init__(asr_model, frame_len, total_buffer, batch_size)
-        self.force_keep_logits = force_keep_logits
         self.all_logprobs = []
 
     def clear_buffer(self):
@@ -263,8 +261,6 @@ class FrameBatchASRLogits(FrameBatchASR):
 
     @torch.no_grad()
     def _get_batch_preds(self, keep_logits):
-        if self.force_keep_logits:
-            keep_logits = True
         device = self.asr_model.device
         for batch in iter(self.data_loader):
             feat_signal, feat_signal_len = batch
@@ -275,12 +271,12 @@ class FrameBatchASRLogits(FrameBatchASR):
             preds = torch.unbind(predictions)
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
-            if keep_logits:
-                log_probs_tup = torch.unbind(log_probs)
-                for log_prob in log_probs_tup:
-                    self.all_logprobs.append(log_prob)
-            else:
-                raise ValueError("keep_logits should be True in FrameBatchASRLogits.")
+            # Always keep logits in FrameBatchASRLogits
+            _ = keep_logits
+            log_probs_tup = torch.unbind(log_probs)
+            for log_prob in log_probs_tup:
+                self.all_logprobs.append(log_prob)
+            del log_probs, log_probs_tup
             del encoded_len
             del predictions
 
