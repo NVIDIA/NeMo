@@ -35,8 +35,8 @@ Example output:
 """
 
 import argparse
-from pathlib import Path
 import json
+from pathlib import Path
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 
