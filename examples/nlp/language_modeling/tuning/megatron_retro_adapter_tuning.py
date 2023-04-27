@@ -67,17 +67,6 @@ def main(cfg) -> None:
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
     exp_manager(trainer, cfg.exp_manager)
 
-    # # update resume from checkpoint found by exp_manager
-    # resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-    # # resume_from_checkpoint = uninject_model_parallel_rank(resume_from_checkpoint)
-    # logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
-
-    # trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-    # # Override timer callback to a stateless one
-    # for idx, callback in enumerate(trainer.callbacks):
-    #     if isinstance(callback, Timer):
-    #         trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
-
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
