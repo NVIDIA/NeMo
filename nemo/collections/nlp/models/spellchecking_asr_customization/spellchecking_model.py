@@ -15,12 +15,11 @@
 
 import pdb
 from time import perf_counter
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from transformers import BertConfig, BertModel
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.spellchecking_asr_customization import (
@@ -48,8 +47,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     BERT-based model for Spellchecking ASR Customization.
     It takes as input ASR hypothesis and candidate customization entries.
     It labels the hypothesis with correct entry index or 0.
-    Example input: [CLS] c a l l _ j o h n [SEP] j o n [SEP] 
-    Example output:    0 0 0 0 0 0 1 1 1 1 0 0 0 0 0 
+    Example input:   [CLS] a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o [SEP] d i d i e r _ s a u m o n [SEP] a s t r o n o m i e [SEP] t r i s t a n _ g u i l l o t [SEP] ...
+    Input segments:      0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0     1 1 1 1 1 1 1 1 1 1 1 1 1 1     2 2 2 2 2 2 2 2 2 2 2     3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3     4      
+    Example output:      0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 3 3 3 3 3 3 3 3 3 3 3 3 3 0     ...
     """
 
     @property
@@ -69,7 +69,11 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
 
+        # Label map contains 11 labels: 0 for nothing, 1..10 for target candidate ids
         label_map_file = self.register_artifact("label_map", cfg.label_map, verify_src_exists=True)
+
+        # Semiotic classes for this model consist only of classes CUSTOM(means fragment containing custom candidate) and PLAIN (any other single-character fragment)
+        # They are used only during validation step, to calculate accuracy for CUSTOM and PLAIN classes separately
         semiotic_classes_file = self.register_artifact(
             "semiotic_classes", cfg.semiotic_classes, verify_src_exists=True
         )
@@ -82,10 +86,10 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         self.id_2_semiotic = {semiotic_id: semiotic for semiotic, semiotic_id in self.semiotic_classes.items()}
         self.max_sequence_len = cfg.get('max_sequence_len', self.tokenizer.tokenizer.model_max_length)
 
-        # setup to track metrics
-        # we will have (len(self.semiotic_classes) + 1) labels
-        # last one stands for WRONG (span in which the predicted tags don't match the labels)
-        # this is needed to feed the sequence of classes to classification_report during validation
+        # Setup to track metrics
+        # We will have (len(self.semiotic_classes) + 1) labels.
+        # Last one stands for WRONG (span in which the predicted tags don't match the labels)
+        # This is needed to feed the sequence of classes to classification_report during validation
         label_ids = self.semiotic_classes.copy()
         label_ids["WRONG"] = len(self.semiotic_classes)
         self.tag_classification_report = ClassificationReport(
@@ -94,7 +98,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
         self.hidden_size = cfg.hidden_size
 
-        # hidden size is doubled because we concatenate bert for characters and for subwords
+        # hidden size is doubled because in forward we concatenate embeddings for characters and embeddings for subwords
         self.logits = TokenClassifier(
             self.hidden_size * 2, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
         )
@@ -104,9 +108,6 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         self.builder = bert_example.BertExampleBuilder(
             self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len
         )
-        # configuration = BertConfig(type_vocab_size=4)
-        # print(configuration)
-        # self.bert_model = BertModel(configuration)
 
     @typecheck()
     def forward(
@@ -119,16 +120,39 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         segment_ids_for_subwords,
         character_pos_to_subword_pos,
     ):
+        """
+        Same BERT-based model is used to calculate embeddings for sequence of single characters and for sequence of subwords.
+        Then we concatenate subword embeddings to each character corresponding to this subword.
+        We return logits for each character x 11 labels: 0 - character doesn't belong to any candidate, 1..10 - character belongs to candidate with this id.
+
+        # Arguments
+            input_ids: token_ids for single characters; .shape = [batch_size, char_seq_len]; .dtype = int64
+            input_mask: mask for input_ids(1 - real, 0 - padding); .shape = [batch_size, char_seq_len]; .dtype = int64
+            segment_ids: segment types for input_ids (0 - ASR-hypothesis, 1..10 - candidate); .shape = [batch_size, char_seq_len]; .dtype = int64
+            input_ids_for_subwords: token_ids for subwords; .shape = [batch_size, subword_seq_len]; .dtype = int64
+            input_mask_for_subwords: mask for input_ids_for_subwords(1 - real, 0 - padding); .shape = [batch_size, subword_seq_len]; .dtype = int64
+            segment_ids_for_subwords: segment types for input_ids_for_subwords (0 - ASR-hypothesis, 1..10 - candidate); .shape = [batch_size, subword_seq_len]; .dtype = int64
+            character_pos_to_subword_pos: tensor mapping character position in the input sequence to subword position; .shape = [batch_size, char_seq_len]; .dtype = int64
+        """
+
+        # src_hiddens.shape = [batch_size, char_seq_len, bert_hidden_size]; .dtype=float32
         src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
+        # src_hiddens_for_subwords.shape = [batch_size, subword_seq_len, bert_hidden_size]; .dtype=float32
         src_hiddens_for_subwords = self.bert_model(
             input_ids=input_ids_for_subwords,
             token_type_ids=segment_ids_for_subwords,
             attention_mask=input_mask_for_subwords,
         )
-        # copies subword embeddings fo each character of the corresponding subword
+
+        # Next three commands concatenate subword embeddings to each character embedding of the corresponding subword
+        # index.shape = [batch_size, char_seq_len, bert_hidden_size]; .dtype=int64
         index = character_pos_to_subword_pos.unsqueeze(-1).expand((-1, -1, src_hiddens_for_subwords.shape[2]))
+        # src_hiddens_2.shape = [batch_size, char_seq_len, bert_hidden_size]; .dtype=float32
         src_hiddens_2 = torch.gather(src_hiddens_for_subwords, 1, index)
+        # src_hiddens.shape = [batch_size, char_seq_len, bert_hidden_size * 2]; .dtype=float32
         src_hiddens = torch.cat((src_hiddens, src_hiddens_2), 2)
+        
+        # logits.shape = [batch_size, char_seq_len, num_labels]; num_labels=11: ids from 0 to 10; .dtype=float32
         logits = self.logits(hidden_states=src_hiddens)
         return logits
 
@@ -196,25 +220,44 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         tag_preds = torch.argmax(logits, dim=2)
 
         # Update tag classification_report
-        predictions, tag_labels = tag_preds.tolist(), labels.tolist()
-        # if self.current_epoch == 3:
-        #    pdb.set_trace()
-        for prediction, label, span in zip(predictions, tag_labels, spans):
-            # Here we want to track whether the predicted output matches ground truth labels
-            # fnor each whole span
-            # so we construct the special input for classification report, for example:
-            #   label = [PLAIN, PLAIN, CUSTOM, PLAIN, PLAIN]
-            #   pred = [PLAIN, PLAIN, WRONG, PLAIN, PLAIN]
+        for input_mask_seq, segment_seq, prediction_seq, label_seq, span_seq in zip(input_mask.tolist(), segment_ids.tolist(), tag_preds.tolist(), labels.tolist(), spans.tolist()):
+            # Here we want to track whether the predicted output matches ground truth labels for each whole span.
+            # We construct the special input for classification report, for example:
+            #   span_labels = [PLAIN, PLAIN, PLAIN, PLAIN, CUSTOM, CUSTOM]
+            #   span_predictions = [PLAIN, WRONG, PLAIN, PLAIN, WRONG, CUSTOM]
+            # Note that the number of PLAIN and CUSTOM occurrences in the report is not comparable,
+            #   because PLAIN is for characters, and CUSTOM is for phrases.
             span_labels = []
             span_predictions = []
-            for cid, start, end in span:
+            plain_cid = self.semiotic_classes["PLAIN"]
+            wrong_cid = self.tag_classification_report.num_classes - 1
+
+            # First we loop through all predictions for input characters with label=0, they are regarded as separate spans with PLAIN class.
+            # It either stays as PLAIN if the model prediction is 0, or turns to WRONG.
+            for i in range(len(segment_seq)):
+                if input_mask_seq[i] == 0:
+                    continue
+                if segment_seq[i] > 0: # token does not belong to ASR-hypothesis => it's over
+                    break
+                if label_seq[i] == 0:
+                    span_labels.append(plain_cid)
+                    if prediction_seq[i] == 0:
+                        span_predictions.append(plain_cid)
+                    else:
+                        span_predictions.append(wrong_cid)
+                # if label_seq[i] != 0 then it belongs to CUSTOM span and will be handled later
+
+            # Second we loop through spans tensor which contains only spans for CUSTOM class.
+            # It stays as CUSTOM if all predictions for the whole span are equal to the labels, otherwise it turns to WRONG.
+            for cid, start, end in span_seq:
                 if cid == -1:
                     break
                 span_labels.append(cid)
-                if prediction[start:end] == label[start:end]:
+                if prediction_seq[start:end] == label_seq[start:end]:
                     span_predictions.append(cid)
                 else:
-                    span_predictions.append(self.tag_classification_report.num_classes - 1)  # this stands for WRONG
+                    span_predictions.append(wrong_cid)
+
             if len(span_labels) != len(span_predictions):
                 raise ValueError(
                     "Length mismatch: len(span_labels)="
@@ -236,8 +279,8 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        # calculate metrics and classification report
-        # In our task recall = accuracy, and the recall column - is the per class accuracy
+        # Calculate metrics and classification report
+        # Note that in our task recall = accuracy, and the recall column is the per class accuracy
         _, tag_accuracy, _, tag_report = self.tag_classification_report.compute()
 
         logging.info("Total tag accuracy: " + str(tag_accuracy))
@@ -264,7 +307,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
     # Functions for inference
     @torch.no_grad()
-    def _infer(self, dataloader_cfg: DictConfig, input_name: str) -> List[str]:
+    def _infer(self, dataloader_cfg: DictConfig, input_name: str) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
         """ Main function for Inference
 
         Args:
@@ -274,15 +317,14 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 - candidate phrases separated by semicolon
 
         Returns:
-            all_preds: A list of tab-separated text records, same size as input list. Each record consists of 4 items:
-                - final output text
-                - ASR hypothesis
-                - labels
+            all_preds: A list of tuples (ASR-hypothesis, list of replacements). Each replacement consists of 3 items:
+                - beginning coordinate in ASR-hypothesis
+                - end coordinate in ASR hypothesis
+                - replacement text (= one of candidates)
         """
         mode = self.training
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        all_tag_preds = []  # list of
         try:
             # Switch model to evaluation mode
             self.eval()
@@ -291,6 +333,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             logging.set_verbosity(logging.WARNING)
             infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, input_name)
 
+            all_tag_preds = []
             for batch in iter(infer_datalayer):
                 (
                     input_ids,
@@ -321,7 +364,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 letters = hyp.split(" ")
                 candidates = ref.split(";")
                 report_str = ""
-                tag_preds_for_sent = tag_preds[1 : (len(letters) + 1)]  # take only predictions for actual sent letters
+                tag_preds_for_sent = tag_preds[1 : (len(letters) + 1)]  # take only predictions for actual sent letters (starting from 1 because of [CLS] token)
                 last_tag = -1
                 tag_begin = -1
                 for idx, tag in enumerate(tag_preds_for_sent):
@@ -347,6 +390,8 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     + "\n"
                     + report_str
                 )
+        except Exception as e:
+            raise ValueError("Error processing file " + input_name)
 
         finally:
             # set mode back to its original value
@@ -426,5 +471,4 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        result = []
         return None

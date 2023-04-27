@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizerBase
 
-
 """Build BERT Examples from asr hypothesis, customization candidates, target labels, span info.
 """
 
@@ -171,9 +170,10 @@ class BertExampleBuilder(object):
         self._semiotic_classes = semiotic_classes
         self._tokenizer = tokenizer
         self._max_seq_length = max_seq_length
-        self._max_spans_length = max(4, int(max_seq_length / 2))
+        # one span usually covers one or more words and it only exists for custom phrases, so there are much less spans than characters. 
+        self._max_spans_length = max(4, int(max_seq_length / 20))
         self._pad_id = self._tokenizer.pad_token_id
-        self._keep_tag_id = 0
+        self._default_label = 0
 
     def build_bert_example(
         self, hyp: str, ref: str, target: Optional[str] = None, span_info: Optional[str] = None, infer: bool = False
@@ -188,7 +188,16 @@ class BertExampleBuilder(object):
             infer: inference mode
         Returns:
             BertExample, or None if the conversion from text to tags was infeasible
+
+        Example:
+            hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
+            ref: "d i d i e r _ s a u m o n;a s t r o n o m i e;t r i s t a n _ g u i l l o t;t r i s t e s s e;m o n a d e;c h r i s t i a n;a s t r o n o m e r;s o l o m o n;d i d i d i d i d i;m e r c y"
+            target: "1 3"
+            span_info: "CUSTOM 12 23;CUSTOM 28 41"
+            
         """
+        if not ref.count(";") == 9:
+            raise ValueError("Expect 10 candidates: " + ref)
 
         tags = [0 for _ in hyp.split()]
         if not infer:
@@ -207,7 +216,6 @@ class BertExampleBuilder(object):
                     start = int(start)
                     end = int(end)
                     tags[start:end] = [int(t) for i in range(end - start)]
-
         # get input features for characters
         (
             input_ids,
@@ -215,8 +223,8 @@ class BertExampleBuilder(object):
             segment_ids,
             labels_mask,
             labels,
-            hyp_tokens,
-            token_start_indices,
+            _,
+            _,
         ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags)
 
         # get input features for words
@@ -232,15 +240,71 @@ class BertExampleBuilder(object):
             _,
         ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None)
 
-        character_pos_to_subword_pos = [0 for _ in input_ids]
-        ## Example:
-        ##   hyp_tokens_for_words = ['pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace' ... 'world']
-        ##   input_ids_for_subwords = [101, 21877, 6216, 5737, 10024, ..., 9311, 102, 27046, 102, 12525 ...]
-        ##   hyp_tokens = ['p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', 'p', 'e', 'a', 'c', 'e', '_' ... ]
+        character_pos_to_subword_pos = self._map_characters_to_subwords(input_ids, input_ids_for_subwords)
 
-        ## ['[CLS]', 'p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', ..., '[SEP]'
+        spans = self._get_spans(span_info)
+
+        if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
+            print("Max len exceeded: len(input_ids)=", len(input_ids), "; _max_seq_length=", self._max_seq_length, "; len(spans)=", len(spans), "; _max_spans_length=", self._max_spans_length)
+            return None
+        example = BertExample(
+            input_ids=input_ids,
+            input_mask=input_mask,
+            segment_ids=segment_ids,
+            input_ids_for_subwords=input_ids_for_subwords,
+            input_mask_for_subwords=input_mask_for_subwords,
+            segment_ids_for_subwords=segment_ids_for_subwords,
+            character_pos_to_subword_pos=character_pos_to_subword_pos,
+            labels_mask=labels_mask,
+            labels=labels,
+            spans=spans,
+            default_label=self._default_label,
+        )
+        return example
+
+    def _get_spans(self, span_info: str) -> List[Tuple[int, int, int]]:
+        """ Converts span_info string into a list of (class_id, start, end) where start, end are coordinates of starting and ending(exclusive) tokens in input_ids of BertExample
+            
+            Example:
+                span_info: "CUSTOM 37 41;CUSTOM 47 52;CUSTOM 42 46;CUSTOM 0 7"
+                result: [(1, 38, 42), (1, 48, 53), (1, 43, 47), (1, 1, 8)]
+        """
+        result_spans = []
+        if span_info is None:
+            return result_spans
+
+        span_info_parts = span_info.split(";")
+        for p in span_info_parts:
+            if p == "":
+                break
+            c, start, end = p.split(" ")
+            if c not in self._semiotic_classes:
+                raise KeyError("class=" + c + " not found in self._semiotic_classes")
+            cid = self._semiotic_classes[c]
+            # +1 because this should be indexing on input_ids which has [CLS] token at beginning
+            start = int(start) + 1
+            end = int(end) + 1
+            result_spans.append((cid, start, end))
+        return result_spans
+
+    def _map_characters_to_subwords(self, input_ids: List[int], input_ids_for_subwords: List[int]) -> List[int]:
+        """ Maps each single character to the position of its corresponding subword.
+
+            Args:
+                input_ids: List of character token ids.
+                input_ids_for_subwords: List of subword token ids.
+            Returns:
+                List of subword positions in input_ids_for_subwords. Its length is equal to len(input_ids)
+
+            Example:
+                input_ids: [101, 1037, 1055, 1056, 1054, 1051, 1050, ..., 1051, 102, 1040, ..., 1050, 102, 1037, ..., 1041, 102, ..., 102]
+                input_ids_for_subwords: [101, 26357, 2106, 2666, 2061, 8202, 1998, 13012, 16643, 2319, 1043, 7174, 102, 2106, 3771, 7842, 2819, 2239, 102, ..., 102]
+        """
+        character_pos_to_subword_pos = [0 for _ in input_ids]
+
+        ## '[CLS]', 'a', 's', 't', 'r', 'o', 'n', 'o', 'm', 'e', 'r', 's', '_', 'd', 'i', ..., 'l', 'o', '[SEP]', 'd', 'i', 'd', 'i', 'e', 'r', '_', 's', 'a', 'u', 'm', 'o', 'n', ..., '[SEP]'
         tokens = self._tokenizer.convert_ids_to_tokens(input_ids)
-        ##  ['[CLS]', 'pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace', ..., 'tent', '[SEP]', 'thru', '[SEP]', 'mister', '##ia', '[SEP]', 'r', 'v', 'g', '[SEP]', 'af', '##p', '[SEP]', 'dans', 'la', 'pea', '##u', '[SEP]', 'anthony', 'lester', '[SEP]', 'k', '##x', '##ok', '[SEP]', 'anthony', 'le', '##rew', '[SEP]', 'anthony', 'les', '##pes', '[SEP]', 'han', '##ey', '[SEP]']
+        ## '[CLS]', 'astronomers', 'did', '##ie', 'so', '##mon', 'and', 'tri', '##sti', '##an', 'g', '##llo', '[SEP]', 'did', '##ier', 'sa', '##um', '##on', '[SEP]', 'astro', '##no', '##mie', '[SEP]', 'tristan', 'gui', '##llo', '##t', '[SEP]', ..., '[SEP]', 'mercy', '[SEP]']
         tokens_for_subwords = self._tokenizer.convert_ids_to_tokens(input_ids_for_subwords)
         j = 0  # index for tokens_for_subwords
         j_offset = 0  # current letter index within subword
@@ -268,7 +332,7 @@ class BertExampleBuilder(object):
                     + "subwords="
                     + str(tokens_for_subwords)
                 )
-            # at this point we expect that
+            # At this point we expect that
             #    subword either 1) is a normal first token of a word or 2) starts with "##" (not first word token)
             #    character either 1) is a normal character or 2) is a space character "_"
             if character == "_":
@@ -310,75 +374,39 @@ class BertExampleBuilder(object):
                 + "; len(subwords)="
                 + str(len(tokens_for_subwords))
             )
-
-        if "PLAIN" not in self._semiotic_classes:
-            raise KeyError("PLAIN should be in self._semiotic_classes")
-        plain_cid = self._semiotic_classes["PLAIN"]
-
-        spans = []
-
-        if span_info is not None and len(span_info) > 0:
-            # e.g. span_info="CUSTOM 0 5;CUSTOM 9 12"
-            # translate class name to its id, translate coords from tokens to wordpieces
-            span_info_parts = span_info.split(";")
-            previous_end = 0
-            for p in span_info_parts:
-                if p == "":
-                    break
-                c, start, end = p.split(" ")
-                if c not in self._semiotic_classes:
-                    raise KeyError("c=" + c + " not found in self._semiotic_classes")
-                cid = self._semiotic_classes[c]
-                start = int(start)
-                end = int(end)
-                if start >= len(token_start_indices):
-                    raise IndexError(
-                        "start=" + str(start) + " is outside len(token_start_indices)=" + str(len(token_start_indices))
-                    )
-                while previous_end < start:
-                    subtoken_start = token_start_indices[previous_end]
-                    subtoken_end = (
-                        token_start_indices[previous_end + 1]
-                        if previous_end + 1 < len(token_start_indices)
-                        else len(input_ids) - 1
-                    )
-                    spans.append((plain_cid, subtoken_start, subtoken_end))
-                    previous_end += 1
-                subtoken_start = token_start_indices[start]
-                subtoken_end = token_start_indices[end] if end < len(token_start_indices) else len(hyp_tokens) + 1
-                if subtoken_end >= self._max_seq_length:  # possible if input_ids gets truncated to the max_seq_length
-                    break
-                spans.append((cid, subtoken_start, subtoken_end))
-                previous_end = end
-            while previous_end < len(token_start_indices):
-                subtoken_start = token_start_indices[previous_end]
-                subtoken_end = (
-                    token_start_indices[previous_end + 1]
-                    if previous_end + 1 < len(token_start_indices)
-                    else len(input_ids) - 1
-                )
-                spans.append((plain_cid, subtoken_start, subtoken_end))
-                previous_end += 1
-        if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
-            return None
-        example = BertExample(
-            input_ids=input_ids,
-            input_mask=input_mask,
-            segment_ids=segment_ids,
-            input_ids_for_subwords=input_ids_for_subwords,
-            input_mask_for_subwords=input_mask_for_subwords,
-            segment_ids_for_subwords=segment_ids_for_subwords,
-            character_pos_to_subword_pos=character_pos_to_subword_pos,
-            labels_mask=labels_mask,
-            labels=labels,
-            spans=spans,
-            default_label=0,
-        )
-        return example
+        return character_pos_to_subword_pos
 
     def _get_input_features(
         self, hyp: str, ref: str, tags: List[int]
     ) -> Tuple[List[int], List[int], List[int], List[int], List[int], List[str], List[int]]:
+        """Converts given ASR-hypothesis(hyp) and candidate string(ref) to features(token ids, mask, segment ids, etc).
+
+        Args:
+            hyp: Hypothesis text.
+            ref: Candidate customization variants divided by ';'
+            tags: List of labels corresponding to each token of ASR-hypothesis or None when building an example during inference.
+        Returns:
+            Features (input_ids, input_mask, segment_ids, labels_mask, labels, hyp_tokens, token_start_indices)
+
+        Note that this method is called both for character-based example and for word-based example (to split to subwords).
+
+        Character-based example:
+            hyp:  "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
+            ref:  "d i d i e r _ s a u m o n;a s t r o n o m i e;t r i s t a n _ g u i l l o t;t r i s t e s s e;m o n a d e;c h r i s t i a n;a s t r o n o m e r;s o l o m o n;d i d i d i d i d i;m e r c y"
+            tags: "0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 3 3 3 3 3 3 3 3 3 3 3 3 3"
+
+            resulting token sequence:
+                '[CLS]', 'a', 's', 't', 'r', 'o', 'n', 'o', 'm', 'e', 'r', 's', '_', 'd', 'i', ..., 'l', 'o', '[SEP]', 'd', 'i', 'd', 'i', 'e', 'r', '_', 's', 'a', 'u', 'm', 'o', 'n', ..., '[SEP]'
+
+        Word-based example:
+            hyp:  "astronomers didie somon and tristian gllo"
+            ref:  "didier saumon;astronomie;tristan guillot;tristesse;monade;christian;astronomer;solomon;dididididi;mercy"
+            tags: None (not used for word-based case)
+
+            resulting token sequence: 
+                '[CLS]', 'astronomers', 'did', '##ie', 'so', '##mon', 'and', 'tri', '##sti', '##an', 'g', '##llo', '[SEP]', 'did', '##ier', 'sa', '##um', '##on', '[SEP]', 'astro', '##no', '##mie', '[SEP]', 'tristan', 'gui', '##llo', '##t', '[SEP]', ..., '[SEP]', 'mercy', '[SEP]']
+        """
+
         labels_mask = []
         labels = []
         if tags is None:
@@ -420,8 +448,7 @@ class BertExampleBuilder(object):
             labels: Labels (one per token) to be split.
 
         Returns:
-            3-tuple with the split tokens, split labels, and the indices of the
-            WordPieces that start a token.
+            3-tuple with the split tokens, split labels, and the indices of starting tokens of words
         """
         bert_tokens = []  # Original tokens split into wordpieces.
         bert_labels = []  # Label for each wordpiece.
@@ -454,13 +481,6 @@ class BertExampleBuilder(object):
             bert_tokens.extend(pieces)
         return bert_tokens, token_start_indices
 
-    def _get_pad_id(self) -> int:
-        """Returns the ID of the [PAD] token (or 0 if it's not in the vocab)."""
-        try:
-            return self._tokenizer.pad_token_id
-        except KeyError:
-            return 0
-
     def read_input_file(
         self, input_filename: str, infer: bool = False
     ) -> Union[List['BertExample'], Tuple[List['BertExample'], Tuple[str, str]]]:
@@ -469,16 +489,18 @@ class BertExampleBuilder(object):
         Args:
             example_builder: Instance of BertExampleBuilder
             input_filename: Path to the TSV input file.
-            infer: Whether test files or not.
+            infer: If true, input examples do not contain target info.
 
         Returns:
-            examples: List of converted examples(features and Editing Tasks)
+            examples: List of converted examples (BertExample). 
+               or
+            (examples, hyps_refs): If infer==true, returns h 
         """
 
         if not path.exists(input_filename):
             raise ValueError("Cannot find file: " + input_filename)
-        examples = []
-        hyps_refs = []
+        examples = []  # output list of BertExample
+        hyps_refs = []  # output list of tuples (ASR-hypothesis, candidate_str)
         with open(input_filename, 'r') as f:
             for line in f:
                 if len(examples) % 1000 == 0:
@@ -487,7 +509,7 @@ class BertExampleBuilder(object):
                     hyp, ref = line.rstrip('\n').split('\t')
                     try:
                         example = self.build_bert_example(hyp, ref, infer=infer)
-                    except Exception:
+                    except Exception as e:
                         logging.warning(str(e))
                         logging.warning(line)
                         continue
