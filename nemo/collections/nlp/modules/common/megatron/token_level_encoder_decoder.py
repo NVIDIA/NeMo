@@ -151,9 +151,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
-        # validate that all loss transforms are supported by hidden transforms
-        hidden_outputs = set().union([ht.output_names for ht in self.hidden_transforms])
-        loss_inputs = set().union([lt.input_names for ht in self.loss_transforms])
+        # validate that all loss transforms are supported by hidden transforms ("hiddens" is given by default)
+        hidden_outputs = set().union(*([ht.output_names for ht in self.hidden_transforms] + ["hiddens"]))
+        loss_inputs = set().union(*[lt.input_names for lt in self.loss_transforms])
         if not loss_inputs.issubset(hidden_outputs):
             raise ValueError(
                 f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"

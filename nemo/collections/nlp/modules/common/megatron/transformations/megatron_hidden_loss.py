@@ -22,41 +22,68 @@ import torch
 __all__ = ["MegatronMIMHiddenLoss"]
 
 
-class BaseMegatronHiddenLoss(object):
-    """Base class to calculate hidden state loss"""
+class MegatronBaseHiddenLoss(object):
+    """
+    Base class to calculate hidden state loss.
+    Returned dict includes a loss value and additional outputs.
+    """
 
-    def __init__(self):
-        pass
+    def __init__(self, name="", loss_weight=1.0):
+        # allows to name the loss
+        self.name = name
+        self.loss_weight = float(loss_weight)
+
+    def _validate_inputs(self, inputs):
+        """Validate inputs"""
+        # validate inputs
+        if not set(self.input_names).isssubset(set(inputs.keys())):
+            raise ValueError(
+                f"Inputs should contain {self.input_names}, but got {inputs.keys()}"
+            )            
 
     @property
     def input_names(self):
         return []
 
-    def loss(self, hiddens_dict, **kwargs):
-        """Implement your own loss calculations"""
-        pass
+    def _loss(self, inputs):
+        """Implement your own loss calculations. Must return "loss" key."""
+        return {"loss": 0.0}
+
+    def loss(self, inputs):
+        """A wrapper around custom _loss that adds a weighted loss and name to the output dict"""
+        self._validate_inputs(inputs)
+        
+        loss_dict = self._loss(inputs)
+        # compute weighted loss ("loss" key is always assumed)
+        loss_dict["weighted_loss"] = loss_dict["loss"] * self.loss_weight
+        
+        # add name to loss values
+        if self.name:
+            loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
+                
+        return 0.0
 
 
-class MegatronMIMHiddenLoss(MegatronHiddenLoss):
-    # TODO: add docstring
+class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
     """
-    hiddens_dict: accepts a dictionary that contains hiddens, z_mean and z_logvar
-    alpha: a factor to multiply the hidden loss with.
+    Based on <https://arxiv.org/abs/2003.02645>
+    Implements A-MIM loss with a unit Normal anchor.
+    A-MIM - asymmetric MIM (without sampling)
     """
+    def __init__(self, name="mim", loss_weight=1.0):
+        super().__init__(name=name, loss_weight=loss_weight)
 
-    def loss(self, hiddens_dict, alpha=1):
-        # import pudb; pudb.set_trace()
-        log_p_z = self._log_prob(hiddens_dict["hiddens"], 1, 0)
-        log_q_z_given_x = self._log_prob(hiddens_dict["hiddens"], hiddens_dict["z_logvar"], hiddens_dict["z_mean"])
-        return alpha * (log_p_z - log_q_z_given_x)
+    @property
+    def input_names(self):
+        return ["z", "z_log_prob"]
 
-    def _log_prob(self, z, z_logvar, z_mean):
-        log_scale = 0.5 * z_logvar
-        var = math.exp(z_logvar)
-        k = 1  ##TODO: what is k ?
-        return (
-            -((z - z_mean) ** 2) / (2 * var)
-            - log_scale
-            - k * math.log(math.sqrt(2 * math.pi))
-            - 1 / 2 * math.log(z_logvar).sum(dim=-1)
-        )
+    def _loss(self, inputs):
+        # read posterior
+        log_prob_q_z_given_x = inputs["z_log_prob"]
+        # compute log prob of anchor a unit Normal distribution        
+        log_prob_P_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
+
+        # A-MIM loss
+        loss = -0.5 * (log_prob_P_z + log_prob_q_z_given_x)
+        
+        return {"loss": loss}

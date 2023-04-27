@@ -14,6 +14,7 @@
 
 
 import torch
+import math
 
 __all__ = ["MegatronGaussianHiddenTransform"]
 
@@ -39,13 +40,21 @@ class MegatronBaseHiddenTransform(object):
             raise ValueError(
                 f"Inputs should contain {self.input_names}, but got {inputs.keys()}"
             )            
+    
+    def _transform(self, inputs):
+        """Implement your own transformations"""
+        outputs = inputs
         
-    def transform(self, **inputs):
-        """Apply your own transformations on the inputs (hiddens is always assumed)"""
+        return outputs
+    
+    def transform(self, inputs):
+        """Apply a transformations on the inputs (hiddens is always assumed)"""
         # validate inputs
         self._validate_inputs(inputs)
         
-        return inputs
+        outputs = self._transform(inputs)
+        
+        return outputs
 
 
 class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
@@ -61,9 +70,9 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
 
     @property
     def output_names(self):
-        return ["z_mean", "z_logvar", "z"]
+        return ["z_mean", "z_logvar", "z", "z_log_prob"]
 
-    def transform(self, **inputs):
+    def _transform(self, inputs):
         """
         inputs:
             hiddens: accepts a tensor of shape (batch_size, seq_len, hidden_size)    
@@ -72,16 +81,27 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
             z_mean: mean of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
             z_logvar: log variance of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
         """
-        # validate inputs
-        self._validate_inputs(inputs)
-        
         hiddens = inputs["hiddens"]
-        # compute distribution
-        z_mean, z_logvar = self.hiddens_to_mean_logvar(hiddens).chunk(2, dim=-1)
+        # compute distribution's parameters (or use cached ones)
+        if "z_mean" in inputs and "z_logvar" in inputs:
+            z_mean = inputs["z_mean"]
+            z_logvar = inputs["z_logvar"]
+        else:
+            z_mean, z_logvar = self.hiddens_to_mean_logvar(hiddens).chunk(2, dim=-1)
         # clamp logvar
         z_logvar = z_logvar.clamp(min=self.min_logvar)
-        # sample z with reparametrization
-        e = torch.randn_like(hiddens)
-        z = (z_logvar * 0.5).exp() * e + z_mean
+        # sample z with reparametrization (or use cached one)
+        if "z" in inputs:
+            z = inputs["z"]
+            z_log_prob = inputs.get("z_log_prob", None)
+        else:
+            e = torch.randn_like(hiddens)
+            z = (z_logvar * 0.5).exp() * e + z_mean
+        
+        if z_log_prob is None:
+            # compute log probability of z under a diagonal Gaussian distribution
+            z_log_prob = -0.5 * (math.log(2 * math.pi) + z_logvar + (z - z_mean).pow(2) / z_logvar.exp())
+            # sum over the last dimension (hidden_size)
+            z_log_prob = z_log_prob.sum(dim=-1)
 
-        return {"z": z, "z_mean": z_mean, "z_logvar": z_logvar}
+        return {"z": z, "z_mean": z_mean, "z_logvar": z_logvar, "z_log_prob": z_log_prob}
