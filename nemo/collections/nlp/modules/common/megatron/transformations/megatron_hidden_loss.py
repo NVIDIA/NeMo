@@ -78,12 +78,14 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
         return ["z", "z_log_prob"]
 
     def _loss(self, inputs):
-        # read posterior
+        z = inputs["z"]
+        # get posterior
         log_prob_q_z_given_x = inputs["z_log_prob"]
         # compute log prob of anchor a unit Normal distribution        
         log_prob_P_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
 
-        # A-MIM loss
+        # A-MIM loss = log_p_x_given_z - 0.5 * (log_prob_P_z + log_prob_q_z_given_x)
+        # here we return only the hidden loss part
         loss = -0.5 * (log_prob_P_z + log_prob_q_z_given_x)
         
         return {"loss": loss}
