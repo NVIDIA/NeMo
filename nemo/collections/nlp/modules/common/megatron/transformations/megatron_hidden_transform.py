@@ -19,7 +19,7 @@ import math
 __all__ = ["MegatronGaussianHiddenTransform"]
 
 
-class MegatronBaseHiddenTransform(object):
+class MegatronBaseHiddenTransform(torch.nn.Module):
     """Base class to apply hidden state transformations"""
 
     def __init__(self):
