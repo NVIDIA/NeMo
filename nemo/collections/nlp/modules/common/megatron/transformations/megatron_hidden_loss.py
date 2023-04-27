@@ -37,9 +37,7 @@ class MegatronBaseHiddenLoss(object):
         """Validate inputs"""
         # validate inputs
         if not set(self.input_names).isssubset(set(inputs.keys())):
-            raise ValueError(
-                f"Inputs should contain {self.input_names}, but got {inputs.keys()}"
-            )            
+            raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
 
     @property
     def input_names(self):
@@ -52,15 +50,15 @@ class MegatronBaseHiddenLoss(object):
     def loss(self, inputs):
         """A wrapper around custom _loss that adds a weighted loss and name to the output dict"""
         self._validate_inputs(inputs)
-        
+
         loss_dict = self._loss(inputs)
         # compute weighted loss ("loss" key is always assumed)
         loss_dict["weighted_loss"] = loss_dict["loss"] * self.loss_weight
-        
+
         # add name to loss values
         if self.name:
             loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
-                
+
         return 0.0
 
 
@@ -70,6 +68,7 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
     Implements A-MIM loss with a unit Normal anchor.
     A-MIM - asymmetric MIM (without sampling)
     """
+
     def __init__(self, name="mim", loss_weight=1.0):
         super().__init__(name=name, loss_weight=loss_weight)
 
@@ -81,11 +80,11 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
         z = inputs["z"]
         # get posterior
         log_prob_q_z_given_x = inputs["z_log_prob"]
-        # compute log prob of anchor a unit Normal distribution        
+        # compute log prob of anchor a unit Normal distribution
         log_prob_P_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
 
         # A-MIM loss = log_p_x_given_z - 0.5 * (log_prob_P_z + log_prob_q_z_given_x)
         # here we return only the hidden loss part
         loss = -0.5 * (log_prob_P_z + log_prob_q_z_given_x)
-        
+
         return {"loss": loss}
