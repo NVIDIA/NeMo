@@ -62,78 +62,17 @@ try:
     from megatron.core import parallel_state
     from megatron.core import dist_checkpointing
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
+    from megatron.core.dist_checkpointing.optimizer import (
+        get_param_id_to_sharded_param_map,
+        make_sharded_optimizer_tensor,
+        optim_state_to_sharding_state,
+    )
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
-
-# class MegatronTorchCheckpointIO(TorchCheckpointIO):
-#     """ Overrides PTL TorchCheckpointIO:
-#         https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.plugins.io.TorchCheckpointIO.html#torchcheckpointio
-
-#         We use the distributed checkpointing library from megatron core:
-#         megatron/core/dist_checkpointing
-#         This checkpointing library enables saving and loading of sharded tensors and
-#         in particular, we can resume training with different model parallel configurations
-#         without having to use a conversion script first.
-#     """
-
-#     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-#         """Save model/training states as a checkpoint file through state-dump and file-write.
-#         Args:
-#             checkpoint: dict containing model and trainer state
-#             path: write-target path
-#             storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
-#         Raises:
-#             TypeError:
-#                 If ``storage_options`` arg is passed in
-#         """
-#         if storage_options is not None:
-#             raise TypeError(
-#                 "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
-#                 f" is not supported for `{self.__class__.__name__}`. Please implement your custom `CheckpointIO`"
-#                 " to define how you'd like to use `storage_options`."
-#             )
-
-#         # dist_checkpointing expects a directory so we will name the directory
-#         # using the path with the file extension removed
-#         dirname = os.path.dirname(path)
-#         basename = os.path.basename(path)
-#         root, _ = os.path.splitext(basename)
-#         checkpoint_dir = os.path.join(dirname, root)
-
-#         fs = get_filesystem(checkpoint_dir)
-#         fs.makedirs(checkpoint_dir, exist_ok=True)
-
-#         dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
-
-#     def load_checkpoint(
-#         self, path: _PATH, map_location: Optional[Callable] = lambda storage, loc: storage
-#     ) -> Dict[str, Any]:
-#         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of
-#         files.
-#         Args:
-#             path: Path to checkpoint
-#             map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
-#                 locations.
-#         Returns: The loaded checkpoint.
-#         Raises:
-#             FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
-#         """
-
-#         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-#         fs = get_filesystem(path)
-#         if not fs.exists(path):
-#             raise FileNotFoundError(f"Checkpoint at {path} not found. Aborting training.")
-#         if not fs.isdir(path):
-#             raise ValueError(f'Distributed checkpoints should be a directory. Found: {path}.')
-
-#         dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=path)
-
-#         return pl_load(path, map_location=map_location)
 
 
 class NLPDDPStrategy(DDPStrategy):
@@ -274,6 +213,64 @@ class NLPDDPStrategy(DDPStrategy):
                 app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
+    def optimizer_sharded_state_dict(self):
+        """
+        Sharded state dictionary for an MainParamsOptimizerWrapper.
+        Used to save and load the optimizer state when training with distributed_checkpoint.
+
+        Returns:
+            dict: The sharded state dictionary for the optimizer
+
+        Raises:
+            ValueError: If a parameter ID does not match any model sharded parameter.
+        """
+
+        # def init_opt_state(opt):
+        #     for group in opt.param_groups:
+        #         for p in group['params']:
+        #             if len(opt.state[p]) == 0:
+        #                 opt.state[p]['exp_avg'] = torch.zeros_like(p.data)
+        #                 opt.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
+
+        # init_opt_state(optimizer)  # TODO: consider running init only during checkpoint loading
+
+        optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
+
+        optimizer_state_dict = optimizer.state_dict()
+
+        model_sharded_state_dict = self.lightning_module.model.sharded_state_dict()
+
+        id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+            model_sharded_state_dict=model_sharded_state_dict,
+            optim_params_iter=itertools.chain.from_iterable(g for g in optimizer.float16_groups),
+        )
+
+        # Convert fp32_from_fp16_params
+        assert len(optimizer_state_dict['fp32_from_fp16_params']) == len(
+            optimizer_state_dict['optimizer']['param_groups']
+        )
+
+        def get_safe(param_id):
+            try:
+                return id_to_sharded_param_map[param_id]
+            except KeyError as e:
+                raise ValueError(f'Param id {param_id} does not match any model sharded param') from e
+
+        optimizer_state_dict['fp32_from_fp16_params'] = [
+            [
+                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_from_fp16')
+                for param_id, fp32_param in zip(state_group['params'], fp32_group)
+            ]
+            for fp32_group, state_group in zip(
+                optimizer_state_dict['fp32_from_fp16_params'], optimizer_state_dict['optimizer']['param_groups']
+            )
+        ]
+
+        # Convert state
+        optim_state_to_sharding_state(optimizer_state_dict['optimizer'], id_to_sharded_param_map)
+
+        return optimizer_state_dict
+
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
@@ -281,6 +278,9 @@ class NLPDDPStrategy(DDPStrategy):
             The distributed checkpointing library from megatron core expects save functions to be
             called on every rank and internally does the rank checking.
         """
+
+        # converts the optimizer states to their sharded equivalents
+        checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
         # dist_checkpointing expects a directory so we will name the directory
         # using the path with the file extension removed
@@ -353,6 +353,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         # after dist_checkpointing.load, sharded tensors will be replaced with tensors
         checkpoint['state_dict'] = sharded_state_dict
+        checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
         checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
 
@@ -388,6 +389,14 @@ class NLPDDPStrategy(DDPStrategy):
 
         else:
             return super(NLPDDPStrategy, self).distributed_sampler_kwargs
+
+    @property
+    def restore_checkpoint_after_setup(self) -> bool:
+        """ This needs to be True for distributed checkpointing because
+            we require the model to have configured the optimizer before 
+            deserializing the checkpoint.
+        """
+        return True
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):

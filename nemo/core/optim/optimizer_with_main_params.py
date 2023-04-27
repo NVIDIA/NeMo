@@ -309,6 +309,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             self.fp32_from_float16_groups.append(fp32_from_float16_params_this_group)
             self.fp32_from_fp32_groups.append(fp32_params_this_group)
 
+        self._init_opt_state()  # init exp_avg and exp_avg_sq before loading optimizer state
+
         # Leverage state_dict() and load_state_dict() to
         # recast preexisting per-param state tensors
         self.optimizer.load_state_dict(self.optimizer.state_dict())
@@ -455,6 +457,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         if optimizer_key not in state_dict:
             optimizer_key = 'optimizer_state_dict'
             logging.info('***WARNING*** loading optimizer from ' 'an old checkpoint ...')
+
         self.optimizer.load_state_dict(state_dict[optimizer_key])
 
         # Copy data for the main params.
@@ -534,3 +537,13 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         self.optimizer.defaults = value
 
     defaults = property(_get_defaults, _set_defaults)
+
+    def _init_opt_state(self):
+        """
+        Initialize the optimizer state with zero tensors for 'exp_avg' and 'exp_avg_sq' of each parameter.
+        """
+        for group in self.optimizer.param_groups:
+            for p in group['params']:
+                if len(self.optimizer.state[p]) == 0:
+                    self.optimizer.state[p]['exp_avg'] = torch.zeros_like(p.data)
+                    self.optimizer.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
