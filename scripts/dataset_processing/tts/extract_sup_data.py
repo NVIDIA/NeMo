@@ -50,7 +50,7 @@ def preprocess_ds_for_mixer_tts_x(dataloader):
 
 CFG_NAME2FUNC = {
     "ds_for_fastpitch_align": preprocess_ds_for_fastpitch_align,
-    "ds_for_mixer_tts": preprocess_ds_for_mixer_tts,
+    "ds_for_mixer_tts": preprocess_ds_for_fastpitch_align,
     "ds_for_mixer_tts_x": preprocess_ds_for_mixer_tts_x,
 }
 
