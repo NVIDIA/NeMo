@@ -56,10 +56,11 @@ from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKE
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
 
-class NgramMerge():
+
+class NgramMerge:
     def __init__(self, ngram_bin_path):
         self.ngram_bin_path = ngram_bin_path
-        
+
     def ngrammerge(self, arpa_a: str, alpha: float, arpa_b: str, beta: float, arpa_c: str, force: bool) -> str:
         """
         Merge two ARPA n-gram language models using the ngrammerge command-line tool and output the result in ARPA format.
@@ -98,7 +99,6 @@ class NgramMerge():
             )
         return mod_c
 
-
     def arpa2mod(self, arpa_path: str, force: bool):
         """
         This function reads an ARPA n-gram model and converts it to a binary format. The binary model is saved to the same directory as the ARPA model with a ".mod" extension. If the binary model file already exists and force argument is False, then the function skips conversion and returns a message. Otherwise, it executes the command to create a binary model using the subprocess.run method.
@@ -122,8 +122,9 @@ class NgramMerge():
             ]
             return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
-
-    def merge(self, arpa_a: str, alpha: float, arpa_b: str, beta: float, out_path: str, force: bool) -> Tuple[str, str]:
+    def merge(
+        self, arpa_a: str, alpha: float, arpa_b: str, beta: float, out_path: str, force: bool
+    ) -> Tuple[str, str]:
         """
         Merges two ARPA language models using the ngrammerge tool.
 
@@ -145,7 +146,6 @@ class NgramMerge():
         arpa_c = os.path.join(out_path, f"{os.path.split(arpa_a)[1]}-{alpha}-{os.path.split(arpa_b)[1]}-{beta}.arpa",)
         mod_c = self.ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c, force)
         return mod_c, arpa_c
-
 
 
     def perplexity(self, ngram_mod: str, test_far: str) -> str:
@@ -176,10 +176,11 @@ class NgramMerge():
         stdout, stderr = ps.communicate()
         exit_code = ps.wait()
         command = " ".join(sh_args)
-        assert exit_code == 0, f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
+        assert (
+            exit_code == 0
+        ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
         perplexity_out = "\n".join(stdout.split("\n")[-6:-1])
         return perplexity_out
-
 
     def make_arpa(self, ngram_mod: str, ngram_arpa: str, force: bool) -> None:
         """
@@ -209,8 +210,9 @@ class NgramMerge():
             ]
             return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
-
-    def test_perplexity(self, mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str, force: bool) -> str:
+    def test_perplexity(
+        self, mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str, force: bool
+    ) -> str:
         """
         Tests the perplexity of a given ngram model on a test file.
 
