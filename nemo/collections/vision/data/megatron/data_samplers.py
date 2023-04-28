@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
+from typing import Any, Optional, List, Dict
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import BaseMegatronBatchSampler
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
 
-class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
+class MegatronVisionPretrainingRandomSampler(MegatronPretrainingRandomSampler):
 
     def __init__(
             self,
@@ -26,44 +27,38 @@ class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             total_samples: int,
             consumed_samples: int,
             micro_batch_size: int,
-            global_batch_size: int,
             data_parallel_rank: int,
             data_parallel_size: int,
-            drop_last: bool,
             data_sharding: bool,
+            drop_last: bool = True,
+            global_batch_size: Optional[int] = None,
+            pad_samples_to_global_batch_size: Optional[bool] = False,
     ) -> None:
         super().__init__(
             total_samples=total_samples,
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
-            global_batch_size=global_batch_size,
             data_parallel_rank=data_parallel_rank,
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
+            global_batch_size=global_batch_size,
+            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
         self.dataset = dataset
         self.data_sharding = data_sharding
-        self.last_batch_size = self.total_samples % self.global_batch_size
-
-    def __len__(self):
-        num_available_samples = self.total_samples
-        if self.drop_last:
-            return num_available_samples // self.global_batch_size
-        else:
-            return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
 
     def __iter__(self):
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
-        assert current_epoch_samples % (self.micro_batch_size * self.data_parallel_size) == 0
+        assert current_epoch_samples % self.micro_batch_times_data_parallel_size == 0
 
         if isinstance(self.dataset, RandomSeedDataset):
             self.dataset.set_epoch(self.epoch)
 
         # data sharding and random sampling
         if self.data_sharding:
-            bucket_size = (self.total_samples // (self.micro_batch_size * self.data_parallel_size)) \
+            bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) \
                           * self.micro_batch_size
             bucket_offset = current_epoch_samples // self.data_parallel_size
             start_idx = self.data_parallel_rank * bucket_size
@@ -87,10 +82,11 @@ class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         # Last batch if not complete will be dropped.
         for idx in idx_range:
             batch.append(idx)
-            if len(batch) == self._global_batch_size_on_this_data_parallel_rank:
-                self.consumed_samples += self._global_batch_size
+            if len(batch) == self.micro_batch_size:
+                self.consumed_samples += self.micro_batch_times_data_parallel_size
                 yield batch
                 batch = []
+
         # Check the last partial batch and see drop_last is set
         if len(batch) > 0 and not self.drop_last:
             yield batch

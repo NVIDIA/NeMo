@@ -32,7 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_fp32,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
@@ -41,12 +41,19 @@ from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
-    from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE = False
+
 
 __all__ = ['VisionModel', 'MegatronVisionModel']
 
@@ -167,11 +174,12 @@ class MegatronVisionModel(VisionModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        # FIXME: switch to self._cfg
-        if not HAVE_APEX:
+
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
 
@@ -190,16 +198,29 @@ class MegatronVisionModel(VisionModel):
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_loss_buffer = []
 
+        # Overrides used when converting checkpoints
+        if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
+            app_state = AppState()
+            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+            init_global_rank = app_state.global_rank
+            init_local_rank = app_state.local_rank
+        else:
+            init_world_size = trainer.world_size
+            init_global_rank = trainer.global_rank
+            init_local_rank = trainer.local_rank
+
         initialize_model_parallel_for_nemo(
-            world_size=trainer.world_size,
-            global_rank=trainer.global_rank,
-            local_rank=trainer.local_rank,
+            world_size=init_world_size,
+            global_rank=init_global_rank,
+            local_rank=init_local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
+            rampup_batch_size=cfg.get('rampup_batch_size'),
+            use_fp8=cfg.get('fp8', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -284,7 +305,7 @@ class MegatronVisionModel(VisionModel):
                 parameters = self._get_parameters()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
+        self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -324,8 +345,8 @@ class MegatronVisionModel(VisionModel):
                 p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
             )
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar

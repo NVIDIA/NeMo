@@ -18,6 +18,7 @@ import torch
 import torch.nn.functional as F
 from functools import partial
 from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
 from typing import Any, List, Optional, Union
@@ -26,6 +27,7 @@ from nemo.collections.multimodal.data.clip.clip_dataset import tokenize, build_t
     build_imagenet_validation_dataloader
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import (
     MegatronModule,
@@ -47,21 +49,22 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
-        _forward_backward_pipelining_with_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.enums import AttnMaskType
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 class CLIPVisionTransformer(MegatronModule):
     """Vision Transformer Model."""
@@ -284,6 +287,10 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
@@ -298,11 +305,19 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        self.model = build_model(
-            model_provider_func=self.model_provider_func,
-            wrap_with_ddp=False,
-            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-        )
+        if isinstance(self.trainer.accelerator, CPUAccelerator):
+            self.model = build_model(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                on_cpu=True,
+                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            )
+        else:
+            self.model = build_model(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
@@ -336,6 +351,14 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+
+    def get_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
+        else:
+            return [self.model]
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -397,17 +420,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         output_tensor = self.model(image, text)
         return output_tensor
 
-    def _get_fwd_bwd_function(self):
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
-                fwd_bwd_function = _forward_backward_pipelining_with_interleaving
-            else:
-                fwd_bwd_function = forward_backward_pipelining_without_interleaving
-        else:
-            fwd_bwd_function = forward_backward_no_pipelining
-        return fwd_bwd_function
-
-    def training_step(self, batch, batch_idx):
+    def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -417,52 +430,27 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
-
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-        ):
-            # we prepare the micro batches for the apex fwd/bwd function
-            batch_for_pipeline = self.process_global_batch(batch)
-        else:
-            # The intermediate pipeline stages do not need any inputs from data loader
-            # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
-            batch_for_pipeline = None
 
         # TODO (yuya): fix this shape
         tensor_shape = None
 
-        # handle asynchronous grad reduction
-        if self.with_distributed_adam:
-            if self.megatron_amp_O2:
-                # copy grads to main grad
-                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
-            else:
-                # keep grad tensors around
-                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
-        else:
-            if self.megatron_amp_O2 and not self.cfg.get('sequence_parallel', False):
-                custom_sync_context_handler = self._optimizer.no_sync
-            else:
-                # TODO: enable async grad all reduce for O1/autocast mixed precision training
-                custom_sync_context_handler = None
-
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = self._get_fwd_bwd_function()
+        fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            custom_sync_context_handler=custom_sync_context_handler,
-            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            sync_batch_comm=self.cfg.get('sync_batch_comm', False),
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         # only the last stages of the pipeline return losses
@@ -505,17 +493,18 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
+            batch_size=1,
         )
 
         return loss_mean
@@ -533,9 +522,12 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         """
         pass
 
-    def _append_module_grads(self, module, grads):
+    def _append_sequence_parallel_module_grads(self, module, grads):
+        """ Helper method for allreduce_sequence_parallel_gradients"""
+
         for param in module.parameters():
-            if getattr(param, 'sequence_parallel_enabled', False):
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
                 else:
@@ -551,9 +543,9 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         grads = []
         if isinstance(self.model, list):
             for module in self.model:
-                self._append_module_grads(module, grads)
+                self._append_sequence_parallel_module_grads(module, grads)
         else:
-            self._append_module_grads(self.model, grads)
+            self._append_sequence_parallel_module_grads(self.model, grads)
 
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
@@ -566,16 +558,17 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             gather_with_grad=self.cfg.gather_with_grad,
         )
 
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch = [x.cuda(non_blocking=True) for x in batch]
-                images, captions = batch
+                images = batch["images"].cuda(non_blocking=True)
+                captions = batch["captions"].cuda(non_blocking=True)
             else:
                 # GPT3 uses only causal mask, which doesn't need attention mask
                 if parallel_state.is_pipeline_first_stage():
                     # Fist pipeline stage needs only the tokens and position_ids
-                    images = batch[0].cuda(non_blocking=True)
-                    captions = batch[1].cuda(non_blocking=True)
+                    images = batch["images"].cuda(non_blocking=True)
+                    captions = batch["captions"].cuda(non_blocking=True)
                 else:
                     # Intermediate / Last pipeline stage doesn't need any inputs
                     images, captions = None, None
@@ -634,6 +627,9 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         with torch.no_grad():
             top1, top5, n = 0., 0., 0.
             for images, target in tqdm(self.imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False):
+                if images is None or target is None:
+                    continue
+
                 images = images.cuda(non_blocking=True).to(self.autocast_dtype)
                 target = target.cuda(non_blocking=True)
                 # predict
@@ -656,63 +652,42 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         top5 = (top5 / n)
         return top1, top5
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
-        """
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.        """
 
-        batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
         tensor_shape = None  # Placeholder
 
         # run forward passes for an entire global batch
         # we do this inside validation_step to support pipeline parallelism
-        fwd_bwd_function = self._get_fwd_bwd_function()
+        fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            batch=batch_for_pipeline,
-            model=self.model,
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
-            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
-        def _get_metric_with_batch_size(metric_key):
+        def _get_metric(metric_key):
             # only the last stage of the pipeline returns losses
             if losses_reduced_per_micro_batch:
-                loss_with_batch_size_list = [
-                    [loss_reduced[metric_key].item(), self.cfg.micro_batch_size]
-                    for loss_reduced in losses_reduced_per_micro_batch
-                ]
-                # actual_batch_size = batch[0].shape[0]  # Might be lesser than global_batch_size if drop_last=False
-                # expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
-                # if actual_batch_size == expected_batch_size:
-                #     loss_with_batch_size_list = [
-                #         [loss_reduced[metric_key].item(), self.cfg.micro_batch_size]
-                #         for loss_reduced in losses_reduced_per_micro_batch
-                #     ]
-                # else:
-                #     loss_with_batch_size_list = []
-                #     total_samples_remaining = actual_batch_size
-                #     for loss_reduced in losses_reduced_per_micro_batch:
-                #         if total_samples_remaining <= 0:
-                #             break
-                #         if total_samples_remaining // self.cfg.micro_batch_size >= 1:
-                #             loss_with_batch_size_list.append(
-                #                 [loss_reduced[metric_key].item(), self.cfg.micro_batch_size])
-                #         else:
-                #             loss_with_batch_size_list.append([loss_reduced[metric_key].item(), total_samples_remaining])
-                #         total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
+                loss_tensors_list = [loss_reduced[metric_key] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.vstack(loss_tensors_list)
+                loss_mean = loss_tensor.mean(axis=0)
             else:
-                # we're not on the last pipeline stage so no losses
-                loss_with_batch_size_list = []
-            return loss_with_batch_size_list
+                loss_mean = torch.tensor([0.0]).cuda()
+            return loss_mean[0]
 
-        return _get_metric_with_batch_size('loss')
+        return _get_metric('loss')
 
     def validation_epoch_end(self, outputs):
         # TODO (yuya): need fix later, check with Sean
@@ -724,38 +699,24 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             imagenet_metric = torch.zeros(2).cuda()
             imagenet_metric[0], imagenet_metric[1] = self.zero_shot_eval()
             imagenet_metric = average_losses_across_data_parallel_group(imagenet_metric)
-            self.log('imagenet_top1', imagenet_metric[0], prog_bar=True, rank_zero_only=True)
-            self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True)
+            self.log('imagenet_top1', imagenet_metric[0], prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
 
         if parallel_state.is_pipeline_last_stage():
-            loss_outputs = [output[0] for output in outputs]
-
-            def _get_average_metric(metric_outputs):
-                # only the last pipeline parallel stages return metric with their batch size
-                total_num_samples = 0
-                total_metric = 0
-                for metric_with_batch_size in metric_outputs:
-                    metric_with_batch_size_array = np.array(metric_with_batch_size).flatten()
-                    batch_metrices = metric_with_batch_size_array[0::2]
-                    batch_sizes = metric_with_batch_size_array[1::2]
-                    total_num_samples += sum(batch_sizes)
-                    total_metric += np.dot(batch_metrices, batch_sizes)
-
-                avg_metric = total_metric / total_num_samples
-                return avg_metric
-
             averaged_metrics = torch.tensor(
-                [_get_average_metric(loss_outputs)],
-                dtype=torch.float32).cuda()
+                [torch.stack(outputs).mean()],
+                dtype=torch.float32, device='cuda')
         else:
-            averaged_metrics = torch.tensor([0.0], dtype=torch.float32).cuda()
+            averaged_metrics = torch.tensor([0.0], dtype=torch.float32, device='cuda')
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_metrics, get_last_rank())
         averaged_loss = averaged_metrics
 
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+        return averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -763,22 +724,6 @@ class MegatronCLIPModel(MegatronMultimodalModel):
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
-
-    def process_global_batch(self, global_batch, global_batch_size=None):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        images = global_batch["images"]  # images
-        captions = global_batch["captions"]
-
-        expected_batch_size = None
-        if global_batch_size is not None:
-            expected_batch_size = global_batch_size // parallel_state.get_data_parallel_world_size()
-        current_batch_size = images.shape[0]
-        if expected_batch_size is not None and expected_batch_size > current_batch_size:
-            raise NotImplementedError("Please turn on drop_last.")
-
-        return [images, captions]
 
     def build_train_valid_test_datasets(self):
         logging.info('Building datasets for CLIP...')
@@ -801,13 +746,6 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         logging.info(f'Finished building datasets for CLIP.')
 
         return self._train_ds, self._validation_ds, self._test_ds
-
-    # def build_pretraining_data_loader(self, dataset, consumed_samples, dataset_type=None, drop_last=True):
-    #     """Build dataloader given an input dataset."""
-    #
-    #     return torch.utils.data.DataLoader(
-    #         dataset, num_workers=self.cfg.data.num_workers, pin_memory=True,
-    #     )
 
     def setup(self, stage=None):
         """ PTL hook that is executed after DDP spawns.
@@ -863,9 +801,8 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         self.build_train_valid_test_datasets()
 
         # Batch size need to be provided for webdatset
-        self._num_micro_batches = self.cfg.global_batch_size // (
-                    self.cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())
-        self._global_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.cfg.micro_batch_size
+        self._num_micro_batches = get_num_microbatches()
+        self._micro_batch_size = self.cfg.micro_batch_size
 
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
@@ -893,7 +830,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             )
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
-                batch_size=self._global_batch_size_on_this_data_parallel_rank,
+                batch_size=self._micro_batch_size,
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=cfg.train.get("drop_last", True),
@@ -908,7 +845,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             )
             self._validation_dl = torch.utils.data.DataLoader(
                 self._validation_ds,
-                batch_size=self._global_batch_size_on_this_data_parallel_rank,
+                batch_size=self._micro_batch_size,
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=cfg.train.get("drop_last", True),
@@ -922,7 +859,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = torch.utils.data.DataLoader(
-                self._test_ds, batch_size=self._global_batch_size_on_this_data_parallel_rank,
+                self._test_ds, batch_size=self._micro_batch_size,
                 num_workers=cfg.num_workers, pin_memory=True,
             )
 

@@ -16,7 +16,6 @@ import os
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from apex.transformer import parallel_state
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -36,6 +35,14 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 def accuracy(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()
@@ -101,6 +108,9 @@ def main(cfg) -> None:
 
         top1, top5, n = 0., 0., 0.
         for images, target in tqdm(imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False):
+            if images is None or target is None:
+                continue
+
             images = images.cuda(non_blocking=True)
             target = target.cuda(non_blocking=True)
             # predict
