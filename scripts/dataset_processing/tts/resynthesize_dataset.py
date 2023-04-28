@@ -80,7 +80,6 @@ def chunks(iterable: Iterable, size: int) -> Iterator[List]:
 
 
 def load_model(path: Path, device: torch.device) -> SpectrogramGenerator:
-    print(path)
     model = None
     if path.suffix == ".nemo":
         model = SpectrogramGenerator.restore_from(path, map_location=device)
