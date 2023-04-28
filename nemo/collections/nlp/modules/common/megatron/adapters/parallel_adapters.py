@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
+import torch.nn.init as init
 import torch.nn as nn
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
@@ -107,8 +108,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         activation: str = 'swish',
         norm_position: str = 'post',
         norm_type: str = 'mixedfusedlayernorm',
-        column_init_method: str = 'xavier',
-        row_init_method: str = 'zero',
+        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise. 
+        gather_output: bool = True,
         dropout: float = 0.0,
         adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
     ):
@@ -122,23 +124,13 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
 
-        if column_init_method == 'xavier':
-            self.linear_in = ColumnParallelLinear(in_features, dim, bias=False)
-        elif column_init_method == 'normal':
-            self.linear_in = ColumnParallelLinear(in_features, dim, bias=False, init_method=init_method_normal(0.2))
-        elif column_init_method == 'zero':
-            self.linear_in = ColumnParallelLinear(in_features, dim, bias=False, init_method=init_method_const(0.0))
+        self.linear_in = ColumnParallelLinear(in_features, dim, bias=False, gather_output=True, init_method=self._get_init_fn(column_init_method))
+        if gather_output:
+            self.linear_out = RowParallelLinear(dim, out_features, bias=False, init_method=self._get_init_fn(row_init_method))
         else:
-            raise NotImplementedError("column_init_method should be zero, normal or xavier")
-
-        if row_init_method == 'xavier':
-            self.linear_out = RowParallelLinear(dim, out_features, bias=False)
-        elif row_init_method == 'normal':
-            self.linear_out = RowParallelLinear(dim, out_features, bias=False, init_method=init_method_normal(0.2))
-        elif row_init_method == 'zero':
-            self.linear_out = RowParallelLinear(dim, out_features, bias=False, init_method=init_method_const(0.0))
-        else:
-            raise NotImplementedError("row_init_method should be zero, normal or xavier")
+            # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
+            # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
+            self.linear_out = ColumnParallelLinear(dim, out_features, bias=False, gather_output=False, init_method=self._get_init_fn(row_init_method))
 
         if self.norm_position in ["pre", "post"]:
             ln_features = in_features if self.norm_position == "pre" else out_features
@@ -156,6 +148,17 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
+    
+    def _get_init_fn(self, init_method: str):
+        if init_method == 'xavier':
+            init_fn = init.xavier_normal_
+        elif init_method == 'normal':
+            init_fn = init_method_normal(0.2)
+        elif init_method == "zero":
+            init_fn = init_method_const(0.0)
+        else:
+            raise NotImplementedError("out_init_method should be zero, normal or xavier")
+        return init_fn
 
     def forward(self, x):
 
@@ -165,7 +168,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x)
-
         if self.norm_position == 'post':
             x = self.layer_norm(x)
 
@@ -186,6 +188,7 @@ class ParallelLinearAdapterConfig:
     norm_type: str = 'mixedfusedlayernorm'
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
+    gather_output: bool = True
     dropout: float = 0.0
     adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)

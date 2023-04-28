@@ -373,8 +373,9 @@ class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
             norm_position="none",
             norm_type="none",
             activation="identity",
-            column_init_method=lora_cfg.get("column_init_method", "xavier"),
+            column_init_method=lora_cfg.get("column_init_method", "normal"),
             row_init_method=lora_cfg.get("row_init_method", "zero"),
+            gather_output=False,
             dropout=lora_cfg.adapter_dropout,
         )
 
