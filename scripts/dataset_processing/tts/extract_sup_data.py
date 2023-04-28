@@ -31,7 +31,7 @@ def get_pitch_stats(pitch_list):
 def preprocess_ds_for_fastpitch_align(dataloader):
     pitch_list = []
     for batch in tqdm(dataloader, total=len(dataloader)):
-        pitches = batch["pitch"]
+        audios, audio_lengths, tokens, tokens_lengths, align_prior_matrices, pitches, pitches_lengths, *_ = batch
         pitch = pitches.squeeze(0)
         pitch_list.append(pitch[pitch != 0])
 
@@ -41,7 +41,16 @@ def preprocess_ds_for_fastpitch_align(dataloader):
 def preprocess_ds_for_mixer_tts_x(dataloader):
     pitch_list = []
     for batch in tqdm(dataloader, total=len(dataloader)):
-        pitches = batch["pitch"]
+        (
+            audios,
+            audio_lengths,
+            tokens,
+            tokens_lengths,
+            align_prior_matrices,
+            pitches,
+            pitches_lengths,
+            lm_tokens,
+        ) = batch
         pitch = pitches.squeeze(0)
         pitch_list.append(pitch[pitch != 0])
 
