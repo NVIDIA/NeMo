@@ -97,6 +97,10 @@ def get_args():
         type=Path,
         help="Path to output JSON file with dataset feature statistics.",
     )
+    parser.add_argument(
+        "--overwrite", default=False, type=bool, help="Whether to overwrite the output stats file if it exists.",
+    )
+
     args = parser.parse_args()
     return args
 
@@ -118,6 +122,7 @@ def main():
     feature_name_str = args.feature_names
     mask_field = args.mask_field
     stats_path = args.stats_path
+    overwrite = args.overwrite
 
     if not manifest_path.exists():
         raise ValueError(f"Manifest {manifest_path} does not exist.")
@@ -130,6 +135,12 @@ def main():
             f"Feature directory {audio_dir} does not exist. "
             f"Please check that the path is correct and that you ran compute_features.py"
         )
+
+    if stats_path.exists():
+        if overwrite:
+            print(f"Will overwrite existing stats path: {stats_path}")
+        else:
+            raise ValueError(f"Stats path already exists: {stats_path}")
 
     feature_config = OmegaConf.load(feature_config_path)
     feature_config = instantiate(feature_config)
