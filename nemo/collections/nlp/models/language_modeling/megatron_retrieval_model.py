@@ -367,7 +367,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                     grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
-
         input_tokens_id, input_attn_mask, loss_mask, retrieved_ids, retrieved_attn_mask, labels = batch
         # input_tokens_id = batch['tokens']
         # input_attn_mask = batch['tokens_mask']
@@ -630,6 +629,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             else:
                 del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
+                
                 return generate(self, **inference_config, strategy=self.inference_strategy)
 
     def generate(

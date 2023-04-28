@@ -33,59 +33,12 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 mp.set_start_method("spawn", force=True)
-
-"""
-This is the script to run GPT text generation.
-    a. run greedy inference from a p-tuned/prompt-tuned model's nemo file:
-        python megatron_gpt_prompt_learning_eval.py \
-            virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE \
-            gpt_model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
-            inference.greedy=True \
-            inference.add_BOS=False \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            pred_file_path=PATH_WHERE_PRED_TEXT_FILE_WILL_BE_SAVED \
-            data_paths=[path/to/dataset1.jsonl, path/to/dataset2.jsonl]
-
-        virtual_prompt_model_file should be a path to a .nemo file saved after p-tuning/prompt tuning and model file
-        is still the path to the gpt model's .nemo file.         
-
-        data_paths should be a list of .json or .jsonl files containing json objects similar to the ones 
-        used during prompt learning. They should have keys that match the fields specified in the prompt template.
-        Fields can be dropped from the prompt dict and their corresponding section of the prompt template will 
-        be automatically removed. 
-
-        For example, say the prompt template during p-tuning/prompt-tuning looked like:
-
-        '<|VIRTUAL_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}'
-
-        but you don't want to include the answer field during inference. Just don't 
-        include the answer field in the prompt dict like below:
-
-        {"taskname": "squad", "context": "some paragraph", "question": "question related to paragraph"}
-        {"taskname": "squad", "context": "another paragraph", "question": "a different question related to paragraph"}
-
-        And the dataset class will automatically format your input to have the form:
-
-        [
-            '<|VIRTUAL_PROMPT_0|> Context: some paragraph Question: question related to paragraph Answer:',
-            '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer:'
-        ]
-
-        Similarly for other senarios, just add virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE if you're using a 
-        p-tuned/prompt-tuned model. 
-"""
-
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_adapter_inference")
 def main(cfg) -> None:
@@ -108,15 +61,11 @@ def main(cfg) -> None:
     )
 
     with open_dict(model_cfg):
-        # model_cfg.restore_from_path = "/workspaces/research/downloaded/megatron_retro_converted.nemo"
-        # work around for the fused softmax bug
-        # model_cfg.masked_softmax_fusion = False
         model_cfg.precision = trainer.precision
         model_cfg.eval = True
         if "shape_file" in model_cfg:
             model_cfg.pop("shape_file")
         model_cfg.restore_from_path = cfg.model.original_model
-        # model_cfg.restore_from_path = model
 
     model = MegatronFusedRetrievalAdapterModel.restore_from(
         cfg.model.restore_path,
@@ -126,40 +75,14 @@ def main(cfg) -> None:
         strict=False,
     )
 
-        # Check whether the DDP is initialized
+    # Check whether the DDP is initialized
     if parallel_state.is_unitialized():
-
         def placeholder():
             return
 
         if model.trainer.strategy.launcher is not None:
             model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
         model.trainer.strategy.setup_environment()
-
-    global_batch_size = trainer.world_size * cfg.micro_batch_size // cfg.tensor_model_parallel_size
-    test_iters = int(trainer.limit_test_batches)
-
-    # test_ds = RetroQAFineTuneDataset(
-    #     cfg.test_ds.get('file_name'),
-    #     model.tokenizer,
-    #     cfg.test_ds.get('answer_only_loss'),
-    #     model.tokenizer.pad_id,
-    #     cfg.test_ds.get('seq_length'),
-    #     cfg.test_ds.get('add_bos'),
-    #     cfg.test_ds.get('add_eos'),
-    #     test_iters * global_batch_size,
-    #     cfg.test_ds.get('seed'),
-    #     cfg.test_ds.get('neighbors'),
-    # )
-    # test_dl = model.build_pretraining_data_loader(test_ds, 0)
-
-    # # Have to turn off activations_checkpoint_method for inference
-    # try:
-    #     model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
-    # except AttributeError:
-    #     pass
-
-
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -199,14 +122,6 @@ def main(cfg) -> None:
     retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
     model.set_inference_config(config, retrieval_service)
 
-    # model.set_inference_config(config)
-
-    # response = model.generate(
-    #     inputs=OmegaConf.to_container(cfg.prompts),
-    #     length_params=length_params,
-    #     sampling_params=sampling_params,
-    #     strategy=model.inference_strategy,
-    # )
     response = trainer.predict(model, dataloader)
 
     print("***************************")

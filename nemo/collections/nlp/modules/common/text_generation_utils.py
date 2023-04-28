@@ -245,6 +245,8 @@ def send_generate_info(
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = get_model_parallel_src_rank()
     # Send the sizes of the tensors
+    print("THESE ARE THE CONTEXT TOKENS: ", context_length_tensor)
+    print("LENGTH: ", len(context_length_tensor))
     input_info = [
         context_tokens_tensor.size(0),  # batch_size
         context_tokens_tensor.size(1),  # seq_len
