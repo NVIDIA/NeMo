@@ -95,18 +95,14 @@ def setup_tokenizer(nemo_model_file):
     return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
 
 
-def iter_files(
-    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose
-):
+def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose):
     if isinstance(dest_path, list):
         paths = zip(dest_path, source_path)
     else:  # dest_path is stdin of KenLM
         paths = [(dest_path, path) for path in source_path]
 
     for dest_path, input_path in paths:
-        dataset = read_train_file(
-            input_path, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose
-        )
+        dataset = read_train_file(input_path, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose)
         if encoding_level == "subword":
             tokenize_text(
                 data=dataset,

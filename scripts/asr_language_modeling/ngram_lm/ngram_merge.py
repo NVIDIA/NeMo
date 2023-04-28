@@ -147,7 +147,6 @@ class NgramMerge:
         mod_c = self.ngrammerge(arpa_a, alpha, arpa_b, beta, arpa_c, force)
         return mod_c, arpa_c
 
-
     def perplexity(self, ngram_mod: str, test_far: str) -> str:
         """
         Calculates perplexity of a given ngram model on a test file.
@@ -231,7 +230,7 @@ class NgramMerge:
             >>> test_perplexity("/path/to/ngram_model", "/path/to/symbol_table", "/path/to/test_file", "/path/to/tokenizer_model", "/path/to/tmp_dir", True)
             'Perplexity: 123.45'
         """
-        
+
         test_far = farcompile(symbols, test_txt, tmp_path, nemo_model_file, force)
         res_p = self.perplexity(mod_c, test_far)
         return res_p
@@ -294,8 +293,8 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
             exit_code == 0
         ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
         return test_far
-    
-        
+
+
 def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
     """
     Builds a language model from an ARPA format file using the KenLM toolkit.
