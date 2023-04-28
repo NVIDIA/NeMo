@@ -18,6 +18,7 @@
 
 
 import abc
+
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -25,9 +26,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
+    LoraKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
-    LoraKQVAdapterConfig,
     PromptEncoderAdapterConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
@@ -313,7 +314,6 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
             row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
             dropout=adapter_tuning_cfg.adapter_dropout,
         )
-        
 
         self.name_key_to_cfg = {
             AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
@@ -338,6 +338,7 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
                         )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
+
 
 class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
     """
@@ -364,7 +365,7 @@ class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = cfg.hidden_size // cfg.num_attention_heads
         projection_size = kv_channels * cfg.num_attention_heads
-        
+
         adapter_cfg = LoraKQVAdapterConfig(
             in_features=cfg.hidden_size,
             out_features=3 * projection_size,
