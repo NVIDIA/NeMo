@@ -147,62 +147,6 @@ class NgramMerge():
         return mod_c, arpa_c
 
 
-    def farcompile(self, symbols: str, text_file: str, test_far: str, nemo_model_file: str, force: bool,) -> Tuple[bytes, bytes]:
-        """
-        Compiles a text file into a FAR file using the given symbol table or tokenizer.
-
-        Args:
-            symbols (str): The path to the symbol table file.
-            text_file (str): The path to the text file to compile.
-            test_far (str): The path to the resulting FAR file.
-            nemo_model_file (str): The path to the NeMo model file (.nemo).
-            force (bool): If True, overwrites any existing FAR file.
-
-        Returns:
-            Tuple[bytes, bytes]: The standard output and standard error messages generated during the compilation.
-
-        Example:
-            >>> farcompile("/path/to/symbol_table", "/path/to/text_file", "/path/to/far_file", "/path/to/tokenizer_model", "/path/to/nemo_model", True)
-            (b'', b'')
-        """
-        if os.path.isfile(test_far) and not force:
-            logging.info("File " + test_far + " exists. Skipping.")
-            return
-        else:
-            sh_args = [
-                os.path.join(self.ngram_bin_path, "farcompilestrings"),
-                "--generate_keys=10",
-                "--fst_type=compact",
-                "--symbols=" + symbols,
-                "--keep_symbols",
-                ">",
-                test_far,
-            ]
-
-            tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(nemo_model_file)
-
-            ps = subprocess.Popen(
-                " ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,
-            )
-
-            kenlm_utils.iter_files(
-                source_path=[text_file],
-                dest_path=ps.stdin,
-                tokenizer=tokenizer,
-                encoding_level=encoding_level,
-                is_aggregate_tokenizer=is_aggregate_tokenizer,
-                verbose=1,
-            )
-            stdout, stderr = ps.communicate()
-
-            exit_code = ps.returncode
-
-            command = " ".join(sh_args)
-            assert (
-                exit_code == 0
-            ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
-            return stdout, stderr
-
 
     def perplexity(self, ngram_mod: str, test_far: str) -> str:
         """
@@ -285,11 +229,71 @@ class NgramMerge():
             >>> test_perplexity("/path/to/ngram_model", "/path/to/symbol_table", "/path/to/test_file", "/path/to/tokenizer_model", "/path/to/tmp_dir", True)
             'Perplexity: 123.45'
         """
-        test_far = os.path.join(tmp_path, os.path.split(test_txt)[1] + ".far")
-        self.farcompile(symbols, test_txt, test_far, nemo_model_file, force)
+        
+        test_far = farcompile(symbols, test_txt, tmp_path, nemo_model_file, force)
         res_p = self.perplexity(mod_c, test_far)
         return res_p
 
+
+def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str, force: bool,) -> Tuple[bytes, bytes]:
+    """
+    Compiles a text file into a FAR file using the given symbol table or tokenizer.
+
+    Args:
+        symbols (str): The path to the symbol table file.
+        text_file (str): The path to the text file to compile.
+        tmp_path (str): The path to the temporary directory where the test far file will be created.
+        nemo_model_file (str): The path to the NeMo model file (.nemo).
+        force (bool): If True, overwrites any existing FAR file.
+
+    Returns:
+        test_far (str): The path to the resulting FAR file.
+
+    Example:
+        >>> farcompile("/path/to/symbol_table", "/path/to/text_file", "/path/to/far_file", "/path/to/tokenizer_model", "/path/to/nemo_model", True)
+        (b'', b'')
+    """
+    test_far = os.path.join(tmp_path, os.path.split(text_file)[1] + ".far")
+
+    if os.path.isfile(test_far) and not force:
+        logging.info("File " + test_far + " exists. Skipping.")
+        return
+    else:
+        sh_args = [
+            "farcompilestrings",
+            "--generate_keys=10",
+            "--fst_type=compact",
+            "--symbols=" + symbols,
+            "--keep_symbols",
+            ">",
+            test_far,
+        ]
+
+        tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(nemo_model_file)
+
+        ps = subprocess.Popen(
+            " ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,
+        )
+
+        kenlm_utils.iter_files(
+            source_path=[text_file],
+            dest_path=ps.stdin,
+            tokenizer=tokenizer,
+            encoding_level=encoding_level,
+            is_aggregate_tokenizer=is_aggregate_tokenizer,
+            verbose=1,
+        )
+        stdout, stderr = ps.communicate()
+
+        exit_code = ps.returncode
+
+        command = " ".join(sh_args)
+        assert (
+            exit_code == 0
+        ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
+        return test_far
+    
+        
 def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
     """
     Builds a language model from an ARPA format file using the KenLM toolkit.
