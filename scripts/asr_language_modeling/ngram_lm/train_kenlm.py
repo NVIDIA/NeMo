@@ -39,12 +39,11 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Optional
+from typing import List
 
 import kenlm_utils
 from omegaconf import MISSING
 
-from nemo.collections.asr.parts.utils.transcribe_utils import TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -74,9 +73,6 @@ class TrainKenlmConfig:
         default_factory=lambda: [0]
     )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
     cache_path: str = ""  # Cache path to save tokenized files.
-    text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
-        punctuation_marks=".,?", do_lowercase=False, rm_punctuation=False, separate_punctuation=True,
-    )
     verbose: int = 1  # Verbose level, default is 1.
 
 
@@ -87,7 +83,7 @@ def main(args: TrainKenlmConfig):
     if isinstance(args.ngram_prune, str):
         args.ngram_prune = [args.ngram_prune]
 
-    tokenizer, encoding_level, is_aggregate_tokenizer, args = kenlm_utils.setup_tokenizer(args)
+    tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(args.nemo_model_file)
 
     if encoding_level == "subword":
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
@@ -131,7 +127,6 @@ def main(args: TrainKenlmConfig):
             tokenizer=tokenizer,
             encoding_level=encoding_level,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            text_processing_args=args.text_processing,
             verbose=args.verbose,
         )
 
@@ -159,7 +154,6 @@ def main(args: TrainKenlmConfig):
             tokenizer=tokenizer,
             encoding_level=encoding_level,
             is_aggregate_tokenizer=is_aggregate_tokenizer,
-            text_processing_args=args.text_processing,
             verbose=args.verbose,
         )
 

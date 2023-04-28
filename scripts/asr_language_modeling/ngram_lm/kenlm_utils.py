@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,12 +29,10 @@ import os
 import numpy as np
 import torch
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.utils import logging
 
 # List of the supported models to be used with N-gram LM and beam search decoding
@@ -66,28 +64,18 @@ def get_train_list(args_train_path):
     return sorted(train_path)
 
 
-def setup_tokenizer(args):
+def setup_tokenizer(nemo_model_file):
     """ TOKENIZER SETUP 
-        args includes following:
-        args.nemo_model_file (str): The path to the NeMo model file (.nemo).
-        args.punctuation_marks (str): The punctuation marks to process. Example: .,?
-        args.do_lowercase (bool): If True, converts all text to lowercase before compiling.
-        args.rm_punctuation (bool): If True, removes punctuation before compiling.
-        args.separate_punctuation (bool): If True, punctuation mark separates from the previous word by space.
-        args.verbose (int): Verbose level.
+        nemo_model_file (str): The path to the NeMo model file (.nemo).
     """
-    logging.info(f"Loading nemo model '{args.nemo_model_file}' ...")
-    if args.nemo_model_file.endswith('.nemo'):
-        model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
+    logging.info(f"Loading nemo model '{nemo_model_file}' ...")
+    if nemo_model_file.endswith('.nemo'):
+        model = nemo_asr.models.ASRModel.restore_from(nemo_model_file, map_location=torch.device('cpu'))
     else:
         logging.warning(
             "tokenizer_model_file does not end with .model or .nemo, therefore trying to load a pretrained model with this name."
         )
-        model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
-
-    nemo_text_processing = model.cfg.decoding.get("text_processing", None)
-    if nemo_text_processing:
-        args.text_processing = OmegaConf.merge(nemo_text_processing, args.text_processing)
+        model = nemo_asr.models.ASRModel.from_pretrained(nemo_model_file, map_location=torch.device('cpu'))
 
     if type(model.tokenizer).__name__ == 'AggregateTokenizer':
         is_aggregate_tokenizer = True
@@ -104,11 +92,11 @@ def setup_tokenizer(args):
     tokenizer_nemo = model.tokenizer
     del model
 
-    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, args
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
 
 
 def iter_files(
-    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, text_processing_args, verbose
+    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose
 ):
     if isinstance(dest_path, list):
         paths = zip(dest_path, source_path)
@@ -117,7 +105,7 @@ def iter_files(
 
     for dest_path, input_path in paths:
         dataset = read_train_file(
-            input_path, text_processing_args, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose
+            input_path, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose
         )
         if encoding_level == "subword":
             tokenize_text(
@@ -138,11 +126,10 @@ def iter_files(
 
 
 def read_train_file(
-    path, args, is_aggregate_tokenizer: bool = False, verbose: int = 0,
+    path, is_aggregate_tokenizer: bool = False, verbose: int = 0,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
-    punctuation_capitalization = PunctuationCapitalization(args.punctuation_marks)
     if path[-8:] == '.json.gz':  # for Common Crawl dataset
         fin = gzip.open(path, 'r')
     else:
@@ -165,12 +152,6 @@ def read_train_file(
                     lang = jline['lang']
 
             line_list = line.split("\n")
-            if args.rm_punctuation:
-                line_list = punctuation_capitalization.rm_punctuation(line_list)
-            if args.separate_punctuation:
-                line_list = punctuation_capitalization.separate_punctuation(line_list)
-            if args.do_lowercase:
-                line_list = punctuation_capitalization.do_lowercase(line_list)
 
             line = " ".join(line_list)
             if line:
@@ -182,6 +163,7 @@ def read_train_file(
                     reader.set_description(f"Read {lines_read} lines")
         else:
             break
+    fin.close()
     if is_aggregate_tokenizer:
         assert len(text_dataset) == len(
             lang_dataset
