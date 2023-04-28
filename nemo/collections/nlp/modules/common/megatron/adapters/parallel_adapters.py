@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
-import torch.nn.init as init
 import torch.nn as nn
+import torch.nn.init as init
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
@@ -109,7 +109,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         norm_position: str = 'post',
         norm_type: str = 'mixedfusedlayernorm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise. 
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         dropout: float = 0.0,
         adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
@@ -124,13 +124,19 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
 
-        self.linear_in = ColumnParallelLinear(in_features, dim, bias=False, gather_output=True, init_method=self._get_init_fn(column_init_method))
+        self.linear_in = ColumnParallelLinear(
+            in_features, dim, bias=False, gather_output=True, init_method=self._get_init_fn(column_init_method)
+        )
         if gather_output:
-            self.linear_out = RowParallelLinear(dim, out_features, bias=False, init_method=self._get_init_fn(row_init_method))
+            self.linear_out = RowParallelLinear(
+                dim, out_features, bias=False, init_method=self._get_init_fn(row_init_method)
+            )
         else:
             # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
             # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
-            self.linear_out = ColumnParallelLinear(dim, out_features, bias=False, gather_output=False, init_method=self._get_init_fn(row_init_method))
+            self.linear_out = ColumnParallelLinear(
+                dim, out_features, bias=False, gather_output=False, init_method=self._get_init_fn(row_init_method)
+            )
 
         if self.norm_position in ["pre", "post"]:
             ln_features = in_features if self.norm_position == "pre" else out_features
@@ -148,7 +154,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
-    
+
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
             init_fn = init.xavier_normal_
