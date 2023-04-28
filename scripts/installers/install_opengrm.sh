@@ -21,7 +21,7 @@
 DECODERS_PATH=/workspace/nemo/decoders  # Path to decoders folder: /workspace/nemo/decoders if you use NeMo/Dockerfile
 if [ "$#" -eq 1 ]
 then
-  NEMO_PATH=$1
+  DECODERS_PATH=$1
 fi
 cd $DECODERS_PATH
 
