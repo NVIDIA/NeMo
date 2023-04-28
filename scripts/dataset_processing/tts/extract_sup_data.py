@@ -51,6 +51,7 @@ def preprocess_ds_for_mixer_tts_x(dataloader):
             pitches_lengths,
             lm_tokens,
         ) = batch
+
         pitch = pitches.squeeze(0)
         pitch_list.append(pitch[pitch != 0])
 
