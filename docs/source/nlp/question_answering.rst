@@ -14,7 +14,7 @@ Depending on how the answer is generated, the task can be broadly divided into t
 Given a question and a context, both in natural language, predict the span within the context with a start and end position which indicates the answer to the question.
 For every word in our training dataset the model predicts:
 
-- likelihood this word is the start of the span 
+- likelihood this word is the start of the span
 - likelihood this word is the end of the span
 
 **Generative Question Answering with S2S and GPT-like models**
@@ -25,7 +25,7 @@ Supported Tasks
 ---------------
 
 +----------------------------------+-----------------+----------------------------------------------------------------------+------------------------------------------+
-| **Task**                         |   **Models**    | **Supported Options for model.language_model.pretrained_model_name** | **Supported options for model.library**  |                                                                       
+| **Task**                         |   **Models**    | **Supported Options for model.language_model.pretrained_model_name** | **Supported options for model.library**  |
 +----------------------------------+-----------------+----------------------------------------------------------------------+------------------------------------------+
 | Extractive Question Answering    | BERTQAModel     | bert-{base, large}-{cased, uncased}, roberta{base, large}            | Huggingface, Megatron                    |
 +----------------------------------+-----------------+----------------------------------------------------------------------+------------------------------------------+
@@ -65,14 +65,14 @@ Following BERT-like models are available for Extractive Question-Answering
 Module Design
 -------------
 
-The module is decouple data and model components to support idependent integration of various model achitectures and datasets.
-QAProcessor, QAExample, and the base QADataset modules are responsible for model-independent data handling utilites like loading SQuAD format dataset files and parsing examples.
+The module decouples data and model components to support independent integration of various model architectures and datasets.
+QAProcessor, QAExample, and the base QADataset modules are responsible for model-independent data handling utilities like loading SQuAD format dataset files and parsing examples.
 <Model>QADataset modules handle model-specific data formatting.
-Similarly, the BaseQAModel module handles common model tasks like creating dataloader, and the <Model>QAModel modules handle model architecture-specific functions like trainig, testing, and evaluation.
+Similarly, the BaseQAModel module handles common model tasks like creating dataloader, and the <Model>QAModel modules handle model architecture-specific functions like training, testing, and evaluation.
 
 .. image:: question_answering_arch.png
-  :alt: Question-Answerin-Architecture
-  :width: 800px
+   :alt: Question-Answerin-Architecture
+   :width: 800px
 
 Configuration
 -------------
@@ -94,7 +94,7 @@ Arguments that very commonly need to be edited for all models and datasets
 - :code:`do_training`: perform training or only testing
 - :code:`trainer.devices`: number of GPUs (int) or list of GPUs e.g. [0, 1, 3]
 - :code:`model.library`: library to load language model from [huggingface or megatron]
-- :code:`model.language_model.pretrained_model_name`: pretrained QA model from ``list_available_models()`` or path to a ``.nemo`` file (Check the ``Available Models`` section for some of the available checkpoints)  
+- :code:`model.language_model.pretrained_model_name`: pretrained QA model from ``list_available_models()`` or path to a ``.nemo`` file (Check the ``Available Models`` section for some of the available checkpoints)
 - :code:`model.language_model.lm_checkpoint`: specifying a trained checkpoint (.bin / .ckpt / .nemo)
 - :code:`model.<train_ds/validation_ds/test_ds>.file`: filepath for loading respective datasets
 - :code:`model.<train_ds/validation_ds/test_ds>.num_samples`: the number of samples to use from the training dataset (use ``-1`` to specify all samples)
@@ -114,7 +114,7 @@ The QA models expect datasets to be present in the SQuAD format. For using datas
 
 The following is an example of the expected SQuAD data format (JSON file):
 
-.. code::
+.. code-block::json
 
     {
         "data": [
@@ -162,22 +162,22 @@ Following sections describes how to download the SQuAD datasets, along with an e
 
 To perform training of the Question Answering model on the SQuAD dataset, you must first download it from https://rajpurkar.github.io/SQuAD-explorer or run:
 
-.. code::
+.. code-block::shell
 
-    python NeMo/examples/nlp/question_answering/get_squad.py 
+    python NeMo/examples/nlp/question_answering/get_squad.py
 
-There are two versions: 
+There are two versions:
 
 - SQuAD version 1.1, which does not contain questions without the answer and has 100,000+ question-answer pairs on 500+ articles.
-- SQuAD version 2.0, which combines the 100,000 questions from SQuAD 1.1 with over 50,000 unanswerable questions. To do well with 
-  SQuAD 2.0, a system must not only answer questions when possible, but also determine when no answer is supported by the paragraph 
+- SQuAD version 2.0, which combines the 100,000 questions from SQuAD 1.1 with over 50,000 unanswerable questions. To do well with
+  SQuAD 2.0, a system must not only answer questions when possible, but also determine when no answer is supported by the paragraph
   and abstain from answering.
 
 After downloading the files, you should have a :code:`squad` data folder that contains the following four files for training and
 evaluation:
 
-.. code::
-    
+.. code-block::text
+
     .
     |--squad
          |-- v1.1/train-v1.1.json
@@ -189,16 +189,16 @@ evaluation:
 
 MS-MARCO(Microsoft Machine Reading Comprehension) is a large scale dataset focused on machine reading comprehension, question answering, and passage ranking. MS-MARCO consists of 1,010,916 queries generated from real, anonymized Bing user queries. The contexts are extracted from real web documents and the answers are generated by humans.
 
-For downloading the MS-MARCO dataset, Terms of Use need to be accepted at https://microsoft.github.io/msmarco/. 
+For downloading the MS-MARCO dataset, Terms of Use need to be accepted at https://microsoft.github.io/msmarco/.
 
-The dataset files can be downloaded from: 
+The dataset files can be downloaded from:
   - https://msmarco.blob.core.windows.net/msmarco/train_v2.1.json.gz
   - https://msmarco.blob.core.windows.net/msmarco/dev_v2.1.json.gz
 
 The QA models expect data in SQuAD format. The MS-MARCO dataset is originally not in the SQuAD format. The dataset has the following structure:
 
-.. code::
-    
+.. code-block::json
+
     {
         "answers":["A corporation is a company or group of people authorized to act as a single entity and recognized as such in law."],
         "passages":[
@@ -216,7 +216,7 @@ The QA models expect data in SQuAD format. The MS-MARCO dataset is originally no
 
 The conversion to SQuAD format can be performed using the following script:
 
-.. code::
+.. code-block::shell
 
     python NeMo/examples/nlp/question_answering/convert_msmarco_to_squad_format.py \
         --msmarco_train_input_filepath=/path/to/msmarco_train_v2.1.json \
@@ -231,12 +231,12 @@ The conversion to SQuAD format can be performed using the following script:
    - setting :code:`exclude_negative_samples` to ``True`` will exclude samples from the MS-MARCO dataset that do not have a answer
    - setting :code:`keep_only_relevant_passages` to ``True`` will exclude passages that have ``is_selected=0`` in the MS-MARCO dataset
 
-Training, Validation, Testing 
+Training, Validation, Testing
 -----------------------------
 
 A step-by-step guide to training and testing QA models, as well as running inference can be found at `NeMo/tutorials/nlp/Question_Answering.ipynb`. Following is an example of training a QA model using the example script provided at `NeMo/examples/nlp/question_answering/question_answering.py`:
 
-.. code:: 
+.. code-block::shell
 
     python NeMo/examples/nlp/question_answering/question_answering.py \
         do_training=true \
@@ -267,7 +267,7 @@ A step-by-step guide to training and testing QA models, as well as running infer
 
 Following is an example of running inference using the example script at `NeMo/examples/nlp/question_answering/question_answering.py`:
 
-.. code:: 
+.. code-block::shell
 
     python NeMo/examples/nlp/question_answering/question_answering.py \
         pretrained_model=<PRETRAINED_MODEL> \
@@ -283,4 +283,4 @@ During evaluation of the :code:`validation_ds` and :code:`test_ds`, the script g
 - :code:`Exact Match (EM)`
 - :code:`F1`
 
-More details about these metrics can be found `here <https://en.wikipedia.org/wiki/F-score>`__.
+More details about these metrics can be found at `F-score <https://en.wikipedia.org/wiki/F-score>`__ on Wikipedia.
