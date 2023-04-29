@@ -69,7 +69,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_NUMBA = False
 
 
-
 def read_one_audiosegment(manifest, target_sr, tarred_audio=False, audio_dataset=None):
     if tarred_audio:
         if audio_dataset is None:
@@ -682,7 +681,6 @@ class NoisePerturbationWithNormalization(Perturbation):
             ref_mic (int): reference mic index for scaling multi-channel audios
         """
 
-
         noise = self.read_one_audiosegment(data.sample_rate)
 
         # noise samples need to be at least 1 second long to avoid strange oddities
@@ -1250,7 +1248,6 @@ class AugmentationDataset(IterableDataset):
         from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
-
 
         tar_filepaths = expand_sharded_filepaths(
             tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
