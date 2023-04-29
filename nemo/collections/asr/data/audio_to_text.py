@@ -190,8 +190,8 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
                 sharded_filepaths = sharded_filepaths.replace(bkey, "}")
 
     if isinstance(sharded_filepaths, str):
-        # Brace expand
-        sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths))
+        # Brace expand, set escape=False for Windows compatibility
+        sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths, escape=False))
 
     # Expand store paths into WebDataset URLs
     sharded_filepaths = [

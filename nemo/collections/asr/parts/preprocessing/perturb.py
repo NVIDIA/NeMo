@@ -69,6 +69,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_NUMBA = False
 
 
+
 def read_one_audiosegment(manifest, target_sr, tarred_audio=False, audio_dataset=None):
     if tarred_audio:
         if audio_dataset is None:
@@ -639,7 +640,7 @@ class NoisePerturbationWithNormalization(Perturbation):
             )
             if len(self._audiodataset) == 0:
                 raise RuntimeError(
-                    "NoiseNormPerturbation detected a zero length RandomizedChainDataset, should never happen"
+                    "NoisePerturbationWithNormalization detected a zero length RandomizedChainDataset, should never happen"
                 )
             self._data_iterator = iter(self._audiodataset)
 
@@ -681,6 +682,7 @@ class NoisePerturbationWithNormalization(Perturbation):
             ref_mic (int): reference mic index for scaling multi-channel audios
         """
 
+
         noise = self.read_one_audiosegment(data.sample_rate)
 
         # noise samples need to be at least 1 second long to avoid strange oddities
@@ -700,14 +702,12 @@ class NoisePerturbationWithNormalization(Perturbation):
             norm_to_db (float): the DB value to normalise to before mixing
         """
         clean = self.norm_audio_to_db(clean, norm_to_db)
-        rmsclean = (clean ** 2).mean(axis=0) ** 0.5
-
         noise = self.norm_audio_to_db(noise, norm_to_db)
-        rmsnoise = (noise ** 2).mean(axis=0) ** 0.5
-        rmsnoise = np.where(np.isclose(rmsnoise, 0), self._epsilon, rmsnoise)
 
         # Set the noise level for a given SNR
-        noisescalar = np.sqrt(rmsclean / (10 ** (snr / 20)) / rmsnoise)
+        # note that if your noise doesn't overlap with your audio then your target SNR
+        # may not be achievable. Consider using an rms-threshold in the future
+        noisescalar = 10 ** (-snr / 20.0)
         noisenewlevel = noise * noisescalar
         noisyspeech = clean + noisenewlevel
 
@@ -773,8 +773,8 @@ class NoisePerturbationWithNormalization(Perturbation):
         if norm_to_db is None:
             norm_to_db = data_rms
 
-        data_norm = self.norm_audio_to_db(data._samples, norm_to_db)
-        noise_norm = self.norm_audio_to_db(noise._samples, norm_to_db)
+        data_norm = data._samples
+        noise_norm = noise._samples
 
         if len(data_norm) == 0:
             return
@@ -1250,6 +1250,7 @@ class AugmentationDataset(IterableDataset):
         from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+
 
         tar_filepaths = expand_sharded_filepaths(
             tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
