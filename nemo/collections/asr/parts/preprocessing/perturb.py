@@ -765,7 +765,8 @@ class NoisePerturbationWithNormalization(Perturbation):
             data (AudioSegment): audio data
             noise (AudioSegment): noise data
             data_rms (Union[float, List[float]): rms_db for data input
-            ref_mic (int): reference mic index for scaling multi-channel audios
+            ref_mic (int): reference mic index for scaling multi-channel audio, if set to None then
+                           each channel will be scaled independently
             norm_to_db (float): will normalise all audio to this DB
         """
         if data.num_channels != noise.num_channels:
