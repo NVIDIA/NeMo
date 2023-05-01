@@ -158,6 +158,7 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
         total_samples=len(image_dataset),
         consumed_samples=0,
         micro_batch_size=model_cfg.micro_batch_size,
+        global_batch_size=model_cfg.global_batch_size,
         data_parallel_rank=parallel_state.get_data_parallel_rank(),
         data_parallel_size=parallel_state.get_data_parallel_world_size(),
         drop_last=False,
