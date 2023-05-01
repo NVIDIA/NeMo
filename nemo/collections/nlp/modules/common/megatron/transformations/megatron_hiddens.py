@@ -13,23 +13,28 @@
 # limitations under the License.
 
 
-import torch
 import functools
 
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss import MegatronBaseHiddenLoss
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import MegatronBaseHiddenTransform
+from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import (
+    MegatronBaseHiddenTransform,
+)
 
 __all__ = ["MegatronHiddensModule"]
+
 
 class MegatronHiddensModule(torch.nn.Module):
     """
     This class jointly handles the hidden transforms and hidden loss transforms.
     It helps in validating, and applying the transforms.
     """
+
     def __init__(self, hidden_transforms: MegatronBaseHiddenLoss, hidden_loss_transforms: MegatronBaseHiddenTransform):
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
-    
+
         # validate that all loss transforms are supported by hidden transforms ("hiddens" is given by default)
         hidden_outputs = set().union(*([ht.output_names for ht in self.hidden_transforms] + ["hiddens"]))
         loss_inputs = set().union(*[lt.input_names for lt in self.loss_transforms])
@@ -37,13 +42,13 @@ class MegatronHiddensModule(torch.nn.Module):
             raise ValueError(
                 f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
             )
-        
+
         # register all hidden / loss transforms as submodules to support learned parameters
         if self.loss_transforms is not None:
             self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
         if self.hidden_transforms is not None:
             self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
-    
+
     @functools.cached_property
     def hidden_outputs(self):
         """Get the hidden outputs from all the hidden transforms"""
@@ -66,5 +71,5 @@ class MegatronHiddensModule(torch.nn.Module):
             raise ValueError(
                 f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
             )
-        
+
         return list(loss_inputs)

@@ -125,7 +125,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
         tokens_head_bias=True,
-        hiddens_module: MegatronHiddensModule=None, # allows for hidden state transformations before the decoder
+        hiddens_module: MegatronHiddensModule = None,  # allows for hidden state transformations before the decoder
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -145,7 +145,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.tokens_head_bias = tokens_head_bias
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
-        
+
         encoder, decoder = None, None
         if add_encoder:
             if pre_process:
@@ -465,8 +465,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 raise Exception('input_tensor must have either length 1 or 2')
         else:
             raise Exception('Stage must have at least either encoder or decoder')
-    
-    
+
     def forward(
         self,
         enc_input_ids=None,
@@ -482,7 +481,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
     ):
 
         ##TODO: Remove this code. it is debug code.
-        #hidden_transformations = [MegatronGaussianHiddenTransform()]
+        # hidden_transformations = [MegatronGaussianHiddenTransform()]
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
@@ -542,7 +541,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
             else:
                 enc_output = self.enc_dec_model.encoder_hidden_state
-        
+
         if output_enc_hidden_only:
             # FIXME: execute only in last pipeline of pipeline parallel
             if self.hidden_transforms is not None:
@@ -558,7 +557,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         loss_dict.update(lt.loss(hidden_transforms_dict))
                         # "loss" is already a weighted loss
                         loss = loss_dict["loss"] + loss
-                        
+
             return {"output_tensor": enc_output["hiddens"]}
         else:
             if enc_output is None and self.hidden_transforms is not None:
@@ -571,7 +570,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
                 transformed_hiddens = None
                 for transformation in self.hidden_transforms:
-                    output = transformed_hiddens["hiddens"] if transformed_hiddens is not None else enc_output 
+                    output = transformed_hiddens["hiddens"] if transformed_hiddens is not None else enc_output
                     transformed_hiddens = eval(transformation).transform(output)
 
                 enc_output = transformed_hiddens["hiddens"]
@@ -589,7 +588,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
-            
 
             if self.add_decoder and self.decoder_relative_position_embedding is not None:
                 decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
@@ -643,7 +641,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     if self.loss_transforms is not None:
                         for transformation in self.loss_transforms:
                             tokens_loss = tokens_loss + eval(transformation).loss(transformed_hiddens)
-                        print ("Printing token loss: ", tokens_loss) # = torch.mul(tokens_loss, 5)
+                        print("Printing token loss: ", tokens_loss)  # = torch.mul(tokens_loss, 5)
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
                     return {"output_tensor": tokens_loss}
@@ -658,7 +656,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 encoder_output = output
                 return {"output_tensor": encoder_output}
-
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
