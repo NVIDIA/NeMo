@@ -556,6 +556,7 @@ class MegatronBertModel(MegatronBaseModel):
             ignore_index=-1,
             samples_seen = samples_consumed_dploader,
         )
+        logging.info(f'Completed build train Dataloader')
         if len(self.cfg.data.data_prefix) > 1:
             val_lddl_data_path = self.cfg.data.data_prefix[1]
             self._validation_dl = get_bert_pretrain_data_loader(
@@ -712,20 +713,6 @@ class MegatronBertModel(MegatronBaseModel):
             # allowing restored models to optionally setup datasets
             if self.cfg.data.dataloader_type == "LDDL":
                 self.build_LDDL_data(self.cfg.data)
-                # samples_consumed = self.compute_consumed_samples(0)
-                # samples_consumed = 4811520
-                # # The train dataloader needs to wound forward if there is consumed samples already
-                # if samples_consumed > 0:
-                #     torch.multiprocessing.set_sharing_strategy("file_system")
-                #     data_parallel_size = parallel_state.get_data_parallel_world_size()
-                #     num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
-                #     dp_gbs = num_micro_batches * self.cfg.micro_batch_size
-                #     logging.info("Beginning winding forward dataloader")
-                #     wind_iters = samples_consumed // dp_gbs
-                #     loader_iter = it.cycle(self._train_dl)
-                #     for i in range(wind_iters):
-                #         next(loader_iter)
-                #     logging.info("Completed winding forward dataloader")
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
