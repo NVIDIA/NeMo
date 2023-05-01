@@ -596,7 +596,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=True,
             drop_last=False,
-            shuffle=False,
+            shuffle=True,
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.train_ds.neighbors,
@@ -612,7 +612,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=True,
             drop_last=False,
-            shuffle=False,
+            shuffle=True,
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.val_ds.neighbors,
@@ -627,7 +627,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=False,
             drop_last=False,
-            shuffle=False,
+            shuffle=True,
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.test_ds.neighbors,
@@ -813,13 +813,14 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 "answer_field": "answer"
         }}
        
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         dataset = RetroPromptLearningDataset(
             data=data,
             tokenizer=self.tokenizer,
             virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
             task_templates=task_template,
             pseudo_tokens=[],
-            pad_token_id=self.tokenizer.eos_id,
+            pad_token_id=self.tokenizer.eos_id if self.cfg.get('megatron_lm_compatible', False) else self.pad_token_id, # self.tokenizer.eos_id if self.cfg.get('megatron_lm_compatible', False) else self.pad_token_id
             max_seq_length=max_seq_length,
             min_seq_length=min_seq_length,
             add_bos=add_bos,
