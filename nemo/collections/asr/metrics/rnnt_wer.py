@@ -284,6 +284,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     decoder_model=decoder,
                     joint_model=joint,
                     blank_index=self.blank_id,
+                    use_cuda_hyp=self.cfg.get('cuda_optimized', False),
                     max_symbols_per_step=(
                         self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                     ),

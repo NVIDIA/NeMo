@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-
+import math
 
 @dataclass
 class Hypothesis:
@@ -104,6 +104,8 @@ class Hypothesis:
     ngram_lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     last_token: Optional[torch.Tensor] = None
+    next_t: Optional[int] = None
+    batch_id: Optional[int] = None
 
     @property
     def non_blank_frame_confidence(self) -> List[float]:
@@ -140,11 +142,254 @@ class Hypothesis:
         return [] if self.text is None else self.text.split()
 
 
+# highly optimized Cuda structure representing hypotheses
+class CudaHypothesesStatelessTransducer:
+    def __init__(
+        self, num_hyps, max_length, device
+    ):
+        self.scores = torch.zeros([num_hyps], dtype=torch.float, device=device)
+        self.ys = torch.zeros([num_hyps * max_length], dtype=torch.long, device=device)
+        self.dec_states = None #torch.zeros([num_hyps, d], dtype=torch.long, device=device)
+        self.batchsize = num_hyps
+        self.max_length = max_length
+
+    def get_hyps(self):
+        ret = []
+        max_length = self.max_length
+        for i in range(self.batchsize):
+            hyp = Hypothesis(score=self.scores[i], y_sequence=self.ys[i * max_length + 1 : i * max_length + 1 + self.ys[i * max_length]],)
+            ret.append(hyp)
+        return ret
+
+
+# highly optimized Cuda structure representing hypotheses
+class CudaHypothesesTransducer:
+    def __init__(
+        self, num_hyps, max_length, device
+    ):
+        self.scores = torch.zeros([num_hyps], dtype=torch.float, device=device)
+        self.ys = torch.zeros([num_hyps * max_length], dtype=torch.long, device=device)
+        self.dec_states = None
+        self.batchsize = num_hyps
+        self.max_length = max_length
+
+    def get_hyps(self):
+        ret = []
+        max_length = self.max_length
+        for i in range(self.batchsize):
+            hyp = Hypothesis(score=self.scores[i], y_sequence=self.ys[i * max_length + 1 : i * max_length + 1 + self.ys[i * max_length]],)
+            ret.append(hyp)
+        return ret
+
+
+
+# highly optimized Cuda structure representing hypotheses
+class CudaBeamSearchHypothesesStatelessTransducer:
+    def __init__(
+        self, beam, max_length, num_hyps, context_size, device, blank, encoded_lengths
+    ):  # max number of utterance, max_length_per_utterance, dimension of decoder states
+
+        self.scores = torch.zeros([num_hyps], dtype=torch.float, device=device)
+        self.ys = torch.zeros([num_hyps * max_length], dtype=torch.long, device=device)
+        self.ys_hash = torch.zeros([num_hyps], dtype=torch.long, device=device)
+
+        self.hash_prime = 9000014593
+
+        self.dec_states = torch.zeros([num_hyps, context_size], dtype=torch.long, device=device) + blank
+        self.last_label = torch.full([num_hyps, 1], fill_value=blank, dtype=torch.long, device=device)
+        self.encoded_lengths = encoded_lengths
+
+        self.context_size = context_size
+
+        self.max_length = max_length
+        self.B = num_hyps  # number of utterances to decode
+        self.num_hyps = num_hyps  # self.num_hyp will change.
+        self.beam = beam
+
+        self.hyp2t = torch.zeros([num_hyps], dtype=torch.long, device=device)
+        self.hyp2done = torch.zeros([num_hyps], dtype=torch.long, device=device)
+        self.hyp2b = torch.zeros([num_hyps], dtype=torch.long, device=device)
+
+        for i in range(num_hyps):
+            self.hyp2b[i] = i
+
+        self.begin = True
+        self.b2done = [False for i in range(num_hyps)]
+        self.num_b_not_done = self.B
+        self.b2done_hyps = [[] for i in range(num_hyps)]
+
+        self.beam_beam_encoded_lengths = torch.reshape(self.encoded_lengths.repeat_interleave(self.beam * self.beam), [-1])
+        self.beam_encoded_lengths = torch.reshape(self.encoded_lengths.repeat_interleave(self.beam), [-1])
+
+        self.shift = torch.reshape(torch.tensor(range(self.B), device=self.hyp2t.device) * self.beam * self.beam, [self.B, 1])
+  
+        self.beam_hyp2b = self.hyp2b.repeat_interleave(self.beam)
+#        self.beam_beam_hyp2b = self.hyp2b.repeat_interleave(self.beam * self.beam)
+
+    def expand(self):
+        # copy each hypothesis beam times, in the expanded_* variables so that
+        # we could grow those hyps in search.
+
+        self.expanded_scores = self.scores.repeat_interleave(self.beam)
+
+        self.expanded_ys = torch.reshape(self.ys, [-1, self.max_length]).repeat(1, self.beam)
+        self.expanded_ys = torch.reshape(self.expanded_ys, [-1])
+
+        self.expanded_ys_hash = self.ys_hash.repeat_interleave(self.beam)
+
+        self.expanded_dec_states = torch.reshape(self.dec_states.repeat_interleave(self.beam), [-1, self.context_size])
+
+        self.expanded_hyp2t = self.hyp2t.repeat_interleave(self.beam)
+        self.expanded_hyp2done = self.hyp2done.repeat_interleave(self.beam)
+        self.expanded_last_label = torch.reshape(self.last_label.repeat_interleave(self.beam), [-1, 1])
+
+    def compress(self):
+        if self.begin:
+            self.begin = False
+            self.scores = self.expanded_scores
+            self.ys = self.expanded_ys
+            self.ys_hash = self.expanded_ys_hash
+            self.dec_states = self.expanded_dec_states
+            self.hyp2t = self.expanded_hyp2t
+            self.hyp2done = self.expanded_hyp2done
+            self.last_label = self.expanded_last_label
+            self.num_hyps = self.num_hyps * self.beam
+            return
+
+        self.dedup_hash()
+        v, k = torch.reshape(self.expanded_scores, [self.B, -1]).topk(self.beam, dim=-1)
+
+        k = torch.reshape(k + self.shift, [-1])
+
+        self.ys = torch.reshape(self.expanded_ys, [-1, self.max_length])[k]
+        self.ys = torch.reshape(self.ys, [-1])
+
+        self.ys_hash = self.expanded_ys_hash[k]
+
+        self.scores = self.expanded_scores[k]
+        self.dec_states = self.expanded_dec_states[k]
+        self.hyp2t = self.expanded_hyp2t[k]
+        self.hyp2done = self.expanded_hyp2done[k]
+        self.last_label = self.expanded_last_label[k]
+
+#        self.dedup()
+#        self.check_hash()
+
+    def check_hash(self):
+        expanded_ys = torch.reshape(self.expanded_ys, [-1, self.max_length])
+        for i in range(self.expanded_ys_hash.shape[0]):
+            if self.expanded_hyp2done[i]:
+                continue
+
+            if expanded_ys[i,0] == 0:
+                continue
+
+            the_sum = torch.sum(expanded_ys[i, 1:expanded_ys[i,0]+1] * torch.range(1, expanded_ys[i,0], device=expanded_ys.device)) % self.hash_prime
+            if not (the_sum.item() == self.expanded_ys_hash[i].item()):
+                assert(False)
+
+
+    def dedup_hash(self):
+        if self.beam == 1:
+            return
+
+#        self.check_hash()
+        expanded_ys = torch.reshape(self.expanded_ys, [-1, self.max_length])
+
+        n = expanded_ys.shape[0] // self.B
+
+        for i in range(self.B):
+            if self.b2done[i]:
+                continue
+
+            expanded_ys_hash_i = self.expanded_ys_hash[i * n : (i + 1) * n].tolist()
+
+            hash_to_score = {}
+            for j in range(n):
+                this_hash = expanded_ys_hash_i[j]
+                if this_hash in hash_to_score:
+                    ii = torch.stack([hash_to_score[this_hash], self.expanded_scores[i * n + j]], dim=-1)
+                    hash_to_score[this_hash] = torch.logsumexp(ii, dim=-1)
+#                    hash_to_score[this_hash] = max(hash_to_score[this_hash], self.expanded_scores[i * n + j])
+                else:
+                    hash_to_score[this_hash] = self.expanded_scores[i * n + j]
+
+            for j in range(n):
+                this_hash = expanded_ys_hash_i[j]
+                if hash_to_score[this_hash] > -999999:
+                    self.expanded_scores[i * n + j] = hash_to_score[this_hash]
+                    hash_to_score[this_hash] = -9999999
+                else:
+                    self.expanded_scores[i * n + j] = -9999999
+
+
+    def clean_up(self):
+        self.hyp2done = torch.logical_or(self.hyp2done, (self.hyp2t >= self.beam_encoded_lengths))
+        not_done_idx = torch.where(self.hyp2done != True)[0]
+        done_idx = torch.where(self.hyp2done == True)[0]
+        self.hyp2t *= torch.logical_not(self.hyp2done)
+        if not_done_idx.shape[-1] != self.hyp2t.shape[-1]:
+            m = self.max_length
+            for i in done_idx.tolist():
+                b = self.beam_hyp2b[i].item()
+                if not self.b2done[b] and len(self.b2done_hyps[b]) < self.beam:
+                    hyp = Hypothesis(score=self.scores[i], y_sequence=self.ys[i * m + 1 : i * m + 1 + self.ys[i * m]],)
+                    self.b2done_hyps[b].append(hyp)
+
+            for b in range(len(self.b2done_hyps)):
+                hyps = self.b2done_hyps[b]
+                if len(hyps) >= self.beam and not self.b2done[b]:
+                    self.b2done[b] = True
+                    self.hyp2done[b * self.beam : b * self.beam + self.beam] = True
+                    self.num_b_not_done -= 1
+
+            self.scores[
+                done_idx
+            ] = -9999999999.9  # make the score very bad so this will never show up in the search for next iteration
+
+    def print_expanded(self):
+        for i in range(self.num_hyps * self.beam):
+            this_len = self.expanded_ys[i * self.max_length].item()
+            to_print = ''
+            for j in range(this_len):
+                to_print += str(self.expanded_ys[i * self.max_length + 1 + j].item()) + ' '
+            print(i, this_len, to_print)
+
+        print()
+
+    def print(self):
+        for i in range(self.num_hyps):
+            this_len = self.ys[i * self.max_length].item()
+            to_print = ''
+            for j in range(this_len):
+                to_print += str(self.ys[i * self.max_length + 1 + j].item()) + ' '
+            print(i, this_len, to_print)
+
+        print()
+
+
+    def get_hyps(self):
+        return self.b2done_hyps
+
+
 @dataclass
 class NBestHypotheses:
     """List of N best hypotheses"""
 
     n_best_hypotheses: Optional[List[Hypothesis]]
+
+
+@dataclass
+class HATJointOutput:
+    """HATJoint outputs for beam search decoding
+
+    hat_logprobs: standard HATJoint outputs as for RNNTJoint
+
+    ilm_logprobs: internal language model probabilities (for ILM subtraction)
+    """
+
+    hat_logprobs: Optional[torch.Tensor] = None
+    ilm_logprobs: Optional[torch.Tensor] = None
 
 
 def is_prefix(x: List[int], pref: List[int]) -> bool:
