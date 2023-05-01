@@ -515,6 +515,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 vocabulary=self.vocab,
                 tokenizer=self.tokenizer,
                 lexicon_path=self.flashlight_cfg.lexicon_path,
+                boost_path=self.flashlight_cfg.boost_path,
                 beam_size=self.beam_size,
                 beam_size_token=self.flashlight_cfg.beam_size_token,
                 beam_threshold=self.flashlight_cfg.beam_threshold,
@@ -522,7 +523,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 word_score=self.beam_beta,
                 unk_weight=self.flashlight_cfg.unk_weight,
                 sil_weight=self.flashlight_cfg.sil_weight,
-                unit_lm=self.flashlight_cfg.unit_lm,
             )
 
         x = x.to('cpu')
@@ -583,11 +583,11 @@ class PyCTCDecodeConfig:
 @dataclass
 class FlashlightConfig:
     lexicon_path: Optional[str] = None
+    boost_path: Optional[str] = None
     beam_size_token: int = 16
     beam_threshold: float = 20.0
     unk_weight: float = -math.inf
     sil_weight: float = 0.0
-    unit_lm: bool = False
 
 
 @dataclass

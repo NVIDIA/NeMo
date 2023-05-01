@@ -34,6 +34,7 @@ import collections
 import os
 import subprocess
 import time
+from typing import Any
 
 import numpy as np
 import torch
@@ -54,13 +55,13 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 DSET_TYPE_BERT = 'standard_bert'
@@ -883,6 +884,42 @@ def build_train_valid_test_datasets(
             "respect_document_boundaries=False is not compatible with text_memmap and csv_memmap (data_impl_kwargs != {})"
         )
 
+    if data_impl in ["mock"]:
+        logging.info(f'Initializing mock dataset, type {dataset_type}, for train, validate, and test')
+        if len(data_prefix) != 0:
+            # Files from this location will not be read; mock data will be generated instead.
+            logging.warning(f"Requested data_impl={data_impl}, so ignoring data_prefix setting: {data_prefix}")
+        if dataset_type == DSET_TYPE_T5:
+            from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import MockT5Dataset
+
+            if tokenizer is None:
+                # Tokenizer is used to infer vocabulary size for mock data.
+                raise ValueError("Tokenizer is required for a mock T5 dataset")
+            train_ds = MockT5Dataset(
+                cfg,
+                tokenizer,
+                "train",
+                int(train_valid_test_num_samples[0]),
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
+            )
+            valid_ds = MockT5Dataset(
+                cfg,
+                tokenizer,
+                "valid",
+                int(train_valid_test_num_samples[1]),
+                max_seq_length,
+                max_seq_length_dec,
+                seed,
+            )
+            test_ds = MockT5Dataset(
+                cfg, tokenizer, "test", int(train_valid_test_num_samples[2]), max_seq_length, max_seq_length_dec, seed,
+            )
+            return train_ds, valid_ds, test_ds
+        else:
+            raise NotImplementedError(f"Mock dataset is not implemented for requested type: {dataset_type}")
+
     if isinstance(data_prefix, DictConfig):
         assert (
             data_prefix.get('train') is not None
@@ -1219,6 +1256,7 @@ def get_samples_mapping(
     name,
     binary_head,
     index_mapping_dir: str = None,
+    samples_mapping: Any = None,
 ):
     """Get a list that maps a sample index to a starting sentence index, end sentence index, and length"""
 
@@ -1244,8 +1282,8 @@ def get_samples_mapping(
     indexmap_filename += '_{}s'.format(seed)
     indexmap_filename += '.npy'
 
-    # Build the indexed mapping if not exist.
-    if torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
+    # Build the indexed mapping if not exist and not provided externally.
+    if samples_mapping is None and torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
         # Fake index mapping if missing
         if (getattr(indexed_dataset, 'doc_idx', None) is None) and (getattr(indexed_dataset, 'sizes', None) is None):
             make_indexed_dataset_compatibility(indexed_dataset)
@@ -1298,15 +1336,16 @@ def get_samples_mapping(
         torch.distributed.get_world_size()
         // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
-    # Load indexed dataset.
-    logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
-    start_time = time.time()
-    samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode='r')
-    logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-    logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
+    # Load indexed dataset if not given externally.
+    if samples_mapping is None:
+        logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
+        start_time = time.time()
+        samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode='r')
+        logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
+        logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
 
-    # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
-    if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
-        deallocate_indexed_dataset_memory(indexed_dataset)
+        # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
+        if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
+            deallocate_indexed_dataset_memory(indexed_dataset)
 
     return samples_mapping

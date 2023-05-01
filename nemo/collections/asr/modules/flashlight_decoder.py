@@ -30,21 +30,26 @@ class _TokensWrapper:
         self.tokenizer = tokenizer
 
         if tokenizer is None:
-            self.reverse_map = {vocabulary[i]: i for i in range(len(vocabulary))}
+            self.reverse_map = {self.vocabulary[i]: i for i in range(len(self.vocabulary))}
+
+        self.vocab_len = len(self.vocabulary)
+
+        if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id') and self.tokenizer.unk_id is not None:
+            self.unknown_id = self.tokenizer.unk_id
+        elif ' ' in self.vocabulary:
+            self.unknown_id = self.token_to_id(' ')
+        elif '<unk>' in self.vocabulary:
+            self.unknown_id = self.token_to_id('<unk>')
+        else:
+            self.unknown_id = -1
 
     @property
     def blank(self):
-        return len(self.vocabulary)
+        return self.vocab_len
 
     @property
     def unk_id(self):
-        if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id') and self.tokenizer.unk_id is not None:
-            return self.tokenizer.unk_id
-
-        if '<unk>' in self.vocabulary:
-            return self.token_to_id('<unk>')
-        else:
-            return -1
+        return self.unknown_id
 
     @property
     def vocab(self):
@@ -53,7 +58,7 @@ class _TokensWrapper:
     @property
     def vocab_size(self):
         # the +1 is because we add the blank id
-        return len(self.vocabulary) + 1
+        return self.vocab_len + 1
 
     def token_to_id(self, token: str):
         if token == self.blank:
@@ -63,6 +68,12 @@ class _TokensWrapper:
             return self.tokenizer.token_to_id(token)
         else:
             return self.reverse_map[token]
+
+    def text_to_tokens(self, text: str):
+        if self.tokenizer is not None:
+            return self.tokenizer.text_to_tokens(text)
+        else:
+            return list(text)
 
 
 class FlashLightKenLMBeamSearchDecoder(NeuralModule):
@@ -88,6 +99,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         vocabulary: List[str],
         tokenizer: Optional[TokenizerSpec] = None,
         lexicon_path: Optional[str] = None,
+        boost_path: Optional[str] = None,
         beam_size: int = 32,
         beam_size_token: int = 32,
         beam_threshold: float = 25.0,
@@ -95,7 +107,6 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         word_score: float = -1.0,
         unk_weight: float = -math.inf,
         sil_weight: float = 0.0,
-        unit_lm: bool = False,
     ):
 
         try:
@@ -122,12 +133,24 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         self.vocab_size = self.tokenizer_wrapper.vocab_size
         self.blank = self.tokenizer_wrapper.blank
         self.silence = self.tokenizer_wrapper.unk_id
-        self.unit_lm = unit_lm
 
         if lexicon_path is not None:
             self.lexicon = load_words(lexicon_path)
             self.word_dict = create_word_dict(self.lexicon)
             self.unk_word = self.word_dict.get_index("<unk>")
+
+            # loads in the boosted words if given via a file
+            if boost_path is not None:
+                with open(boost_path, 'r', encoding='utf_8') as fr:
+                    boost_words = [line.strip().split('\t') for line in fr]
+                    boost_words = {w[0]: w[1] for w in boost_words}
+            else:
+                boost_words = {}
+
+            # add OOV boosted words to word_dict so it gets picked up in LM obj creation
+            for word in boost_words.keys():
+                if word not in self.lexicon:
+                    self.word_dict.add_entry(word)
 
             # loads in the kenlm binary and combines in with the dictionary object from the lexicon
             # this gives a mapping between each entry in the kenlm binary and its mapping to whatever
@@ -145,7 +168,19 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                     if self.tokenizer_wrapper.unk_id in spelling_idxs:
                         print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
                         continue
-                    self.trie.insert(spelling_idxs, word_idx, score)
+                    self.trie.insert(
+                        spelling_idxs, word_idx, score if word not in boost_words else float(boost_words[word])
+                    )
+            # handle OOV boosted words
+            for word, boost in boost_words.items():
+                if word not in self.lexicon:
+                    word_idx = self.word_dict.get_index(word)
+                    spelling = self.tokenizer_wrapper.text_to_tokens(word)
+                    spelling_idxs = [self.tokenizer_wrapper.token_to_id(token) for token in spelling]
+                    if self.tokenizer_wrapper.unk_id in spelling_idxs:
+                        print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
+                        continue
+                    self.trie.insert(spelling_idxs, word_idx, float(boost))
             self.trie.smear(SmearingMode.MAX)
 
             self.decoder_opts = LexiconDecoderOptions(
@@ -161,10 +196,9 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             )
 
             self.decoder = LexiconDecoder(
-                self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], self.unit_lm,
+                self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], False,
             )
         else:
-            assert self.unit_lm, "lexicon free decoding can only be done with a unit language model"
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
 
             d = {
@@ -188,9 +222,17 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         """Normalize tokens by handling CTC blank, ASG replabels, etc."""
 
         idxs = (g[0] for g in itertools.groupby(idxs))
-        idxs = filter(lambda x: x != self.blank and x != self.silence, idxs)
+        if self.silence < 0:
+            idxs = filter(lambda x: x != self.blank and x != self.silence, idxs)
+        else:
+            idxs = filter(lambda x: x != self.blank, idxs)
+        idxs = list(idxs)
+        if idxs[0] == self.silence:
+            idxs = idxs[1:]
+        if idxs[-1] == self.silence:
+            idxs = idxs[:-1]
 
-        return torch.LongTensor(list(idxs))
+        return torch.LongTensor(idxs)
 
     def _get_timesteps(self, token_idxs: List[int]):
         """Returns frame numbers corresponding to every non-blank token.

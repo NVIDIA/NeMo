@@ -14,7 +14,10 @@
 
 """Utilities for generating text."""
 
+import pickle
 from collections.abc import Iterable
+from functools import partial
+from typing import Callable, Tuple
 
 import numpy as np
 import torch
@@ -27,12 +30,22 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.utils import AppState
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = [
     "get_default_sampling_params",
@@ -257,6 +270,7 @@ def send_generate_info(
     greedy,
     repetition_penalty,
     min_tokens_to_generate,
+    end_strings,
 ):
     """
     Needs to be synced up with receive_generate_info
@@ -282,6 +296,14 @@ def send_generate_info(
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, src, model_parallel_group)
     torch.distributed.broadcast(context_tokens_tensor, src, model_parallel_group)
+
+    # send end strings
+    string_tensor = torch.as_tensor(
+        np.frombuffer(pickle.dumps(end_strings), dtype=np.int8), device=torch.cuda.current_device()
+    )
+    size = torch.as_tensor([string_tensor.size(0)], device=torch.cuda.current_device(), dtype=torch.int64)
+    torch.distributed.broadcast(size, src, model_parallel_group)
+    torch.distributed.broadcast(string_tensor, src, model_parallel_group)
 
 
 def receive_generate_info():
@@ -309,6 +331,14 @@ def receive_generate_info():
     torch.distributed.broadcast(context_length_tensor, src, model_parallel_group)
     torch.distributed.broadcast(context_tokens_tensor, src, model_parallel_group)
 
+    array_size = torch.empty(1, dtype=torch.int64, device=torch.cuda.current_device())
+    torch.distributed.broadcast(array_size, src, model_parallel_group)
+
+    string_tensor = torch.empty(array_size[0], dtype=torch.int8, device=torch.cuda.current_device())
+    torch.distributed.broadcast(string_tensor, src, model_parallel_group)
+    bytes = string_tensor.cpu().numpy().tobytes()
+    end_strings = pickle.loads(bytes)
+
     return (
         context_length_tensor,
         context_tokens_tensor,
@@ -320,6 +350,7 @@ def receive_generate_info():
         greedy,
         repetition_penalty,
         min_tokens_to_generate,
+        end_strings,
     )
 
 
@@ -336,6 +367,7 @@ def synced_generate(
     greedy=False,
     repetition_penalty=1.2,
     min_tokens_to_generate=0,
+    end_strings=[],
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -358,6 +390,7 @@ def synced_generate(
             tokens_to_generate,
             all_probs,
             temperature=temperature,
+            end_strings=end_strings,
             extra={
                 "top_p": top_p,
                 "top_k": top_k,
@@ -415,6 +448,7 @@ def generate(
     greedy=False,
     repetition_penalty=1.0,
     min_tokens_to_generate=0,
+    end_strings=['<|endoftext|>'],
     **strategy_args,
 ) -> OutputType:
     """
@@ -431,6 +465,7 @@ def generate(
         repetition_penalty (float): The parameter for repetition penalty. 1.0 means no penalty
         min_tokens_to_generate (int): The minimum length of the tokens to be generated
         strategy_args, the extra arguments are treated as inference strategy arguments
+        end_strings, a list of strings to stop generation when they are encountered in the output.
     Returns:
         OutputType: It generates the output in a dictionary type. It has the following keys:
             sentences: List[str], output sentences
@@ -464,6 +499,7 @@ def generate(
             greedy,
             repetition_penalty,
             min_tokens_to_generate,
+            end_strings,
         )
     else:
         (
@@ -477,6 +513,7 @@ def generate(
             greedy,
             repetition_penalty,
             min_tokens_to_generate,
+            end_strings,
         ) = receive_generate_info()
 
     output = synced_generate(
@@ -492,6 +529,7 @@ def generate(
         greedy=greedy,
         repetition_penalty=repetition_penalty,
         min_tokens_to_generate=min_tokens_to_generate,
+        end_strings=end_strings,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -572,6 +610,7 @@ def sample_sequence_batch(
     all_probs=False,
     type_ids=None,
     temperature=None,
+    end_strings=['<|endoftext|>'],
     extra={},
 ):
     # Importing here to avoid circular import errors
@@ -688,7 +727,12 @@ def sample_sequence_batch(
                 group = parallel_state.get_embedding_group()
                 torch.distributed.broadcast(new_tokens, src, group)
 
-                done_token = (prev == eod_id).byte() & started.byte()
+                #                done_token = (prev == eod_id).byte() & started.byte()
+                done_token = inference_strategy.end_of_generation_condition(
+                    tokens[:, : context_length + 1], prev, eod_id, end_strings
+                )
+                done_token = done_token.byte() & started.byte()
+
                 just_finished = (done_token & ~is_done).bool()
                 lengths[just_finished.view(-1)] = context_length
                 is_done = is_done | done_token
@@ -921,3 +965,96 @@ def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=
     log_probs = log_probs.gather(1, token_ids.unsqueeze(1)).squeeze(1)
 
     return log_probs, token_ids
+
+
+def sample_token_topk_beam_search(logits: torch.Tensor, beam_size: int = 1, dim: int = -1, log_softmax: bool = True):
+    """
+    Beam search selection of top K predictions per target (dim). Returns the beam_size tokens ids with the highest
+    probability and the corresponding log_prob per target
+
+    Args:
+        logits: [batch_size, vocab_size] or [batch_size, vocab_size] - unnormalized log probabilities of the next token,
+        beam_size: int > 1 - number of tokens to return with the highest probability per target
+        dim: int - dim of log_softmax and topk selection
+        log_softmax: bool - if to calculate log softmax  for log probabilities
+
+
+    Returns:
+        log_probs: [batch_size, beam_size] - log probabilities of the sampled tokens
+        token_ids: [batch_size, beam_size] - sampled token ids
+    """
+    if log_softmax:
+        log_probs = torch.nn.functional.log_softmax(logits, dim=dim)
+    else:
+        log_probs = logits
+    # get top candidates for each item in batch
+    log_probs, token_ids = torch.topk(log_probs, beam_size, dim=dim)
+
+    return log_probs, token_ids
+
+
+def compute_beam_search_len_penalty(lengths: torch.Tensor, alpha: int) -> torch.Tensor:
+    """
+    Length penalty used in the beam search
+    Args:
+        lengths: lengths of decoded sequences
+        alpha: params of the penalty
+    Returns:
+         tensor with the penalty value
+    """
+    return ((5 + lengths) / 6).pow(alpha)
+
+
+def get_sampling_token_fn(sampling_method: str, sampling_kwargs: dict) -> Tuple[Callable, dict]:
+    """
+    Specifies the sampling function that takes in a tensor of logits [batch_size, vocab_size] and returns a tuple
+    (tensor of log_probs [batch_size], tensor of sampled from logits [batch_size]).
+    If the beam search is enabled, the sampling function returns tensors [batch_size, beam_size]
+
+    Args:
+        sampling_method: the sampling method to use in the decode steps. Currently supported methods are
+                          "beam-search"/"greedy"/"topkp"
+        sampling_kwargs: dict with arguments to be passed to the sampling function.
+                         For sampling method 'beam-search', the following kwargs are supported:
+                         beam_size - int, number of the best sequences at each decode iteration to be left per target
+                         beam_alpha - int, the parameter of length penalty applied to predicted sequences
+                         keep_only_best_tokens - used in the beam search, boolean flag if to output only best sequence
+                                                 of predicted tokens (True) or beam_size predictions per target
+                         return_scores - used in the beam search, boolean flag if to return scores at the top of
+                                         predictions and logits
+
+    Returns:
+        sample_token_fn: the sampling function
+        default_sampling_kwargs: sampling_kwargs augmented with default sampling kwargs
+    """
+    all_default_sampling_kwargs = {
+        'greedy-search': {},
+        'topkp-sampling': {'top_k': 0, 'top_p': 0.0, 'temperature': 1.0},
+        'beam-search': {'beam_size': 1, 'beam_alpha': 0.0, 'keep_only_best_tokens': False, 'return_scores': False},
+    }
+
+    # update default sampling kwargs with user provided kwargs
+    default_sampling_kwargs = all_default_sampling_kwargs[sampling_method].copy()
+    default_sampling_kwargs.update(sampling_kwargs)
+    # sampling_kwargs = default_sampling_kwargs
+
+    if sampling_method == 'greedy-search':
+        sampling_token_fn = sample_token_greedy
+
+    elif sampling_method == "topkp-sampling":
+        top_k = default_sampling_kwargs['top_k']
+        top_p = default_sampling_kwargs['top_p']
+        temperature = default_sampling_kwargs['temperature']
+        sampling_token_fn = partial(sample_token_topk, top_k=top_k, top_p=top_p, temperature=temperature)
+
+    elif sampling_method == "beam-search":
+        beam_size = default_sampling_kwargs['beam_size']
+        sampling_token_fn = partial(sample_token_topk_beam_search, beam_size=beam_size)
+
+    else:
+        raise ValueError(
+            f'Invalid sampling method {sampling_method}. '
+            f'Supported sampling methods are {all_default_sampling_kwargs.keys()}'
+        )
+
+    return sampling_token_fn, default_sampling_kwargs

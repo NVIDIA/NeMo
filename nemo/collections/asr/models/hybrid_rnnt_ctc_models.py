@@ -86,7 +86,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         )
 
         # setting the RNNT decoder as the default one
-        self.use_rnnt_decoder = True
+        self.cur_decoder = "rnnt"
 
         # setting up interCTC loss (from InterCTCMixin)
         self.setup_interctc(decoder_name='ctc_decoder', loss_name='ctc_loss', wer_name='ctc_wer')
@@ -100,6 +100,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
+        augmentor: DictConfig = None,
+        verbose: bool = True,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -115,13 +117,19 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            verbose: (bool) whether to display tqdm progress bar
 
         Returns:
             Returns a tuple of 2 items -
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-        if self.use_rnnt_decoder:
+        if self.cur_decoder not in ["ctc", "rnnt"]:
+            raise ValueError(
+                f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
+            )
+        if self.cur_decoder == "rnnt":
             return super().transcribe(
                 paths2audio_files=paths2audio_files,
                 batch_size=batch_size,
@@ -129,6 +137,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 partial_hypothesis=partial_hypothesis,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
+                augmentor=augmentor,
             )
 
         if paths2audio_files is None or len(paths2audio_files) == 0:
@@ -175,8 +184,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     'channel_selector': channel_selector,
                 }
 
+                if augmentor:
+                    config['augmentor'] = augmentor
+
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=not verbose):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
@@ -185,6 +197,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
                         logits, encoded_len, return_hypotheses=return_hypotheses,
                     )
+                    logits = logits.cpu()
+
                     if return_hypotheses:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
@@ -297,7 +311,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
                 logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
         """
         Changes decoding strategy used during RNNT decoding process.
 
@@ -309,7 +323,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 used. If set to 'ctc', it raises error if 'ctc_decoder' is not an attribute of the model.
         """
         if decoder_type is None or decoder_type == 'rnnt':
-            self.use_rnnt_decoder = True
+            self.cur_decoder = "rnnt"
             return super().change_decoding_strategy(decoding_cfg=decoding_cfg)
 
         assert decoder_type == 'ctc' and hasattr(self, 'ctc_decoder')
@@ -336,7 +350,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         with open_dict(self.cfg.aux_ctc):
             self.cfg.aux_ctc.decoding = decoding_cfg
 
-        self.use_rnnt_decoder = False
+        self.cur_decoder = "ctc"
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}")
 
     # PTL-specific methods

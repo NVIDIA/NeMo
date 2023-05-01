@@ -42,14 +42,28 @@ from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer import parallel_state
+    from apex.transformer.enums import ModelType
+    from apex.transformer.pipeline_parallel.schedules.common import _calc_number_of_params
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
+
+NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
 class NLPDDPStrategy(DDPStrategy):
@@ -72,6 +86,11 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
@@ -81,7 +100,7 @@ class NLPDDPStrategy(DDPStrategy):
         super().setup_distributed()
 
         # init model parallel if needed
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
@@ -145,11 +164,10 @@ class NLPDDPStrategy(DDPStrategy):
             parallel_state.destroy_model_parallel()
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
-                    virtual_pipeline_model_parallel_size_=app_state.virtual_pipeline_model_parallel_size,
-                    use_fp8_=app_state.use_fp8,
+                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
@@ -234,6 +252,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # raise ImportError(
             #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             # )
+        if not HAVE_MEGATRON_CORE:
+            logging.warning(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__()
 
     def save_to(self, model, save_path: str):
@@ -366,7 +388,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         loaded_params = super().load_config_and_state_dict(
             calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
         )
-        if not isinstance(loaded_params, tuple):
+        if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
         state_dict = self.modify_state_dict(conf, state_dict)
@@ -377,17 +399,24 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
-        We do this because we have the Apex fwd/bwd functions in training_step.
+        We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
         step wrapped in autocast.
 
-        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+        We instead wrap the fwd_output_and_loss_func that is passed to the megatron-core fwd/bwd functions.
     """
 
     def __init__(
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -421,6 +450,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
         self._hysteresis_tracker = self.hysteresis
+
+    def __call__(self, outputs):
+        return self.scale(outputs)
 
     def _unscale_grads_(self, optimizer, *args):
         if getattr(optimizer, "_custom_amp_unscale_grads", False):
@@ -588,6 +620,13 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     def optimizer_step(
         self,
@@ -645,6 +684,8 @@ class GlobalBatchDataFetcher(DataFetcher):
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not HAVE_MEGATRON_CORE:
+            logging.warning("Megatron-core was not found. Using model parallel or megatron models will error out..")
 
         super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
 
