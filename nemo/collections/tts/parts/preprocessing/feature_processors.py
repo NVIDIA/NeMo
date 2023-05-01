@@ -43,7 +43,7 @@ class FeatureScaler(FeatureProcessor):
         Specifically: input[field] = (input[field] + add_value) / div_value
 
         Args:
-            field: field to scale
+            field: Field to scale
             add_value: Constant float value to add to feature.
             div_value: Constant float value to divide feature by.
         """
@@ -66,7 +66,7 @@ class LogCompression(FeatureProcessor):
         For clamp mode: input[field] = log(max(log_zero_guard_value, input[field]))
 
         Args:
-            field: field to apply log compression to.
+            field: Field to apply log compression to.
             log_zero_guard_type: Method to avoid dividing by 0, either "add" or "clamp".
             log_zero_guard_value: Value to add or clamp input with.
         """
@@ -116,7 +116,7 @@ class MeanVarianceNormalization(FeatureProcessor):
         }
 
         Args:
-            field: field to apply normalization to.
+            field: Field to apply normalization to.
             stats_path: JSON file with feature mean and variance.
             mask_field: Optional, field in example dictionary with boolean array indicating which values to
                 mask to 0. Defaults to 'voiced_mask', expected to be computed by pyin pitch estimator.
@@ -128,8 +128,8 @@ class MeanVarianceNormalization(FeatureProcessor):
         if not os.path.exists(stats_path):
             raise ValueError(f"Statistics file does not exist: {stats_path}")
 
-        with open(stats_path, 'r', encoding="utf-8") as pitch_f:
-            stats_dict = json.load(pitch_f)
+        with open(stats_path, 'r', encoding="utf-8") as stats_f:
+            stats_dict = json.load(stats_f)
             self.mean = stats_dict["default"][f"{self.field}_mean"]
             self.std = stats_dict["default"][f"{self.field}_std"]
 
@@ -178,7 +178,7 @@ class MeanVarianceSpeakerNormalization(FeatureProcessor):
         }
 
         Args:
-            field: field to apply normalization to.
+            field: Field to apply normalization to.
             stats_path: JSON file with feature mean and variance.
             speaker_field: field containing speaker ID string.
             mask_field: Optional, field in example dictionary with boolean array indicating which values to
@@ -197,8 +197,8 @@ class MeanVarianceSpeakerNormalization(FeatureProcessor):
         if not os.path.exists(stats_path):
             raise ValueError(f"Statistics file does not exist: {stats_path}")
 
-        with open(stats_path, 'r', encoding="utf-8") as pitch_f:
-            self.stats_dict = json.load(pitch_f)
+        with open(stats_path, 'r', encoding="utf-8") as stats_f:
+            self.stats_dict = json.load(stats_f)
 
     def process(self, training_example: dict) -> None:
         feature = training_example[self.field]
