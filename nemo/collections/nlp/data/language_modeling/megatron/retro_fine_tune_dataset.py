@@ -126,6 +126,7 @@ class RetroQAFineTuneDataset(Dataset):
         else:
             tokenized_output = self.tokenizer.text_to_ids('\nanswer: ')
 
+        # if "title" in example 
         
 
         

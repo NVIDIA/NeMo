@@ -536,7 +536,7 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
             for line in context_tokens:
                 pad_len = (self.chunk_size - len(line) % self.chunk_size) % self.chunk_size
                 if self.megatron_lm_compatible:
-                    padded.append([tokenizer.eos_id] * pad_len + line)
+                    padded.append([tokenizer.bos_id] * pad_len + line)
                 else:
                     padded.append([tokenizer.pad_id] * pad_len + line)
             context_tokens = padded

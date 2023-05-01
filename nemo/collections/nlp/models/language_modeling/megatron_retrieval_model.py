@@ -596,7 +596,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=True,
             drop_last=False,
-            shuffle=True,
+            shuffle=False,
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.train_ds.neighbors,
@@ -612,7 +612,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=True,
             drop_last=False,
-            shuffle=True,
+            shuffle=False,
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.val_ds.neighbors,
@@ -627,7 +627,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             add_eos=True,
             for_train=False,
             drop_last=False,
-            shuffle=True,
+            shuffle=False,
             num_workers=self.cfg.data.get("num_workers", 1),
             pin_memory=True,
             num_neighbors=self.cfg.data.test_ds.neighbors,
@@ -819,7 +819,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
             task_templates=task_template,
             pseudo_tokens=[],
-            pad_token_id=self.model.tokenizer.eos_id,
+            pad_token_id=self.tokenizer.eos_id if self.model.cfg.get('megatron_lm_compatible', False) else self.pad_token_id,
             max_seq_length=max_seq_length,
             min_seq_length=min_seq_length,
             add_bos=add_bos,
@@ -830,7 +830,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             load_cache=load_cache, # whether to load from the cache if it is available
             seed=1234,
             neighbors=num_neighbors,
-            megatron_lm_compatible=False,
+            megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
             retrieved_doc_len = retrieved_doc_len
         )
 
