@@ -440,7 +440,7 @@ script_replacements = {}
 
 def replace_for_export(model: nn.Module) -> nn.Module:
     """
-    Top-level function to replace default set of modules in model
+    Top-level function to replace 'default set' of modules in model, called from _prepare_for_export. 
     NOTE: This occurs in place, if you want to preserve model then make sure to copy it first.
     Args:
         model : top level module
@@ -460,6 +460,11 @@ def replace_for_export(model: nn.Module) -> nn.Module:
 
 
 def add_casts_around_norms(model: nn.Module):
+    """
+    Function to put additional to/from float32 casts around operations known to require full precision.
+    It was used with an extra post-parse script to have TRT preserve extra precision when --fp16 needed.
+    Should not be needed with TRT 8.6.1+
+    """
     default_cast_replacements = {
         "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
         "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
