@@ -843,9 +843,6 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
-        if cfg.get("is_regression_task", False):
-            raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
         self.num_classes = len(cfg.labels)
         self.eval_loop_cnt = 0
         super().__init__(cfg=cfg, trainer=trainer)
@@ -1063,8 +1060,8 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
 
     def reshape_labels(self, logits, labels, logits_len, labels_len):
         """
-        Reshape labels to match logits shape. For example, each label is a 40ms frame, while the model outputs 20ms frames.
-        If labels are shorter than logits, labels are repeated, otherwise labels are folded and argmax is applied to obtain 
+        Reshape labels to match logits shape. For example, each label is expected to cover a 40ms frame, while each frme prediction from the
+        model covers 20ms. If labels are shorter than logits, labels are repeated, otherwise labels are folded and argmax is applied to obtain 
         the label of each frame. When lengths of labels and logits are not factors of each other, labels are truncated or padded with zeros.
         Args:
             logits: logits tensor with shape [B, T1, C]
@@ -1079,10 +1076,9 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         labels_max_len = labels.size(1)
         batch_size = logits.size(0)
         if logits_max_len < labels_max_len:
-            print('logits_max_len < labels_max_len')
             ratio = labels_max_len // logits_max_len
             res = labels_max_len % logits_max_len
-            if ceil(ratio) - ratio < 0.2:  # e.g., ratio is 1.99
+            if ceil(ratio) - ratio < 0.1:  # e.g., ratio is 1.99
                 # pad labels with zeros until labels_max_len is a multiple of logits_max_len
                 labels = labels.cpu().tolist()
                 if len(labels) % ceil(ratio) != 0:
@@ -1101,10 +1097,9 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
                 labels_len = torch.min(torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1)[0]
                 return labels.contiguous(), labels_len.contiguous()
         elif logits_max_len > labels_max_len:
-            print('logits_max_len > labels_max_len')
             ratio = logits_max_len / labels_max_len
             res = logits_max_len % labels_max_len
-            if ceil(ratio) - ratio < 0.2:  # e.g., ratio is 1.99
+            if ceil(ratio) - ratio < 0.1:  # e.g., ratio is 1.99
                 # repeat labels for ceil(ratio) times, and DROP additional labels based on logits_max_len
                 labels = labels.repeat_interleave(ceil(ratio), dim=1).long()
                 labels = labels[:, :logits_max_len]

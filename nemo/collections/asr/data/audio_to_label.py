@@ -1069,7 +1069,6 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         manifest_filepath (str): Path to the manifest.
         labels (list): Dataset parameter.
             List of target classes that can be output by the speaker recognition model.
-        featurizer
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
