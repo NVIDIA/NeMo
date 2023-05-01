@@ -902,7 +902,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, num_workers=0)
+            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, num_workers=self._cfg.data.num_workers)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
