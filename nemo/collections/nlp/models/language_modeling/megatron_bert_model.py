@@ -556,7 +556,7 @@ class MegatronBertModel(MegatronBaseModel):
             ignore_index=-1,
             samples_seen = samples_consumed_dploader,
         )
-        logging.info(f'Completed build train Dataloader')
+        logging.info(f'Completed build train LDDL Dataloader')
         if len(self.cfg.data.data_prefix) > 1:
             val_lddl_data_path = self.cfg.data.data_prefix[1]
             self._validation_dl = get_bert_pretrain_data_loader(
