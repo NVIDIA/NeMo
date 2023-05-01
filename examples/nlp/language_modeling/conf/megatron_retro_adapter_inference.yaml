@@ -32,7 +32,7 @@ num_workers: 4
 retrieval_service:
   strategy: RetroQAModelNEIGHBORSREADYTextGenerationStrategy # RetroModelTextGenerationStrategy  # choose customized inference strategy 
   neighbors: 8
-  retrieved_doc_len: 128
+  retrieved_doc_len: 150
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
   pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
@@ -53,7 +53,8 @@ model:
 
   # restore_path: /workspaces/research/results/megatron_retro/2023-04-12_19-06-10/checkpoints/megatron_retro.nemo
   # /workspaces/research/results/megatron_retro/2023-04-21_12-02-08/checkpoints/megatron_retro.nemo
-  restore_path: /workspaces/research/playground/megatron_retro.nemo
+  # restore_path: /workspaces/research/playground/megatron_retro.nemo
+  restore_path: /workspaces/research/results/megatron_retro/2023-05-01_09-29-39/checkpoints/megatron_retro.nemo
   original_model: /dataset/retro/megatron_retro_converted_9B
 
 
