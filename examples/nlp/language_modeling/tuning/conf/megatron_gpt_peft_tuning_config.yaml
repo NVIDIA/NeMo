@@ -1,4 +1,4 @@
-name: megatron_gpt_peft_${model.peft.peft_scheme}_tuning
+name: megatron_gpt_peft_tuning
 
 trainer:
   devices: 1
@@ -34,6 +34,14 @@ exp_manager:
     model_parallel_size: ${model.tensor_model_parallel_size}
     always_save_nemo: True
     save_best_model: False
+  create_early_stopping_callback: True
+  early_stopping_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 10
+    verbose: True
+    strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
 
 model:
   seed: 1234
@@ -44,7 +52,7 @@ model:
   micro_batch_size: 4
   restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: False # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -107,7 +115,7 @@ model:
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
-      num_workers: 4
+      num_workers: 0
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -134,7 +142,7 @@ model:
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
-      num_workers: 4
+      num_workers: 0
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
