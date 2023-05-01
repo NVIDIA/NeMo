@@ -602,6 +602,8 @@ class MegatronBertModel(MegatronBaseModel):
             sequence_length_alignment=8,
             ignore_index=-1,
         )
+        logging.info(f'Completed build LDDL Dataloaders')
+
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
