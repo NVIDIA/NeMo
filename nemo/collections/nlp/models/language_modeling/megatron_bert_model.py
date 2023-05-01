@@ -715,6 +715,7 @@ class MegatronBertModel(MegatronBaseModel):
             # allowing restored models to optionally setup datasets
             if self.cfg.data.dataloader_type == "LDDL":
                 self.build_LDDL_data(self.cfg.data)
+                torch.distributed.barrier()
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
