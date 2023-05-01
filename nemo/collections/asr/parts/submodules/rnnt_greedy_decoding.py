@@ -43,6 +43,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, H
 from nemo.utils import logging
 from nemo.collections.asr.modules import RNNTDecoder, StatelessTransducerDecoder
 
+
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
 
     if hasattr(logitlen, 'cpu'):
@@ -542,7 +543,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        use_cuda_hyp: bool,
+        cuda_optimized: bool,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
@@ -561,11 +562,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
 
-        if use_cuda_hyp:
+        if cuda_optimized:
             if isinstance(decoder_model, StatelessTransducerDecoder):
-                self._greedy_decode = self._greedy_decode_cuda_hyp_stateless
+                self._greedy_decode = self._greedy_decode_cuda_optimized_stateless
             else:
-                self._greedy_decode = self._greedy_decode_cuda_hyp_lstm
+                self._greedy_decode = self._greedy_decode_cuda_optimized_lstm
         elif self.decoder.blank_as_pad:
             self._greedy_decode = self._greedy_decode_blank_as_pad
         else:
@@ -615,7 +616,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_cuda_hyp_lstm(
+    def _greedy_decode_cuda_optimized_lstm(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
@@ -663,7 +664,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             done = torch.zeros([batchsize], dtype=torch.bool, device=x.device)
             hyp2b = torch.LongTensor([i for i in range(batchsize)]).to(x.device)
 
-            shift = hyp2b  # * x.shape[1]
+            shift = hyp2b
 
             x2 = torch.reshape(x, [-1, D])
 
@@ -685,9 +686,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Batched joint step - Output = [B, V + 1]
                 # If preserving per-frame confidence, log_normalize must be true
-                logp = self._joint_step(f, g, log_normalize=None)[
-                    :, 0, 0, :
-                ]
+                logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
 
                 if logp.dtype != torch.float32:
                     logp = logp.float()
@@ -722,7 +721,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 last_label = k.clone().view(-1, 1)
                 hidden = hidden_prime
 
-                hyp2looptimes += (1 - k_is_blank)
+                hyp2looptimes += 1 - k_is_blank
 
                 force_advance = hyp2looptimes == self.max_symbols
                 hyp2looptimes = hyp2looptimes % self.max_symbols
@@ -737,8 +736,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 done = torch.logical_or(done, (hyp2t >= out_len))
 
                 last_token_idx = hypotheses.ys[length_idx] + length_idx + 1
-
-
                 hypotheses.ys[last_token_idx] = k
                 hypotheses.ys[length_idx] += 1 - k_is_blank
 
@@ -761,7 +758,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         return hypotheses.get_hyps()
 
-    def _greedy_decode_cuda_hyp_stateless(
+    def _greedy_decode_cuda_optimized_stateless(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
@@ -865,17 +862,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 last_label = k.clone().view(-1, 1)
                 hidden = hidden_prime
 
-                hyp2looptimes += (1 - k_is_blank)
+                hyp2looptimes += 1 - k_is_blank
 
                 force_advance = hyp2looptimes == self.max_symbols
                 hyp2looptimes = hyp2looptimes % self.max_symbols
 
                 hyp2t += k_is_blank + force_advance
 
-                done = torch.logical_or(done, (hyp2t >= out_len))
                 not_done_idx = torch.where(done != True)[0]
                 hypotheses.scores[not_done_idx] += v[not_done_idx]
                 length_idx = max_symbols_per_hyp * shift
+
+                done = torch.logical_or(done, (hypotheses.ys[length_idx] == max_symbols_per_hyp - 2))
+                done = torch.logical_or(done, (hyp2t >= out_len))
 
                 last_token_idx = hypotheses.ys[length_idx] + length_idx + 1
                 hypotheses.ys[last_token_idx] = k
@@ -909,7 +908,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
     ):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")
-#        print("HEREHEREHERE")
 
         with torch.inference_mode():
             # x: [B, T, D]
@@ -973,8 +971,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     else:
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
 
-#                        print('hidden....', hidden[0] if hidden is not None else None)
-#                        print('last_label', last_label)
                         g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
 
                     # Batched joint step - Output = [B, V + 1]
@@ -2499,4 +2495,4 @@ class GreedyBatchedRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
-    use_cuda_hyp: bool = True
+    cuda_optimized: bool = True

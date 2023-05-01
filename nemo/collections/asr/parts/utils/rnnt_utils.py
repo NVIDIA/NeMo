@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import math
 
+
 @dataclass
 class Hypothesis:
     """Hypothesis class for beam search algorithms.
@@ -144,12 +145,10 @@ class Hypothesis:
 
 # highly optimized Cuda structure representing hypotheses
 class CudaHypothesesStatelessTransducer:
-    def __init__(
-        self, num_hyps, max_length, device
-    ):
+    def __init__(self, num_hyps, max_length, device):
         self.scores = torch.zeros([num_hyps], dtype=torch.float, device=device)
         self.ys = torch.zeros([num_hyps * max_length], dtype=torch.long, device=device)
-        self.dec_states = None #torch.zeros([num_hyps, d], dtype=torch.long, device=device)
+        self.dec_states = None  # torch.zeros([num_hyps, d], dtype=torch.long, device=device)
         self.batchsize = num_hyps
         self.max_length = max_length
 
@@ -157,16 +156,17 @@ class CudaHypothesesStatelessTransducer:
         ret = []
         max_length = self.max_length
         for i in range(self.batchsize):
-            hyp = Hypothesis(score=self.scores[i], y_sequence=self.ys[i * max_length + 1 : i * max_length + 1 + self.ys[i * max_length]],)
+            hyp = Hypothesis(
+                score=self.scores[i],
+                y_sequence=self.ys[i * max_length + 1 : i * max_length + 1 + self.ys[i * max_length]],
+            )
             ret.append(hyp)
         return ret
 
 
 # highly optimized Cuda structure representing hypotheses
 class CudaHypothesesTransducer:
-    def __init__(
-        self, num_hyps, max_length, device
-    ):
+    def __init__(self, num_hyps, max_length, device):
         self.scores = torch.zeros([num_hyps], dtype=torch.float, device=device)
         self.ys = torch.zeros([num_hyps * max_length], dtype=torch.long, device=device)
         self.dec_states = None
@@ -177,10 +177,12 @@ class CudaHypothesesTransducer:
         ret = []
         max_length = self.max_length
         for i in range(self.batchsize):
-            hyp = Hypothesis(score=self.scores[i], y_sequence=self.ys[i * max_length + 1 : i * max_length + 1 + self.ys[i * max_length]],)
+            hyp = Hypothesis(
+                score=self.scores[i],
+                y_sequence=self.ys[i * max_length + 1 : i * max_length + 1 + self.ys[i * max_length]],
+            )
             ret.append(hyp)
         return ret
-
 
 
 # highly optimized Cuda structure representing hypotheses
@@ -218,13 +220,18 @@ class CudaBeamSearchHypothesesStatelessTransducer:
         self.num_b_not_done = self.B
         self.b2done_hyps = [[] for i in range(num_hyps)]
 
-        self.beam_beam_encoded_lengths = torch.reshape(self.encoded_lengths.repeat_interleave(self.beam * self.beam), [-1])
+        self.beam_beam_encoded_lengths = torch.reshape(
+            self.encoded_lengths.repeat_interleave(self.beam * self.beam), [-1]
+        )
         self.beam_encoded_lengths = torch.reshape(self.encoded_lengths.repeat_interleave(self.beam), [-1])
 
-        self.shift = torch.reshape(torch.tensor(range(self.B), device=self.hyp2t.device) * self.beam * self.beam, [self.B, 1])
-  
+        self.shift = torch.reshape(
+            torch.tensor(range(self.B), device=self.hyp2t.device) * self.beam * self.beam, [self.B, 1]
+        )
+
         self.beam_hyp2b = self.hyp2b.repeat_interleave(self.beam)
-#        self.beam_beam_hyp2b = self.hyp2b.repeat_interleave(self.beam * self.beam)
+
+    #        self.beam_beam_hyp2b = self.hyp2b.repeat_interleave(self.beam * self.beam)
 
     def expand(self):
         # copy each hypothesis beam times, in the expanded_* variables so that
@@ -272,8 +279,8 @@ class CudaBeamSearchHypothesesStatelessTransducer:
         self.hyp2done = self.expanded_hyp2done[k]
         self.last_label = self.expanded_last_label[k]
 
-#        self.dedup()
-#        self.check_hash()
+    #        self.dedup()
+    #        self.check_hash()
 
     def check_hash(self):
         expanded_ys = torch.reshape(self.expanded_ys, [-1, self.max_length])
@@ -281,19 +288,24 @@ class CudaBeamSearchHypothesesStatelessTransducer:
             if self.expanded_hyp2done[i]:
                 continue
 
-            if expanded_ys[i,0] == 0:
+            if expanded_ys[i, 0] == 0:
                 continue
 
-            the_sum = torch.sum(expanded_ys[i, 1:expanded_ys[i,0]+1] * torch.range(1, expanded_ys[i,0], device=expanded_ys.device)) % self.hash_prime
+            the_sum = (
+                torch.sum(
+                    expanded_ys[i, 1 : expanded_ys[i, 0] + 1]
+                    * torch.range(1, expanded_ys[i, 0], device=expanded_ys.device)
+                )
+                % self.hash_prime
+            )
             if not (the_sum.item() == self.expanded_ys_hash[i].item()):
-                assert(False)
-
+                assert False
 
     def dedup_hash(self):
         if self.beam == 1:
             return
 
-#        self.check_hash()
+        #        self.check_hash()
         expanded_ys = torch.reshape(self.expanded_ys, [-1, self.max_length])
 
         n = expanded_ys.shape[0] // self.B
@@ -310,7 +322,7 @@ class CudaBeamSearchHypothesesStatelessTransducer:
                 if this_hash in hash_to_score:
                     ii = torch.stack([hash_to_score[this_hash], self.expanded_scores[i * n + j]], dim=-1)
                     hash_to_score[this_hash] = torch.logsumexp(ii, dim=-1)
-#                    hash_to_score[this_hash] = max(hash_to_score[this_hash], self.expanded_scores[i * n + j])
+                #                    hash_to_score[this_hash] = max(hash_to_score[this_hash], self.expanded_scores[i * n + j])
                 else:
                     hash_to_score[this_hash] = self.expanded_scores[i * n + j]
 
@@ -321,7 +333,6 @@ class CudaBeamSearchHypothesesStatelessTransducer:
                     hash_to_score[this_hash] = -9999999
                 else:
                     self.expanded_scores[i * n + j] = -9999999
-
 
     def clean_up(self):
         self.hyp2done = torch.logical_or(self.hyp2done, (self.hyp2t >= self.beam_encoded_lengths))
@@ -366,7 +377,6 @@ class CudaBeamSearchHypothesesStatelessTransducer:
             print(i, this_len, to_print)
 
         print()
-
 
     def get_hyps(self):
         return self.b2done_hyps
