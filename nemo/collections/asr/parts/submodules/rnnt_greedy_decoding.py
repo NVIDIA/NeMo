@@ -29,19 +29,18 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
-from numba import cuda
 import numpy as np
 import torch
+from numba import cuda
 from omegaconf import DictConfig
 
-from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.modules import RNNTDecoder, StatelessTransducerDecoder, rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureMixin, ConfidenceMethodConfig
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.collections.asr.modules import RNNTDecoder, StatelessTransducerDecoder
 
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
