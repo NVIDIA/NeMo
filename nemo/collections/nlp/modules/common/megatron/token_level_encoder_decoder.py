@@ -30,10 +30,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
-from nemo.collections.nlp.modules.common.megatron.transformations import (
-    MegatronGaussianHiddenTransform,
-    MegatronMIMHiddenLoss,
-)
+from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import MegatronHiddensModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -127,9 +124,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         add_decoder=True,
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
-        hidden_transforms=None, # allows for hidden state transformations before the decoder
-        loss_transforms=None # allows for loss transformations after the decoder based on hidden transforms
         tokens_head_bias=True,
+        hiddens_module: MegatronHiddensModule=None, # allows for hidden state transformations before the decoder
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -145,25 +141,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.label_smoothing = label_smoothing
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
-        self.hidden_transforms = hidden_transforms
-        self.loss_transforms = loss_transforms
+        self.hiddens_module = hiddens_module
         self.tokens_head_bias = tokens_head_bias
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
-
-        # validate that all loss transforms are supported by hidden transforms ("hiddens" is given by default)
-        hidden_outputs = set().union(*([ht.output_names for ht in self.hidden_transforms] + ["hiddens"]))
-        loss_inputs = set().union(*[lt.input_names for lt in self.loss_transforms])
-        if not loss_inputs.issubset(hidden_outputs):
-            raise ValueError(
-                f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
-            )
-        
-        # register all hidden / loss transforms as submodules to support learned parameters
-        if self.loss_transforms is not None:
-            self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
-        if self.hidden_transforms is not None:
-            self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
         
         encoder, decoder = None, None
         if add_encoder:
@@ -577,6 +558,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         loss_dict.update(lt.loss(hidden_transforms_dict))
                         # "loss" is already a weighted loss
                         loss = loss_dict["loss"] + loss
+                        
             return {"output_tensor": enc_output["hiddens"]}
         else:
             if enc_output is None and self.hidden_transforms is not None:
