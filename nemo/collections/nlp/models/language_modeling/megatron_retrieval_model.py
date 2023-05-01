@@ -819,7 +819,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
             task_templates=task_template,
             pseudo_tokens=[],
-            pad_token_id=self.tokenizer.eos_id if self.cfg.model.get('megatron_lm_compatible', False) else self.pad_token_id,
+            pad_token_id=self.tokenizer.eos_id,
             max_seq_length=max_seq_length,
             min_seq_length=min_seq_length,
             add_bos=add_bos,
