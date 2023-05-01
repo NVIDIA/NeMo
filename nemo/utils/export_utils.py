@@ -444,18 +444,12 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     NOTE: This occurs in place, if you want to preserve model then make sure to copy it first.
     Args:
         model : top level module
-        replace_1D_2D : include 1D -> 2D replacements
     Returns:
         model, possibly modified in-place
     """
     from nemo.collections.tts.modules.submodules import MaskedInstanceNorm1d
 
     default_replacements = {
-        "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
-        "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
-        "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
-        "InstanceNorm1d": wrap_module(nn.InstanceNorm1d, CastToFloat),
-        "MaskedInstanceNorm1d": wrap_module(MaskedInstanceNorm1d, CastToFloatAll),
         "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
     }
 
@@ -463,3 +457,14 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     replace_modules(model, default_replacements)
     # This one has to be the last
     replace_modules(model, script_replacements)
+
+
+def add_casts_around_norms(model: nn.Module):
+    default_cast_replacements = {
+        "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
+        "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
+        "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
+        "InstanceNorm1d": wrap_module(nn.InstanceNorm1d, CastToFloat),
+        "MaskedInstanceNorm1d": wrap_module(MaskedInstanceNorm1d, CastToFloatAll),
+    }
+    replace_modules(model, default_cast_replacements)
