@@ -604,6 +604,8 @@ class MegatronBertModel(MegatronBaseModel):
             ignore_index=-1,
         )
         logging.info(f'Completed build LDDL Dataloaders')
+        print(f"train dataloader {self._train_dl}")
+        print(f"validation dataloader {self._validation_dl}")
 
 
     def build_train_valid_test_datasets(self):
@@ -731,6 +733,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
+        print(f"finished setup on rank {self.local_rank}")
 
     def allreduce_sequence_parallel_gradients(self):
         """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
