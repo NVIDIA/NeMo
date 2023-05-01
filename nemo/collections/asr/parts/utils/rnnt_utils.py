@@ -184,6 +184,7 @@ class CudaHypothesesTransducer:
             ret.append(hyp)
         return ret
 
+
 @dataclass
 class NBestHypotheses:
     """List of N best hypotheses"""
