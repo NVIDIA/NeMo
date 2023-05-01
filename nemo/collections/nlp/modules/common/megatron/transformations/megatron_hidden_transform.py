@@ -17,7 +17,7 @@ import math
 
 import torch
 
-__all__ = ["MegatronGaussianHiddenTransform"]
+__all__ = ["MegatronBaseHiddenTransform", "MegatronGaussianHiddenTransform"]
 
 
 class MegatronBaseHiddenTransform(torch.nn.Module):

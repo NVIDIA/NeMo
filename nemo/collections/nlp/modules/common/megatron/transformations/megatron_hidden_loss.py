@@ -19,8 +19,7 @@ import sys
 
 import torch
 
-__all__ = ["MegatronMIMHiddenLoss"]
-
+__all__ = ["MegatronBaseHiddenLoss", "MegatronMIMHiddenLoss"]
 
 class MegatronBaseHiddenLoss(torch.nn.Module):
     """
