@@ -264,11 +264,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
                 )
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision[0:4] == 'bf16':
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision[0:2] == '32':
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision[0:2] == '16':
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
