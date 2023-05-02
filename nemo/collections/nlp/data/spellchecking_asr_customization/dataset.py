@@ -260,7 +260,9 @@ def collate_test_dataset(
             p[:, 1] = 1
             padded_word_indices.append(p)
             if len(word_indices) > 0:
-                padded_word_indices[-1][: word_indices.shape[0], : word_indices.shape[1]] = word_indices  # copy actual word_indices to the beginning
+                padded_word_indices[-1][
+                    : word_indices.shape[0], : word_indices.shape[1]
+                ] = word_indices  # copy actual word_indices to the beginning
         else:
             padded_word_indices.append(word_indices)
 

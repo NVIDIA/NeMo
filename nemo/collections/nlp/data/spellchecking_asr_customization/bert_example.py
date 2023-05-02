@@ -127,7 +127,7 @@ class BertExampleBuilder(object):
         self._semiotic_classes = semiotic_classes
         self._tokenizer = tokenizer
         self._max_seq_length = max_seq_length
-        # one span usually covers one or more words and it only exists for custom phrases, so there are much less spans than characters. 
+        # one span usually covers one or more words and it only exists for custom phrases, so there are much less spans than characters.
         self._max_spans_length = max(4, int(max_seq_length / 20))
         self._pad_id = self._tokenizer.pad_token_id
         self._default_label = 0
@@ -174,15 +174,9 @@ class BertExampleBuilder(object):
                     end = int(end)
                     tags[start:end] = [int(t) for i in range(end - start)]
         # get input features for characters
-        (
-            input_ids,
-            input_mask,
-            segment_ids,
-            labels_mask,
-            labels,
-            _,
-            _,
-        ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags)
+        (input_ids, input_mask, segment_ids, labels_mask, labels, _, _,) = self._get_input_features(
+            hyp=hyp, ref=ref, tags=tags
+        )
 
         # get input features for words
         hyp_with_words = hyp.replace(" ", "").replace("_", " ")
@@ -197,7 +191,7 @@ class BertExampleBuilder(object):
             _,
         ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None)
 
-        # used in forward to concatenate subword embeddings to character embeddings 
+        # used in forward to concatenate subword embeddings to character embeddings
         character_pos_to_subword_pos = self._map_characters_to_subwords(input_ids, input_ids_for_subwords)
 
         # used in inference to take argmax over whole words instead of separate characters to get more consistent predictions
@@ -207,7 +201,16 @@ class BertExampleBuilder(object):
         spans = self._get_spans(span_info)
 
         if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
-            print("Max len exceeded: len(input_ids)=", len(input_ids), "; _max_seq_length=", self._max_seq_length, "; len(spans)=", len(spans), "; _max_spans_length=", self._max_spans_length)
+            print(
+                "Max len exceeded: len(input_ids)=",
+                len(input_ids),
+                "; _max_seq_length=",
+                self._max_seq_length,
+                "; len(spans)=",
+                len(spans),
+                "; _max_spans_length=",
+                self._max_spans_length,
+            )
             return None
 
         example = BertExample(
@@ -251,7 +254,9 @@ class BertExampleBuilder(object):
             result_spans.append((cid, start, end))
         return result_spans
 
-    def _map_characters_to_words(self, input_ids: List[int], hyp: str, infer: bool) -> Tuple[List[int], List[Tuple[int, int]]]:
+    def _map_characters_to_words(
+        self, input_ids: List[int], hyp: str, infer: bool
+    ) -> Tuple[List[int], List[Tuple[int, int]]]:
         """ Maps each single character to the position of its corresponding word.
 
             Args:
@@ -278,7 +283,7 @@ class BertExampleBuilder(object):
         word_indices = []
         begin, end = 1, 1
 
-        letters = hyp.split()        
+        letters = hyp.split()
         for i in range(len(letters)):
             if letters[i] == "_":
                 word_indices.append((begin, end))  # add previous word
