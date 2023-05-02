@@ -853,7 +853,7 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         model = PretrainedModelInfo(
             pretrained_model_name="vad_multilingual_frame_marblenet",
             description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_frame_marblenet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_frame_marblenet/versions/1.19.0/files/vad_multilingual_frame_marblenet.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_frame_marblenet/versions/1.20.0/files/vad_multilingual_frame_marblenet.nemo",
         )
         results.append(model)
         return results
