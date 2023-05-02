@@ -46,7 +46,7 @@ The script to train an N-gram language model with KenLM can be found at
 `scripts/asr_language_modeling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`__.
 
 This script would train an N-gram language model with KenLM library which can be used with the beam search decoders
-on top of the ASR models. This script supports both character level and BPE level encodings and models which is
+on top of the ASR models. This script supports both character level and BPE level encodings and models which are
 detected automatically from the type of the model.
 
 
@@ -87,17 +87,9 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                   |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| ngram_prune      | List[int] | [0]        | List of digits to prune Ngrum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
+| ngram_prune      | List[int] | [0]        | List of thresholds to prune N-grum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | cache_path       | str      | ""          | Cache path to save tokenized files.                                                             |
-+------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| text_processing.do_lowercase      | bool | ``False`` | Whether to make the training text all lower case.                                    |
-+------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| text_processing.punctuation_marks | str   | ""       | String with punctuation marks to process. Example: ".,?"                             |
-+------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| text_processing.rm_punctuation    |  bool | ``False``| Whether to remove punctuation marks from text.                                       |
-+------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| text_processing.separate_punctuation | bool |``True``| Whether to separate punctuation with the previouse word by space.                    |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | preserve_arpa    | bool     | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.              |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
@@ -187,6 +179,14 @@ The following is the list of the important arguments for the evaluation script:
 +---------------------+----------+------------------+-------------------------------------------------------------------------+
 | decoding            | Dict     | BeamCTC          | Subdict of beam search configs. Values found via                        |
 |                     | Config   | InferConfig      | python eval_beamsearch_ngram.py --help                                  |
++---------------------+----------+------------------+-------------------------------------------------------------------------+
+| text_processing.do_lowercase      | bool | ``False`` | Whether to make the training text all lower case.                    |
++---------------------+----------+------------------+-------------------------------------------------------------------------+
+| text_processing.punctuation_marks | str   | ""       | String with punctuation marks to process. Example: ".\,?"            |
++---------------------+----------+------------------+-------------------------------------------------------------------------+
+| text_processing.rm_punctuation    |  bool | ``False``| Whether to remove punctuation marks from text.                       |
++---------------------+----------+------------------+-------------------------------------------------------------------------+
+| text_processing.separate_punctuation | bool |``True``| Whether to separate punctuation with the previous word by space.     |
 +---------------------+----------+------------------+-------------------------------------------------------------------------+
 
 Width of the beam search (`--beam_width`) specifies the number of top candidates/predictions the beam search decoder
@@ -480,11 +480,8 @@ Alternatively, you can build Docker image `scripts/installers/Dockerfile.ngramto
 To combine two N-gram language models, you can use the script ngram_merge.py located at 
 `scripts/asr_language_modeling/ngram_lm/ngram_merge.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/ngram_merge.py>`__.
 
-This script merges two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.  
-You can specify weights (alpha and beta) for each of the models (ngram_a and ngram_b) correspondingly: alpha * ngram_a + beta * ngram_b.
-The script can also calculate the perplexity of the resulting N-gram language model on a test set.
-Note, each step during the process is cached in the out_path, to speed up further run. To avoid cache use the --force flag.
-
+This script interpolate two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.  
+You can specify weights (`--alpha` and `--beta`) for each of the models (`--ngram_a` and `--ngram_b`) correspondingly: `alpha` * `ngram_a` + `beta` * `ngram_b`.
 This script supports both character level and BPE level encodings and models which is detected automatically from the type of the model.
 
 To combine two N-gram models, you can use the following command:
@@ -500,9 +497,9 @@ To combine two N-gram models, you can use the following command:
 
 
 
-If you provide --test_file and --nemo_model_file, the script will calculate the perplexity of the test set. 
-The result of each step is cached in the temporary file in the --out_path. 
-You can use the --force flag to discard the cache and recalculate everything from scratch.
+If you provide `--test_file` and `--nemo_model_file`, the script will calculate the perplexity of the resulting N-gram model on the test set.
+Note, the result of each step during the process is cached in the temporary file in the `--out_path`, to speed up further run.
+You can use the `--force` flag to discard the cache and recalculate everything from scratch.
 
 .. code-block::
 
@@ -516,7 +513,7 @@ You can use the --force flag to discard the cache and recalculate everything fro
                     --nemo_model_file <path to the .nemo file of the model> \
                     --test_file <path to the test file> \
                     --symbols <path to symbols (.syms) file. Could be calculated if it is not provided.> \
-                    --force <flag to recompile and rewrite all files>
+                    --force <flag to recalculate and rewrite all cached files>
 
 
 The following is the list of the arguments for the opengrm script:
@@ -540,7 +537,7 @@ The following is the list of the arguments for the opengrm script:
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | test_file            | str    | None             | Path to test file to count perplexity if provided.                      |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
-| symbols              | str    | None             | Path to symbols (.syms) file . Could be calculated if it is not provided. |
+| symbols              | str    | None             | Path to symbols (.syms) file. Could be calculated if it is not provided.|
 +----------------------+--------+------------------+-------------------------------------------------------------------------+
 | nemo_model_file      | str    | None             | The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model.  |
 +----------------------+--------+------------------+-------------------------------------------------------------------------+

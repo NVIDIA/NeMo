@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@
 
 """
 Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
-DEFAULT_TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
-the required memory significantly, and the LM and its binary blob format require less storage space.
+
+The BPE sub-words are encoded using the Unicode table. 
+This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
+The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
 """
 
 CHUNK_SIZE = 8192
