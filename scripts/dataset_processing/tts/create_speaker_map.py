@@ -51,6 +51,9 @@ def get_args():
     parser.add_argument(
         "--speaker_map_path", required=True, type=Path, help="Path for output speaker index JSON",
     )
+    parser.add_argument(
+        "--overwrite", default=False, type=bool, help="Whether to overwrite the output speaker file if it exists.",
+    )
     args = parser.parse_args()
     return args
 
@@ -59,12 +62,19 @@ def main():
     args = get_args()
     manifest_path_string = args.manifest_paths
     speaker_map_path = args.speaker_map_path
+    overwrite = args.overwrite
 
     manifest_paths = [Path(manifest_path) for manifest_path in manifest_path_string.split(",")]
 
     for manifest_path in manifest_paths:
         if not manifest_path.exists():
             raise ValueError(f"Manifest {manifest_path} does not exist.")
+
+    if speaker_map_path.exists():
+        if overwrite:
+            print(f"Will overwrite existing speaker path: {speaker_map_path}")
+        else:
+            raise ValueError(f"Speaker path already exists: {speaker_map_path}")
 
     speaker_set = set()
     for manifest_path in manifest_paths:
