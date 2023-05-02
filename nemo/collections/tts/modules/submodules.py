@@ -716,18 +716,18 @@ class SpeakerEncoder(NeuralModule):
         precompute: Use precompute speaker embedding
         """
         super(SpeakerEncoder, self).__init__()
-                
+
         # Multi-speaker embedding
         self.lookup_module = lookup_module
-        
+
         # Reference speaker embedding
         self.gst_module = gst_module
-        
+
         if precompute:
             self.precomputed_emb = torch.nn.Parameter(torch.empty(precompute_embedding_dim))
         else:
             self.register_parameter('precomputed_emb', None)
-        
+
     @property
     def input_types(self):
         return {
@@ -745,7 +745,7 @@ class SpeakerEncoder(NeuralModule):
 
     def forward(self, batch_size, speaker=None, reference_spec=None, reference_spec_lens=None):
         embs = None
-        
+
         # Get Precomputed speaker embedding
         if self.precomputed_emb is not None:
             return self.precomputed_emb.unsqueeze(0).repeat(batch_size, 1)

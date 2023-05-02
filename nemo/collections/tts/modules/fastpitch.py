@@ -281,8 +281,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         # Calculate speaker embedding
         spk_emb = self.get_speaker_embedding(
             batch_size=text.shape[0],
-            speaker=speaker, 
-            reference_spec=reference_spec, 
+            speaker=speaker,
+            reference_spec=reference_spec,
             reference_spec_lens=reference_spec_lens,
         )
 
@@ -384,8 +384,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         # Calculate speaker embedding
         spk_emb = self.get_speaker_embedding(
             batch_size=text.shape[0],
-            speaker=speaker, 
-            reference_spec=reference_spec, 
+            speaker=speaker,
+            reference_spec=reference_spec,
             reference_spec_lens=reference_spec_lens,
         )
 
