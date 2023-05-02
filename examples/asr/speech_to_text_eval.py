@@ -82,10 +82,7 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     only_score_manifest: bool = False
 
     text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
-        punctuation_marks = ".,?",
-        separate_punctuation = True,
-        do_lowercase = False,
-        rm_punctuation = False,
+        punctuation_marks=".,?", separate_punctuation=True, do_lowercase=False, rm_punctuation=False,
     )
 
 
