@@ -742,7 +742,7 @@ class SpeakerEncoder(NeuralModule):
         return {
             "embs": NeuralType(('B', 'D'), EncodedRepresentation()),
         }
-    
+
     def overwrite_precomputed_emb(self, emb):
         self.precomputed_emb = torch.nn.Parameter(emb)
 
