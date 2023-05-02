@@ -13,30 +13,30 @@
 # limitations under the License.
 from __future__ import annotations
 
-import einops
 import math
-import numpy as np
 import os
 import random
 import sys
+from argparse import ArgumentParser
+
+import einops
+import numpy as np
 import torch
 import torch.nn as nn
-from PIL import Image, ImageOps
-from argparse import ArgumentParser
 from einops import rearrange, repeat
 from omegaconf import OmegaConf, open_dict
+from PIL import Image, ImageOps
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch import autocast
 
 from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
-from nemo.collections.multimodal.models.stable_diffusion.samplers.k_diffusion import DiscreteEpsDDPMDenoiser
-from nemo.collections.multimodal.models.stable_diffusion.samplers.k_diffusion import sample_euler_ancestral
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
+from nemo.collections.multimodal.models.stable_diffusion.samplers.k_diffusion import (
+    DiscreteEpsDDPMDenoiser,
+    sample_euler_ancestral,
 )
+from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -72,9 +72,7 @@ def main(cfg):
         model_cfg.inductor = False
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronLatentDiffusionEdit,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronLatentDiffusionEdit, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
     )
 
     # inference use the latent diffusion part of megatron wrapper
@@ -107,24 +105,21 @@ def main(cfg):
         raise ValueError('precision must be in [32, 16, "bf16"]')
 
     num_images_per_prompt = edit_cfg.num_images_per_prompt
-    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
-                                                  dtype=autocast_dtype, ):
+    with torch.no_grad(), torch.cuda.amp.autocast(
+        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    ):
         cond = {}
         cond["c_crossattn"] = [
-            repeat(model.get_learned_conditioning([edit_cfg.prompt]),
-                   "1 ... -> n ...", n=num_images_per_prompt)
+            repeat(model.get_learned_conditioning([edit_cfg.prompt]), "1 ... -> n ...", n=num_images_per_prompt)
         ]
         input_image = 2 * torch.tensor(np.array(input_image)).float() / 255 - 1
         input_image = rearrange(input_image, "h w c -> 1 c h w").cuda(non_blocking=True)
         cond["c_concat"] = [
-            repeat(model.encode_first_stage(input_image).mode(),
-                   "1 ... -> n ...", n=num_images_per_prompt)
+            repeat(model.encode_first_stage(input_image).mode(), "1 ... -> n ...", n=num_images_per_prompt)
         ]
 
         uncond = {}
-        uncond["c_crossattn"] = [
-            repeat(null_token, "1 ... -> n ...", n=num_images_per_prompt)
-        ]
+        uncond["c_crossattn"] = [repeat(null_token, "1 ... -> n ...", n=num_images_per_prompt)]
         uncond["c_concat"] = [torch.zeros_like(cond["c_concat"][0])]
 
         sigmas = model_wrap.get_sigmas(edit_cfg.steps)
@@ -147,8 +142,10 @@ def main(cfg):
     if edit_cfg.get("combine_images") is None:
         for idx, image in enumerate(x):
             edited_image = Image.fromarray(image.type(torch.uint8).cpu().numpy())
-            save_path = os.path.join(edit_cfg.outpath,
-                                     f'{edit_cfg.prompt.replace(" ", "_")}_{edit_cfg.cfg_text}_{edit_cfg.cfg_image}_{seed}_{idx}.jpg')
+            save_path = os.path.join(
+                edit_cfg.outpath,
+                f'{edit_cfg.prompt.replace(" ", "_")}_{edit_cfg.cfg_text}_{edit_cfg.cfg_image}_{seed}_{idx}.jpg',
+            )
             edited_image.save(save_path)
             logging.info(f"Edited image saved to: {save_path}")
     else:
@@ -165,8 +162,10 @@ def main(cfg):
             if (idx + 1) % column == 0:
                 x_offset = 0
                 y_offset += height
-        save_path = os.path.join(edit_cfg.outpath,
-                                 f'{edit_cfg.prompt.replace(" ", "_")}_{edit_cfg.cfg_text}_{edit_cfg.cfg_image}_{seed}_combine.jpg')
+        save_path = os.path.join(
+            edit_cfg.outpath,
+            f'{edit_cfg.prompt.replace(" ", "_")}_{edit_cfg.cfg_text}_{edit_cfg.cfg_image}_{seed}_combine.jpg',
+        )
         edited_image.save(save_path)
         logging.info(f"Edited image saved to: {save_path}")
 

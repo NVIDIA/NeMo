@@ -8,8 +8,10 @@ scores against CLIP scores, with cfg values annotated on each point.
 """
 
 import argparse
-import pandas as pd
+
 import matplotlib.pyplot as plt
+import pandas as pd
+
 
 def plot_fid_vs_clip(fid_scores_csv, clip_scores_csv):
     fid_scores = pd.read_csv(fid_scores_csv)
@@ -27,6 +29,7 @@ def plot_fid_vs_clip(fid_scores_csv, clip_scores_csv):
     ax.set_title('FID vs CLIP Score')
 
     plt.show()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

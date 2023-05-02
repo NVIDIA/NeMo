@@ -12,18 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import torch
-from PIL import Image
+from typing import Any, Callable, Dict, Tuple
 
-from omegaconf import OmegaConf, DictConfig, open_dict
+import torch
+from omegaconf import DictConfig, OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from typing import Dict, Tuple, Any, Callable
 
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 
@@ -35,6 +32,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 def numpy_to_pil(images):
     """
@@ -53,9 +51,7 @@ def randn_like(x, generator=None):
 
 
 def setup_trainer_and_model_for_inference(
-        model_provider: Any,
-        cfg: DictConfig,
-        model_cfg_modifier: Callable,
+    model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
 ) -> Tuple[Trainer, Any]:
     """
     Set up a trainer and NeMo model for inference.
@@ -78,10 +74,7 @@ def setup_trainer_and_model_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,
-        find_unused_parameters=False,
-    )
+    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
@@ -120,12 +113,11 @@ def setup_trainer_and_model_for_inference(
 
     elif cfg.model.restore_from_path.endswith(".ckpt"):
         logging.warning(
-            "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!")
+            "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
+        )
 
         model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path,
-            hparams_file=cfg.model.get("hparams_file"),
-            trainer=trainer,
+            cfg.model.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
         )
 
     else:

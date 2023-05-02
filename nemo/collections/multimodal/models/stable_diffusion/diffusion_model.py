@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import torch
 from abc import ABC, abstractclassmethod
 from typing import Any, Optional
+
+import torch
 
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.core.classes import ModelPT
@@ -71,8 +72,10 @@ class DiffusionModel(ModelPT, ABC):
 
     def compute_consumed_samples(self, steps_since_resume=0):
         consumed_samples = (
-                self.init_consumed_samples
-                + steps_since_resume * self.trainer.world_size
-                * self.cfg.micro_batch_size * self.trainer.accumulate_grad_batches
+            self.init_consumed_samples
+            + steps_since_resume
+            * self.trainer.world_size
+            * self.cfg.micro_batch_size
+            * self.trainer.accumulate_grad_batches
         )
         return int(consumed_samples)

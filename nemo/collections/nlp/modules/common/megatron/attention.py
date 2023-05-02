@@ -673,7 +673,7 @@ class CoreAttention(MegatronModule):
         super(CoreAttention, self).__init__()
 
         self.precision = precision
-        self.fp16 = (precision == 16 or precision == '16')
+        self.fp16 = precision == 16 or precision == '16'
         self.bf16 = precision == 'bf16'
         self.multi_query_attention = multi_query_attention
 

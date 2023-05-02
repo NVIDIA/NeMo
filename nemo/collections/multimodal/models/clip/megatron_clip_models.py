@@ -13,35 +13,36 @@
 # limitations under the License.
 
 import itertools
+from functools import partial
+from typing import Any, List, Optional, Union
+
 import numpy as np
 import torch
 import torch.nn.functional as F
-from functools import partial
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
-from typing import Any, List, Optional, Union
 
-from nemo.collections.multimodal.data.clip.clip_dataset import tokenize, build_train_valid_datasets, \
-    build_imagenet_validation_dataloader
+from nemo.collections.multimodal.data.clip.clip_dataset import (
+    build_imagenet_validation_dataloader,
+    build_train_valid_datasets,
+    tokenize,
+)
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-from nemo.collections.nlp.modules.common.megatron.module import (
-    MegatronModule,
-    Float16Module,
-)
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
+    average_losses_across_data_parallel_group,
+    get_all_params_for_weight_decay_optimization,
     get_linear_layer,
+    get_params_for_weight_decay_optimization,
     init_method_normal,
     parallel_lm_logits,
     scaled_init_method_normal,
-    average_losses_across_data_parallel_group,
-    get_all_params_for_weight_decay_optimization,
-    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
@@ -66,11 +67,11 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 class CLIPVisionTransformer(MegatronModule):
     """Vision Transformer Model."""
 
-    def __init__(self, model_cfg,
-                 pre_process=True, post_process=True):
+    def __init__(self, model_cfg, pre_process=True, post_process=True):
         super(CLIPVisionTransformer, self).__init__()
 
         scaled_init_method = (
@@ -95,11 +96,7 @@ class CLIPVisionTransformer(MegatronModule):
         )
 
         if self.post_process:
-            self.head = torch.nn.Linear(
-                self.hidden_size,
-                self.output_dim,
-                bias=False,
-            )
+            self.head = torch.nn.Linear(self.hidden_size, self.output_dim, bias=False,)
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -121,8 +118,7 @@ class CLIPVisionTransformer(MegatronModule):
 class CLIPTextTransformer(MegatronModule):
     """Text Transformer Model."""
 
-    def __init__(self, model_cfg, padded_vocab_size,
-                 pre_process=True, post_process=True):
+    def __init__(self, model_cfg, padded_vocab_size, pre_process=True, post_process=True):
         super(CLIPTextTransformer, self).__init__()
 
         self.output_dim = model_cfg.output_dim
@@ -199,19 +195,14 @@ class CLIPTextTransformer(MegatronModule):
             self.position_ids = torch.arange(model_cfg.max_position_embeddings).expand(1, -1).cuda()
 
         if self.post_process:
-            self.head = torch.nn.Linear(
-                model_cfg.hidden_size,
-                self.output_dim,
-                bias=False,
-            )
+            self.head = torch.nn.Linear(model_cfg.hidden_size, self.output_dim, bias=False,)
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
     def forward(
-            self,
-            input_ids,
+        self, input_ids,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -242,22 +233,16 @@ class CLIPTextTransformer(MegatronModule):
 class CLIPModel(MegatronModule):
     """CLIP Model"""
 
-    def __init__(self, model_cfg, padded_vocab_size,
-                 pre_process=True, post_process=True):
+    def __init__(self, model_cfg, padded_vocab_size, pre_process=True, post_process=True):
         super(CLIPModel, self).__init__()
 
         self.pre_process = pre_process
         self.post_process = post_process
         self.vision_encoder = CLIPVisionTransformer(
-            model_cfg.vision,
-            pre_process=self.pre_process,
-            post_process=self.post_process,
+            model_cfg.vision, pre_process=self.pre_process, post_process=self.post_process,
         )
         self.text_encoder = CLIPTextTransformer(
-            model_cfg.text,
-            padded_vocab_size,
-            pre_process=self.pre_process,
-            post_process=self.post_process,
+            model_cfg.text, padded_vocab_size, pre_process=self.pre_process, post_process=self.post_process,
         )
 
         self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -272,9 +257,7 @@ class CLIPModel(MegatronModule):
         text_features = self.text_encoder(captions)
 
         if self.post_process:
-            return F.normalize(image_features, dim=-1), \
-                F.normalize(text_features, dim=-1), \
-                self.logit_scale.exp()
+            return F.normalize(image_features, dim=-1), F.normalize(text_features, dim=-1), self.logit_scale.exp()
 
         return image_features, text_features
 
@@ -553,10 +536,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             buf.copy_(synced)
 
     def get_forward_output_and_loss_func(self):
-        loss_func = ClipLoss(
-            local_loss=self.cfg.local_loss,
-            gather_with_grad=self.cfg.gather_with_grad,
-        )
+        loss_func = ClipLoss(local_loss=self.cfg.local_loss, gather_with_grad=self.cfg.gather_with_grad,)
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
@@ -596,8 +576,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                 texts = texts.cuda(non_blocking=True)
                 # TODO (yuya): distributed not working
                 with torch.cuda.amp.autocast(
-                        enabled=self.autocast_dtype in (torch.half, torch.bfloat16),
-                        dtype=self.autocast_dtype,
+                    enabled=self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
                 ):
                     class_embeddings = text_encoder(texts)
                     class_embedding = F.normalize(class_embeddings, dim=-1).mean(dim=0)
@@ -607,7 +586,6 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         return zeroshot_weights
 
     def zero_shot_eval(self):
-
         def accuracy(output, target, topk=(1,)):
             pred = output.topk(max(topk), 1, True, True)[1].t()
             correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -625,7 +603,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         else:
             vision_encoder = self.model.vision_encoder
         with torch.no_grad():
-            top1, top5, n = 0., 0., 0.
+            top1, top5, n = 0.0, 0.0, 0.0
             for images, target in tqdm(self.imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False):
                 if images is None or target is None:
                     continue
@@ -634,12 +612,11 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                 target = target.cuda(non_blocking=True)
                 # predict
                 with torch.cuda.amp.autocast(
-                        enabled=self.autocast_dtype in (torch.half, torch.bfloat16),
-                        dtype=self.autocast_dtype,
+                    enabled=self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
                 ):
                     image_features = vision_encoder(images)
                     image_features = F.normalize(image_features, dim=-1)
-                    logits = 100. * image_features @ classifier
+                    logits = 100.0 * image_features @ classifier
 
                 # measure accuracy
                 acc1, acc5 = accuracy(logits, target, topk=(1, 5))
@@ -648,8 +625,8 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                 n += images.size(0)
 
         logging.info('Finished zero-shot imagenet.')
-        top1 = (top1 / n)
-        top5 = (top5 / n)
+        top1 = top1 / n
+        top5 = top5 / n
         return top1, top5
 
     def validation_step(self, dataloader_iter, batch_idx):
@@ -703,9 +680,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
 
         if parallel_state.is_pipeline_last_stage():
-            averaged_metrics = torch.tensor(
-                [torch.stack(outputs).mean()],
-                dtype=torch.float32, device='cuda')
+            averaged_metrics = torch.tensor([torch.stack(outputs).mean()], dtype=torch.float32, device='cuda')
         else:
             averaged_metrics = torch.tensor([0.0], dtype=torch.float32, device='cuda')
 
@@ -731,9 +706,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         self._train_ds, self._validation_ds = build_train_valid_datasets(
-            model_cfg=self.cfg,
-            consumed_samples=self.compute_consumed_samples(0),
-            tokenizer=self.tokenizer,
+            model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0), tokenizer=self.tokenizer,
         )
         self._test_ds = None
 
@@ -859,8 +832,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = torch.utils.data.DataLoader(
-                self._test_ds, batch_size=self._micro_batch_size,
-                num_workers=cfg.num_workers, pin_memory=True,
+                self._test_ds, batch_size=self._micro_batch_size, num_workers=cfg.num_workers, pin_memory=True,
             )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:

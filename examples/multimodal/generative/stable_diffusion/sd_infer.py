@@ -31,9 +31,7 @@ def main(cfg):
 
     torch.backends.cuda.matmul.allow_tf32 = True
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronLatentDiffusion,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronLatentDiffusion, cfg=cfg, model_cfg_modifier=model_cfg_modifier
     )
     model = megatron_diffusion_model.model
     model.cuda().eval()

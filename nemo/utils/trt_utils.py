@@ -11,25 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from polygraphy.backend.trt import CreateConfig, Profile
-from polygraphy.backend.trt import (
-    engine_from_network,
-    network_from_onnx_path,
-    save_engine,
-)
-
 import tensorrt as trt
+from polygraphy.backend.trt import CreateConfig, Profile, engine_from_network, network_from_onnx_path, save_engine
+
 
 def build_engine(
-        onnx_path,
-        output_path,
-        fp16,
-        input_profile=None,
-        enable_refit=False,
-        enable_preview=False,
-        timing_cache=None,
-        workspace_size=0,
-    ):
+    onnx_path,
+    output_path,
+    fp16,
+    input_profile=None,
+    enable_refit=False,
+    enable_preview=False,
+    timing_cache=None,
+    workspace_size=0,
+):
     print(f"Building TensorRT engine for {onnx_path}: {output_path}")
     p = Profile()
     if input_profile:
@@ -41,9 +36,7 @@ def build_engine(
 
     config_kwargs = {}
     if workspace_size > 0:
-        config_kwargs["memory_pool_limits"] = {
-            trt.MemoryPoolType.WORKSPACE: workspace_size
-        }
+        config_kwargs["memory_pool_limits"] = {trt.MemoryPoolType.WORKSPACE: workspace_size}
     engine = engine_from_network(
         network_from_onnx_path(onnx_path),
         config=CreateConfig(

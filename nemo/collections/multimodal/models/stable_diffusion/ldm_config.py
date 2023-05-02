@@ -41,10 +41,11 @@ class SchedulerConfig:
     cls: Optional[str] = 'nemo.collections.multimodal.parts.lr_scheduler.LambdaLinearScheduler'
     warm_up_steps: Optional[List[int]] = field(default_factory=lambda: [10000])
     cycle_lengths: Optional[List[int]] = field(
-        default_factory=lambda: [10000000000000])  # incredibly large number to prevent corner cases
-    f_start: Optional[List[float]] = field(default_factory=lambda: [1.e-6])
-    f_max: Optional[List[float]] = field(default_factory=lambda: [1.])
-    f_min: Optional[List[float]] = field(default_factory=lambda: [1.])
+        default_factory=lambda: [10000000000000]
+    )  # incredibly large number to prevent corner cases
+    f_start: Optional[List[float]] = field(default_factory=lambda: [1.0e-6])
+    f_max: Optional[List[float]] = field(default_factory=lambda: [1.0])
+    f_min: Optional[List[float]] = field(default_factory=lambda: [1.0])
 
 
 @dataclass
@@ -66,7 +67,7 @@ class LDMEncoderConfig:
     ch_mult: Optional[List[int]] = field(default_factory=lambda: [1, 2, 4, 4])
     num_res_blocks: Optional[int] = 2
     attn_resolutions: Optional[List[int]] = field(default_factory=lambda: [])
-    dropout: Optional[float] = 0.
+    dropout: Optional[float] = 0.0
 
 
 @dataclass
@@ -97,15 +98,17 @@ class DDPMDiffusionModelConfig(model_cfg.ModelConfig):
     linear_end: Optional[float] = 2e-2
     cosine_s: Optional[float] = 8e-3
     given_betas: Optional[float] = None
-    original_elbo_weight: Optional[float] = 0.
-    v_posterior: Optional[float] = 0.  # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
-    l_simple_weight: Optional[float] = 1.
+    original_elbo_weight: Optional[float] = 0.0
+    v_posterior: Optional[
+        float
+    ] = 0.0  # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
+    l_simple_weight: Optional[float] = 1.0
     conditioning_key: Optional[str] = None
     parameterization: Optional[str] = 'eps'  # all assuming fixed variance schedules
     scheduler_config: Optional[Any] = None
     use_positional_encodings: Optional[bool] = False
     learn_logvar: Optional[bool] = False
-    logvar_init: Optional[float] = 0.
+    logvar_init: Optional[float] = 0.0
     learning_rate: Optional[float] = 1.0e-04
 
 

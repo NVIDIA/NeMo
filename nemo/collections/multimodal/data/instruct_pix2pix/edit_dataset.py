@@ -15,28 +15,29 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import torch
 import torchvision
-from PIL import Image
 from einops import rearrange
-from pathlib import Path
+from PIL import Image
 from torch.utils.data import Dataset
-from typing import Any
 
 from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import construct_image_augmentations
 
 
 class EditDataset(Dataset):
     def __init__(
-            self,
-            path: str,
-            split: str = "train",
-            splits: tuple[float, float, float] = (0.95, 0.04, 0.01),
-            min_resize_res: int = 256,
-            max_resize_res: int = 256,
-            crop_res: int = 256,
-            flip_prob: float = 0.0,
+        self,
+        path: str,
+        split: str = "train",
+        splits: tuple[float, float, float] = (0.95, 0.04, 0.01),
+        min_resize_res: int = 256,
+        max_resize_res: int = 256,
+        crop_res: int = 256,
+        flip_prob: float = 0.0,
     ):
         assert split in ("train", "val", "test")
         assert sum(splits) == 1
@@ -88,11 +89,7 @@ class EditDataset(Dataset):
 
 class EditDatasetEval(Dataset):
     def __init__(
-            self,
-            path: str,
-            split: str = "train",
-            splits: tuple[float, float, float] = (0.9, 0.05, 0.05),
-            res: int = 256,
+        self, path: str, split: str = "train", splits: tuple[float, float, float] = (0.9, 0.05, 0.05), res: int = 256,
     ):
         assert split in ("train", "val", "test")
         assert sum(splits) == 1

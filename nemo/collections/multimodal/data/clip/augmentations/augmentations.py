@@ -16,19 +16,26 @@ This code is adapted from public repo
 https://github.com/mlfoundations/open_clip/blob/28c994406e39a5babc749c76871d92f33e9c558d/src/open_clip/transform.py
 by @yaoyu-33
 """
+from typing import Optional, Sequence, Tuple
+
 import torch
 import torch.nn as nn
 import torchvision.transforms.functional as F
-from torchvision.transforms import Normalize, Compose, RandomResizedCrop, InterpolationMode, ToTensor, Resize, \
-    CenterCrop
-from typing import Optional, Sequence, Tuple
+from torchvision.transforms import (
+    CenterCrop,
+    Compose,
+    InterpolationMode,
+    Normalize,
+    RandomResizedCrop,
+    Resize,
+    ToTensor,
+)
 
 OPENAI_DATASET_MEAN = (0.48145466, 0.4578275, 0.40821073)
 OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
 
 
 class ResizeMaxSize(nn.Module):
-
     def __init__(self, max_size, interpolation=InterpolationMode.BICUBIC, fn='max', fill=0):
         super().__init__()
         if not isinstance(max_size, int):
@@ -58,12 +65,12 @@ def _convert_to_rgb(image):
 
 
 def image_transform(
-        image_size: int,
-        is_train: bool,
-        mean: Optional[Tuple[float, ...]] = None,
-        std: Optional[Tuple[float, ...]] = None,
-        resize_longest_max: bool = False,
-        fill_color: int = 0,
+    image_size: int,
+    is_train: bool,
+    mean: Optional[Tuple[float, ...]] = None,
+    std: Optional[Tuple[float, ...]] = None,
+    resize_longest_max: bool = False,
+    fill_color: int = 0,
 ):
     mean = mean or OPENAI_DATASET_MEAN
     if not isinstance(mean, (list, tuple)):
@@ -79,25 +86,23 @@ def image_transform(
 
     normalize = Normalize(mean=mean, std=std)
     if is_train:
-        return Compose([
-            RandomResizedCrop(image_size, scale=(0.9, 1.0), interpolation=InterpolationMode.BICUBIC),
-            _convert_to_rgb,
-            ToTensor(),
-            normalize,
-        ])
+        return Compose(
+            [
+                RandomResizedCrop(image_size, scale=(0.9, 1.0), interpolation=InterpolationMode.BICUBIC),
+                _convert_to_rgb,
+                ToTensor(),
+                normalize,
+            ]
+        )
     else:
         if resize_longest_max:
-            transforms = [
-                ResizeMaxSize(image_size, fill=fill_color)
-            ]
+            transforms = [ResizeMaxSize(image_size, fill=fill_color)]
         else:
             transforms = [
                 Resize(image_size, interpolation=InterpolationMode.BICUBIC),
                 CenterCrop(image_size),
             ]
-        transforms.extend([
-            _convert_to_rgb,
-            ToTensor(),
-            normalize,
-        ])
+        transforms.extend(
+            [_convert_to_rgb, ToTensor(), normalize,]
+        )
         return Compose(transforms)

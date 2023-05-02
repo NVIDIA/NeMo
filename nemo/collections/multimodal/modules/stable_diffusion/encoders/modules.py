@@ -11,16 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from functools import partial
+
 import kornia
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from functools import partial
-from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig
+from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 from transformers.models.clip.modeling_clip import CLIPTextTransformer
 
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder, \
-    TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
+    TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
+)
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
 
 
 class AbstractEncoder(nn.Module):
@@ -52,8 +55,9 @@ class TransformerEmbedder(AbstractEncoder):
     def __init__(self, n_embed, n_layer, vocab_size, max_seq_len=77, device="cuda"):
         super().__init__()
         self.device = device
-        self.transformer = TransformerWrapper(num_tokens=vocab_size, max_seq_len=max_seq_len,
-                                              attn_layers=Encoder(dim=n_embed, depth=n_layer))
+        self.transformer = TransformerWrapper(
+            num_tokens=vocab_size, max_seq_len=max_seq_len, attn_layers=Encoder(dim=n_embed, depth=n_layer)
+        )
 
     def forward(self, tokens):
         tokens = tokens.to(self.device)  # meh
@@ -70,14 +74,22 @@ class BERTTokenizer(AbstractEncoder):
     def __init__(self, device="cuda", vq_interface=True, max_length=77):
         super().__init__()
         from transformers import BertTokenizerFast  # TODO: add to reuquirements
+
         self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
         self.device = device
         self.vq_interface = vq_interface
         self.max_length = max_length
 
     def forward(self, text):
-        batch_encoding = self.tokenizer(text, truncation=True, max_length=self.max_length, return_length=True,
-                                        return_overflowing_tokens=False, padding="max_length", return_tensors="pt")
+        batch_encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            return_length=True,
+            return_overflowing_tokens=False,
+            padding="max_length",
+            return_tensors="pt",
+        )
         tokens = batch_encoding["input_ids"].to(self.device)
         return tokens
 
@@ -95,16 +107,27 @@ class BERTTokenizer(AbstractEncoder):
 class BERTEmbedder(AbstractEncoder):
     """Uses the BERT tokenizr model and add some transformer encoder layers"""
 
-    def __init__(self, n_embed, n_layer, vocab_size=30522, max_seq_len=77,
-                 device="cuda", use_tokenizer=True, embedding_dropout=0.0):
+    def __init__(
+        self,
+        n_embed,
+        n_layer,
+        vocab_size=30522,
+        max_seq_len=77,
+        device="cuda",
+        use_tokenizer=True,
+        embedding_dropout=0.0,
+    ):
         super().__init__()
         self.use_tknz_fn = use_tokenizer
         if self.use_tknz_fn:
             self.tknz_fn = BERTTokenizer(vq_interface=False, max_length=max_seq_len)
         self.device = device
-        self.transformer = TransformerWrapper(num_tokens=vocab_size, max_seq_len=max_seq_len,
-                                              attn_layers=Encoder(dim=n_embed, depth=n_layer),
-                                              emb_dropout=embedding_dropout)
+        self.transformer = TransformerWrapper(
+            num_tokens=vocab_size,
+            max_seq_len=max_seq_len,
+            attn_layers=Encoder(dim=n_embed, depth=n_layer),
+            emb_dropout=embedding_dropout,
+        )
 
     def forward(self, text):
         if self.use_tknz_fn:
@@ -120,13 +143,7 @@ class BERTEmbedder(AbstractEncoder):
 
 
 class SpatialRescaler(nn.Module):
-    def __init__(self,
-                 n_stages=1,
-                 method='bilinear',
-                 multiplier=0.5,
-                 in_channels=3,
-                 out_channels=None,
-                 bias=False):
+    def __init__(self, n_stages=1, method='bilinear', multiplier=0.5, in_channels=3, out_channels=None, bias=False):
         super().__init__()
         self.n_stages = n_stages
         assert self.n_stages >= 0
@@ -189,8 +206,15 @@ class FrozenCLIPEmbedder(AbstractEncoder):
             param.requires_grad = False
 
     def forward(self, text):
-        batch_encoding = self.tokenizer(text, truncation=True, max_length=self.max_length, return_length=True,
-                                        return_overflowing_tokens=False, padding="max_length", return_tensors="pt")
+        batch_encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            return_length=True,
+            return_overflowing_tokens=False,
+            padding="max_length",
+            return_tensors="pt",
+        )
         tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
         outputs = self.transformer(input_ids=tokens)
 

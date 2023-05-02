@@ -59,7 +59,8 @@ class WebDataloaderSamplerCallback(Callback):
         # This part assume that when we resume, we are using the same num of gpus and also same batchsize as before
         epoch = trainer.global_step * self.ga // trainer.num_training_batches
         print(
-            f'WebdataLoaderSampler Calculated epoch={epoch}, num_iters={num_iters}, num_training_batches={trainer.num_training_batches}')
+            f'WebdataLoaderSampler Calculated epoch={epoch}, num_iters={num_iters}, num_training_batches={trainer.num_training_batches}'
+        )
         if pl_module.current_epoch != epoch:
             print(f'Warning: Calculated Epoch={epoch} is not equal to pyt-lightning epoch={pl_module.current_epoch}')
 

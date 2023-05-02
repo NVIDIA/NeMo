@@ -46,20 +46,19 @@ from torchvision.models import inception, inception_v3, vgg16
 
 # Inception weights ported to Pytorch from
 # http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz
-FID_WEIGHTS_URL = 'https://github.com/mseitzer/pytorch-fid/releases' \
-                  '/download/fid_weights/pt_inception-2015-12-05-6726825d.pth'
+FID_WEIGHTS_URL = (
+    'https://github.com/mseitzer/pytorch-fid/releases' '/download/fid_weights/pt_inception-2015-12-05-6726825d.pth'
+)
 
 
 class SwAV(nn.Module):
     def __init__(self):
         super().__init__()
-        self.model = torch.hub.load('facebookresearch/swav', 'resnet50',
-                                    pretrained=True)
+        self.model = torch.hub.load('facebookresearch/swav', 'resnet50', pretrained=True)
         self.model.fc = torch.nn.Sequential()
 
     def forward(self, x, align_corners=True):
-        y = self.model(F.interpolate(
-            x, size=(224, 224), mode='bicubic', align_corners=align_corners))
+        y = self.model(F.interpolate(x, size=(224, 224), mode='bicubic', align_corners=align_corners))
         return y
 
 
@@ -67,38 +66,30 @@ class Vgg16(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = vgg16(pretrained=True, init_weights=False)
-        self.model.classifier = torch.nn.Sequential(
-            *[self.model.classifier[i] for i in range(4)]
-        )
+        self.model.classifier = torch.nn.Sequential(*[self.model.classifier[i] for i in range(4)])
 
     def forward(self, x, align_corners=True):
-        y = self.model(F.interpolate(
-            x, size=(224, 224), mode='bicubic', align_corners=align_corners))
+        y = self.model(F.interpolate(x, size=(224, 224), mode='bicubic', align_corners=align_corners))
         return y
 
 
 class InceptionV3(nn.Module):
     def __init__(self):
         super().__init__()
-        self.model = inception_v3(transform_input=False,
-                                  pretrained=True,
-                                  init_weights=False)
+        self.model = inception_v3(transform_input=False, pretrained=True, init_weights=False)
         self.model.fc = torch.nn.Sequential()
 
     def forward(self, x, align_corners=True):
-        y = self.model(F.interpolate(
-            x, size=(299, 299), mode='bicubic', align_corners=align_corners))
+        y = self.model(F.interpolate(x, size=(299, 299), mode='bicubic', align_corners=align_corners))
         return y
 
 
 class TFInceptionV3(nn.Module):
     def __init__(self):
         super().__init__()
-        self.model = inception_v3(transform_input=False,
-                                  num_classes=1008,
-                                  aux_logits=False,
-                                  pretrained=False,
-                                  init_weights=False)
+        self.model = inception_v3(
+            transform_input=False, num_classes=1008, aux_logits=False, pretrained=False, init_weights=False
+        )
         self.model.Mixed_5b = FIDInceptionA(192, pool_features=32)
         self.model.Mixed_5c = FIDInceptionA(256, pool_features=64)
         self.model.Mixed_5d = FIDInceptionA(288, pool_features=64)
@@ -109,16 +100,13 @@ class TFInceptionV3(nn.Module):
         self.model.Mixed_7b = FIDInceptionE_1(1280)
         self.model.Mixed_7c = FIDInceptionE_2(2048)
 
-        state_dict = load_state_dict_from_url(
-            FID_WEIGHTS_URL, progress=True, map_location='cpu'
-        )
+        state_dict = load_state_dict_from_url(FID_WEIGHTS_URL, progress=True, map_location='cpu')
         self.model.load_state_dict(state_dict)
         self.model.fc = torch.nn.Sequential()
 
     def forward(self, x, align_corners=True):
         # x = apply_imagenet_normalization(x)
-        y = self.model(F.interpolate(
-            x, size=(299, 299), mode='bicubic', align_corners=align_corners))
+        y = self.model(F.interpolate(x, size=(299, 299), mode='bicubic', align_corners=align_corners))
         return y
 
 
@@ -140,8 +128,7 @@ class FIDInceptionA(inception.InceptionA):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1,
-                                   count_include_pad=False)
+        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch5x5, branch3x3dbl, branch_pool]
@@ -169,8 +156,7 @@ class FIDInceptionC(inception.InceptionC):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1,
-                                   count_include_pad=False)
+        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch7x7, branch7x7dbl, branch_pool]
@@ -203,8 +189,7 @@ class FIDInceptionE_1(inception.InceptionE):
 
         # Patch: Tensorflow's average pool does not use the padded zero's in
         # its average calculation
-        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1,
-                                   count_include_pad=False)
+        branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1, count_include_pad=False)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch3x3, branch3x3dbl, branch_pool]

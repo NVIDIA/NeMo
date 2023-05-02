@@ -25,8 +25,9 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
 """
 
 import os
-import torch
 from argparse import ArgumentParser
+
+import torch
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -47,6 +48,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 def get_args():
     parser = ArgumentParser()
@@ -83,9 +85,7 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument(
-        "--model_type", type=str, required=False, default="megatron_clip"
-    )
+    parser.add_argument("--model_type", type=str, required=False, default="megatron_clip")
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
@@ -141,17 +141,21 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'megatron_clip':
-        model = MegatronCLIPModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
-                                                       trainer=trainer)
+        model = MegatronCLIPModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     elif args.model_type == 'stable_diffusion':
-        model = MegatronLatentDiffusion.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
-                                                             trainer=trainer)
+        model = MegatronLatentDiffusion.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     elif args.model_type == 'instruct_pix2pix':
-        model = MegatronLatentDiffusionEdit.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
-                                                                 trainer=trainer)
+        model = MegatronLatentDiffusionEdit.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     elif args.model_type == 'dreambooth':
-        model = MegatronLatentDiffusion.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
-                                                             trainer=trainer)
+        model = MegatronLatentDiffusion.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     else:
         raise ValueError(f"Unrecognized model_type {args.model_type}.")
 

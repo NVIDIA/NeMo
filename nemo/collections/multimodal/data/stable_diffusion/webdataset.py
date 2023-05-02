@@ -11,16 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import boto3
 import io
 import json
 import os
 import pickle
 import random
 import re
+
+import boto3
 import torch.distributed as dist
-from PIL import Image
 from botocore.config import Config
+from PIL import Image
 from torch.utils.data import IterableDataset
 from webdataset.utils import pytorch_worker_info
 
@@ -103,15 +104,15 @@ class ShardListWithResumes(IterableDataset):
     """
 
     def __init__(
-            self,
-            urls,
-            epoch_shuffle=False,
-            shuffle=True,
-            split_by_node=True,
-            split_by_worker=True,
-            chunk_size=1,
-            resume_flag=True,
-            verbose=False
+        self,
+        urls,
+        epoch_shuffle=False,
+        shuffle=True,
+        split_by_node=True,
+        split_by_worker=True,
+        chunk_size=1,
+        resume_flag=True,
+        verbose=False,
     ):
         r"""Create a ShardList.
         Args:
@@ -191,7 +192,8 @@ class ShardListWithResumes(IterableDataset):
 
         if self.verbose:
             print(
-                f'Number of URLs after splitting: {len(urls)}. rank/world_size={rank}/{world_size} worker_id/num_workers={worker_id}/{num_workers}')
+                f'Number of URLs after splitting: {len(urls)}. rank/world_size={rank}/{world_size} worker_id/num_workers={worker_id}/{num_workers}'
+            )
 
         if self.shuffle:
             random.Random(self.epoch + 17).shuffle(urls)
@@ -203,9 +205,11 @@ class ShardListWithResumes(IterableDataset):
 
         if self.verbose:
             print(
-                f'Number of URLS after using start_index_per_worker: {len(urls)}. self.start_index={self.start_index} start_index_per_worker={start_index_per_worker}')
+                f'Number of URLS after using start_index_per_worker: {len(urls)}. self.start_index={self.start_index} start_index_per_worker={start_index_per_worker}'
+            )
             print(
-                f'PytorchShardList Rank=<{rank}/{world_size}> Worker=<{worker_id}/{num_workers}> receives {len(urls)} URLs (TARs)')
+                f'PytorchShardList Rank=<{rank}/{world_size}> Worker=<{worker_id}/{num_workers}> receives {len(urls)} URLs (TARs)'
+            )
 
         for url in urls:
             yield dict(url=url)
@@ -244,9 +248,7 @@ class WebDatasetBase(NeMoIterableDataset):
             assert self.webdata_cfg.pbss_credentials_file is not None
             with open(self.webdata_cfg.pbss_credentials_file) as fin:
                 self.credentials = json.load(fin)
-            config = Config(connect_timeout=30,
-                            signature_version="s3",
-                            retries={"max_attempts": 999999})
+            config = Config(connect_timeout=30, signature_version="s3", retries={"max_attempts": 999999})
             self.s3 = boto3.client('s3', **self.credentials, config=config)
             self.bucket = self.webdata_cfg.bucket
             self.local_root_path = None
@@ -322,6 +324,7 @@ class WebDatasetWithRawText(WebDatasetBase):
 
         # Train dataset object
         from webdataset import warn_and_continue
+
         if self.infinite_sampler:
             rank, world_size, worker_id, num_workers = pytorch_worker_info()
             epoch_length = train_info["total_key_count"] // self.batch_size // world_size
@@ -355,16 +358,14 @@ class WebDatasetWithRawText(WebDatasetBase):
         )
         if self.filterings is not None:
             if self.filterings.resolution is not None:
-                train_dataset = train_dataset.select(build_resolution_filter(**self.filterings.resolution, image_idx=0))
+                train_dataset = train_dataset.select(
+                    build_resolution_filter(**self.filterings.resolution, image_idx=0)
+                )
 
         # Add additional augmentation
-        train_dataset = (train_dataset
-                         .map_tuple(
-            self.img_transform,
-            self.text_transform
-        )  # Augmentation
-                         .compose(tuple_to_dict)  # Converting tuple to data dict
-                         )
+        train_dataset = train_dataset.map_tuple(self.img_transform, self.text_transform).compose(  # Augmentation
+            tuple_to_dict
+        )  # Converting tuple to data dict
 
         train_dataset.total_images = train_info["total_key_count"]
         # Set epoch length if using infinite sampler

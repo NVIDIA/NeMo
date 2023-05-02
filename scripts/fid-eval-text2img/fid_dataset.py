@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from PIL import Image
 from pycocotools.coco import COCO
-from torchvision.io import read_image, ImageReadMode
+from torchvision.io import ImageReadMode, read_image
 
 
 def _pil_interp(method):
@@ -42,7 +43,6 @@ def _size_tuple(size):
 
 
 class CenterCropResize:
-
     def __init__(self, target_size: int, interpolation: str = 'bilinear', fill_color: tuple = (0, 0, 0)):
         self.target_size = _size_tuple(target_size)
         self.interpolation = interpolation
@@ -52,8 +52,7 @@ class CenterCropResize:
         w, h = img.size
         img = np.array(img).astype(np.uint8)
         crop = min(w, h)
-        img = img[(h - crop) // 2:(h + crop) // 2,
-              (w - crop) // 2:(w + crop) // 2]
+        img = img[(h - crop) // 2 : (h + crop) // 2, (w - crop) // 2 : (w + crop) // 2]
         image = Image.fromarray(img)
         if self.target_size is not None:
             interp_method = _pil_interp(self.interpolation)

@@ -20,15 +20,16 @@ python clip_script.py --captions_path /path/to/coco2014_val/captions \
    images in each subfolder and the captions from `--captions_path`.
 """
 
+import argparse
+import csv
+import os
+from glob import glob
+
 import open_clip
 import torch
 import torch.nn as nn
 from PIL import Image
-from glob import glob
 from tqdm import tqdm
-import os
-import argparse
-import csv
 
 
 class CLIPEncoder(nn.Module):
@@ -45,7 +46,8 @@ class CLIPEncoder(nn.Module):
                 self.pretrained = 'openai'
 
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(
-            self.clip_version, pretrained=self.pretrained, cache_dir=cache_dir)
+            self.clip_version, pretrained=self.pretrained, cache_dir=cache_dir
+        )
 
         self.model.eval()
         self.model.to(device)
@@ -70,6 +72,7 @@ class CLIPEncoder(nn.Module):
 
         return similarity
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--captions_path', default='/coco2014/coco2014_val_sampled_30k/captions/', type=str)
@@ -91,13 +94,15 @@ if __name__ == '__main__':
         for subfolder in os.listdir(args.fid_images_path):
             subfolder_path = os.path.join(args.fid_images_path, subfolder)
             if os.path.isdir(subfolder_path):
-                images = sorted(glob(f'{subfolder_path}/*.png'), key=lambda x: (int(x.split('/')[-1].strip('.png').split('_')[1])))
+                images = sorted(
+                    glob(f'{subfolder_path}/*.png'), key=lambda x: (int(x.split('/')[-1].strip('.png').split('_')[1]))
+                )
                 texts = sorted(glob(f'{captions_path}/*.txt'))
                 print(images[:5], texts[:5])
                 assert len(images) == len(texts)
                 print(f'Number of images text pairs: {len(images)}')
 
-                ave_sim = 0.
+                ave_sim = 0.0
                 count = 0
                 for text, img in zip(tqdm(texts), images):
                     with open(text, 'r') as f:

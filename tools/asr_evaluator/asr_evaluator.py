@@ -15,11 +15,10 @@ import json
 
 import git
 from omegaconf import OmegaConf
-from utils import cal_target_metadata_wer, cal_write_wer, run_asr_inference
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
+from utils import cal_target_metadata_wer, cal_write_wer, run_asr_inference
 
 """
 This script serves as evaluator of ASR models

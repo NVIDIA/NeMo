@@ -232,11 +232,7 @@ def build_datasets(cfg, test_data_dir):
         os.path.join(test_data_dir, "vision/tiny_imagenet/train"),
         os.path.join(test_data_dir, "vision/tiny_imagenet/val"),
     ]
-    return build_train_valid_datasets(
-        model_cfg=cfg,
-        data_path=data_path,
-        image_size=(cfg.img_h, cfg.img_w),
-    )
+    return build_train_valid_datasets(model_cfg=cfg, data_path=data_path, image_size=(cfg.img_h, cfg.img_w),)
 
 
 @pytest.mark.run_only_on('GPU')
@@ -305,9 +301,7 @@ class TestMegatronVitClassificationModel:
             B, C, H, W = tokens.shape
             assert H == W
             with torch.autocast('cuda', dtype=dtype):
-                output_tensor = vit_classification_model.forward(
-                    tokens=tokens.cuda(),
-                )
+                output_tensor = vit_classification_model.forward(tokens=tokens.cuda(),)
             # output is (B, #classes)
             assert output_tensor.shape == torch.Size([B, vit_classification_model.cfg['num_classes']])
             assert output_tensor.dtype == dtype
@@ -344,7 +338,7 @@ class TestMegatronVitClassificationModel:
             scaled_init_method=None,
             pre_process=True,
             post_process=True,
-            single_token_output=True
+            single_token_output=True,
         ).cuda()
         vit_backbone.eval()
 
@@ -355,9 +349,7 @@ class TestMegatronVitClassificationModel:
             B, C, H, W = tokens.shape
             assert H == W
             with torch.autocast('cuda', dtype=dtype):
-                output_tensor = vit_backbone(
-                    tokens.cuda(),
-                )
+                output_tensor = vit_backbone(tokens.cuda(),)
             # output is (B, #classes)
             assert output_tensor.shape == torch.Size([B, model_cfg['hidden_size']])
             assert output_tensor.dtype == dtype
@@ -374,18 +366,14 @@ class TestMegatronVitClassificationModel:
         else:
             raise ValueError(f"precision: {trainer_cfg['precision']} is not supported.")
 
-        vit_head = VitMlpHead(
-            24, 50,
-        ).cuda()
+        vit_head = VitMlpHead(24, 50,).cuda()
         vit_head.eval()
 
         hidden = torch.rand((6, 24))
 
         with torch.no_grad():
             with torch.autocast('cuda', dtype=dtype):
-                output_tensor = vit_head(
-                    hidden.cuda(),
-                )
+                output_tensor = vit_head(hidden.cuda(),)
             # output is (B, #classes)
             assert output_tensor.shape == torch.Size([6, 50])
             assert output_tensor.dtype == dtype
