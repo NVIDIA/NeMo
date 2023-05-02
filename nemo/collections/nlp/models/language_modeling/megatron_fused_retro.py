@@ -153,15 +153,42 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
         self.model.freeze()
         if cfg.adapter_tuning.pre_decoder is True:
             logging.info(f'Adding pre decoder adapters')
+            adapter_cfg = ParallelLinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.pre_decoder_size,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
+                dropout=cfg.adapter_tuning.adapter_dropout,
+            )
             for _, module in self.model.model.pre_decoder.named_modules():
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
                     self.add_adapters_init(module, adapter_cfg)
         if cfg.adapter_tuning.post_decoder is True:
+            adapter_cfg = ParallelLinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.post_decoder_size,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
+                dropout=cfg.adapter_tuning.adapter_dropout,
+            )
             logging.info(f'Adding post decoder adapters')
             for _, module in self.model.model.post_decoder.named_modules():
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
                     self.add_adapters_init(module, adapter_cfg)
         if cfg.adapter_tuning.encoder is True:
+            adapter_cfg = ParallelLinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.encoder_size,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
+                dropout=cfg.adapter_tuning.adapter_dropout,
+            )
             logging.info(f'Adding encoder adapters')
             for _, module in self.model.model.encoder.named_modules():
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):

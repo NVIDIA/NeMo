@@ -14,8 +14,8 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 50 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_epochs: 2 # PTL default. In practice we don't usually train for more than 1 epoch.
+  max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 0.25
   limit_val_batches: null
@@ -169,7 +169,7 @@ model:
       name: CosineAnnealing
       warmup_steps: 50
       constant_steps: 0
-      min_lr: 1e-4
+      min_lr: 1e-6
 
 
   adapter_tuning:
@@ -185,14 +185,9 @@ model:
     post_decoder: True
     encoder : True
 
-  # hidden_size: 2304
-  # ffn_hidden_size: 9216
-  # hidden_dropout: 0
-  # init_method_std: 0.023
-  # attention_dropout: 0
-  # apply_query_key_layer_scaling: False
-  # normalization: rmsnorm
-  # fp32_residual_connection: True
-  # activations_checkpoint_num_layers: null
+    pre_decoder_size: 16
+    post_decoder_size: 32
+    encoder_size: 64
+
 
 
