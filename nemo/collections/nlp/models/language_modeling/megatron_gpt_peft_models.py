@@ -101,7 +101,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # at this stage only PEFT params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
-            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the 
+            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
             assert set(state_dict.keys()) == self.adapter_keys
             super().load_state_dict(state_dict, strict=False)
