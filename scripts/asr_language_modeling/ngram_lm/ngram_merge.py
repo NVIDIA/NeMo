@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 #
 
 """
-Utility methods to be used to merge arpa N-gram language models (LMs), 
+This script would interpolate two arpa N-gram language models (LMs), 
 culculate perplexity of resulted LM, and make binary KenLM from it.
 
-Minimun usage example to merge two N-gram language models with weights:
+Minimun usage example to interpolate two N-gram language models with weights:
 alpha * ngram_a + beta * ngram_b = 2 * ngram_a + 1 * ngram_b
 
-python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
+python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin \
                     --arpa_a /path/ngram_a.kenlm.tmp.arpa \
                     --alpha 2 \
                     --arpa_b /path/ngram_b.kenlm.tmp.arpa \
@@ -29,7 +29,7 @@ python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bi
 
 
 Merge two N-gram language models and calculate its perplexity with test_file.
-python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin/build_binary \
+python3 ngram_merge.py  --kenlm_bin_path /workspace/nemo/decoders/kenlm/build/bin \
                     --ngram_bin_path /workspace/nemo/decoders/ngram-1.3.14/src/bin \
                     --arpa_a /path/ngram_a.kenlm.tmp.arpa \
                     --alpha 0.5 \
@@ -45,7 +45,6 @@ import argparse
 import os
 import subprocess
 import sys
-from collections import namedtuple
 from typing import Tuple
 
 import kenlm_utils
@@ -53,7 +52,6 @@ import torch
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.utils import logging
 
 
