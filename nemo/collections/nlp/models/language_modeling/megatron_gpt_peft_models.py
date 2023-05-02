@@ -48,7 +48,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self.adapter_keys = self.get_all_keys() - self.base_keys
 
     def first_stage_of_pipeline(self):
-        return self.model.pre_process
+        if hasattr(self, "model") and hasattr(self.model, "pre_process"):
+            return self.model.pre_process
+        logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
+        return False
+
 
     @abc.abstractmethod
     def init_peft_modules(self,):
