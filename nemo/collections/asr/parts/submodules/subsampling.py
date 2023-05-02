@@ -17,9 +17,9 @@ import math
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
+import torch.nn.functional as F
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
-from nemo.utils import avoid_bfloat16_autocast_context
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -265,13 +265,18 @@ class ConvSubsampling(torch.nn.Module):
         )
         x = x.unsqueeze(1)
 
-        if self._subsampling in ['striding', 'dw_striding']:
-            # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
-            # to be removed once the above is fixed in cudnn
-            with avoid_bfloat16_autocast_context():
+        # avoiding a bug / feature limiting indexing of tensors to 2**31
+        # after the first conv numel will be * conv-channels but 2*2 downsampled
+        x_ceil = 2**31 / self._conv_channels * 4 
+        if torch.numel(x) > x_ceil: 
+            x, success = self.batch_split_conv(x)
+            if not success and self._subsampling == 'dw_striding':
+                x = self.time_split_conv(x)
+            else:
                 x = self.conv(x)
         else:
             x = self.conv(x)
+
 
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
@@ -299,6 +304,42 @@ class ConvSubsampling(torch.nn.Module):
                 fc_scale = (self._feat_out * self._feat_in / self._sampling_num) ** -0.5
                 torch.nn.init.uniform_(self.out.weight, -fc_scale, fc_scale)
                 torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
+
+    def batch_split_conv(self, x):
+        """ Tries to split input by batch, run conv and concat results """
+        b, _, _, _ = x.size()
+        if b == 1: # can't split if batch size is 1
+            return None, False
+
+        x_ceil = 2**31 / self._conv_channels * 4 
+        p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
+        new_batch_size  = b // (2**p)
+        if new_batch_size == 0: # input is too big
+            return None, False
+
+        log.debug(f'conv subsampling: using split batch size {new_batch_size}')
+        return torch.cat([self.conv(chunk) for chunk in torch.split(x, new_batch_size, 0)]), True
+
+    def time_split_conv(self, x):
+        """ For dw convs, tries to split input by time, run conv and concat results """
+        x = self.conv[0](x) # full conv2D 
+        x = self.conv[1](x) # activation
+
+        # only pad the T dim
+        lp = self._left_padding
+        rp = self._right_padding
+        pad = (0, 0, lp, rp)
+
+        for i in range(self._sampling_num):
+            p = math.ceil(math.log(torch.numel(x) / 2**31, 2))
+            _, _, t, _ = x.size()
+            new_t = t // (2**p)
+            log.debug(f'conv dw subsampling: using split T size {new_t}')
+            x = torch.cat([self.conv[i+2](F.pad(chunk, pad))[:,:,lp,-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
+            x = torch.cat([self.conv[i+3](F.pad(chunk, pad))[:,:,lp,-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
+            x = self.conv[i+4](x) # activation
+        return x
+
 
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
