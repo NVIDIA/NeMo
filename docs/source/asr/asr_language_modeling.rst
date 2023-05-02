@@ -87,7 +87,7 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                   |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
-| ngram_prune      | List[int] | [0]        | List of thresholds to prune N-grum. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
+| ngram_prune      | List[int] | [0]        | List of thresholds to prune N-grams. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
 | cache_path       | str      | ""          | Cache path to save tokenized files.                                                             |
 +------------------+----------+-------------+-------------------------------------------------------------------------------------------------+
