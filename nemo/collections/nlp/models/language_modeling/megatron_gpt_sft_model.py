@@ -530,24 +530,23 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         inference_config = self.get_inference_config()
         if inference_config is None:
             return None
+        # need to overwrite some configuration, make it immutable
+        inference_config = inference_config.copy()
+        compute_logprob = inference_config['compute_logprob']
+        if compute_logprob:
+            del inference_config['compute_logprob']
+            inference_config['inputs'] = batch
+            inference_config['tokens_to_generate'] = 1
+            inference_config['all_probs'] = True
+            inference_config["add_BOS"] = False
+            inference_config['greedy'] = True
+            response = generate(self, **inference_config)
+            compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+            return compute_prob_response
         else:
-            # need to overwrite some configuration, make it immutable
-            inference_config = inference_config.copy()
-            compute_logprob = inference_config['compute_logprob']
-            if compute_logprob:
-                del inference_config['compute_logprob']
-                inference_config['inputs'] = batch
-                inference_config['tokens_to_generate'] = 1
-                inference_config['all_probs'] = True
-                inference_config["add_BOS"] = False
-                inference_config['greedy'] = True
-                response = generate(self, **inference_config)
-                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
-                return compute_prob_response
-            else:
-                del inference_config['compute_logprob']
-                inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
-                return generate(self, **inference_config)
+            del inference_config['compute_logprob']
+            inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
+            return generate(self, **inference_config)
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
