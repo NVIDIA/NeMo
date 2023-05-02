@@ -248,6 +248,8 @@ model:
 
   speaker_encoder:
     _target_: nemo.collections.tts.modules.submodules.SpeakerEncoder
+    precompute: false
+    precompute_embedding_dim: ${model.symbols_embedding_dim}
     lookup_module:
       _target_: nemo.collections.tts.modules.submodules.SpeakerLookupTable
       n_speakers: ???

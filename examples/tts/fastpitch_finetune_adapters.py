@@ -103,11 +103,6 @@ def main(cfg):
     # Freeze model
     model.freeze()
 
-    # Used if we fine-tune with multi-speaker dataset
-    if model.fastpitch.speaker_encoder is not None and model.fastpitch.speaker_encoder.lookup_module is not None:
-        for name, param in model.fastpitch.speaker_encoder.lookup_module.named_parameters():
-            param.requires_grad = True
-
     # Setup adapters
     if adapter_global_cfg is not None:
         add_global_adapter_cfg(model, adapter_global_cfg)
