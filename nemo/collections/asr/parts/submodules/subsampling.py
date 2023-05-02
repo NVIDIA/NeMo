@@ -20,6 +20,7 @@ from torch.nn import LayerNorm
 import torch.nn.functional as F
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
+from nemo.utils import logging
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -309,15 +310,15 @@ class ConvSubsampling(torch.nn.Module):
         """ Tries to split input by batch, run conv and concat results """
         b, _, _, _ = x.size()
         if b == 1: # can't split if batch size is 1
-            return None, False
+            return x, False
 
         x_ceil = 2**31 / self._conv_channels * 4 
         p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
         new_batch_size  = b // (2**p)
         if new_batch_size == 0: # input is too big
-            return None, False
+            return x, False
 
-        log.debug(f'conv subsampling: using split batch size {new_batch_size}')
+        logging.debug(f'conv subsampling: using split batch size {new_batch_size}')
         return torch.cat([self.conv(chunk) for chunk in torch.split(x, new_batch_size, 0)]), True
 
     def time_split_conv(self, x):
@@ -330,13 +331,13 @@ class ConvSubsampling(torch.nn.Module):
         rp = self._right_padding
         pad = (0, 0, lp, rp)
 
-        for i in range(self._sampling_num):
+        for i in range(self._sampling_num-1):
             p = math.ceil(math.log(torch.numel(x) / 2**31, 2))
             _, _, t, _ = x.size()
             new_t = t // (2**p)
-            log.debug(f'conv dw subsampling: using split T size {new_t}')
-            x = torch.cat([self.conv[i+2](F.pad(chunk, pad))[:,:,lp,-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
-            x = torch.cat([self.conv[i+3](F.pad(chunk, pad))[:,:,lp,-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
+            logging.debug(f'conv dw subsampling: using split T size {new_t}')
+            x = torch.cat([self.conv[i*3+2](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
+            x = torch.cat([self.conv[i*3+3](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
             x = self.conv[i+4](x) # activation
         return x
 
