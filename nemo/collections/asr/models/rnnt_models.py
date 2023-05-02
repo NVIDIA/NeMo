@@ -72,7 +72,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
         self.loss = RNNTLoss(
-            num_classes=self.joint.num_classes_with_blank - 1,
+            num_classes=self.joint.num_classes_with_blank - 1 - self.joint.num_extra_outputs,
             loss_name=loss_name,
             loss_kwargs=loss_kwargs,
             reduction=self.cfg.get("rnnt_reduction", "mean_batch"),

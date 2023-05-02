@@ -18,9 +18,9 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch
+from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTRNNTLossPytorch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import MultiblankRNNTLossNumba, RNNTLossNumba
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import MultiblankRNNTLossNumba, RNNTLossNumba, TDTRNNTLossNumba
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
@@ -458,6 +458,34 @@ class TestRNNTLossPytorch:
         pt_grads1_p_2 = base_layer.grad.clone().cpu().numpy()
 
         assert np.allclose(pt_grads1_p_2, np_grads1 + np_grads2, atol=1e-5)
+
+
+class TestTDTRNNTLoss:
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
+    def test_case_randomized_act_label(self, device):
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+            B, T, U, V = 2, 3, 3, 2  # here V is number of non blank labels
+            durations = [0, 1]
+            sigma = 0.05
+
+            acts = torch.rand([B, T, U, V + 1 + len(durations)])
+            labels = [[random.randrange(0, V) for i in range(U - 1)] for j in range(B)]
+
+            fn_pt = TDTRNNTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
+            pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+            fn_ag = TDTRNNTLossPytorch(
+                blank=V, reduction='sum', durations=durations, sigma=sigma
+            )  # ag for automatic gradient computation
+            ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
+
+            assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt-blank costs mismatch."
+            assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "tdt-blank gradient mismatch."
+
+
 
 
 class TestMultiblankRNNTLoss:

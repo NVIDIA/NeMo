@@ -112,6 +112,123 @@ class RNNTLossPytorch(Loss):
         return log_prob
 
 
+
+class TDTRNNTLossPytorch(Loss):
+    @property
+    def input_types(self):
+        """Input types definitions for CTCLoss.
+        """
+        return {
+            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "act_lens": NeuralType(tuple('B'), LengthsType()),
+            "label_lens": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Output types definitions for CTCLoss.
+        loss:
+            NeuralType(None)
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, blank, durations, reduction, sigma):
+        super().__init__()
+        self.blank = blank
+        self.durations = durations
+        self.n_durations = len(durations)
+        self.reduction = reduction
+        self.sigma = sigma
+
+    def forward(self, acts, labels, act_lens, label_lens):
+        label_acts = acts[:, :, :, : -self.n_durations]
+        duration_acts = acts[:, :, :, -self.n_durations :]
+
+        label_acts = torch.log_softmax(label_acts, -1) - self.sigma
+
+        duration_acts = torch.log_softmax(duration_acts, -1)
+
+        forward_logprob = self.compute_forward_prob(label_acts, duration_acts, labels, act_lens, label_lens)
+        losses = -forward_logprob
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, label_lens).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
+
+        return losses
+
+    def logsumexp(self, a, b):
+        ret = torch.logsumexp(torch.stack([a, b]), dim=0)
+        return ret
+
+    def compute_forward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
+        B, T, U, _ = acts.shape
+
+        log_alpha = torch.zeros(B, T, U)
+        log_alpha = log_alpha.cuda()
+        for b in range(B):
+            for t in range(T):
+                for u in range(U):
+                    if u == 0:
+                        if t == 0:
+                            log_alpha[b, t, u] = 0.0
+                        else:
+                            log_alpha[b, t, u] = -1000.0
+                            for n, l in enumerate(self.durations):
+                                if t - l >= 0 and l > 0:  # blank emission, l has to be at least 1
+                                    tmp = (
+                                        log_alpha[b, t - l, u]
+                                        + acts[b, t - l, u, self.blank]
+                                        + duration_acts[b, t - l, u, n]
+                                    )
+                                    log_alpha[b, t, u] = self.logsumexp(tmp, 1.0 * log_alpha[b, t, u])
+
+                    else:
+                        log_alpha[b, t, u] = -1000.0
+                        for n, l in enumerate(self.durations):
+                            if t - l >= 0:
+                                if l > 0:
+                                    tmp = (
+                                        log_alpha[b, t - l, u]
+                                        + acts[b, t - l, u, self.blank]
+                                        + duration_acts[b, t - l, u, n]
+                                    )
+                                    log_alpha[b, t, u] = self.logsumexp(tmp, 1.0 * log_alpha[b, t, u])
+
+                                tmp = (
+                                    log_alpha[b, t - l, u - 1]
+                                    + acts[b, t - l, u - 1, labels[b, u - 1]]
+                                    + duration_acts[b, t - l, u - 1, n]
+                                )
+                                log_alpha[b, t, u] = self.logsumexp(tmp, 1.0 * log_alpha[b, t, u])
+
+        log_probs = []
+        for b in range(B):
+            tt = torch.Tensor([-1000.0])
+            tt = tt.cuda()
+            tt = tt[0]
+            for n, l in enumerate(self.durations):
+                if act_lens[b] - l >= 0 and l > 0:
+                    bb = (
+                        log_alpha[b, act_lens[b] - l, label_lens[b]]
+                        + acts[b, act_lens[b] - l, label_lens[b], self.blank]
+                        + duration_acts[b, act_lens[b] - l, label_lens[b], n]
+                    )
+
+                    tt = self.logsumexp(bb, 1.0 * tt)
+
+            log_probs.append(tt)
+
+        log_prob = torch.stack(log_probs)
+
+        return log_prob
+
+
 class MultiblankRNNTLossPytorch(Loss):
     """
     Pure Python implementation of multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)

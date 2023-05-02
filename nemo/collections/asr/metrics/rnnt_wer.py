@@ -203,12 +203,17 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.blank_id = blank_id
         self.num_extra_outputs = joint.num_extra_outputs
         self.big_blank_durations = self.cfg.get("big_blank_durations", None)
+        self.durations = self.cfg.get("durations", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
+
+        if self.durations is not None:
+            assert blank_id != 0, 'blank_id must equal len(non_blank_vocabs) for multi-blank RNN-T models'
+
 
         if self.big_blank_durations is not None:
             if blank_id == 0:
@@ -253,17 +258,31 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None:
-                self.decoding = greedy_decode.GreedyRNNTInfer(
-                    decoder_model=decoder,
-                    joint_model=joint,
-                    blank_index=self.blank_id,
-                    max_symbols_per_step=(
-                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                    ),
-                    preserve_alignments=self.preserve_alignments,
-                    preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_method_cfg=self.confidence_method_cfg,
-                )
+                if self.durations is not None:
+                    self.decoding = greedy_decode.GreedyTDTRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_method_cfg=self.confidence_method_cfg,
+                    )
+                else:
+                    self.decoding = greedy_decode.GreedyRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_method_cfg=self.confidence_method_cfg,
+                    )
             else:
                 self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -280,17 +299,33 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         elif self.cfg.strategy == 'greedy_batch':
             if self.big_blank_durations is None:
-                self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                    decoder_model=decoder,
-                    joint_model=joint,
-                    blank_index=self.blank_id,
-                    max_symbols_per_step=(
-                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                    ),
-                    preserve_alignments=self.preserve_alignments,
-                    preserve_frame_confidence=self.preserve_frame_confidence,
-                    confidence_method_cfg=self.confidence_method_cfg,
-                )
+                if self.durations is not None:
+                    self.decoding = greedy_decode.GreedyBatchedTDTRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_method_cfg=self.confidence_method_cfg,
+                    )
+                else:
+                    self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        max_symbols_per_step=(
+                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                        ),
+                        preserve_alignments=self.preserve_alignments,
+                        preserve_frame_confidence=self.preserve_frame_confidence,
+                        confidence_method_cfg=self.confidence_method_cfg,
+                    )
+
+
             else:
                 self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -481,10 +516,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank and possibly big blank tokens
             if self.blank_id != 0:
-                num_extra_outputs = 0
-                if self.big_blank_durations is not None:
-                    num_extra_outputs += len(self.big_blank_durations)
+                # use < here works both for standard and multi-blank RNN-T.
+                prediction = [p for p in prediction if p < self.blank_id]
+            elif self.blank_id != 0 and self.big_blank_durations is not None:
+                num_extra_outputs = len(self.big_blank_durations)
                 prediction = [p for p in prediction if p < self.blank_id - num_extra_outputs]
+
+                # Simply remove any blank and possibly big blank tokens
             else:
                 prediction = [p for p in prediction if p != self.blank_id]
 
@@ -1084,7 +1122,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Args:
             tokens: List of int representing the token ids.
 
-        Returns:
+        eturns:
             A decoded string.
         """
         hypothesis = ''.join(self.decode_ids_to_tokens(tokens))
