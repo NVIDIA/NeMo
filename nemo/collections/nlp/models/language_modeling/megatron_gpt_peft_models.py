@@ -171,6 +171,7 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
 
         super().__init__(cfg, trainer)
 
+
 class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     """
     MegatronGPTInfusedAdapterModel is a model that combines a base model (GPTModel) with a "Infused Adapter that can Inhibiting and Amplify Inner Activations", known as IA3.
@@ -301,7 +302,6 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         }
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
-
 
 
 class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
