@@ -53,10 +53,23 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
 
-
-    @abc.abstractmethod
-    def init_peft_modules(self,):
-        return
+    def init_peft_modules(self):
+        """ 
+        Randomly initialize the peft params and add them to the appropriate modules.
+        """
+        assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
+        assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
+        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
+        for _, module in self.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=peft_key, cfg=peft_cfg,
+                        )
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
+        return True
 
     def setup(self, stage=None):
         super().setup(stage)
@@ -158,23 +171,6 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
 
         super().__init__(cfg, trainer)
 
-    def init_peft_modules(self):
-        """ 
-        Randomly initialize the adapter params and add them to the appropriate modules.
-        """
-        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key, cfg=peft_cfg,
-                        )
-        logging.info(f"After adding PEFT params:\n{self.summarize()}")
-        return True
-
-
 class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     """
     MegatronGPTInfusedAdapterModel is a model that combines a base model (GPTModel) with a "Infused Adapter that can Inhibiting and Amplify Inner Activations", known as IA3.
@@ -208,17 +204,6 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
                 raise ValueError(f"PEFT Key {k} is unknown.")
         super().__init__(cfg, trainer)
 
-    def init_peft_modules(self):
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(name=peft_key, cfg=peft_cfg)
-
-        logging.info(f"After adding PEFT params:\n{self.summarize()}")
-        return True
-
 
 class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
     """
@@ -243,17 +228,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         if not self.first_stage_of_pipeline():
             # There are no params to add if we are not in the first state of the pipeline
             return True
-
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key, cfg=peft_cfg,
-                        )
-
-        logging.info(f"After adding PEFT params:\n{self.summarize()}")
+        super().init_peft_modules()
         return True
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -327,21 +302,6 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
-    def init_peft_modules(self):
-        """ 
-        Randomly initialize the peft params and add them to the appropriate modules.
-        """
-        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key, cfg=peft_cfg,
-                        )
-        logging.info(f"After adding PEFT params:\n{self.summarize()}")
-        return True
 
 
 class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
@@ -388,19 +348,3 @@ class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
             self.name_key_to_cfg[k] = adapter_cfg
 
         super().__init__(cfg, trainer)
-
-    def init_peft_modules(self):
-        """ 
-        Randomly initialize the adapter params and add them to the appropriate modules.
-        """
-        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key, cfg=peft_cfg,
-                        )
-        logging.info(f"After adding PEFT params:\n{self.summarize()}")
-        return True
