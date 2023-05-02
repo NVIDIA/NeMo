@@ -69,7 +69,7 @@ def collate_train_dataset(
     """
     max_length = 0
     max_length_for_subwords = 0
-    max_length_for_spans = 0
+    max_length_for_spans = 1  # to avoid empty tensor
     for (
         input_ids,
         input_mask,
@@ -88,8 +88,6 @@ def collate_train_dataset(
             max_length_for_subwords = len(input_ids_for_subwords)
         if len(spans) > max_length_for_spans:
             max_length_for_spans = len(spans)
-    if max_length_for_spans == 0:  # to avoid empty tensor
-        max_length_for_spans = 1
 
     padded_input_ids = []
     padded_input_mask = []
@@ -170,9 +168,10 @@ def collate_train_dataset(
 
 
 def collate_test_dataset(
-    batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
     pad_token_id: int,
 ) -> Tuple[
+    torch.LongTensor,
     torch.LongTensor,
     torch.LongTensor,
     torch.LongTensor,
@@ -183,11 +182,12 @@ def collate_test_dataset(
 ]:
     """collate batch of test items 
     Args:
-        batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos).
+        batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, word_indices).
         pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)
     """
     max_length = 0
     max_length_for_subwords = 0
+    max_length_for_word_indices = 1  # to avoid empty tensor
     for (
         input_ids,
         input_mask,
@@ -196,11 +196,14 @@ def collate_test_dataset(
         input_mask_for_subwords,
         segment_ids_for_subwords,
         character_pos_to_subword_pos,
+        word_indices,
     ) in batch:
         if len(input_ids) > max_length:
             max_length = len(input_ids)
         if len(input_ids_for_subwords) > max_length_for_subwords:
             max_length_for_subwords = len(input_ids_for_subwords)
+        if len(word_indices) > max_length_for_word_indices:
+            max_length_for_word_indices = len(word_indices)
 
     padded_input_ids = []
     padded_input_mask = []
@@ -209,6 +212,7 @@ def collate_test_dataset(
     padded_input_mask_for_subwords = []
     padded_segment_ids_for_subwords = []
     padded_character_pos_to_subword_pos = []
+    padded_word_indices = []
     for (
         input_ids,
         input_mask,
@@ -217,6 +221,7 @@ def collate_test_dataset(
         input_mask_for_subwords,
         segment_ids_for_subwords,
         character_pos_to_subword_pos,
+        word_indices,
     ) in batch:
         if len(input_ids) < max_length:
             pad_length = max_length - len(input_ids)
@@ -248,6 +253,17 @@ def collate_test_dataset(
             padded_input_mask_for_subwords.append(input_mask_for_subwords)
             padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
 
+        if len(word_indices) < max_length_for_word_indices:
+            pad_length = max_length_for_word_indices - len(word_indices)
+            # we use [0, 1] as padding value for word_indices, it corresponds to [CLS] token, which is ignored and won't affect anything
+            p = np.zeros((max_length_for_word_indices, 2), dtype=int)
+            p[:, 1] = 1
+            padded_word_indices.append(p)
+            if len(word_indices) > 0:
+                padded_word_indices[-1][: word_indices.shape[0], : word_indices.shape[1]] = word_indices  # copy actual word_indices to the beginning
+        else:
+            padded_word_indices.append(word_indices)
+
     return (
         torch.LongTensor(padded_input_ids),
         torch.LongTensor(padded_input_mask),
@@ -256,6 +272,7 @@ def collate_test_dataset(
         torch.LongTensor(padded_input_mask_for_subwords),
         torch.LongTensor(padded_segment_ids_for_subwords),
         torch.LongTensor(padded_character_pos_to_subword_pos),
+        torch.LongTensor(padded_word_indices),
     )
 
 
@@ -454,7 +471,7 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
-               """
+        """
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), MaskType()),
@@ -463,6 +480,7 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
             "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
             "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
             "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
+            "word_indices": NeuralType(('B', 'T', 'C'), IntType()),
         }
 
     def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
@@ -482,6 +500,7 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
         input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
         segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
         character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int64)
+        word_indices = np.array(example.features["word_indices"], dtype=np.int16)
         return (
             input_ids,
             input_mask,
@@ -490,6 +509,7 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
             input_mask_for_subwords,
             segment_ids_for_subwords,
             character_pos_to_subword_pos,
+            word_indices,
         )
 
     def _collate_fn(self, batch):

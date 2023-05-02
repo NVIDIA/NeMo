@@ -1,4 +1,4 @@
-# Spellchecking model for ASR Customization
+# SpellMapper - spellchecking model for ASR Customization
 
 This model is inspired by Microsoft's paper https://arxiv.org/pdf/2203.00888.pdf, but does not repeat its implementation.
 The goal is to build a model that gets as input a single ASR hypothesis (text) and a vocabulary of custom words/phrases and predicts which fragments in the ASR hypothesis should be replaced by which custom words/phrases if any.
@@ -9,7 +9,6 @@ In order to get misspelled predictions we feed these data to TTS model and then 
 Having a "parallel" corpus of "correct + misspelled" phrases, we use statistical machine translation techniques to create a dictionary of possible ngram mappings with their respective frequencies.
 We create an auxiliary algorithm that takes as input a sentence (ASR hypothesis) and a large custom dictionary (e.g. 5000 phrases) and selects top 10 candidate phrases that are probably contained in this sentence in a misspelled way.
 The task of our final neural model is to predict which fragments in the ASR hypothesis should be replaced by which of top-10 candidate phrases if any.
-We use Spoken Wikipedia dataset for testing.
 
 The pipeline consists of multiple steps:
 
@@ -37,7 +36,7 @@ The pipeline consists of multiple steps:
    Generate files config.json, label_map.txt, semiotic_classes.txt.
    `dataset_preparation/generate_configs.sh`
    [Optional] Convert training dataset to tarred files.
-   `dataset_preparation/convert_dataset_to_tarred.sh`
+   `convert_dataset_to_tarred.sh`
  
 6. Train spellchecking model.
    `run_training.sh`
