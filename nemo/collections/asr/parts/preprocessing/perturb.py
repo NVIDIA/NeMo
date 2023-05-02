@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import copy
+import inspect
 import io
 import os
 import random
@@ -1222,9 +1223,9 @@ def process_augmentations(augmenter, global_rank=0, world_size=1) -> Optional[Au
 
             try:
                 augmentation_class = perturbation_types[augment_name]
-                if 'global_rank' in augmentation_class.__dict__['__init__'].__code__.co_varnames:
+                if 'global_rank' in inspect.signature(augmentation_class).parameters:
                     augment_kwargs['global_rank'] = global_rank
-                if 'world_size' in augmentation_class.__dict__['__init__'].__code__.co_varnames:
+                if 'world_size' in inspect.signature(augmentation_class).parameters:
                     augment_kwargs['world_size'] = world_size
                 augmentation = augmentation_class(**augment_kwargs)
                 augmentations.append([prob, augmentation])
