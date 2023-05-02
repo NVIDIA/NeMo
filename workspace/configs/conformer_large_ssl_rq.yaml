@@ -20,15 +20,19 @@
 # with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
 # With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
-name: "Conformer-SSL"
+name: "Conformer-SSL-RQ"
 
 model:
   sample_rate: 16000
-
+  num_classes: 8192
+  num_books: 1
+  code_dim: 16
+  squeeze_single: false
+  
   train_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
-    batch_size: 16 # you may increase batch_size if your memory allows
+    batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 8
     pin_memory: false
@@ -47,13 +51,12 @@ model:
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
-    batch_size: 16 # you may increase batch_size if your memory allows
+    batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: false
     num_workers: 8
     pin_memory: true
     use_start_end_token: false
     min_duration: 8.0
-
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -70,13 +73,33 @@ model:
     pad_to: 16
     pad_value: 0.0
 
+  # spec_augment is not actually used, just to avoid init error
   spec_augment:
-    _target_: nemo.collections.asr.modules.MaskedPatchAugmentation
-    freq_masks: 3
-    freq_width: 20
-    patch_size: 48
-    mask_patches: 0.5
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 0 # set to zero to disable it
+    # you may use lower time_masks for smaller models to have a faster convergence
+    time_masks: 0 # set to zero to disable it
+    freq_width: 27
+    time_width: 0.05
 
+  mask_embedding:
+    freeze: true
+
+  masking:
+    _target_: nemo.collections.asr.modules.RandomBlockMaskingAugmentation
+    block_size: 40
+    mask_prob: 0.1
+
+  quantizer:
+    _target_: nemo.collections.asr.modules.RandomProjectionVectorQuantizer
+    feat_in: ${model.preprocessor.features}
+    code_dim: ${model.code_dim}
+    num_books: ${model.num_books}
+    num_classes: ${model.num_classes}
+    dist_fn: "l2"  # choices=["l2", "cosine"]
+    freeze: true
+    squeeze_single: ${model.squeeze_single}
+  
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
@@ -111,60 +134,24 @@ model:
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
-  decoder_out: 128
+  decoder:
+    _target_: nemo.collections.asr.modules.MultiSoftmaxDecoder
+    feat_in: ${model.encoder.d_model}
+    num_classes: ${model.num_classes}
+    num_decoders: ${model.num_books}
+    squeeze_single: ${model.squeeze_single}
+    use_bias: true
 
-  loss_list:
-    contrastive:
-      decoder:
-        _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
-        feat_in: ${model.encoder.d_model}
-        feat_hidden: 128
-        # features in hidden layer of decoder
-        feat_out: ${model.decoder_out}
-        stride_layers: 0
-        # if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
-        # be added to the decoder (here stride and combine_time_steps are both 4)
-        non_stride_layers: 0
-      loss:
-        _target_: nemo.collections.asr.losses.ContrastiveLoss
-        in_dim: ${model.preprocessor.features}
-        proj_dim: ${model.decoder_out}
-        combine_time_steps: 4 # how many spectrogram time steps are used for one target/representation for contrastive task
-        quantized_targets: true # should quantizer or linear layer be used
-        # (quantizer is required to extract pseudo-labels for other losses)
-        codebook_size: 300 # number of vectors in the quantization codebook per group
-        num_groups: 2 # number of groups in the quantizer codebook
-        num_negatives: 100 # number of sampled negatives for each target
-        sample_from_same_utterance_only: true # should negatives be sampled only from the same utterance
-        sample_from_non_masked: false # should negatives be sampled from non-masked steps
-
-    mlm:
-      decoder:
-        _target_: nemo.collections.asr.modules.ConvASRDecoder
-        feat_in: ${model.encoder.d_model}
-        num_classes: 90000
-        # set this to be equal to codebook_size^groups in the contrastive loss
-      loss:
-        _target_: nemo.collections.asr.losses.MLMLoss
-        combine_time_steps: 4
-      targets_from_loss: "contrastive"
-      # since this loss requires targets, we can either get them from a manifest or from a quantized contrastive loss
-      loss_alpha: 1000.
-      # multiplier applied to this loss relative to others
-      transpose_encoded: false
-      # transposing input may be necessary depending on which layer is used as input to decoder
-      start_step: 0
-      # determines what global step this loss starts being used at;
-      # this can be set to a higher number if your training is long enough,
-      # which may increase early training stability
-      output_from_layer: null
-      # if we wanted to use outputs from non-final encoder layer as input to this decoder,
-      # the layer name should be specified here
-
+  loss:
+    _target_: nemo.collections.asr.losses.MultiMLMLoss
+    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio
+    mask_threshold: 0.8
+    num_decoders: ${model.num_books}
+    squeeze_single: ${model.squeeze_single}
 
   optim:
     name: adamw
-    lr: 2.0
+    lr: 5.0
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
@@ -187,7 +174,7 @@ trainer:
   accelerator: auto
   strategy: ddp
   accumulate_grad_batches: 1
-  gradient_clip_val: 1.0
+  gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
   enable_progress_bar: True
@@ -211,8 +198,8 @@ exp_manager:
     save_top_k: 5
 
   # you need to set these two to True to continue the training
-  resume_if_exists: false
-  resume_ignore_no_checkpoint: false
+  resume_if_exists: true
+  resume_ignore_no_checkpoint: true
 
   # You may use this section to create a W&B logger
   create_wandb_logger: false

@@ -88,7 +88,7 @@ model:
   masking:
     _target_: nemo.collections.asr.modules.RandomBlockMaskingAugmentation
     block_size: 40
-    mask_prob: 0.2
+    mask_prob: 0.1
 
   quantizer:
     _target_: nemo.collections.asr.modules.RandomProjectionVectorQuantizer
@@ -104,8 +104,8 @@ model:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
-    n_layers: 18
-    d_model: 512
+    n_layers: 24
+    d_model: 1024
 
     # Sub-sampling params
     subsampling: striding # vggnet, striding, stacking or stacking_norm, dw_striding
@@ -140,6 +140,7 @@ model:
     num_classes: ${model.num_classes}
     num_decoders: ${model.num_books}
     squeeze_single: ${model.squeeze_single}
+    use_bias: true
 
   loss:
     _target_: nemo.collections.asr.losses.MultiMLMLoss

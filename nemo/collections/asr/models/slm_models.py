@@ -81,7 +81,12 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        apply_mask=False,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
@@ -98,7 +103,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
 
         _, tokens = self.quantizer(input_signal=processed_signal)
 
-        if self.training:
+        if apply_mask:
             masked_signal, masks = self.mask_processor(
                 input_feats=processed_signal, input_lengths=processed_signal_length, mask_value=self.mask_embedding
             )
@@ -115,7 +120,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
-                processed_signal=input_signal, processed_signal_length=input_signal_length
+                processed_signal=input_signal, processed_signal_length=input_signal_length, apply_mask=True
             )
         else:
             log_probs, encoded_len, masks, tokens = self.forward(
@@ -136,11 +141,11 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
-                processed_signal=input_signal, processed_signal_length=input_signal_length
+                processed_signal=input_signal, processed_signal_length=input_signal_length, apply_mask=True
             )
         else:
             log_probs, encoded_len, masks, tokens = self.forward(
-                input_signal=input_signal, input_signal_length=input_signal_length
+                input_signal=input_signal, input_signal_length=input_signal_length, apply_mask=True
             )
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
