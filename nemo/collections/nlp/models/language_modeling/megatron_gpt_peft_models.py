@@ -13,12 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This code has been adapted from the following private repo: https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/tree/prompt-learning/prefix_tuning_v2
-# Adapted by: @adithyare
-
-
-import abc
-
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -104,8 +98,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
-            # at this stage only adapter params will appear in the state_dict arg, so we only update those while the rest of the model is frozen.
+            # at this stage only PEFT params will appear in the state_dict arg
+            # so we only update those while the rest of the model is frozen.
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
+            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the 
+            # safety in strict=True anymore.
             assert set(state_dict.keys()) == self.adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
@@ -135,7 +132,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
 
 class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
     """
-    MegatronGPTAdapterLearningModel is a model that combines a base model (GPTModel) with a adapters.
+    MegatronGPTAdapterLearningModel is a model that combines a base model (GPTSFTModel) with a adapters.
     This class only supports the canonical Adapter training described in Houlsby et al. (https://arxiv.org/pdf/1902.00751.pdf)
 
     Two adapter's are inserted into each Transformer layer in the base GPT Model.
@@ -174,7 +171,7 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
 
 class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     """
-    MegatronGPTInfusedAdapterModel is a model that combines a base model (GPTModel) with a "Infused Adapter that can Inhibiting and Amplify Inner Activations", known as IA3.
+    MegatronGPTInfusedAdapterModel is a model that combines a base model (GPTSFTModel) with a "Infused Adapter that can Inhibiting and Amplify Inner Activations", known as IA3.
     This class supports the addition of IA3 into a transformer based LM as described in Liu et al. (https://arxiv.org/pdf/2205.05638.pdf)
 
     Three adapter's are inserted into each Transformer layer in the base GPT Model. Each adapter is basically a vector that simply scales the key, value or ffn hidden representations.
@@ -208,7 +205,11 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
 
 class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
     """
-    Mixin based implementation of p-tuning model for PEFT tuning.
+    MegatronGPTPTuningModel is a model that combines a base model (GPTSFTModel) with a p-tuning prefix in the 
+    input word embedding representations using a prompt-encoder as descripted in Liu et al. https://arxiv.org/pdf/2103.10385.pdf
+
+    The mixin framework adds the output of prompt-encoder (i.e. the virtual embeddings) inside
+    nemo/collections/nlp/modules/common/megatron/language_model.py
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -226,6 +227,11 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
     def init_peft_modules(self,):
+        """ 
+        Initialize the p-tuning prompt encoder in the mixin.
+        This should only happen in the first stage of the pipeline unlike other PEFT methods like Lora or Adapters
+        because p-tuning only adds params at input to the encoder layer.
+        """
         if not self.first_stage_of_pipeline():
             # There are no params to add if we are not in the first state of the pipeline
             return True
@@ -236,22 +242,19 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         if self.setup_complete:
             if self.first_stage_of_pipeline():
                 return self.get_peft_state_dict()
-            else:
-                # if we are not in the first state of pipeline after setup is done
-                # there should be no params in the state_dict
-                return {}
+            # if we are not in the first state of pipeline after setup is done
+            # there should be no params in the state_dict
+            return {}
         else:
             return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
             if self.first_stage_of_pipeline():
-                assert set(state_dict.keys()) == self.adapter_keys
-                super().load_state_dict(state_dict, strict=False)
-            else:
                 # if we are not in the first state of pipeline after setup is done
                 # there should be no params to load...
-                pass
+                assert set(state_dict.keys()) == self.adapter_keys
+                super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
 
@@ -266,7 +269,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
 
 class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
     """
-    want to combine adapters and p-tuning? Why not? they are orthogonal methods.
+    Want to combine adapters and p-tuning? Why not? they are orthogonal methods.
     This class includes both sets of params.
     """
 
@@ -306,14 +309,12 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
 
 class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
     """
-    MegatronGPTAdapterLearningModel is a model that combines a base model (GPTModel) with a adapters.
-    This class only supports the canonical Adapter training described in Houlsby et al. (https://arxiv.org/pdf/1902.00751.pdf)
+    MegatronGPTLoRAModel is a model that combines a base model (GPTSFTModel) with a low-rank adapters.
+    The lora adapters will be added in `nemo/collections/nlp/modules/common/megatron/attention.py`
+    The implementation is based on Hu et al. nemo/collections/nlp/modules/common/megatron/attention.py
 
-    Two adapter's are inserted into each Transformer layer in the base GPT Model.
-
-    It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    A single low-rank feedfowrad layer is used in parallel with the KQV projection layer.
+    TODO: Add support to also include an option to adda low-rank adapter in the output projection layer.
     """
 
     def __init__(
