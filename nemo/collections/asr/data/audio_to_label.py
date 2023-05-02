@@ -399,7 +399,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             Defaults to False.
         is_regression_task (bool): Whether the dataset is for a regression task instead of classification.
             Defaults to False.
-        cal_labels_occurrence (bool): Wether to calculate occurrence of labels
+        cal_labels_occurrence (bool): Whether to calculate occurrence of labels
             Defaults to False.
     """
 
@@ -892,7 +892,7 @@ class AudioToMultiLabelDataset(Dataset):
             Defaults to False.
         is_regression_task (bool): Whether the dataset is for a regression task instead of classification.
             Defaults to False.
-        cal_labels_occurrence (bool): Wether to calculate occurrence of labels
+        cal_labels_occurrence (bool): Whether to calculate occurrence of labels
             Defaults to False.
         delimiter (Optional[str]): Delimiter to use when spliting the label string, default to None.
         normalize_audio_db (bool): Whether to normalize audio signal to a target db, default to False.
