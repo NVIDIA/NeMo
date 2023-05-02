@@ -879,7 +879,6 @@ def compute_multiblank_grad_kernel(
             idx += GPU_RNNT_THREAD_SIZE
 
 
-
 @cuda.jit(device=True, inline=True)
 def logp_duration(acts: torch.Tensor, maxT: int, maxU: int, num_durations: int, mb: int, t: int, u: int, v: int):
     col = (mb * maxT + t) * maxU + u

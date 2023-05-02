@@ -2627,7 +2627,7 @@ class GreedyBatchedTDTRNNTInfer(_GreedyRNNTInfer):
             blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
 
             # mask for if the utterance in the batch should stay in the same frame.
-#            stay_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
+            #            stay_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
 
             # Get max sequence length
             max_out_len = out_len.max()
@@ -2664,8 +2664,8 @@ class GreedyBatchedTDTRNNTInfer(_GreedyRNNTInfer):
                     # Batched joint step - Output = [B, V + 1 + num-big-blanks]
                     # If preserving per-frame confidence, log_normalize must be true
                     joined = self._joint_step(f, g, log_normalize=None)
-                    logp = joined[:, 0, 0, :-len(self.durations)]
-                    duration_logp = joined[:, 0, 0, -len(self.durations):]
+                    logp = joined[:, 0, 0, : -len(self.durations)]
+                    duration_logp = joined[:, 0, 0, -len(self.durations) :]
 
                     if logp.dtype != torch.float32:
                         logp = logp.float()
@@ -2678,7 +2678,7 @@ class GreedyBatchedTDTRNNTInfer(_GreedyRNNTInfer):
                     skip = self.durations[int(torch.min(dk))]
 
                     if blank_mask.all():
-#                    print("SKIP is", skip)
+                        #                    print("SKIP is", skip)
                         if skip == 0:
                             skip = 1
                     need_to_stay = skip == 0
@@ -2954,5 +2954,3 @@ class GreedyBatchedTDTRNNTInfer(_GreedyRNNTInfer):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
 
         return hypotheses
-
-

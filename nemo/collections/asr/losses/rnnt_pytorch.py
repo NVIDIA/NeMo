@@ -112,7 +112,6 @@ class RNNTLossPytorch(Loss):
         return log_prob
 
 
-
 class TDTRNNTLossPytorch(Loss):
     @property
     def input_types(self):

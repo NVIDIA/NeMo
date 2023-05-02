@@ -20,7 +20,11 @@ import torch
 
 from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTRNNTLossPytorch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import MultiblankRNNTLossNumba, RNNTLossNumba, TDTRNNTLossNumba
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import (
+    MultiblankRNNTLossNumba,
+    RNNTLossNumba,
+    TDTRNNTLossNumba,
+)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
@@ -484,8 +488,6 @@ class TestTDTRNNTLoss:
 
             assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt-blank costs mismatch."
             assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "tdt-blank gradient mismatch."
-
-
 
 
 class TestMultiblankRNNTLoss:
