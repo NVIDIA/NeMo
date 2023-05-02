@@ -122,15 +122,20 @@ def main(cfg) -> None:
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(peft_model_cfg):
+        # update the model config of the trained model with params we want to set at inference time.
         peft_model_cfg.precision = cfg.trainer.precision
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
-        peft_model_cfg.global_batch_size = cfg.model.global_batch_size
-        peft_model_cfg.micro_batch_size = cfg.model.micro_batch_size
+    
+    with open_dict(cfg):
+        # update the config with the trained model config
+        # required for hydra interpolation to work inside cfg.inference
+        cfg.inference.add_BOS = peft_model_cfg.data.test_ds.add_bos
+        cfg.inference.tokens_to_generate = peft_model_cfg.data.test_ds.tokens_to_generate
 
     save_restore_connector = PEFTSaveRestoreConnector(
         peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
     )
-    if os.path.isdir(cfg.model.restore_from_path):
+    if os.path.isdir(peft_model_cfg.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
     peft_cls = _get_peft_scheme(peft_model_cfg)
     model = peft_cls.restore_from(
@@ -143,9 +148,9 @@ def main(cfg) -> None:
     model.freeze()
     _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
     request_dl = DataLoader(
-        dataset=_test_ds[0], batch_size=peft_model_cfg.global_batch_size, collate_fn=_test_ds[0].collate_fn,
+        dataset=_test_ds[0], batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds[0].collate_fn,
     )
-    config = OmegaConf.to_container(cfg.inference)
+    config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
     if model.global_rank == 0:

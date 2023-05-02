@@ -45,6 +45,7 @@ class GPTSFTDataset(Dataset):
         index_mapping_dir: str = None,
         prompt_template: str = None,
         virtual_tokens: int = 0,
+        tokens_to_generate: int = 0,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -86,6 +87,7 @@ class GPTSFTDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
+        self.tokens_to_generate = tokens_to_generate
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
@@ -220,7 +222,7 @@ class GPTSFTDataset(Dataset):
             return [item.tolist() for item in x]
         return x
 
-    def _round_to_nearest(self, n, m):
+    def _ceil_to_nearest(self, n, m):
         return (n + m - 1) // m * m
 
     def _collate_item(self, item, max_length, pad_id):
@@ -260,12 +262,12 @@ class GPTSFTDataset(Dataset):
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
 
-        max_length = max([len(x) for x in input_ids])
+        max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
-            max_length = min(self.max_seq_length, self._round_to_nearest(max_length, 8))
+            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]
