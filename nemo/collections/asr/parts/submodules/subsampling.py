@@ -334,11 +334,13 @@ class ConvSubsampling(torch.nn.Module):
         for i in range(self._sampling_num-1):
             p = math.ceil(math.log(torch.numel(x) / 2**31, 2))
             _, _, t, _ = x.size()
-            new_t = t // (2**p)
+            new_t = int(t // (2**p))
             logging.debug(f'conv dw subsampling: using split T size {new_t}')
-            x = torch.cat([self.conv[i*3+2](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
-            x = torch.cat([self.conv[i*3+3](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
-            x = self.conv[i+4](x) # activation
+            # x = torch.cat([self.conv[i*3+2](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
+            x = torch.cat([self.conv[i*3+2](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
+            # x = torch.cat([self.conv[i*3+3](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
+            x = torch.cat([self.conv[i*3+3](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
+            x = self.conv[i*3+4](x) # activation
         return x
 
 
