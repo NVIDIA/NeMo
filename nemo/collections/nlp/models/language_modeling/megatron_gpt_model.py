@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from functools import partial
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -359,15 +360,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_o2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
+
+        # Megatron expects each model chunk has data loader
+        model = self.model if isinstance(self.model, list) else [self.model]
+        dataloader_iter = [dataloader_iter] * len(model)
 
         # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=dataloader_iter,
-            model=[self.model],
+            model=model,
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
@@ -375,6 +389,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
             enable_autocast=True,
+            no_sync_func=no_sync_func,
+            grad_sync_func=grad_sync_func,
+            param_sync_func=param_sync_func,
         )
 
         # only the last stages of the pipeline return losses
@@ -639,10 +656,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside validation_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
+        # Megatron expects each model chunk has data loader
+        model = self.model if isinstance(self.model, list) else [self.model]
+        dataloader_iter = [dataloader_iter] * len(model)
+
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
             data_iterator=dataloader_iter,
-            model=[self.model],
+            model=model,
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
@@ -1021,8 +1042,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return self.model.parameters()
 
     def _reset_activation_checkpointing_args(self):
-        """ Disables activation checkpointing completely and saves the values so that 
-            _restore_activation_checkpointing_args can restore them later. This function must always be 
+        """ Disables activation checkpointing completely and saves the values so that
+            _restore_activation_checkpointing_args can restore them later. This function must always be
             called before _restore_activation_checkpointing_args.
         """
         # Store values to restore them later.
@@ -1045,8 +1066,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
-        """ Restores the activation checkpointing parameters using the values saved by  
-            _reset_activation_checkpointing_args. This function must never be called before 
+        """ Restores the activation checkpointing parameters using the values saved by
+            _reset_activation_checkpointing_args. This function must never be called before
             _reset_activation_checkpointing_args.
         """
         # Restore config values.
@@ -1065,8 +1086,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
     def _reset_sequence_parallelism_args(self):
-        """ Disables sequence parallelism completely and saves the values so that 
-            _restore_sequence_parallelism_args can restore them later. This function must always be 
+        """ Disables sequence parallelism completely and saves the values so that
+            _restore_sequence_parallelism_args can restore them later. This function must always be
             called before _restore_sequence_parallelism_args.
         """
         # Store values to restore them later.
@@ -1081,8 +1102,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.language_model.encoder.sequence_parallel = None
 
     def _restore_sequence_parallelism_args(self):
-        """ Restores the sequence parallelism parameters using the values saved by  
-            _reset_sequence_parallelism_args. This function must never be called before 
+        """ Restores the sequence parallelism parameters using the values saved by
+            _reset_sequence_parallelism_args. This function must never be called before
             _reset_sequence_parallelism_args.
         """
         # Restore config values.
