@@ -53,7 +53,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
 
-
     @abc.abstractmethod
     def init_peft_modules(self,):
         return

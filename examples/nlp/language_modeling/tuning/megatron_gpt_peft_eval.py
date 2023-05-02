@@ -20,7 +20,6 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader
-from nemo.collections.nlp.models.nlp_model import NLPModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
@@ -30,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTPEFTModel,
     MegatronGPTPTuningModel,
 )
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -121,7 +121,7 @@ def main(cfg) -> None:
     )
     if os.path.isdir(peft_model_cfg.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    #peft_cls = _get_peft_scheme(peft_model_cfg)
+    # peft_cls = _get_peft_scheme(peft_model_cfg)
     model = NLPModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
