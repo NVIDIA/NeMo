@@ -463,7 +463,7 @@ def add_casts_around_norms(model: nn.Module):
     """
     Function to put additional to/from float32 casts around operations known to require full precision.
     It was used with an extra post-parse script to have TRT preserve extra precision when --fp16 needed.
-    Should not be needed with TRT 8.6.1+
+    Should not be needed with TRT 8.6.1 or later.
     """
     default_cast_replacements = {
         "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
