@@ -43,7 +43,8 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Create mapping from speaker names to numerical speaker indices.",
     )
     parser.add_argument(
         "--manifest_paths", required=True, type=str, help="Path to training manifests, comma delimited",
