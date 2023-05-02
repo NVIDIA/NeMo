@@ -32,8 +32,8 @@ exp_manager:
     save_nemo_on_train_end: True
     filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
-    always_save_nemo: True
-    save_best_model: False
+    always_save_nemo: False
+    save_best_model: True
   create_early_stopping_callback: True
   early_stopping_callback_params:
     monitor: "val_loss"
@@ -68,7 +68,7 @@ model:
   # of each chunk at the specified granularity
   # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: null # not used with 'selective'
-  answer_only_loss: False # not used right now
+  answer_only_loss: True
   gradient_as_bucket_view: False
 
   hidden_dropout: 0.0
