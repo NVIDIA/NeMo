@@ -239,6 +239,10 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         return True
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """ 
+        Reimplement state_dict for ptuning because we also need to check the stage of the pipeline.
+        The check is required to make pp>1 to work.
+        """
         if self.setup_complete:
             if self.first_stage_of_pipeline():
                 return self.get_peft_state_dict()
@@ -249,6 +253,10 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
+        """ 
+        Reimplement load_state_dict for ptuning because we also need to check the stage of the pipeline.
+        The check is required to make pp>1 to work.
+        """
         if self.setup_complete:
             if self.first_stage_of_pipeline():
                 # if we are not in the first state of pipeline after setup is done
