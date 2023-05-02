@@ -731,7 +731,7 @@ class SpeakerEncoder(NeuralModule):
     @property
     def input_types(self):
         return {
-            "batch_size": NeuralType(),
+            "batch_size": NeuralType(optional=True),
             "speaker": NeuralType(('B'), Index(), optional=True),
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
@@ -746,7 +746,7 @@ class SpeakerEncoder(NeuralModule):
     def overwrite_precomputed_emb(self, emb):
         self.precomputed_emb = torch.nn.Parameter(emb)
 
-    def forward(self, batch_size, speaker=None, reference_spec=None, reference_spec_lens=None):
+    def forward(self, batch_size=None, speaker=None, reference_spec=None, reference_spec_lens=None):
         embs = None
 
         # Get Precomputed speaker embedding
