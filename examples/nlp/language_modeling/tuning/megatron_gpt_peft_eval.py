@@ -109,7 +109,7 @@ def main(cfg) -> None:
         # update the model config of the trained model with params we want to set at inference time.
         peft_model_cfg.precision = cfg.trainer.precision
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
-    
+
     with open_dict(cfg):
         # update the config with the trained model config
         # required for hydra interpolation to work inside cfg.inference
@@ -132,7 +132,9 @@ def main(cfg) -> None:
     model.freeze()
     _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
     request_dl = DataLoader(
-        dataset=_test_ds[0], batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds[0].collate_fn,
+        dataset=_test_ds[0],
+        batch_size=peft_model_cfg.data.test_ds.global_batch_size,
+        collate_fn=_test_ds[0].collate_fn,
     )
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
