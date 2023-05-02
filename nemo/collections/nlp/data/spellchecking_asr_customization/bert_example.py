@@ -40,6 +40,7 @@ class BertExample(object):
         input_mask_for_subwords: List[int],
         segment_ids_for_subwords: List[int],
         character_pos_to_subword_pos: List[int],
+        word_indices: List[Tuple[int, int]],
         labels_mask: List[int],
         labels: List[int],
         spans: List[Tuple[int, int, int]],
@@ -60,10 +61,11 @@ class BertExample(object):
             input_mask_for_subwords: list of bools with 0s in place of input_ids_for_subwords to be masked
             segment_ids_for_subwords: same as segment_ids but for input_ids_for_subwords
             character_pos_to_subword_pos: list of size=len(input_ids), value=(position of corresponding subword in input_ids_for_subwords) 
+            word_indices: list of tuples (start_position, end_position), end is exclusive
             labels_mask: bool tensor with 0s in place of label tokens to be masked
             labels: indices of semiotic classes which should be predicted from each of the
                 corresponding input tokens
-            spans: list of tuples (class_id, start_wordpiece_idx, end_wordpiece_idx), end is exclusive
+            spans: list of tuples (class_id, start_position, end_position), end is exclusive
             default_label: The default label
         """
         input_len = len(input_ids)
@@ -94,58 +96,13 @@ class BertExample(object):
                 ("input_mask_for_subwords", input_mask_for_subwords),
                 ("segment_ids_for_subwords", segment_ids_for_subwords),
                 ("character_pos_to_subword_pos", character_pos_to_subword_pos),
+                ("word_indices", word_indices),
                 ("labels_mask", labels_mask),
                 ("labels", labels),
                 ("spans", spans),
             ]
         )
         self._default_label = default_label
-
-    def pad_to_max_length(self, max_seq_length: int, max_spans_length: int, pad_token_id: int) -> None:
-        """Pad the feature vectors so that they all have max_seq_length.
-
-        Args:
-            max_seq_length: The length that all features, except semiotic_classes, will have after padding.
-            max_spans_length: The length that spans will have after padding.
-            pad_token_id: input_ids feature is padded with this ID, other features
-                with ID 0.
-        """
-        max_seq_length_for_subwords = max_seq_length // 2  # this is adhoc decision
-        pad_length = max_seq_length - len(self.features['input_ids'])
-        pad_length_for_subwords = max_seq_length_for_subwords - len(self.features['input_ids_for_subwords'])
-        self.features["spans"].extend([(-1, -1, -1)] * (max_spans_length - len(self.features["spans"])))
-        for key in self.features:
-            if key == "spans":
-                continue
-            pad_id = 0
-            if key == "input_ids" or key == "input_ids_for_subwords":
-                pad_id = pad_token_id
-
-            max_len = max_seq_length
-            pad_len = pad_length
-            if (
-                key == "input_ids_for_subwords"
-                or key == "input_mask_for_subwords"
-                or key == "segment_ids_for_subwords"
-            ):
-                max_len = max_seq_length_for_subwords
-                pad_len = pad_length_for_subwords
-
-            self.features[key].extend([pad_id] * pad_len)
-            if len(self.features[key]) != max_len:
-                raise ValueError("{} has length {} (should be {}).".format(key, len(self.features[key]), max_len))
-
-    def get_token_labels(self, features_key: str) -> List[int]:
-        """Returns labels/tags for the original tokens, not for wordpieces."""
-        labels = []
-        for idx in range(len(self.features[features_key])):
-            # For unmasked and untruncated tokens, use the label in the features, and
-            # for the truncated tokens, use the default label.
-            if idx < len(self.features[features_key]) and self.features["labels_mask"][idx]:
-                labels.append(self.features[features_key][idx])
-            else:
-                labels.append(self._default_label)
-        return labels
 
 
 class BertExampleBuilder(object):
@@ -240,13 +197,19 @@ class BertExampleBuilder(object):
             _,
         ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None)
 
+        # used in forward to concatenate subword embeddings to character embeddings 
         character_pos_to_subword_pos = self._map_characters_to_subwords(input_ids, input_ids_for_subwords)
 
+        # used in inference to take argmax over whole words instead of separate characters to get more consistent predictions
+        word_indices = self._map_characters_to_words(input_ids, hyp, infer)
+
+        # used in validation step to calculate accuracy on whole custom phrases instead of separate characters
         spans = self._get_spans(span_info)
 
         if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
             print("Max len exceeded: len(input_ids)=", len(input_ids), "; _max_seq_length=", self._max_seq_length, "; len(spans)=", len(spans), "; _max_spans_length=", self._max_spans_length)
             return None
+
         example = BertExample(
             input_ids=input_ids,
             input_mask=input_mask,
@@ -255,6 +218,7 @@ class BertExampleBuilder(object):
             input_mask_for_subwords=input_mask_for_subwords,
             segment_ids_for_subwords=segment_ids_for_subwords,
             character_pos_to_subword_pos=character_pos_to_subword_pos,
+            word_indices=word_indices,
             labels_mask=labels_mask,
             labels=labels,
             spans=spans,
@@ -286,6 +250,48 @@ class BertExampleBuilder(object):
             end = int(end) + 1
             result_spans.append((cid, start, end))
         return result_spans
+
+    def _map_characters_to_words(self, input_ids: List[int], hyp: str, infer: bool) -> Tuple[List[int], List[Tuple[int, int]]]:
+        """ Maps each single character to the position of its corresponding word.
+
+            Args:
+                input_ids: List of character token ids.
+                hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
+                infer: If false, return empty list.
+            Returns:
+                List of word positions in ASR-hypothesis.
+                    Its length is equal to len(input_ids), it values are from 0 to (number of words + number of spaces), 0 is reserved for [CLS]
+                    The goal is that all characters belonging to one word had same value, distinct from all others.
+
+            Example:
+                input_ids: [101, 1037, 1055, 1056, 1054, 1051, 1050, ..., 1051, 102, 1040, ..., 1050, 102, 1037, ..., 1041, 102, ..., 102]
+                hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
+                infer: True
+
+                word_indices: [(1, 12), (12, 13), (13, 18), (18, 19), (19, 24), (24, 25), (25, 28), (28, 29), (29, 37), (37, 38), (38, 42)]
+        """
+        if not infer:
+            return [], []
+
+        result_id = 1
+
+        word_indices = []
+        begin, end = 1, 1
+
+        letters = hyp.split()        
+        for i in range(len(letters)):
+            if letters[i] == "_":
+                word_indices.append((begin, end))  # add previous word
+                word_indices.append((end, end + 1))  # add space itself
+                begin = end + 1
+                end = begin
+
+                result_id += 1
+                result_id += 1
+            else:
+                end += 1
+        word_indices.append((begin, end))  # add last word
+        return word_indices
 
     def _map_characters_to_subwords(self, input_ids: List[int], input_ids_for_subwords: List[int]) -> List[int]:
         """ Maps each single character to the position of its corresponding subword.
