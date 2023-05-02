@@ -1,13 +1,13 @@
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-
 from code_spec import Code
-from datatype_code import IntCode, FloatCode, CategoryCode
+from datatype_code import CategoryCode, FloatCode, IntCode
+
 # from vector_tokenizer import VectorCode
 
 
-column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}  #, 'vector': VectorCode}
+column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}  # , 'vector': VectorCode}
 
 
 class ColumnCodes(object):

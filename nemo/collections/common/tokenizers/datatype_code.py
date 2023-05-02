@@ -1,12 +1,11 @@
 import math
 from typing import List, Tuple, Union
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+from code_spec import Code
 from numpy import ndarray
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer, QuantileTransformer, RobustScaler
-
-from code_spec import Code
 
 # from nemo.utils import logging
 
@@ -16,13 +15,9 @@ __all__ = ["IntCode", "FloatCode", "CategoryCode"]
 class NumericCode(Code):
     NA_token = 'nan'
 
-    def __init__(self,
-                 col_name: str,
-                 code_len: int,
-                 start_id: int,
-                 base: int,
-                 fill_all: bool = True,
-                 has_nan: bool = True):
+    def __init__(
+        self, col_name: str, code_len: int, start_id: int, base: int, fill_all: bool = True, has_nan: bool = True
+    ):
         super().__init__(col_name, code_len, start_id)
         self.fill_all = fill_all
         self.has_nan = has_nan
@@ -56,7 +51,8 @@ class NumericCode(Code):
 
         """
         significant_val = self.transform_data_to_int_array(
-            np.unique(data_series))  # saves min of data_series and subtracts it out of data
+            np.unique(data_series)
+        )  # saves min of data_series and subtracts it out of data
         self.tokenize_numeric_data(significant_val)
 
     def tokenize_numeric_data(self, significant_val: ndarray):
@@ -99,9 +95,9 @@ class NumericCode(Code):
 
 
 class IntCode(NumericCode):
-
-    def __init__(self, col_name: str, code_len: int, start_id: int, fill_all: bool = True, base: int = 100,
-                 has_nan: bool = True):
+    def __init__(
+        self, col_name: str, code_len: int, start_id: int, fill_all: bool = True, base: int = 100, has_nan: bool = True
+    ):
 
         super(IntCode, self).__init__(col_name, code_len, start_id, base, fill_all, has_nan)
         self.min_value = -np.inf
@@ -143,7 +139,8 @@ class IntCode(NumericCode):
         if self.min_value == -np.inf:
             raise ValueError(
                 'minimum value of array is negative infinity. Please map infinity to other value or consider using'
-                'a special token to represent + or - infinity')
+                'a special token to represent + or - infinity'
+            )
         return array - self.min_value
 
     def _transform_val_to_int(self, val: Union[int, float]) -> int:
@@ -230,14 +227,14 @@ class FloatCode(NumericCode):
     AVAILABLE_TRANSFORMS = ["yeo-johnson", "quantile", "robust", "identity", "log1p"]  # best is not really a transform
 
     def __init__(
-            self,
-            col_name: str,
-            code_len: int,
-            start_id: int,
-            fill_all: bool = True,
-            base: int = 100,
-            has_nan: bool = True,
-            transform: str = 'quantile',
+        self,
+        col_name: str,
+        code_len: int,
+        start_id: int,
+        fill_all: bool = True,
+        base: int = 100,
+        has_nan: bool = True,
+        transform: str = 'quantile',
     ):
         super(FloatCode, self).__init__(col_name, code_len, start_id, base, fill_all, has_nan)
         self.min_value = -np.inf
@@ -297,8 +294,10 @@ class FloatCode(NumericCode):
             values -= self.min_value
 
         if self.min_value == -np.inf:
-            raise ValueError('minimum value of array is negative infinity. Please map infinity to other value or '
-                             'consider using a special token to represent + or - infinity')
+            raise ValueError(
+                'minimum value of array is negative infinity. Please map infinity to other value or '
+                'consider using a special token to represent + or - infinity'
+            )
 
         # extra digits used for 'float' part of the number
         digits = int(math.log(values.max(), self.base)) + 1
@@ -324,18 +323,20 @@ class FloatCode(NumericCode):
             return QuantileTransformer(output_distribution='uniform', n_quantiles=1000)
         elif self.transform == 'robust':
             return RobustScaler()
-        elif self.transform is None or (isinstance(self.transform, str) and
-                                        self.transform.lower() in ['none', '', 'identity']):
+        elif self.transform is None or (
+            isinstance(self.transform, str) and self.transform.lower() in ['none', '', 'identity']
+        ):
             # sklearn FunctionTransformer implements identity transformation by default.
             return FunctionTransformer(validate=True)
         elif self.transform == 'log1p':
-            return FunctionTransformer(func=np.log1p,
-                                       inverse_func=lambda x: np.exp(x) - 1,
-                                       validate=True,
-                                       check_inverse=True)
+            return FunctionTransformer(
+                func=np.log1p, inverse_func=lambda x: np.exp(x) - 1, validate=True, check_inverse=True
+            )
         elif self.transform != 'best':
-            raise ValueError('Supported data transformations are "best", "yeo-johnson", "quantile", "robust", log1p, '
-                             'and "identity"')
+            raise ValueError(
+                'Supported data transformations are "best", "yeo-johnson", "quantile", "robust", log1p, '
+                'and "identity"'
+            )
 
     def get_best_transform(self, data_series: ndarray) -> str:
         """
@@ -351,19 +352,21 @@ class FloatCode(NumericCode):
         num_bins = 31
         uniq_data = np.unique(data_series)  # saves on compute cost for repeated elements
 
-        results = {'transform': [],
-                   'mse': [],
-                   'max_err': [],
-                   'min_err': [],
-                   'errors_across_series': [],
-                   }
+        results = {
+            'transform': [],
+            'mse': [],
+            'max_err': [],
+            'min_err': [],
+            'errors_across_series': [],
+        }
         for transform in self.AVAILABLE_TRANSFORMS:  # todo
             self.transform = transform
             self.set_scalar_transform()
             self.compute_code(uniq_data)
 
-            error, error_pct, stats, distr_of_err_pcts, errs_throughout = self.calculate_transform_errors(data_series,
-                                                                                                          bins=num_bins)
+            error, error_pct, stats, distr_of_err_pcts, errs_throughout = self.calculate_transform_errors(
+                data_series, bins=num_bins
+            )
             mse, max_err, min_err = stats
             errors_across_series, bins = errs_throughout
             results['transform'].append(transform)
@@ -374,8 +377,12 @@ class FloatCode(NumericCode):
         errors_across_series = results.pop('errors_across_series')
         data = pd.concat([pd.DataFrame(results), pd.DataFrame(errors_across_series)], axis=1)
         # for now just use the errors across series and take the counts if it has the smallest error
-        best_ranked_index = data.loc[:, range(0, num_bins)].apply(lambda x: [True if i == min(x) else False
-                                                                             for i in x], axis=0).sum(axis=1).argmax()
+        best_ranked_index = (
+            data.loc[:, range(0, num_bins)]
+            .apply(lambda x: [True if i == min(x) else False for i in x], axis=0)
+            .sum(axis=1)
+            .argmax()
+        )
         if hasattr(best_ranked_index, '__iter__'):  # in case of a tie-breaker
             best_ranked_index = best_ranked_index[0]
         best_transform = data.loc[best_ranked_index, 'transform']
