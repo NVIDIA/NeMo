@@ -151,7 +151,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         src_hiddens_2 = torch.gather(src_hiddens_for_subwords, 1, index)
         # src_hiddens.shape = [batch_size, char_seq_len, bert_hidden_size * 2]; .dtype=float32
         src_hiddens = torch.cat((src_hiddens, src_hiddens_2), 2)
-        
+
         # logits.shape = [batch_size, char_seq_len, num_labels]; num_labels=11: ids from 0 to 10; .dtype=float32
         logits = self.logits(hidden_states=src_hiddens)
         return logits
@@ -220,7 +220,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         tag_preds = torch.argmax(logits, dim=2)
 
         # Update tag classification_report
-        for input_mask_seq, segment_seq, prediction_seq, label_seq, span_seq in zip(input_mask.tolist(), segment_ids.tolist(), tag_preds.tolist(), labels.tolist(), spans.tolist()):
+        for input_mask_seq, segment_seq, prediction_seq, label_seq, span_seq in zip(
+            input_mask.tolist(), segment_ids.tolist(), tag_preds.tolist(), labels.tolist(), spans.tolist()
+        ):
             # Here we want to track whether the predicted output matches ground truth labels for each whole span.
             # We construct the special input for classification report, for example:
             #   span_labels = [PLAIN, PLAIN, PLAIN, PLAIN, CUSTOM, CUSTOM]
@@ -237,7 +239,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             for i in range(len(segment_seq)):
                 if input_mask_seq[i] == 0:
                     continue
-                if segment_seq[i] > 0: # token does not belong to ASR-hypothesis => it's over
+                if segment_seq[i] > 0:  # token does not belong to ASR-hypothesis => it's over
                     break
                 if label_seq[i] == 0:
                     span_labels.append(plain_cid)
@@ -363,13 +365,15 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 # Here we sum the predictions for all characters within each word and take argmax for words instead of characters.
                 # Note that "space"(underscore) symbol is regarded as separate "word".
                 indices_len = word_indices.shape[1]
-                padded_logits = torch.nn.functional.pad(
-                    tag_logits, pad=(0, 0, 1, 0)
-                )
-                batch_size, seq_len, num_labels = padded_logits.shape 
+                padded_logits = torch.nn.functional.pad(tag_logits, pad=(0, 0, 1, 0))
+                batch_size, seq_len, num_labels = padded_logits.shape
                 cumsum = padded_logits.cumsum(dim=1)
                 cumsum_view = cumsum.view(-1, num_labels)
-                word_index = (torch.ones((batch_size, indices_len), dtype=torch.long) * torch.arange(batch_size).reshape(( -1, 1)) * seq_len).view(-1)
+                word_index = (
+                    torch.ones((batch_size, indices_len), dtype=torch.long)
+                    * torch.arange(batch_size).reshape((-1, 1))
+                    * seq_len
+                ).view(-1)
                 lower_index = (word_indices[..., 0]).view(-1) + word_index
                 higher_index = (word_indices[..., 1]).view(-1) + word_index
                 d_index = (higher_index - lower_index).reshape((-1, 1)).to(self.device)  # word lengths
@@ -430,14 +434,16 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                         last_phrase_begin = begin
                         last_phrase_end = end
                 if last_pred > 0:
-                        source = " ".join(letters[last_phrase_begin:last_phrase_end])
-                        target = candidates[last_pred - 1]
-                        len_ratio = len(target) / len(source)
-                        if len_ratio >= 0.7 and len_ratio <= 1.3:
-                            replacements.append((last_pred, last_phrase_begin, last_phrase_end))
-                            report_str += "REPLACE1:\t" + source + "\t" + target + "\n"
+                    source = " ".join(letters[last_phrase_begin:last_phrase_end])
+                    target = candidates[last_pred - 1]
+                    len_ratio = len(target) / len(source)
+                    if len_ratio >= 0.7 and len_ratio <= 1.3:
+                        replacements.append((last_pred, last_phrase_begin, last_phrase_end))
+                        report_str += "REPLACE1:\t" + source + "\t" + target + "\n"
 
-                tag_preds_for_sent = tag_preds[1 : (len(letters) + 1)]  # take only predictions for actual sent letters (starting from 1 because of [CLS] token)
+                tag_preds_for_sent = tag_preds[
+                    1 : (len(letters) + 1)
+                ]  # take only predictions for actual sent letters (starting from 1 because of [CLS] token)
                 last_tag = -1
                 tag_begin = -1
                 for idx, tag in enumerate(tag_preds_for_sent):
@@ -458,14 +464,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                         report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
 
                 all_preds.append(
-                    "\n"
-                    + hyp
-                    + "\n"
-                    + " ".join(list(map(str, tag_preds_for_sent)))
-                    + "\n\t"
-                    + ref
-                    + "\n"
-                    + report_str
+                    "\n" + hyp + "\n" + " ".join(list(map(str, tag_preds_for_sent))) + "\n\t" + ref + "\n" + report_str
                 )
         except Exception as e:
             raise ValueError("Error processing file " + input_name)
