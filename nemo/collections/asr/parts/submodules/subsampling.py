@@ -336,9 +336,9 @@ class ConvSubsampling(torch.nn.Module):
             _, _, t, _ = x.size()
             new_t = int(t // (2**p))
             logging.debug(f'conv dw subsampling: using split T size {new_t}')
-            # x = torch.cat([self.conv[i*3+2](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
+            # the depthwise is not correct. Need to use odd sized chunks, overlap them by 2, discard the first 
+            # element in all outputs but the first one and then cat them together
             x = torch.cat([self.conv[i*3+2](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
-            # x = torch.cat([self.conv[i*3+3](F.pad(chunk, pad))[:,:,lp:-rp,:] for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
             x = torch.cat([self.conv[i*3+3](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
             x = self.conv[i*3+4](x) # activation
         return x
