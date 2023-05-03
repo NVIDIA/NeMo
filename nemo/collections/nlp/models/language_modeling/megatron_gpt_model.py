@@ -1002,17 +1002,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         We use this hook to save the sharded for GPTModel
         """
-        if isinstance(self.model, list):
-            checkpoint['sharded_state_dict'] = {}
-            for i in range(len(self.model)):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                model_i_prefix = f'model_{i}.'
-                model_i_sharded_state_dict = self.model.sharded_state_dict(prefix=model_i_prefix)
-                checkpoint['sharded_state_dict'].update(model_i_sharded_state_dict)
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-        else:
-            model_sharded_state_dict = self.model.sharded_state_dict(prefix='model.')
-            checkpoint['sharded_state_dict'] = model_sharded_state_dict
+        # if isinstance(self.model, list):
+        #     checkpoint['sharded_state_dict'] = {}
+        #     for i, model in enumerate(self.model):
+        #         if isinstance(model, Float16Module):
+        #             model = model.module
+        #         parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+        #         # model_i_prefix = f'model_{i}.'
+        #         # model_i_sharded_state_dict = model.sharded_state_dict(prefix=model_i_prefix)
+        #         # checkpoint['sharded_state_dict'].update(model_i_sharded_state_dict)
+        #         model_sharded_state_dict = model.sharded_state_dict(prefix='model.')
+        #         checkpoint['sharded_state_dict'].update(model_sharded_state_dict)
+
+        #     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        # else:
+        #     model_sharded_state_dict = self.model.sharded_state_dict(prefix='model.')
+        #     checkpoint['sharded_state_dict'] = model_sharded_state_dict
+
+        checkpoint['sharded_state_dict'] = self.sharded_state_dict()
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -1020,21 +1027,40 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         We use this hook to call load_state_dict for GPTModel
         """
-        # TODO: ideally want to PTL to call load_state_dict when it normally does but have everything work
+        # we need to unwrap the model if it is wrapped in Float16Module,
+        # since this fixes self.state_dict()
+        # after unwrapping we just wrap it again
+        need_to_wrap_model = False
+
         if isinstance(self.model, list):
-            # TODO: need to figure out how to do this for interleaved
-            for i in range(len(self.model)):
+            for i, model in enumerate(self.model):
+                if isinstance(model, Float16Module):
+                    model = model.module
+                    need_to_wrap_model = True
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                self.model[i].load_state_dict(checkpoint[f'model{i}'], strict=True)
+
+                # when using interleaved, model is GPTModel, so we need to remove the 'model.' prefix
+                # TODO: make sure this is efficient enough
+                checkpoint_state_dict = checkpoint['state_dict'][f'model_{i}']
+                checkpoint_state_dict = {
+                    key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                    for key in list(checkpoint_state_dict.keys())
+                }
+
+                # model.load_state_dict(checkpoint['state_dict'][f'model_{i}'], strict=True)
+                model.load_state_dict(checkpoint_state_dict, strict=True)
+                if need_to_wrap_model:
+                    model = Float16Module(config=self.get_transformer_config(), module=model)
+                need_to_wrap_model = False
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            # unwrap the model if it is wrapped in Float16Module,
-            # this fixes self.state_dict()
             if isinstance(self.model, Float16Module):
                 self.model = self.model.module
+                need_to_wrap_model = True
             self.load_state_dict(checkpoint['state_dict'], strict=True)
-            # wrap the model again
-            self.model = Float16Module(config=self.get_transformer_config(), module=self.model)
+            if need_to_wrap_model:
+                self.model = Float16Module(config=self.get_transformer_config(), module=self.model)
+                need_to_wrap_model = False
 
     def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
         """
@@ -1045,23 +1071,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         The sharded tensor mapping is defined in the GPTModel class.
         """
-        sharded_state_dict = {}
-        # if isinstance(self.model, list):
-        #     for i in range(len(self.model)):
-        #         parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-        #         sharded_state_dict[f'model{i}'] = self.model[i].sharded_state_dict()
-        #     parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-        # else:
-        #     sharded_state_dict[f'model'] = self.model.sharded_state_dict()
+
+        prefix = f'{prefix}model.'
         if isinstance(self.model, list):
-            for i in range(len(self.model)):
+            sharded_state_dict = {}
+            for i, model in enumerate(self.model):
+                if isinstance(model, Float16Module):
+                    model = model.module
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                model_i_prefix = f'{prefix}model_{i}.'
-                model_i_sharded_state_dict = self.model[i].sharded_state_dict(prefix=model_i_prefix)
-                sharded_state_dict[model_i_sharded_state_dict.keys()[0]] = model_i_sharded_state_dict.values()[0]
+                model_key = f'model_{i}'
+                model_sharded_state_dict = model.sharded_state_dict(prefix=prefix)
+                sharded_state_dict[model_key] = model_sharded_state_dict
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            prefix = f'{prefix}model.'
+            # prefix = f'{prefix}model.'
             sharded_state_dict = self.model.sharded_state_dict(prefix=prefix)
 
         return sharded_state_dict

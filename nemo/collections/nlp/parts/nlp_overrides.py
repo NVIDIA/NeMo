@@ -225,20 +225,11 @@ class NLPDDPStrategy(DDPStrategy):
             ValueError: If a parameter ID does not match any model sharded parameter.
         """
 
-        # def init_opt_state(opt):
-        #     for group in opt.param_groups:
-        #         for p in group['params']:
-        #             if len(opt.state[p]) == 0:
-        #                 opt.state[p]['exp_avg'] = torch.zeros_like(p.data)
-        #                 opt.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
-
-        # init_opt_state(optimizer)  # TODO: consider running init only during checkpoint loading
-
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
 
         optimizer_state_dict = optimizer.state_dict()
 
-        model_sharded_state_dict = self.lightning_module.model.sharded_state_dict()
+        model_sharded_state_dict = self.lightning_module.sharded_state_dict()
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict,
