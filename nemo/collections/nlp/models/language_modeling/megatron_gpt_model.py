@@ -15,6 +15,7 @@
 import itertools
 from functools import partial
 from typing import Any, Iterator, List, Optional, Union
+import queue
 
 import numpy as np
 import torch
@@ -548,36 +549,42 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not isinstance(self.model, list) or len(self.model) == 1:
             return [data_iterator]
 
-        class IteratorCacher:
+        class CachingIterator:
             """Iterator wrapper that caches values"""
+
+            class Proxy:
+                """Returns values from caching iterator wrapper
+
+                Assumed to never advance past the caching iterator.
+                """
+                def __init__(self):
+                    self.cache = queue.Queue()
+                def __iter__(self):
+                    return self
+                def __next__(self):
+                    return self.cache.get_nowait()
 
             def __init__(self, iterator: Iterator):
                 self.iterator = iterator
-                self.cached = None
+                self.proxies = []
+
+            def make_proxy(self):
+                self.proxies.append(CachingIterator.Proxy())
+                return self.proxies[-1]
 
             def __iter__(self):
                 return self
 
             def __next__(self):
-                self.cached = next(self.iterator)
-                return self.cached
-
-        class IteratorProxy:
-            """Just returns last value from caching iterator wrapper"""
-
-            def __init__(self, subject: IteratorCacher):
-                self.subject = subject
-
-            def __iter__(self):
-                return self
-
-            def __next__(self):
-                return self.subject.cached
+                val = next(self.iterator)
+                for proxy in self.proxies:
+                    proxy.cache.put(val)
+                return val
 
         # Make list of iterator wrappers
-        data_iterator_list = [IteratorCacher(data_iterator)]
+        data_iterator_list = [CachingIterator(data_iterator)]
         while len(data_iterator_list) < len(self.model):
-            data_iterator_list.append(IteratorProxy(data_iterator_list[0]))
+            data_iterator_list.append(data_iterator_list[0].make_proxy())
         return data_iterator_list
 
     def get_forward_output_and_loss_func(self, validation_step=False):
