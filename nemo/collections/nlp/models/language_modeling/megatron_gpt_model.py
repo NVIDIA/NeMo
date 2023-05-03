@@ -548,23 +548,29 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not isinstance(self.model, list) or len(self.model) == 1:
             return [data_iterator]
 
-        class CachingIterator():
+        class CachingIterator:
             """Iterator wrapper that caches values"""
+
             def __init__(self, iterator: Iterator):
                 self.iterator = iterator
                 self.cached = None
+
             def __iter__(self):
                 return self
+
             def __next__(self):
                 self.cached = next(self.iterator)
                 return self.cached
 
-        class IteratorProxy():
+        class IteratorProxy:
             """Just returns last value from caching iterator wrapper"""
+
             def __init__(self, subject: CachedIterator):
                 self.subject = subject
+
             def __iter__(self):
                 return self
+
             def __next__(self):
                 return self.subject.cached
 
@@ -592,11 +598,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion:
                 required_keys.remove('attention_mask')
-            batch = {
-                key: val.cuda(non_blocking=True)
-                if key in required_keys else None
-                for key, val in batch.items()
-            }
+            batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
             # Model forward pass
             output_tensor = model(
