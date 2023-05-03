@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import itertools
+import queue
 from functools import partial
 from typing import Any, Iterator, List, Optional, Union
-import queue
 
 import numpy as np
 import torch
@@ -557,10 +557,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
                 Assumed to never advance past the caching iterator.
                 """
+
                 def __init__(self):
                     self.cache = queue.Queue()
+
                 def __iter__(self):
                     return self
+
                 def __next__(self):
                     return self.cache.get_nowait()
 
