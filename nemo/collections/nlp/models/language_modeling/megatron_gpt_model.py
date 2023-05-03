@@ -14,7 +14,7 @@
 
 import itertools
 from functools import partial
-from typing import Any, List, Optional, Union
+from typing import Any, Iterator, List, Optional, Union
 
 import numpy as np
 import torch
@@ -373,15 +373,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
-        # Megatron expects each model chunk has data loader
-        model = self.model if isinstance(self.model, list) else [self.model]
-        dataloader_iter = [dataloader_iter] * len(model)
-
         # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=model,
+            data_iterator=self._make_data_iterator_list(dataloader_iter),
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             tensor_shape=tensor_shape,
@@ -536,44 +532,73 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         grad = word_embeddings_weight.grad
                     torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
+    def _make_data_iterator_list(self, data_iterator: Iterator) -> List[Iterator]:
+        """ Convert data iterator into form expected by Megatron
+
+            With interleaved pipeline parallelism, Megatron expects a
+            list of one data iterator per model chunk. Each model
+            chunk independently gets data from its data iterator, so
+            we need to interact with the data iterator multiple times
+            for each microbatch step. Instead of incorporating this
+            logic into the data loader, we cache the iterator's output
+            to the first model chunk and reuse it in the other model
+            chunks.
+        """
+
+        if not isinstance(self.model, list) or len(self.model) == 1:
+            return [data_iterator]
+
+        class CachingIterator():
+            """Iterator wrapper that caches values"""
+            def __init__(self, iterator: Iterator):
+                self.iterator = iterator
+                self.cached = None
+            def __iter__(self):
+                return self
+            def __next__(self):
+                self.cached = next(self.iterator)
+                return self.cached
+
+        class IteratorProxy():
+            """Just returns last value from caching iterator wrapper"""
+            def __init__(self, subject: CachedIterator):
+                self.subject = subject
+            def __iter__(self):
+                return self
+            def __next__(self):
+                return self.subject.cached
+
+        # Make list of iterator wrappers
+        data_iterator_list = [CachingIterator(data_iterator)]
+        while len(data_iterator_list) < len(self.model):
+            data_iterator_list.append(IteratorProxy(data_iterator_list[0]))
+        return data_iterator_list
+
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch = next(dataloader_iter)
-                for k in batch.keys():
-                    if self.get_attention_mask_from_fusion:
-                        batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
-                    else:
-                        batch[k] = batch[k].cuda(non_blocking=True)
-            else:
-                if parallel_state.is_pipeline_first_stage():
-                    batch = next(dataloader_iter)
-                    # First pipeline stage needs tokens, position_ids, and attention_mask
-                    for k in batch.keys():
-                        if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
-                        else:
-                            batch[k] = (
-                                batch[k].cuda(non_blocking=True)
-                                if k in ['tokens', 'position_ids', 'attention_mask']
-                                else None
-                            )
-                elif parallel_state.is_pipeline_last_stage():
-                    batch = next(dataloader_iter)
-                    # Last pipeline stage needs the labels, loss_mask, and attention_mask
-                    for k in batch.keys():
-                        if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
-                        else:
-                            batch[k] = (
-                                batch[k].cuda(non_blocking=True)
-                                if k in ['labels', 'loss_mask', 'attention_mask']
-                                else None
-                            )
-                else:
-                    # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
 
+            # Get data batch
+            batch = next(dataloader_iter)
+
+            # Transfer needed data to GPU
+            required_keys = set()
+            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+                required_keys.update(batch.keys())
+            else:
+                required_keys.insert('attention_mask')
+                if parallel_state.is_pipeline_first_stage():
+                    required_keys.update(('tokens', 'position_ids'))
+                if parallel_state.is_pipeline_last_stage():
+                    required_keys.update(('labels', 'loss_mask'))
+            if self.get_attention_mask_from_fusion:
+                required_keys.remove('attention_mask')
+            batch = {
+                key: val.cuda(non_blocking=True)
+                if key in required_keys else None
+                for key, val in batch.items()
+            }
+
+            # Model forward pass
             output_tensor = model(
                 batch['tokens'],
                 batch['position_ids'],
@@ -656,14 +681,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside validation_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
-        # Megatron expects each model chunk has data loader
-        model = self.model if isinstance(self.model, list) else [self.model]
-        dataloader_iter = [dataloader_iter] * len(model)
-
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
-            data_iterator=dataloader_iter,
-            model=model,
+            data_iterator=self._make_data_iterator_list(dataloader_iter),
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             tensor_shape=tensor_shape,
