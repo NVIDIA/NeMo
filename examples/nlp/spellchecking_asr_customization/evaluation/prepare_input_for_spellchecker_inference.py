@@ -183,7 +183,9 @@ for name in os.listdir(args.hypotheses_folder):
             if len(candidates) != 10:
                 print("WARNING: cannot get 10 candidates", candidates)
                 continue
-            out.write(" ".join(letters) + "\t" + ";".join([x[0] for x in candidates]) + "\n")
+            candidate_texts = ";".join([x[0] for x in candidates])
+            candidate_positions = " ".join([str(x[1]) for x in candidates])
+            out.write(" ".join(letters) + "\t" + candidate_texts + "\t" + candidate_positions +"\n")
             info = ""
             for cand, begin, length, cov, real_cov in candidates:
                 info += cand + "|" + str(begin) + "|" + str(length) + "|" + str(cov) + "|" + str(real_cov) + ";"
