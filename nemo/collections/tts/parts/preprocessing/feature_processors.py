@@ -178,7 +178,7 @@ class MeanVarianceSpeakerNormalization(FeatureProcessor):
             stats_path: JSON file with feature mean and variance.
             speaker_field: field containing speaker ID string.
             mask_field: Optional, field in example dictionary with boolean array indicating which values to
-                mask to 0. Defaults to 'voiced_mask', expected to be by pyin pitch estimator.
+                mask to 0. Defaults to 'voiced_mask', expected to be computed by pyin pitch estimator.
             fallback_to_default: Whether to use 'default' feature statistics when speaker is not found in
                 the statistics dictionary.
         """
