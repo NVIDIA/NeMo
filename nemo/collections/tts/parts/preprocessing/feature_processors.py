@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -67,7 +66,7 @@ class LogCompression(FeatureProcessor):
 
         Args:
             field: Field to apply log compression to.
-            log_zero_guard_type: Method to avoid dividing by 0, either "add" or "clamp".
+            log_zero_guard_type: Method to avoid logarithm approaching -inf, either "add" or "clamp".
             log_zero_guard_value: Value to add or clamp input with.
         """
 
@@ -124,9 +123,6 @@ class MeanVarianceNormalization(FeatureProcessor):
 
         self.field = field
         self.mask_field = mask_field
-
-        if not os.path.exists(stats_path):
-            raise ValueError(f"Statistics file does not exist: {stats_path}")
 
         with open(stats_path, 'r', encoding="utf-8") as stats_f:
             stats_dict = json.load(stats_f)
@@ -193,9 +189,6 @@ class MeanVarianceSpeakerNormalization(FeatureProcessor):
         self.speaker_field = speaker_field
         self.mask_field = mask_field
         self.fallback_to_default = fallback_to_default
-
-        if not os.path.exists(stats_path):
-            raise ValueError(f"Statistics file does not exist: {stats_path}")
 
         with open(stats_path, 'r', encoding="utf-8") as stats_f:
             self.stats_dict = json.load(stats_f)
