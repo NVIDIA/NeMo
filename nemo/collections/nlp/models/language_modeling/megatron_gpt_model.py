@@ -373,7 +373,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
-        # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=self._make_data_iterator_list(dataloader_iter),
@@ -548,7 +548,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not isinstance(self.model, list) or len(self.model) == 1:
             return [data_iterator]
 
-        class CachingIterator:
+        class IteratorCacher:
             """Iterator wrapper that caches values"""
 
             def __init__(self, iterator: Iterator):
@@ -565,7 +565,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         class IteratorProxy:
             """Just returns last value from caching iterator wrapper"""
 
-            def __init__(self, subject: CachedIterator):
+            def __init__(self, subject: IteratorCacher):
                 self.subject = subject
 
             def __iter__(self):
@@ -575,7 +575,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 return self.subject.cached
 
         # Make list of iterator wrappers
-        data_iterator_list = [CachingIterator(data_iterator)]
+        data_iterator_list = [IteratorCacher(data_iterator)]
         while len(data_iterator_list) < len(self.model):
             data_iterator_list.append(IteratorProxy(data_iterator_list[0]))
         return data_iterator_list
@@ -591,7 +591,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
-                required_keys.insert('attention_mask')
+                required_keys.add('attention_mask')
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
