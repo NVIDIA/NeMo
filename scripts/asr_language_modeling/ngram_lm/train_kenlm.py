@@ -41,8 +41,8 @@ from dataclasses import dataclass, field
 from glob import glob
 from typing import List
 
-from scripts.asr_language_modeling.ngram_lm import kenlm_utils
 from omegaconf import MISSING
+from scripts.asr_language_modeling.ngram_lm import kenlm_utils
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
