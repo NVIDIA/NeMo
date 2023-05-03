@@ -153,10 +153,10 @@ class TranscriptionConfig:
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-    
+
     for key in cfg:
         cfg[key] = None if cfg[key] == 'None' else cfg[key]
-       
+
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
@@ -244,14 +244,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
 
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
-            
-    # Setup decoding config based on model type and decoder_type 
+
+    # Setup decoding config based on model type and decoder_type
     with open_dict(cfg):
-        if isinstance(asr_model, EncDecCTCModel) or (isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type=="ctc"):
+        if isinstance(asr_model, EncDecCTCModel) or (
+            isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type == "ctc"
+        ):
             cfg.decoding = cfg.ctc_decoding
         else:
             cfg.decoding = cfg.rnnt_decoding
-            
+
     # prepare audio filepaths and decide wether it's partical audio
     filepaths, partial_audio = prepare_audio_data(cfg)
 
