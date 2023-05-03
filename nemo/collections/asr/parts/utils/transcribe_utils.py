@@ -290,7 +290,6 @@ def write_transcription(
 
     if isinstance(transcriptions[0], rnnt_utils.Hypothesis):  # List[rnnt_utils.Hypothesis]
         best_hyps = transcriptions
-        assert cfg.ctc_decoding.beam.return_best_hypothesis, "Works only with return_best_hypothesis=true"
     elif isinstance(transcriptions[0], list) and isinstance(
         transcriptions[0][0], rnnt_utils.Hypothesis
     ):  # List[List[rnnt_utils.Hypothesis]] NBestHypothesis
