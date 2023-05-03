@@ -179,7 +179,7 @@ class NgramMerge:
         perplexity_out = "\n".join(stdout.split("\n")[-6:-1])
         return perplexity_out
 
-    def make_arpa(self, ngram_mod: str, ngram_arpa: str, force: bool) -> None:
+    def make_arpa(self, ngram_mod: str, ngram_arpa: str, force: bool):
         """
         Converts an ngram model in binary format to ARPA format.
 
@@ -189,7 +189,7 @@ class NgramMerge:
         - force (bool): If True, the ARPA format file will be generated even if it already exists.
 
         Returns:
-        - None
+        - Tuple[bytes, bytes]
 
         Raises:
         - AssertionError: If the shell command execution returns a non-zero exit code.
@@ -234,7 +234,7 @@ class NgramMerge:
         return res_p
 
 
-def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str, force: bool,) -> Tuple[bytes, bytes]:
+def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str, force: bool,) -> str:
     """
     Compiles a text file into a FAR file using the given symbol table or tokenizer.
 
@@ -250,7 +250,6 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
 
     Example:
         >>> farcompile("/path/to/symbol_table", "/path/to/text_file", "/path/to/far_file", "/path/to/tokenizer_model", "/path/to/nemo_model", True)
-        (b'', b'')
     """
     test_far = os.path.join(tmp_path, os.path.split(text_file)[1] + ".far")
 
@@ -293,7 +292,7 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
         return test_far
 
 
-def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
+def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool):
     """
     Builds a language model from an ARPA format file using the KenLM toolkit.
 
@@ -301,9 +300,6 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool) -> None:
     - kenlm_bin_path (str): The path to the KenLM toolkit binary.
     - ngram_arpa (str): The path to the ARPA format file.
     - force (bool): If True, the KenLM language model will be generated even if it already exists.
-
-    Returns:
-    - None
 
     Raises:
     - AssertionError: If the shell command execution returns a non-zero exit code.
