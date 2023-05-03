@@ -21,8 +21,9 @@ best candidates. The beam search decoders in NeMo support language models traine
 `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM.
-Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh` on how to install them.
-Alternatively, you can build Docker image `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
+Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh>`__ 
+on how to install them. Alternatively, you can build Docker image 
+`scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
 
 NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
 decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
@@ -61,8 +62,8 @@ You may train the N-gram model as the following:
                               ngram_length=<order of N-gram model> \
                               preserve_arpa=true
 
-The train file specified by `train_paths` can be a list of text files, or JSON manifests, or folders. If the file's extension is anything
-other than `.json`, it assumes that data format is plain text. For plain text format, each line should contain one
+The `train_paths` parameter allows for various input types, such as a list of text files, JSON manifests, or directories, to be used as the training data.
+If the file's extension is anything other than `.json`, it assumes that data format is plain text. For plain text format, each line should contain one
 sample. For JSON manifest file, the file need to contain json formatted samples per each line like this:
 
 .. code-block::
@@ -347,7 +348,7 @@ Given a trained TransformerLMModel `.nemo` file or a pretrained HF model, the sc
 `scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py>`__
 can be used to re-score beams obtained with ASR model. You need the `.tsv` file containing the candidates produced
 by the acoustic model and the beam search decoding to use this script. The candidates can be the result of just the beam
-search decoding or the result of fusion with an N-gram LM. You may generate this file by specifying `--preds_output_folder' for
+search decoding or the result of fusion with an N-gram LM. You may generate this file by specifying `--preds_output_folder` for
 `scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py>`__.
 
 The neural rescorer would rescore the beams/candidates by using two parameters of `rescorer_alpha` and `rescorer_beta` as the following:
@@ -475,20 +476,21 @@ Combine N-gram Language Models
 ==============================
 
 Before combining N-gram LMs install required OpenGrm NGram library using `scripts/installers/install_opengrm.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/install_opengrm.sh>`__.
-Alternatively, you can build Docker image `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
+Alternatively, you can use Docker image `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
 
 To combine two N-gram language models, you can use the script ngram_merge.py located at 
 `scripts/asr_language_modeling/ngram_lm/ngram_merge.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/ngram_merge.py>`__.
 
 This script interpolate two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.  
 You can specify weights (`--alpha` and `--beta`) for each of the models (`--ngram_a` and `--ngram_b`) correspondingly: `alpha` * `ngram_a` + `beta` * `ngram_b`.
-This script supports both character level and BPE level encodings and models which is detected automatically from the type of the model.
+This script supports both character level and BPE level encodings and models which are detected automatically from the type of the model.
 
 To combine two N-gram models, you can use the following command:
 
 .. code-block::
 
     python ngram_merge.py  --kenlm_bin_path <path to the bin folder of KenLM library> \
+                    --ngram_bin_path  <path to the bin folder of OpenGrm Ngram library> \
                     --arpa_a <path to the ARPA N-gram model file A> \
                     --alpha <weight of N-gram model A> \
                     --arpa_b <path to the ARPA N-gram model file B> \
@@ -512,7 +514,7 @@ You can use the `--force` flag to discard the cache and recalculate everything f
                     --out_path <path to folder to store the output files>
                     --nemo_model_file <path to the .nemo file of the model> \
                     --test_file <path to the test file> \
-                    --symbols <path to symbols (.syms) file. Could be calculated if it is not provided.> \
+                    --symbols <path to symbols (.syms) file> \
                     --force <flag to recalculate and rewrite all cached files>
 
 
