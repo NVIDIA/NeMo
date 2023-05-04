@@ -137,7 +137,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
