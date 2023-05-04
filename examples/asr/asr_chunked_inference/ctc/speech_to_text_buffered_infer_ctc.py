@@ -85,7 +85,7 @@ class TranscriptionConfig:
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models",
 
     # Decoding strategy for CTC models
     ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
