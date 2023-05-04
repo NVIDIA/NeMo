@@ -134,7 +134,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
-        
+
         self.enable_autocast = False if (not self.megatron_amp_o2) and (self.autocast_dtype == torch.float) else True
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
