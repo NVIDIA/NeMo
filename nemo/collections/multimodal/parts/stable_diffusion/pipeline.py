@@ -16,20 +16,11 @@ import pickle
 import time
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.sampler_dpm import DPMSolverSampler
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
 
 
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
@@ -177,7 +168,6 @@ def pipeline(model, cfg, verbose=True, rng=None):
                 for text_prompt, pils in zip(prompts, output):
                     for idx, image in enumerate(pils):
                         image.save(os.path.join(out_path, f'{text_prompt[:50]}_{idx}.png'))
-                        #image.save(os.path.join(out_path, f'image_{img_idx}.png'))
             else:
                 with open(os.path.join(out_path, 'output.pkl'), 'wb') as f:
                     pickle.dump(output, f)

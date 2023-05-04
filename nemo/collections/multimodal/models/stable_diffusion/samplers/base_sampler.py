@@ -77,10 +77,10 @@ class AbstractBaseSampler(ABC):
     @abstractmethod
     def p_sampling_fn(self):
         pass
-    
+
     def dpm_sampling_fn(self):
         pass
-    
+
     @torch.no_grad()
     def sample(
         self,
@@ -120,7 +120,7 @@ class AbstractBaseSampler(ABC):
         C, H, W = shape
         size = (batch_size, C, H, W)
         print(f'Data shape for sampling is {size}, eta {eta}')
-        
+
         if self.sampler is Sampler.DPM:
             return self.dpm_sampling_fn(shape=shape, steps=S, conditioning=conditioning, unconditional_conditioning=unconditional_conditioning, unconditional_guidance_scale=unconditional_guidance_scale, x_T=x_T)
 
@@ -168,7 +168,7 @@ class AbstractBaseSampler(ABC):
             img = torch.randn(shape, generator=self.model.rng, device=device)
         else:
             img = x_T
-            
+
         if timesteps is None:
             timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
         elif timesteps is not None and not ddim_use_original_steps:
