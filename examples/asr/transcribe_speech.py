@@ -217,7 +217,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if isinstance(asr_model, EncDecCTCModel):
         if cfg.decoder_type and cfg.decoder_type != 'ctc':
             raise ValueError('CTC model only support ctc decoding!')
-    elif isinstance(asr_model, EncDecHybridRNNTCTCModel): 
+    elif isinstance(asr_model, EncDecHybridRNNTCTCModel):
         if cfg.decoder_type and cfg.decoder_type not in ['ctc', 'rnnt']:
             raise ValueError('Hybrid model only support ctc or rnnt decoding!')
     else:  # rnnt model, there could be other models needs to be addressed.
