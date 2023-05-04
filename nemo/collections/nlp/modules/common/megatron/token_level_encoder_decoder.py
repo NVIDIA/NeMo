@@ -30,7 +30,10 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import MegatronHiddensModule, get_hiddens_module
+from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import (
+    MegatronHiddensModule,
+    get_hiddens_module,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -372,7 +375,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         hiddens_cfg = encoder_cfg.get('hiddens', None)
         hiddens_module = get_hiddens_module(hiddens_cfg)
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
-            encoder=encoder, decoder=decoder, hidden_steps=encoder_cfg.get('hidden_steps', -1),
+            encoder=encoder,
+            decoder=decoder,
+            hidden_steps=encoder_cfg.get('hidden_steps', -1),
             hiddens_module=hiddens_module,
         )
         self._enc_dec_model_key = "enc_dec_model"
@@ -540,7 +545,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
             else:
                 enc_output = self.enc_dec_model.encoder_hidden_state
-                        
+
             return enc_output
         else:
             if enc_output_attn_mask is None:
