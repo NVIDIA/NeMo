@@ -189,8 +189,6 @@ class _TDTRNNTNumba(Function):
             )
 
 
-
-
 class _MultiblankRNNTNumba(Function):
     """
     Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
@@ -383,8 +381,6 @@ def tdt_rnnt_loss(
     return _TDTRNNTNumba.apply(acts, labels, act_lens, label_lens, blank, durations, reduction, fastemit_lambda, clamp)
 
 
-
-
 class RNNTLossNumba(Module):
     """
     Parameters:
@@ -501,6 +497,7 @@ class MultiblankRNNTLossNumba(Module):
             self.sigma,
         )
 
+
 class TDTRNNTLossNumba(Module):
     """
     Parameters:
@@ -578,8 +575,6 @@ class TDTRNNTLossNumba(Module):
             self.sigma,
             self.omega,
         )
-
-
 
 
 def check_type(var, t, name):

@@ -363,13 +363,9 @@ class TestEncDecRNNTModel:
             with torch.no_grad():
                 _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
 
-
-
-
-     @pytest.mark.skipif(
-         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-     )
-
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )

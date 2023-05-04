@@ -223,7 +223,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
-                raise ValueError("currently only greedy and greedy_batch inference is supported for multi-blank models")
+                raise ValueError(
+                    "currently only greedy and greedy_batch inference is supported for multi-blank models"
+                )
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
@@ -271,7 +273,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         blank_index=self.blank_id,
                         durations=self.durations,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -283,7 +286,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         joint_model=joint,
                         blank_index=self.blank_id,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -312,7 +316,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         blank_index=self.blank_id,
                         durations=self.durations,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -324,13 +329,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         joint_model=joint,
                         blank_index=self.blank_id,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                            self.cfg.greedy.get('max_symbols', None)
+                            or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                     )
-
 
             else:
                 self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
