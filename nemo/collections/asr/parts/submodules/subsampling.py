@@ -326,23 +326,35 @@ class ConvSubsampling(torch.nn.Module):
         x = self.conv[0](x) # full conv2D 
         x = self.conv[1](x) # activation
 
-        # only pad the T dim
-        lp = self._left_padding
-        rp = self._right_padding
-        pad = (0, 0, lp, rp)
-
         for i in range(self._sampling_num-1):
             p = math.ceil(math.log(torch.numel(x) / 2**31, 2))
             _, _, t, _ = x.size()
-            new_t = int(t // (2**p))
+            new_t = int(t // (2**p)) * 2 # forcing new_t to be even
             logging.debug(f'conv dw subsampling: using split T size {new_t}')
-            # the depthwise is not correct. Need to use odd sized chunks, overlap them by 2, discard the first 
-            # element in all outputs but the first one and then cat them together
-            x = torch.cat([self.conv[i*3+2](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, depthwise
+            x = self.chunked_conv(conv[i*3+2], new_t, x) # conv2D, depthwise
             x = torch.cat([self.conv[i*3+3](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
             x = self.conv[i*3+4](x) # activation
         return x
+    
+    def chunked_conv(self, conv, chunk_size, x):
+        """ Performs exact chunked convolution"""
+        t_size = x.size()[2]
+        i = 0
+        out_chunks = []
 
+        while True:
+            step = chunk_size
+            if i + step > t_size:
+                step = t_size - i
+                if step == 2:
+                    break
+            out = conv(x[:,:,i:i+step,:])
+            if i > 0:
+                out = out[:,:,1:,:] # throw away the first element in the output
+            out_chunks.append(out)
+            i += step - 2 # advance but step back by 2
+
+        return torch.cat(out_chunks,2)
 
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
