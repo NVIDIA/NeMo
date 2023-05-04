@@ -16,13 +16,15 @@ import math
 
 import torch
 import torch.nn as nn
-from torch.nn import LayerNorm
 import torch.nn.functional as F
+from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
+
 <<<<<<< HEAD
 =======
 from nemo.utils import logging
+
 >>>>>>> 3d7ae80ba73c8b71a6e1e9c9d072be64ca632033
 
 
