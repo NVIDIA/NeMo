@@ -212,12 +212,18 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
         if self.durations is not None:
-            assert blank_id != 0, 'blank_id must equal len(non_blank_vocabs) for multi-blank RNN-T models'
-
+            if blank_id == 0:
+                raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
+            if self.big_blank_durations is not None:
+                raise ValueError("duration and big_blank_durations can't both be not None")
+            if self.cfg.strategy not in ['greedy', 'greedy_batch']:
+                raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
 
         if self.big_blank_durations is not None:
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
+            if self.cfg.strategy not in ['greedy', 'greedy_batch']:
+                raise ValueError("currently only greedy and greedy_batch inference is supported for multi-blank models")
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
@@ -1122,7 +1128,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Args:
             tokens: List of int representing the token ids.
 
-        eturns:
+        Returns:
             A decoded string.
         """
         hypothesis = ''.join(self.decode_ids_to_tokens(tokens))

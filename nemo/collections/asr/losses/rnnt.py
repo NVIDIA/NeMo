@@ -319,7 +319,13 @@ class RNNTLoss(Loss):
 
         Args:
             num_classes: Number of target classes for the joint network to predict.
-                (Excluding the RNN-T blank token).
+                In all cases (conventional RNNT, multi-blank RNNT, and TDT model), this equals the token-id
+                for the standard "blank" symbol. In particular, say V is the number of non-blank tokens in
+                the vocabulary, then in the case of,
+                standard RNNT: num_classes = V
+                multiblank RNNT: num_classes = V + number-big-blanks (since we store big-blanks before 
+                                 standard blank, and the standard blank is the last symbol in the vocab)
+                TDT: num_classes = V. Note, V here does not include any of the "duration outputs".
 
             reduction: Type of reduction to perform on loss. Possible values are 
                 `mean_batch`, 'mean_volume`, `mean`, `sum` or None.

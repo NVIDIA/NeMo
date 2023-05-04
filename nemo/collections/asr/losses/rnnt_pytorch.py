@@ -209,9 +209,7 @@ class TDTRNNTLossPytorch(Loss):
 
         log_probs = []
         for b in range(B):
-            tt = torch.Tensor([-1000.0])
-            tt = tt.cuda()
-            tt = tt[0]
+            tt = torch.Tensor([-1000.0]).cuda()[0]
             for n, l in enumerate(self.durations):
                 if act_lens[b] - l >= 0 and l > 0:
                     bb = (

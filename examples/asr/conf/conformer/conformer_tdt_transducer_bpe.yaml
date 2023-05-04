@@ -1,23 +1,6 @@
 # It contains the default values for training an TDT Conformer-Transducer ASR model with stateless decoders, large size (~120M) with Transducer loss and sub-word encoding.
 
-# Architecture and training config:
-# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
-# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
-# Here are the recommended configs for different variants of Conformer-Transducer, other parameters are the same as in this config file.
-#
-#  +-------------+---------+---------+----------+--------------+--------------------------+
-#  | Model       | d_model | n_heads | n_layers | weight_decay | pred_hidden/joint_hidden |
-#  +=============+=========+========+===========+==============+==========================+
-#  | Small  (14M)|   176   |    4   |    16     |     0.0      |           320            |
-#  +-------------+---------+--------+-----------+--------------+--------------------------+
-#  | Medium (32M)|   256   |    4   |    16     |     1e-3     |           640            |
-#  +-------------+---------+--------+-----------+--------------+--------------------------+
-#  | Large (120M)|   512   |    8   |    17     |     1e-3     |           640            |
-#  +-----------------------------------------------------------+--------------------------+
-#
-
-# You may find more info about Conformer-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-transducer
-# Pre-trained models of Conformer-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+# You can find detailed info about TDT models at https://arxiv.org/abs/2304.06795. 
 
 name: "TDT-Conformer-Transducer-BPE"
 
@@ -185,16 +168,19 @@ model:
       alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
 
   loss:
+    # This is the main different between a TDT model and a conventional RNNT model -- the loss function.
     loss_name: "tdt_rnnt"
 
     tdt_rnnt_kwargs:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       # You may enable FastEmit to reduce the latency of the model for streaming
-      fastemit_lambda: 0.0  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
+      fastemit_lambda: 0.001  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
       clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
+
+      # refer to https://arxiv.org/abs/2304.06795 for the meaning of the following three configs.
       durations: [0, 1, 2, 3, 4]
-      sigma: 0.05
-      omega: 0.0 # weight for regular RNN-T loss
+      sigma: 0.05 # hyper-param for under-normalization.
+      omega: 0.0 # weight for regular RNN-T loss.
 
   # Adds Gaussian noise to the gradients of the decoder to avoid overfitting
   variational_noise:
