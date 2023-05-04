@@ -310,3 +310,4 @@ def expand_dims(v, dims):
     Expand the tensor `v` to the dim `dims`.
     """
     return v[(...,) + (None,)*(dims - 1)]
+    
