@@ -15,15 +15,15 @@
 import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from typing import Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
@@ -35,7 +35,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
@@ -61,6 +60,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
+  allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available 
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
@@ -106,7 +106,9 @@ class TranscriptionConfig:
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
-    channel_selector: Optional[int] = None  # Used to select a single channel from multi-channel files
+    channel_selector: Optional[
+        Union[int, str]
+    ] = None  # Used to select a single channel from multichannel audio, or use average across channels
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
 
@@ -128,6 +130,7 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
+    allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
     audio_type: str = "wav"
 
@@ -150,6 +153,9 @@ class TranscriptionConfig:
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
+    for key in cfg:
+        cfg[key] = None if cfg[key] == 'None' else cfg[key]
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -174,14 +180,25 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
             accelerator = 'gpu'
+            map_location = torch.device('cuda:0')
+        elif cfg.allow_mps and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            logging.warning(
+                "MPS device (Apple Silicon M-series GPU) support is experimental."
+                " Env variable `PYTORCH_ENABLE_MPS_FALLBACK=1` should be set in most cases to avoid failures."
+            )
+            device = [0]
+            accelerator = 'mps'
+            map_location = torch.device('mps')
         else:
             device = 1
             accelerator = 'cpu'
+            map_location = torch.device('cpu')
     else:
         device = [cfg.cuda]
         accelerator = 'gpu'
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
-    logging.info(f"Inference will be done on device : {device}")
+        map_location = torch.device(f'cuda:{cfg.cuda}')
+
+    logging.info(f"Inference will be done on device: {map_location}")
 
     asr_model, model_name = setup_model(cfg, map_location)
 
@@ -209,7 +226,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 decoding_cfg.preserve_alignments = cfg.compute_timestamps
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
-
             asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
 
         # Check if ctc or rnnt model
@@ -228,6 +244,15 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
 
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
+
+    # Setup decoding config based on model type and decoder_type
+    with open_dict(cfg):
+        if isinstance(asr_model, EncDecCTCModel) or (
+            isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type == "ctc"
+        ):
+            cfg.decoding = cfg.ctc_decoding
+        else:
+            cfg.decoding = cfg.rnnt_decoding
 
     # prepare audio filepaths and decide wether it's partical audio
     filepaths, partial_audio = prepare_audio_data(cfg)

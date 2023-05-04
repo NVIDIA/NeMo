@@ -339,9 +339,9 @@ class ASRWithTTSModel(ASRModel):
         """Test epoch end hook for ASR model"""
         return self.asr_model.multi_test_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
 
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, verbose: bool = True) -> List[str]:
         """Transcribe audio data using ASR model"""
-        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size)
+        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size, verbose=verbose)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """Setup multiple validation data for ASR model"""
@@ -497,10 +497,14 @@ class ASRWithTTSModel(ASRModel):
         if tts_dataset:
             collate_fn = tts_dataset.collate_fn
         else:
-            if hasattr(asr_dataset, "collate_fn"):
+            if hasattr(asr_dataset, 'collate_fn'):
                 collate_fn = asr_dataset.collate_fn
-            else:
+            elif hasattr(asr_dataset.datasets[0], 'collate_fn'):
+                # support datasets that are lists of entries
                 collate_fn = asr_dataset.datasets[0].collate_fn
+            else:
+                # support datasets that are lists of lists
+                collate_fn = asr_dataset.datasets[0].datasets[0].collate_fn
 
         shuffle = train_data_config.get("shuffle", True) and not dataset_iterable
         self._train_dl = torch.utils.data.DataLoader(

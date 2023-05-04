@@ -25,6 +25,8 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
 
+DEFAULT_TOKEN_OFFSET = 100
+
 
 def pack_hypotheses(
     hypotheses: List[rnnt_utils.NBestHypotheses], logitlen: torch.Tensor,
@@ -98,6 +100,10 @@ class AbstractBeamCTCInfer(Typing):
         self.decoding_type = None
         self.tokenizer = None
 
+        # Utility maps for vocabulary
+        self.vocab_index_map = None
+        self.index_vocab_map = None
+
         # Internal variable, used to prevent double reduction of consecutive tokens (ctc collapse)
         self.override_fold_consecutive_value = None
 
@@ -110,6 +116,8 @@ class AbstractBeamCTCInfer(Typing):
                 Note that this vocabulary must NOT contain the "BLANK" token.
         """
         self.vocab = vocab
+        self.vocab_index_map = {v: i for i, v in enumerate(vocab)}
+        self.index_vocab_map = {i: v for i, v in enumerate(vocab)}
 
     def set_decoding_type(self, decoding_type: str):
         """
@@ -352,7 +360,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 if self.decoding_type == 'subword':
                     pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
                 else:
-                    pred_token_ids = candidate[1]
+                    # Char models
+                    pred_token_ids = [self.vocab_index_map[c] for c in candidate[1]]
 
                 # We preserve the token ids and the score for this hypothesis
                 hypothesis.y_sequence = pred_token_ids
@@ -444,7 +453,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                         raise ValueError("Vocab must be provided for character decoding. Use set_vocab().")
 
                     chars = list(candidate[0])
-                    pred_token_ids = [self.vocab[c] for c in chars]
+                    pred_token_ids = [self.vocab_index_map[c] for c in chars]
 
                 hypothesis.y_sequence = pred_token_ids
                 hypothesis.text = candidate[0]  # text
@@ -506,6 +515,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 vocabulary=self.vocab,
                 tokenizer=self.tokenizer,
                 lexicon_path=self.flashlight_cfg.lexicon_path,
+                boost_path=self.flashlight_cfg.boost_path,
                 beam_size=self.beam_size,
                 beam_size_token=self.flashlight_cfg.beam_size_token,
                 beam_threshold=self.flashlight_cfg.beam_threshold,
@@ -513,7 +523,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 word_score=self.beam_beta,
                 unk_weight=self.flashlight_cfg.unk_weight,
                 sil_weight=self.flashlight_cfg.sil_weight,
-                unit_lm=self.flashlight_cfg.unit_lm,
             )
 
         x = x.to('cpu')
@@ -556,7 +565,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
         # TOKEN_OFFSET for BPE-based models
         if self.decoding_type == 'subword':
-            self.token_offset = 100
+            self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
 @dataclass
@@ -574,11 +583,11 @@ class PyCTCDecodeConfig:
 @dataclass
 class FlashlightConfig:
     lexicon_path: Optional[str] = None
+    boost_path: Optional[str] = None
     beam_size_token: int = 16
     beam_threshold: float = 20.0
     unk_weight: float = -math.inf
     sil_weight: float = 0.0
-    unit_lm: bool = False
 
 
 @dataclass

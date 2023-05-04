@@ -61,6 +61,25 @@ An example ASR train and validation configuration should look similar to the fol
       num_workers: 8
       pin_memory: true
 
+There are two ways to test/validate on more than one manifest:
+
+- Specify a list in the `manifest_filepath` field. Results will be reported for each, the first one being used for overall loss / WER (specify `val_dl_idx` if you wish to change that). In this case, all manifests will share configuration parameters.
+- Use the ds_item key and pass a list of config objects to it. This allows you to use differently configured datasets for validation, e.g. 
+
+.. code-block:: yaml
+
+  model:
+    validation_ds:
+      ds_item:
+      - name: dataset1
+        manifest_filepath: ???
+        # Config parameters for dataset1
+        ...
+      - name: dataset2
+        manifest_filepath: ???
+        # Config parameters for dataset2
+        ...
+
 By default, dataloaders are set up when the model is instantiated. However, dataloader setup can be deferred to
 model's `setup()` method by setting ``defer_setup`` in the configuration.
 
@@ -592,7 +611,7 @@ use it, specify the following parameters in the encoder config file to reproduce
         # ...
         stochastic_depth_drop_prob: 0.3
         stochastic_depth_mode: linear  # linear or uniform
-        stochastic_depth_start_layer: 0
+        stochastic_depth_start_layer: 1
 
 See :ref:`documentation of ConformerEncoder <conformer-encoder-api>` for more details. Note that stochastic depth
 is supported for both CTC and Transducer model variations (or any other kind of model/loss that's using

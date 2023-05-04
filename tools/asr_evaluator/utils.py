@@ -154,7 +154,8 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
             f"output_filename={cfg.output_filename} "
             f"batch_size={cfg.test_ds.batch_size} "
             f"random_seed={cfg.random_seed} "
-            f"eval_config_yaml={f.name} ",
+            f"eval_config_yaml={f.name} "
+            f"decoder_type={cfg.inference.decoder_type} ",
             shell=True,
             check=True,
         )
@@ -407,7 +408,7 @@ def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, ev
                     raise ValueError("Current only support target metadata belongs to numeric or string ")
 
         for slot_key in slot_wer:
-            slot_wer[slot_key]['wer'] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['tokens']
+            slot_wer[slot_key][eval_metric] = slot_wer[slot_key]['errors'] / slot_wer[slot_key]['tokens']
             slot_wer[slot_key]['ins_rate'] = slot_wer[slot_key]['inss'] / slot_wer[slot_key]['tokens']
             slot_wer[slot_key]['del_rate'] = slot_wer[slot_key]['dels'] / slot_wer[slot_key]['tokens']
             slot_wer[slot_key]['sub_rate'] = slot_wer[slot_key]['subs'] / slot_wer[slot_key]['tokens']

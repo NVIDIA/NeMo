@@ -71,6 +71,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -107,10 +108,15 @@ class EvalBeamSearchNGramConfig:
     beam_alpha: List[float] = field(default_factory=lambda: [1.0])  # The alpha parameter or list of the alphas for the beam search decoding
     beam_beta: List[float] = field(default_factory=lambda: [0.0])  # The beta parameter or list of the betas for the beam search decoding
 
-    decoding_strategy: str = "beam"  # Supports only beam for now
+    decoding_strategy: str = "beam"
     decoding: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=128)
-
-
+    
+    text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
+        punctuation_marks = ".,?",
+        separate_punctuation = True,
+        do_lowercase = False,
+        rm_punctuation = False,
+    )
 # fmt: on
 
 
@@ -126,6 +132,7 @@ def beam_search_eval(
     beam_width: int = 128,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
+    punctuation_capitalization: PunctuationCapitalization = None,
 ):
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
@@ -188,6 +195,10 @@ def beam_search_eval(
             wer_dist_min = cer_dist_min = 10000
             for candidate_idx, candidate in enumerate(beams):  # type: (int, ctc_beam_decoding.rnnt_utils.Hypothesis)
                 pred_text = candidate.text
+                if cfg.text_processing.do_lowercase:
+                    pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
+                if cfg.text_processing.rm_punctuation:
+                    pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -267,6 +278,14 @@ def main(cfg: EvalBeamSearchNGramConfig):
             target_transcripts.append(data['text'])
             audio_file_paths.append(str(audio_file.absolute()))
 
+    punctuation_capitalization = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
+    if cfg.text_processing.separate_punctuation:
+        target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
+    if cfg.text_processing.do_lowercase:
+        target_transcripts = punctuation_capitalization.do_lowercase(target_transcripts)
+    if cfg.text_processing.rm_punctuation:
+        target_transcripts = punctuation_capitalization.rm_punctuation(target_transcripts)
+
     if cfg.probs_cache_file and os.path.exists(cfg.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'.")
         logging.info(f"Loading the cached pickle file of probabilities from '{cfg.probs_cache_file}' ...")
@@ -313,6 +332,10 @@ def main(cfg: EvalBeamSearchNGramConfig):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+        if cfg.text_processing.do_lowercase:
+            pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
+        if cfg.text_processing.rm_punctuation:
+            pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
 
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
@@ -379,6 +402,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 beam_beta=hp["beam_beta"],
                 beam_batch_size=cfg.beam_batch_size,
                 progress_bar=True,
+                punctuation_capitalization=punctuation_capitalization,
             )
 
             if candidate_cer < best_cer:

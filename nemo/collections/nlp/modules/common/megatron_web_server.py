@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+
 import gradio as gr
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
@@ -23,24 +25,30 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import
 __all__ = ['RetroDemoWebApp', 'get_demo']
 
 
-def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, port=5555):
-    data = {
-        "sentences": [prompt],
-        "tokens_to_generate": int(token_to_gen),
-        "temperature": temp,
-        "add_BOS": add_BOS,
-        "top_k": top_k,
-        "top_p": top_p,
-        "greedy": greedy,
-        "all_probs": False,
-        "repetition_penalty": repetition,
-        "min_tokens_to_generate": int(min_tokens),
-    }
-    sentences = text_generation(data, port=port)['sentences']
-    return sentences[0]
+def create_gen_function(port=5555):
+    def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, end_strings):
+        data = {
+            "sentences": [prompt],
+            "tokens_to_generate": int(token_to_gen),
+            "temperature": temp,
+            "add_BOS": add_BOS,
+            "top_k": top_k,
+            "top_p": top_p,
+            "greedy": greedy,
+            "all_probs": False,
+            "repetition_penalty": repetition,
+            "min_tokens_to_generate": int(min_tokens),
+            "end_strings": [i.strip() for i in end_strings.split(',') if len(i) != 0],
+        }
+        response = text_generation(data, port=port)
+        sentences = response['sentences']
+        return sentences[0]
+
+    return get_generation
 
 
-def get_demo(share, username, password):
+def get_demo(share, username, password, server_port=5555, web_port=9889, loop=None):
+    asyncio.set_event_loop(loop)
     with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
@@ -54,6 +62,7 @@ def get_demo(share, username, password):
                 repetition_penality = gr.Slider(
                     minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
+                end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
                     label="Input",
@@ -63,7 +72,7 @@ def get_demo(share, username, password):
                 output_box = gr.Textbox(value="", label="Output")
                 btn = gr.Button(value="Submit")
                 btn.click(
-                    get_generation,
+                    create_gen_function(server_port),
                     inputs=[
                         input_prompt,
                         greedy_flag,
@@ -74,10 +83,11 @@ def get_demo(share, username, password):
                         top_p,
                         top_k,
                         repetition_penality,
+                        end_strings,
                     ],
                     outputs=[output_box],
                 )
-    demo.launch(share=share, server_port=13570, server_name='0.0.0.0', auth=(username, password))
+    demo.launch(share=share, server_port=web_port, server_name='0.0.0.0', auth=(username, password))
 
 
 class RetroDemoWebApp:
@@ -88,7 +98,19 @@ class RetroDemoWebApp:
         self.combo_service_port = combo_service_port
 
     def get_retro_generation(
-        self, prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors, weight
+        self,
+        prompt,
+        greedy,
+        add_BOS,
+        token_to_gen,
+        min_tokens,
+        temp,
+        top_p,
+        top_k,
+        repetition,
+        neighbors,
+        weight,
+        end_strings,
     ):
         data = {
             "sentences": [prompt],
@@ -102,6 +124,7 @@ class RetroDemoWebApp:
             "repetition_penalty": repetition,
             "min_tokens_to_generate": int(min_tokens),
             "neighbors": int(neighbors),
+            "end_strings": [i.strip() for i in end_strings.split(',') if len(i) != 0],
         }
         self.update_weight(weight)
         output_json = text_generation(data, self.text_service_ip, self.text_service_port)
@@ -138,6 +161,7 @@ class RetroDemoWebApp:
                     repetition_penality = gr.Slider(
                         minimum=1.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                     )
+                    end_strings = gr.Textbox(label="End strings (comma separated)", value="<|endoftext|>,", lines=1,)
                     k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
                     weight = gr.Slider(
                         minimum=0.0, maximum=1.0, value=1.0, label='Weight for the Static Retrieval DB', step=0.02
@@ -174,6 +198,7 @@ class RetroDemoWebApp:
                             repetition_penality,
                             k_neighbors,
                             weight,
+                            end_strings,
                         ],
                         outputs=[output_box, output_retrieval],
                     )

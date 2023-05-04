@@ -17,7 +17,6 @@ import contextlib
 
 import omegaconf
 import torch
-import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -25,11 +24,11 @@ from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.helpers import clip_grad_value_, plot_spectrogram_to_numpy, slice_segments
+from nemo.collections.tts.data.dataset import DistributedBucketSampler
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
-from nemo.collections.tts.torch.data import DistributedBucketSampler
+from nemo.collections.tts.parts.utils.helpers import clip_grad_value_, plot_spectrogram_to_numpy, slice_segments
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, FloatType, Index, IntType, TokenIndex
@@ -392,6 +391,13 @@ class VitsModel(TextToWaveform):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_vits/versions/1.13.0/files/vits_ljspeech_fp16_full.nemo",
             description="This model is trained on LJSpeech audio sampled at 22050Hz. This model has been tested on generating female English "
             "voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_hifitts_vits",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_hifitts_vits/versions/r1.15.0/files/vits_en_hifitts.nemo",
+            description="This model is trained on HiFITTS sampled at 44100Hz with and can be used to generate male and female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)

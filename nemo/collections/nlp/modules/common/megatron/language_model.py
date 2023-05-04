@@ -31,16 +31,26 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import tensor_parallel
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
 
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
     LayerType = ApexGuardDefaults()
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def get_language_model(
@@ -495,6 +505,7 @@ class TransformerLanguageModel(MegatronModule):
         self.output_layer_init_method = output_layer_init_method
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
+        self.sequence_parallel = sequence_parallel
 
         if kv_channels is None:
 
@@ -644,14 +655,14 @@ class TransformerLanguageModel(MegatronModule):
                 self.pooler = Pooler(self.hidden_size, self.init_method, sequence_parallel=sequence_parallel)
                 self._pooler_key = 'pooler'
 
-        if not self.share_embeddings_and_output_weights:
-            self.output_layer = tensor_parallel.ColumnParallelLinear(
-                self.hidden_size,
-                self.vocab_size,
-                bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
-                init_method=self.init_method,
-            )
-            self._output_layer_key = 'output_layer'
+            if not self.share_embeddings_and_output_weights:
+                self.output_layer = tensor_parallel.ColumnParallelLinear(
+                    self.hidden_size,
+                    self.vocab_size,
+                    bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
+                    init_method=self.init_method,
+                )
+                self._output_layer_key = 'output_layer'
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -688,19 +699,27 @@ class TransformerLanguageModel(MegatronModule):
         else:
             pass
 
-        # encoder_input: [s, b, h]
-
         # enc_attn_mask: [1, 1, s, s]
 
         rotary_pos_emb = None
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
-            if not set_inference_key_value_memory and inference_max_sequence_len is not None:
+            if inference_max_sequence_len is not None:
                 rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
             elif self.encoder.input_tensor is not None:
-                rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
+                if self.sequence_parallel:
+                    rotary_pos_emb = self.rotary_pos_emb(
+                        self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                    )
+                else:
+                    rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
             else:
-                rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
+                if self.sequence_parallel:
+                    rotary_pos_emb = self.rotary_pos_emb(
+                        encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                    )
+                else:
+                    rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
         elif self.position_embedding_type == 'alibi':
             enc_seq_length = enc_input_ids.size(1)
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
