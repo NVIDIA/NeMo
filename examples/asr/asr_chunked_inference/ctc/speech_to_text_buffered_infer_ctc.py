@@ -193,7 +193,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
-            cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
 
             # ctc model
             if isinstance(asr_model, EncDecCTCModel):
@@ -222,7 +221,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
-    # add hybrid cur_decoder change_decoding_strategy
     frame_asr = FrameBatchASR(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
@@ -238,7 +236,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         manifest,
         filepaths,
     )
-
     output_filename = write_transcription(
         hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
     )
