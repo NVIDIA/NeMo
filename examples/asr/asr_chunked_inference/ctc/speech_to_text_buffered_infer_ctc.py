@@ -43,8 +43,10 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
@@ -74,10 +76,19 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
+    # Set to True to output greedy timestamp information (only supported models)
+    compute_timestamps: bool = False
+
+    # Set to True to output language ID information
+    compute_langs: bool = False
+
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
     model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+
+    # Decoding strategy for CTC models
+    ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -89,11 +100,17 @@ class TranscriptionConfig:
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
+    # decoder type for hybrid model could be None for ctc model and ctc for hybrid model
+    decoder_type: Optional[str] = None
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
+
+    for key in cfg:
+        cfg[key] = None if cfg[key] == 'None' else cfg[key]
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -105,6 +122,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
+
+    if cfg.decoder_type not in [None, 'ctc']:
+        raise ValueError(
+            "decoder_type needs to be either None (ctc model) or ctc (hybrid model with ctc decoder)for speech_to_text_buffered_infer_ctc!"
+        )
 
     filepaths = None
     manifest = cfg.dataset_manifest
@@ -161,6 +183,33 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )
         return cfg
 
+    # Setup decoding strategy
+    if hasattr(asr_model, 'change_decoding_strategy'):
+        if not isinstance(asr_model, EncDecCTCModel) and not isinstance(asr_model, EncDecHybridRNNTCTCModel):
+            raise ValueError(
+                "The script supports ctc model and hybrid model with ctc decodng! use rnnt/speech_to_text_buffered_infer_rnnt.py for other conditions."
+            )
+
+        else:
+            if cfg.compute_langs:
+                raise ValueError("CTC models do not support `compute_langs` at the moment.")
+            cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
+
+            # ctc model
+            if isinstance(asr_model, EncDecCTCModel):
+                asr_model.change_decoding_strategy(cfg.ctc_decoding)
+
+            # hybrid ctc rnnt model with decoder_type=ctc
+            if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+                if cfg.decoder_type != "ctc":
+                    raise ValueError(
+                        "If the model is a EncDecHybridRNNTCTCModel model, decoder_type should be specified and set to 'ctc' for this script."
+                    )
+                asr_model.change_decoding_strategy(cfg.ctc_decoding, decoder_type=cfg.decoder_type)
+
+    with open_dict(cfg):
+        cfg.decoding = cfg.ctc_decoding
+
     asr_model.eval()
     asr_model = asr_model.to(asr_model.device)
 
@@ -173,6 +222,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
+    # add hybrid cur_decoder change_decoding_strategy
     frame_asr = FrameBatchASR(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
@@ -188,6 +238,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         manifest,
         filepaths,
     )
+
     output_filename = write_transcription(
         hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
     )

@@ -96,8 +96,9 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
         / "speech_to_text_buffered_infer_ctc.py"
     )
 
-    if (cfg.pretrained_name and 'transducer' in cfg.pretrained_name) or (
-        cfg.model_path and 'transducer' in cfg.model_path
+    if (
+        (cfg.pretrained_name and 'transducer' in cfg.pretrained_name)
+        or (cfg.model_path and 'transducer' in cfg.model_path)
     ):
         script_path = (
             Path(__file__).parents[2]
@@ -118,7 +119,8 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
         f"batch_size={cfg.test_ds.batch_size} "
         f"chunk_len_in_secs={cfg.inference.chunk_len_in_secs} "
         f"total_buffer_in_secs={cfg.inference.total_buffer_in_secs} "
-        f"model_stride={cfg.inference.model_stride} ",
+        f"model_stride={cfg.inference.model_stride} "
+        f"decoder_type={cfg.inference.decoder_type} ",
         shell=True,
         check=True,
     )
