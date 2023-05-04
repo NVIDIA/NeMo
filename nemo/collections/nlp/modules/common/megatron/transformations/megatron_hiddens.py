@@ -31,17 +31,22 @@ class MegatronHiddensModule(torch.nn.Module):
     This class jointly handles the hidden transforms and hidden loss transforms.
     It helps in validating, and applying the transforms.
     """
-    def __init__(self, hidden_transforms: List[MegatronBaseHiddenLoss]=[], hidden_loss_transforms: List[MegatronBaseHiddenTransform]=[]):
+
+    def __init__(
+        self,
+        hidden_transforms: List[MegatronBaseHiddenLoss] = [],
+        hidden_loss_transforms: List[MegatronBaseHiddenTransform] = [],
+    ):
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
-    
+
         # register all hidden / loss transforms as submodules to support learned parameters
         self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
         self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
 
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
         loss_inputs = self.loss_inputs
-            
+
     @functools.cached_property
     def hidden_outputs(self):
         """Get the hidden outputs from all the hidden transforms"""
@@ -79,7 +84,7 @@ class MegatronHiddensModule(torch.nn.Module):
         outputs = inputs.copy()
         for hidden_transform in self.hidden_transforms:
             outputs.update(hidden_transform.transform(outputs))
-        
+
         return outputs
 
     def apply_loss_transforms(self, outputs):
@@ -100,7 +105,9 @@ class MegatronHiddensModule(torch.nn.Module):
             # check if cur_loss keys are unique
             dup_keys = set(cur_loss_dict.keys()).intersection(set(loss_dict.keys()))
             if len(dup_keys):
-                raise ValueError(f"Loss transform ({i}) {loss_transform} is trying to override the following loss keys {list(dup_keys)}")
+                raise ValueError(
+                    f"Loss transform ({i}) {loss_transform} is trying to override the following loss keys {list(dup_keys)}"
+                )
             loss_dict.update(cur_loss_dict)
-        
+
         return loss_dict
