@@ -26,64 +26,64 @@ import copy
 __all__ = ['GPTSFTChatDataset']
 
 IGNORE_INDEX = -100
+END_SIGNAL = "\n"
+END_NAME_SIGNAL = "\n"
 
-CONVERSATION = {
-    "system": "A chat between a curious human and an artificial intelligence assistant. "
-           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
-    "human": "<extra_id_1>",
-    "gpt": "<extra_id_2>",
-}
+SYSTEM_TOKEN = "<extra_id_0>"
+TURN_TOKEN = ["<extra_id_1>", "<extra_id_2>"]
 
 
-def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids):
+def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role):
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
+        # note, sentence piece will add extra empty token in front. s_id has that extra token too
+        skip_name_len = len(
+            tokenizer.text_to_ids('<extra_id_0>' + speaker + END_NAME_SIGNAL))
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
-            # Check whether the mask is applied to the correct position
+            # Check whether the mask is applied to the correct position, the first token is turn token: <extra_id_1> or <extra_id_2>
+            # s_id[2:] skips the artifact empty token and the turn token
+            # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
             if not torch.equal(target[cur_idx + 1:cur_idx + tokenized_len],
                                s_id[2:]):
                 logging.warning("a sentence mismatches the corresponding piece "
                                 "in the conversation")
-        if i == 0 and speaker == "human":
-            # mask the first human reponse 
+        if i == 0:
+            # mask the first turn completely to provide at least one turn as context
             target[cur_idx:cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == "human":
+        elif speaker == mask_role:
             # leave the first human tag unmasked
-            target[cur_idx + 1:cur_idx  + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + 1: cur_idx  + tokenized_len] = IGNORE_INDEX
+        elif speaker != mask_role:
+            # mask up to the name end, need to remove one as skip name has an extra artifact empty token
+            target[cur_idx:cur_idx + skip_name_len - 1] = IGNORE_INDEX
         cur_idx += tokenized_len
 
 
-def _add_speaker_and_signal(header, source, get_conversation=True):
+def _add_speaker_and_signal(header, source, mask_role):
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
-    END_SIGNAL = "\n"
     conversation = header
-    unknown_role = "unknown"  # use default unknown role
-    roles = {
-        "human": CONVERSATION['human'],  # human role
-        "gpt": CONVERSATION['gpt'],  # gpt role
-    }
     for i, sentence in enumerate(source):
-        sentence_from = sentence["from"].lower()
+        sentence_from = sentence["from"]
+        role_token = TURN_TOKEN[i % 2]
         sentence["value"] = (
             BEGIN_SIGNAL
-            + roles.get(sentence_from, unknown_role)
+            + role_token + sentence_from + END_NAME_SIGNAL
             + sentence["value"]
             + END_SIGNAL
         )
-        if get_conversation:
-            conversation += sentence["value"]
-            # the last turn is from the gpt, add human prefix as the end of the conversation
-            if sentence_from == 'gpt' and i == len(source) - 1:
-                conversation += CONVERSATION['human']
+        conversation += sentence["value"]
+        # if the last turn is not masked, add next token start token to the end, which will be included for loss calculation
+        if sentence_from != mask_role and i == len(source) - 1:
+            conversation += TURN_TOKEN[(i + 1) % 2]
     return conversation
 
 
 def preprocess(
-    source: list,
+    source: dict,
     tokenizer: TokenizerSpec,
 ):
     """
@@ -94,8 +94,9 @@ def preprocess(
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
     # add end signal and concatenate together
-    header = f"{CONVERSATION['system']}\n\n"
-    conversation = _add_speaker_and_signal(header, source)
+    mask_role = source.get('mask', 'User')
+    header = f"{SYSTEM_TOKEN}{source['system']}\n\n"
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -103,18 +104,19 @@ def preprocess(
 
     ids = []
     tokenized_lens = []
-    for s in source:
+    for s in source['conversations']:
         tokenized_sentence = tokenizer.text_to_ids(s["value"])
         ids.append(torch.tensor(tokenized_sentence))
         # remove one token as it adds an empty token in front
         tokenized_lens.append(len(tokenized_sentence) - 1)
-    speakers = [sentence["from"] for sentence in source]
+    speakers = [sentence["from"] for sentence in source['conversations']]
+    assert mask_role in speakers, "mask role not in the conversation"
     target = torch.LongTensor(target)
     # not going to train on the header
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
 
-    _mask_targets(target, tokenized_lens, speakers, header_len, ids)
+    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role)
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
@@ -128,7 +130,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = preprocess(example['conversations'], self.tokenizer)
+        result = preprocess(example, self.tokenizer)
 
         return result
 
@@ -169,4 +171,3 @@ class GPTSFTChatDataset(GPTSFTDataset):
         }
 
         return processed_batch
-
