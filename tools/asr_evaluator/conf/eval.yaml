@@ -15,7 +15,7 @@ engine:
         model_stride: 8 # Model downsampling factor, 8 for Citrinet and FastConformer models, and 4 for Conformer models
         decoder_type: null # Used for hybrid CTC RNNT model only. Specify decoder_type *ctc* or *rnnt* for hybrid CTC RNNT model.
    
-   test_ds:
+    test_ds:
         manifest_filepath: null
         sample_rate: 16000
         batch_size: 32
