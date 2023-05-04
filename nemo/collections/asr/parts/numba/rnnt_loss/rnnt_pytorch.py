@@ -93,7 +93,7 @@ class _RNNTNumba(Function):
 
 class _TDTRNNTNumba(Function):
     """
-    Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
+    Numba class for TDT loss (https://arxiv.org/abs/2304.06795)
     """
 
     @staticmethod
@@ -113,12 +113,12 @@ class _TDTRNNTNumba(Function):
         omega,
     ):
         """
-        durations: list of durations for multi-blank transducer, e.g.
-            [2, 4, 8].
+        durations: list of durations for TDT model, must include 0 and 1, e.g.
+            [0, 1, 2, 3, 4].
         sigma: hyper-parameter for logit under-normalization method for training
-            multi-blank transducers. Recommended value 0.05.
+            TDT models. Recommended value 0.05.
         omega: weight for standard RNN-T loss
-        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+        Refer to https://arxiv.org/abs/2304.06795 for detailed explanations for
             the above parameters;
         For other parameters for this class, refer to comment for class _RNNTNumba
         """
@@ -132,6 +132,7 @@ class _TDTRNNTNumba(Function):
             loss_func = rnnt.tdt_rnnt_loss_gpu
         else:
             exit(-1)
+
         label_grads = torch.zeros_like(label_acts) if label_acts.requires_grad else None
         duration_grads = torch.zeros_like(duration_acts) if duration_acts.requires_grad else None
         minibatch_size = label_acts.size(0)
@@ -347,18 +348,18 @@ def tdt_rnnt_loss(
     clamp: float = 0.0,
 ):
     """
-    TDT RNN Transducer (https://arxiv.org/pdf/2211.03541.pdf) Loss (functional form)
+    TDT RNN Transducer (https://arxiv.org/abs/2304.06795) Loss (functional form)
     Args:
         acts: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
         labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
         act_lens: Tensor of size (batch) containing size of each output sequence from the network
         label_lens: Tensor of (batch) containing label length of each example
         blank (int): standard blank label.
-        durations: list of durations for multi-blank transducer, e.g.
-            [2, 4, 8].
+        durations: list of durations for TDT model, e.g.
+            [0,1,2,3,4].
         sigma: hyper-parameter for logit under-normalization method for training
             multi-blank transducers. Recommended value 0.05.
-        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+        Refer to https://arxiv.org/abs/2304.06795 for detailed explanations for
             the last two params.
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
