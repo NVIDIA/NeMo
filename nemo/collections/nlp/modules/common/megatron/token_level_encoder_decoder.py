@@ -141,8 +141,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.label_smoothing = label_smoothing
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
-        self.hiddens_module = hiddens_module
         self.tokens_head_bias = tokens_head_bias
+        self.hiddens_module = hiddens_module
+        if not isinstance(self.hiddens_module, MegatronHiddensModule):
+            raise TypeError(
+                f"hiddens_module must be of type MegatronHiddensModule, but got {type(self.hiddens_module)} instead."
+            )
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
