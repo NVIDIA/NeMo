@@ -327,7 +327,7 @@ class ConvSubsampling(torch.nn.Module):
         for i in range(self._sampling_num-1):
             p = math.ceil(math.log(torch.numel(x) / 2**31, 2))
             _, _, t, _ = x.size()
-            new_t = int(t // (2**(p+1)) * 2 # forcing new_t to be even
+            new_t = int(t // (2**(p+1))) * 2 # forcing new_t to be even
             logging.debug(f'conv dw subsampling: using split T size {new_t}')
             x = self.chunked_conv(self.conv[i*3+2], new_t, x) # conv2D, depthwise
             x = torch.cat([self.conv[i*3+3](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
