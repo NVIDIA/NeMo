@@ -25,7 +25,11 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.multimodal.models.stable_diffusion.samplers.sampler_dpm import DPMSolverSampler
+from nemo.collections.nlp.parts.nlp_overrides import (
+    NLPDDPStrategy,
+    NLPSaveRestoreConnector,
+)
 
 
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
@@ -42,8 +46,10 @@ def initialize_sampler(model, sampler_type):
         sampler = DDIMSampler(model)
     elif sampler_type == 'PLMS':
         sampler = PLMSSampler(model)
+    elif sampler_type == 'DPM-SOLVER':
+        sampler = DPMSolverSampler(model)
     else:
-        raise ValueError(f'Sampler {sampler_type} is not supported for {cls.__name__}')
+        raise ValueError(f'Sampler {sampler_type} is not supported.')
     return sampler
 
 
@@ -171,6 +177,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
                 for text_prompt, pils in zip(prompts, output):
                     for idx, image in enumerate(pils):
                         image.save(os.path.join(out_path, f'{text_prompt[:50]}_{idx}.png'))
+                        #image.save(os.path.join(out_path, f'image_{img_idx}.png'))
             else:
                 with open(os.path.join(out_path, 'output.pkl'), 'wb') as f:
                     pickle.dump(output, f)

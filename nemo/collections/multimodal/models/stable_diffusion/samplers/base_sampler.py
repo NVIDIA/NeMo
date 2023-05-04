@@ -77,7 +77,10 @@ class AbstractBaseSampler(ABC):
     @abstractmethod
     def p_sampling_fn(self):
         pass
-
+    
+    def dpm_sampling_fn(self):
+        pass
+    
     @torch.no_grad()
     def sample(
         self,
@@ -117,24 +120,25 @@ class AbstractBaseSampler(ABC):
         C, H, W = shape
         size = (batch_size, C, H, W)
         print(f'Data shape for sampling is {size}, eta {eta}')
-        samples, intermediates = self.sampling_fn(
-            conditioning,
-            size,
-            callback=callback,
-            img_callback=img_callback,
-            quantize_denoised=quantize_x0,
-            mask=mask,
-            x0=x0,
-            ddim_use_original_steps=False,
-            noise_dropout=noise_dropout,
-            temperature=temperature,
-            score_corrector=score_corrector,
-            corrector_kwargs=corrector_kwargs,
-            x_T=x_T,
-            log_every_t=log_every_t,
-            unconditional_guidance_scale=unconditional_guidance_scale,
-            unconditional_conditioning=unconditional_conditioning,
-        )
+        
+        if self.sampler is Sampler.DPM:
+            return self.dpm_sampling_fn(shape=shape, steps=S, conditioning=conditioning, unconditional_conditioning=unconditional_conditioning, unconditional_guidance_scale=unconditional_guidance_scale, x_T=x_T)
+
+        samples, intermediates = self.sampling_fn(conditioning, size,
+                                                  callback=callback,
+                                                  img_callback=img_callback,
+                                                  quantize_denoised=quantize_x0,
+                                                  mask=mask, x0=x0,
+                                                  ddim_use_original_steps=False,
+                                                  noise_dropout=noise_dropout,
+                                                  temperature=temperature,
+                                                  score_corrector=score_corrector,
+                                                  corrector_kwargs=corrector_kwargs,
+                                                  x_T=x_T,
+                                                  log_every_t=log_every_t,
+                                                  unconditional_guidance_scale=unconditional_guidance_scale,
+                                                  unconditional_conditioning=unconditional_conditioning,
+                                                  )
         return samples, intermediates
 
     @torch.no_grad()
@@ -164,12 +168,14 @@ class AbstractBaseSampler(ABC):
             img = torch.randn(shape, generator=self.model.rng, device=device)
         else:
             img = x_T
+            
         if timesteps is None:
             timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
         elif timesteps is not None and not ddim_use_original_steps:
             subset_end = int(min(timesteps / self.ddim_timesteps.shape[0], 1) * self.ddim_timesteps.shape[0]) - 1
             timesteps = self.ddim_timesteps[:subset_end]
         intermediates = {'x_inter': [img], 'pred_x0': [img]}
+
         # TODO: Is this needed
         if self.sampler is Sampler.PLMS:
             time_range = list(reversed(range(0, timesteps))) if ddim_use_original_steps else np.flip(timesteps)
