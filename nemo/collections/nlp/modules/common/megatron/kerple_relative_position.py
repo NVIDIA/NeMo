@@ -27,7 +27,10 @@ def get_kerple_log_params(
     precision
 ):
 
-    model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
+    try:
+        model_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
+    except:
+        model_parallel_size = 1
     num_heads_per_partition = safe_divide(num_attention_heads, model_parallel_size)
 
     dtype_dict = {16: torch.float16, 32: torch.float32, 'bf16': torch.bfloat16}
