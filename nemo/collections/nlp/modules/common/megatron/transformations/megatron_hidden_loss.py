@@ -21,6 +21,7 @@ import torch
 
 __all__ = ["MegatronBaseHiddenLoss", "MegatronMIMHiddenLoss"]
 
+
 class MegatronBaseHiddenLoss(torch.nn.Module):
     """
     Base class to calculate hidden state loss.

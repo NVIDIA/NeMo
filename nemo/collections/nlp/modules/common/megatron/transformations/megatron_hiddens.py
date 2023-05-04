@@ -13,14 +13,18 @@
 # limitations under the License.
 
 
-import torch
 import functools
 from typing import List
 
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss import MegatronBaseHiddenLoss
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import MegatronBaseHiddenTransform
+from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import (
+    MegatronBaseHiddenTransform,
+)
 
 __all__ = ["MegatronHiddensModule"]
+
 
 class MegatronHiddensModule(torch.nn.Module):
     """
@@ -60,7 +64,7 @@ class MegatronHiddensModule(torch.nn.Module):
             raise ValueError(
                 f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
             )
-        
+
         return list(loss_inputs)
 
     def apply_hidden_transforms(self, inputs):
