@@ -89,6 +89,8 @@ class MegatronBertModel(MegatronBaseModel):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+        
+        self.enable_autocast = False if (not self.megatron_amp_o2) and (self.autocast_dtype == torch.float) else True
 
         # used in NVIDIA NGC PyTorch containers
         # buffer used during train_step for logging average loss over gradient accumulation steps
@@ -311,7 +313,7 @@ class MegatronBertModel(MegatronBaseModel):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
@@ -412,7 +414,7 @@ class MegatronBertModel(MegatronBaseModel):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:

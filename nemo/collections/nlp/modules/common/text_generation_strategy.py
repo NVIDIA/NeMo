@@ -62,7 +62,7 @@ class TextGenerationStrategy:
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=self.model.autocast_dtype,
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.model.enable_autocast,
         )
 
         return output_tensor

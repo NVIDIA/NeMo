@@ -150,6 +150,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
         self.model_type = ModelType.encoder_or_decoder
 
+        self.enable_autocast = False if (not self.megatron_amp_o2) and (self.autocast_dtype == torch.float) else True
+
         if self.pipeline_parallel:
             assert (
                 self.cfg.optim.sched.get("min_lr", 0.0) == 0.0
@@ -309,7 +311,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses

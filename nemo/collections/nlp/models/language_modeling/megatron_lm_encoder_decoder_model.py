@@ -134,6 +134,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+        
+        self.enable_autocast = False if (not self.megatron_amp_o2) and (self.autocast_dtype == torch.float) else True
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
 
@@ -328,7 +330,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
@@ -996,7 +998,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_microbatches=1,
             decoder_seq_length=encoder_seq_length,
             dtype=self.autocast_dtype,
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         if output_tensor:
@@ -1160,7 +1162,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 num_microbatches=1,
                 decoder_seq_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
-                enable_autocast=False if self.autocast_dtype == torch.float else True,
+                enable_autocast=self.enable_autocast,
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():

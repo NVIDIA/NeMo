@@ -154,6 +154,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+        
+        self.enable_autocast = False if (not self.megatron_amp_o2) and (self.autocast_dtype == torch.float) else True
 
         self.transformer_engine = cfg.get('transformer_engine', False)
 
@@ -374,7 +376,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
@@ -648,7 +650,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=False if self.autocast_dtype == torch.float else True,
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stage of the pipeline returns losses
