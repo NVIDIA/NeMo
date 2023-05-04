@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pickle
+from pathlib import Path
+
 import torch
 from PIL import Image
-from pathlib import Path
 from torch.utils.data import Dataset
 from torchvision import transforms
 
@@ -26,14 +27,14 @@ class DreamBoothDataset(Dataset):
     """
 
     def __init__(
-            self,
-            instance_data_root,
-            instance_prompt,
-            reg_data_root=None,
-            reg_prompt=None,
-            size=512,
-            center_crop=False,
-            repeat=100,
+        self,
+        instance_data_root,
+        instance_prompt,
+        reg_data_root=None,
+        reg_prompt=None,
+        size=512,
+        center_crop=False,
+        repeat=100,
     ):
         self.size = size
         self.center_crop = center_crop

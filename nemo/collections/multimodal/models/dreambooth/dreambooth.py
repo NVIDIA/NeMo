@@ -11,30 +11,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import numpy as np
 import os
+from abc import ABC
+from functools import partial
+from typing import Any, Dict, Optional, Union
+
+import numpy as np
 import pytorch_lightning as pl
 import torch
-from abc import ABC
-
-from functools import partial
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import GradClipAlgorithmType
 from torch._dynamo import optimize
 from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
-from typing import Any, Dict, Optional, Union
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import make_beta_schedule, \
-    extract_into_tensor, noise_like
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
+    extract_into_tensor,
+    make_beta_schedule,
+    noise_like,
+)
 from nemo.collections.multimodal.parts.stable_diffusion.utils import default, exists
 from nemo.collections.multimodal.parts.utils import randn_like
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import Serialization
@@ -43,9 +44,9 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
     from apex import amp
     from apex.transformer.enums import AttnMaskType
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -61,6 +62,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 def disabled_train(self, mode=True):
     """Overwrite model.train with this function to make sure train/eval mode
     does not change anymore."""
@@ -69,12 +71,8 @@ def disabled_train(self, mode=True):
 
 def _collate_fn(examples, with_prior_preservation=False):
     if with_prior_preservation:
-        prompts = [
-            [example["instance_prompt"], example["reg_prompt"]]
-            for example in examples
-        ]
-        images = [example["instance_images"] for example in examples] + \
-                 [example["reg_images"] for example in examples]
+        prompts = [[example["instance_prompt"], example["reg_prompt"]] for example in examples]
+        images = [example["instance_images"] for example in examples] + [example["reg_images"] for example in examples]
     else:
         prompts = [[example["instance_prompt"]] for example in examples]
         images = [example["instance_images"] for example in examples]
@@ -110,7 +108,7 @@ class DreamBooth(torch.nn.Module, Serialization):
         self.get_noise_scheduler(self.cfg.noise_scheduler)
 
         self.model_type = None
-        self.rng = torch.Generator(device=torch.cuda.current_device(), )
+        self.rng = torch.Generator(device=torch.cuda.current_device(),)
 
     def instantiate_unet(self, cfg):
         self.unet = DreamBooth.from_config_dict(cfg)
@@ -192,7 +190,6 @@ class DreamBooth(torch.nn.Module, Serialization):
 
 
 class MegatronDreamBooth(MegatronMultimodalModel):
-
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
             raise ImportError(
@@ -375,8 +372,7 @@ class MegatronDreamBooth(MegatronMultimodalModel):
 
             # DB has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
-                    self.autocast_dtype in (torch.half, torch.bfloat16),
-                    dtype=self.autocast_dtype,
+                self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
                 images = images.cuda(non_blocking=True)
 

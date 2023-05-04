@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import os
+from typing import Dict, List, Optional
+
 import torch
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf, open_dict
-from typing import List, Optional, Dict
+from PIL import Image
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
@@ -101,9 +102,7 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronCLIPModel,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
@@ -113,11 +112,7 @@ def main(cfg) -> None:
         vision_encoder = model.model.vision_encoder
         text_encoder = model.model.text_encoder
 
-    val_image_transform, text_transform = get_preprocess_fns(
-        model.cfg,
-        model.tokenizer,
-        is_train=False,
-    )
+    val_image_transform, text_transform = get_preprocess_fns(model.cfg, model.tokenizer, is_train=False,)
 
     os.makedirs(f"{output_dir}/onnx/", exist_ok=True)
     os.makedirs(f"{output_dir}/plan/", exist_ok=True)
@@ -129,9 +124,16 @@ def main(cfg) -> None:
     input_profile = {}
     bs1_example = clip_model.input_example(max_batch=1, max_dim=max_dim, max_text=1)
     bsmax_example = clip_model.input_example(max_batch=max_batch_size, max_dim=max_dim, max_text=max_text)
-    input_profile['images'] = [tuple(bs1_example[0].shape), tuple(bsmax_example[0].shape),
-                               tuple(bsmax_example[0].shape)]
-    input_profile['texts'] = [tuple(bs1_example[1].shape), tuple(bsmax_example[1].shape), tuple(bsmax_example[1].shape)]
+    input_profile['images'] = [
+        tuple(bs1_example[0].shape),
+        tuple(bsmax_example[0].shape),
+        tuple(bsmax_example[0].shape),
+    ]
+    input_profile['texts'] = [
+        tuple(bs1_example[1].shape),
+        tuple(bsmax_example[1].shape),
+        tuple(bsmax_example[1].shape),
+    ]
     build_engine(
         f"{output_dir}/onnx/clip.onnx",
         f"{output_dir}/plan/clip.plan",

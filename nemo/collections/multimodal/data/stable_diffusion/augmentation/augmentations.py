@@ -20,13 +20,15 @@ def construct_clip_augmentations(n_px=224):
     def _convert_image_to_rgb(image):
         return image.convert("RGB")
 
-    return transforms.Compose([
-        transforms.Resize(n_px, interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.CenterCrop(n_px),
-        _convert_image_to_rgb,
-        transforms.ToTensor(),
-        transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
-    ])
+    return transforms.Compose(
+        [
+            transforms.Resize(n_px, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.CenterCrop(n_px),
+            _convert_image_to_rgb,
+            transforms.ToTensor(),
+            transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+        ]
+    )
 
 
 def construct_image_augmentations(augmentation_dict, normalize=True):
@@ -34,8 +36,8 @@ def construct_image_augmentations(augmentation_dict, normalize=True):
     for aug in augmentation_dict:
         if aug == 'resize_smallest_side':
             img_size = int(augmentation_dict[aug])
-            train_img_transform.append(transforms.Resize(
-                img_size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True)
+            train_img_transform.append(
+                transforms.Resize(img_size, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True)
             )
 
         elif aug == 'center_crop_h_w':
@@ -60,10 +62,7 @@ def construct_image_augmentations(augmentation_dict, normalize=True):
     # Always need to convert data to tensor
     train_img_transform.append(transforms.ToTensor())
     if normalize:
-        train_img_transform.append(transforms.Normalize(
-            (0.5, 0.5, 0.5),
-            (0.5, 0.5, 0.5)
-        ))
+        train_img_transform.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
     train_img_transform = transforms.Compose(train_img_transform)
     return train_img_transform
 

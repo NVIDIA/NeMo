@@ -11,27 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import einops
 import gc
 import math
-import numpy as np
 import os
 import random
 import sys
+from argparse import ArgumentParser
+
+import einops
+import numpy as np
 import torch
 import torch.nn as nn
-from PIL import Image, ImageOps
-from argparse import ArgumentParser
 from einops import rearrange, repeat
 from omegaconf import OmegaConf, open_dict
+from PIL import Image, ImageOps
 
 from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
 from nemo.collections.multimodal.models.stable_diffusion.samplers.k_diffusion import DiscreteEpsDDPMDenoiser
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.trt_utils import build_engine
@@ -71,9 +69,7 @@ def main(cfg):
         model_cfg.inductor = False
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronLatentDiffusionEdit,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronLatentDiffusionEdit, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
     )
 
     # inference use the latent diffusion part of megatron wrapper
@@ -98,20 +94,22 @@ def main(cfg):
     os.makedirs(f"{output_dir}/onnx/clip/", exist_ok=True)
     os.makedirs(f"{output_dir}/onnx/vae/", exist_ok=True)
     os.makedirs(f"{output_dir}/plan/", exist_ok=True)
-    deployment_conf = OmegaConf.create({
-        'clip': OmegaConf.create({}),
-        'unet': OmegaConf.create({}),
-        'vaee': OmegaConf.create({}),
-        'vaed': OmegaConf.create({}),
-        'sampler': OmegaConf.create({}),
-        'batch_size': batch_size,
-        'height': height,
-        'width': width,
-        'resolution': edit_cfg.resolution,
-        'steps': edit_cfg.steps,
-        'text_cfg_scale': edit_cfg.cfg_text,
-        'image_cfg_scale': edit_cfg.cfg_image,
-    })
+    deployment_conf = OmegaConf.create(
+        {
+            'clip': OmegaConf.create({}),
+            'unet': OmegaConf.create({}),
+            'vaee': OmegaConf.create({}),
+            'vaed': OmegaConf.create({}),
+            'sampler': OmegaConf.create({}),
+            'batch_size': batch_size,
+            'height': height,
+            'width': width,
+            'resolution': edit_cfg.resolution,
+            'steps': edit_cfg.steps,
+            'text_cfg_scale': edit_cfg.cfg_text,
+            'image_cfg_scale': edit_cfg.cfg_image,
+        }
+    )
 
     fake_text = [""]
     out_cond = model.cond_stage_model(fake_text)
@@ -131,17 +129,16 @@ def main(cfg):
     output_names = ["logits"]
     x = torch.randn(1, 3, width, height, device="cuda")
     # z = torch.randn(1, *shape_of_internal, device="cuda")
-    torch.onnx.export(VAEEncodeWrapper(model.first_stage_model),
-                      (x,),
-                      f"{output_dir}/onnx/vae/vae_encode.onnx",
-                      verbose=False,
-                      input_names=input_names,
-                      output_names=output_names,
-                      dynamic_axes={
-                          "x": {0: 'B'},
-                          "logits": {0: 'B'}
-                      },
-                      opset_version=17)
+    torch.onnx.export(
+        VAEEncodeWrapper(model.first_stage_model),
+        (x,),
+        f"{output_dir}/onnx/vae/vae_encode.onnx",
+        verbose=False,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes={"x": {0: 'B'}, "logits": {0: 'B'}},
+        opset_version=17,
+    )
     input_profile_vaee = {}
     input_profile_vaee["x"] = [(1, *(x.shape[1:]))] * 3
     with torch.no_grad():
@@ -156,18 +153,16 @@ def main(cfg):
     # cc = torch.randn(2, out.shape[1], out.shape[2], device="cuda")
     input_names = ["x", "t", "context"]
     output_names = ["logits"]
-    torch.onnx.export(model.model.diffusion_model,
-                      (x, t, cc),
-                      f"{output_dir}/onnx/unet/unet.onnx",
-                      verbose=False,
-                      input_names=input_names,
-                      output_names=output_names,
-                      dynamic_axes={
-                          "x": {0: 'B'},
-                          "t": {0: 'B'},
-                          "context": {0: 'B'}
-                      },
-                      opset_version=17)
+    torch.onnx.export(
+        model.model.diffusion_model,
+        (x, t, cc),
+        f"{output_dir}/onnx/unet/unet.onnx",
+        verbose=False,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes={"x": {0: 'B'}, "t": {0: 'B'}, "context": {0: 'B'}},
+        opset_version=17,
+    )
 
     input_profile_unet = {}
     input_profile_unet["x"] = [(3 * batch_size, *(x.shape[1:]))] * 3
@@ -194,17 +189,16 @@ def main(cfg):
     output_names = ["logits"]
     z = torch.randn(1, *(out_unet.shape[1:]), device="cuda")
     # z = torch.randn(1, *shape_of_internal, device="cuda")
-    torch.onnx.export(VAEDecodeWrapper(model.first_stage_model),
-                      (z,),
-                      f"{output_dir}/onnx/vae/vae_decode.onnx",
-                      verbose=False,
-                      input_names=input_names,
-                      output_names=output_names,
-                      dynamic_axes={
-                          "z": {0: 'B'},
-                          "logits": {0: 'B'}
-                      },
-                      opset_version=17)
+    torch.onnx.export(
+        VAEDecodeWrapper(model.first_stage_model),
+        (z,),
+        f"{output_dir}/onnx/vae/vae_decode.onnx",
+        verbose=False,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes={"z": {0: 'B'}, "logits": {0: 'B'}},
+        opset_version=17,
+    )
     input_profile_vaed = {}
     input_profile_vaed["z"] = [(batch_size, *(z.shape[1:]))] * 3
     deployment_conf.vaed.z = input_profile_vaed["z"][0]
@@ -223,19 +217,18 @@ def main(cfg):
     input_names = ["tokens"]
     output_names = ["logits"]
     tokens = torch.randint(high=10, size=(1, model.cond_stage_model.max_length), device="cuda")
-    torch.onnx.export(CLIPWrapper(model.cond_stage_model.transformer),
-                      (tokens,),
-                      f"{output_dir}/onnx/clip/clip.onnx",
-                      verbose=False,
-                      input_names=input_names,
-                      output_names=output_names,
-                      dynamic_axes={
-                          "tokens": {0: 'B'},
-                          "logits": {0: 'B'}
-                      },
-                      opset_version=17,
-                      do_constant_folding=True,
-                      export_params=True)
+    torch.onnx.export(
+        CLIPWrapper(model.cond_stage_model.transformer),
+        (tokens,),
+        f"{output_dir}/onnx/clip/clip.onnx",
+        verbose=False,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes={"tokens": {0: 'B'}, "logits": {0: 'B'}},
+        opset_version=17,
+        do_constant_folding=True,
+        export_params=True,
+    )
     input_profile_clip = {}
     input_profile_clip["tokens"] = [(1, *(tokens.shape[1:]))] * 3
     deployment_conf.clip.tokens = input_profile_clip["tokens"][0]

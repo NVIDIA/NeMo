@@ -14,24 +14,22 @@
 import io
 import itertools
 import os
-import os
 import pickle
 import random
 import re
+from typing import Callable, List, Union
+
 import torch.distributed as dist
-from PIL import Image
-from PIL import Image
+import webdataset as wds
 from botocore.config import Config
-from typing import Callable
-from typing import Callable, Union, List
+from PIL import Image
+from webdataset import WebDataset
 from webdataset.filters import _shuffle
 from webdataset.utils import pytorch_worker_info
 
-import webdataset as wds
 from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch, WDSUrlsRandomSampler
 from nemo.core.classes import IterableDataset as NeMoIterableDataset
 from nemo.utils import logging
-from webdataset import WebDataset
 
 try:
     from megatron.core import parallel_state
@@ -49,11 +47,7 @@ from webdataset import warn_and_continue
 
 class detshuffle2(wds.PipelineStage):
     def __init__(
-            self,
-            bufsize=1000,
-            initial=100,
-            seed=0,
-            epoch=-1,
+        self, bufsize=1000, initial=100, seed=0, epoch=-1,
     ):
         self.bufsize = bufsize
         self.initial = initial
@@ -108,16 +102,17 @@ def get_world_size():
 
 
 class WebDatasetCommon(NeMoIterableDataset):
-
-    def __init__(self,
-                 dataset_cfg,
-                 map_fn: Callable,
-                 compose_fn: Union[Callable, List[Callable]],
-                 consumed_samples: int,
-                 filter_fn: Callable = None,
-                 gen_cfg=None,
-                 decode_fn: Callable = None,
-                 is_train=True):
+    def __init__(
+        self,
+        dataset_cfg,
+        map_fn: Callable,
+        compose_fn: Union[Callable, List[Callable]],
+        consumed_samples: int,
+        filter_fn: Callable = None,
+        gen_cfg=None,
+        decode_fn: Callable = None,
+        is_train=True,
+    ):
 
         super().__init__()
         self.dataset_cfg = dataset_cfg
@@ -175,6 +170,7 @@ class WebDatasetCommon(NeMoIterableDataset):
             train_info["total_key_count"] = int(train_info["total_key_count"] * self.filterings.estimated_portion)
 
         from webdataset import warn_and_continue
+
         train_dataset, epoch = self._get_webdataset_and_epoch()
         train_dataset = train_dataset.compose(detshuffle2(bufsize=shuffle_buffer_size, epoch=epoch))
         train_dataset = train_dataset.decode(decode_fn, handler=warn_and_continue)
@@ -214,7 +210,9 @@ class WebDatasetCommon(NeMoIterableDataset):
 
         if not self.infinite_sampler:
             logging.info(f'Initiating Webdataset Random Sampler..')
-            assert self.filterings is None, 'Webdataset Random Sampler should not be used with filters. Switch to infinite sampler'
+            assert (
+                self.filterings is None
+            ), 'Webdataset Random Sampler should not be used with filters. Switch to infinite sampler'
             shards_train_list = WDSUrlsRandomSampler(
                 urls=shards_train_list,
                 total_urls=len(shards_train_list),
@@ -228,9 +226,7 @@ class WebDatasetCommon(NeMoIterableDataset):
             epoch = shards_train_list.epoch
 
         train_dataset = WebDataset(
-            shards_train_list,
-            handler=warn_and_continue,
-            resampled=self.infinite_sampler or False,
+            shards_train_list, handler=warn_and_continue, resampled=self.infinite_sampler or False,
         )
 
         return train_dataset, epoch

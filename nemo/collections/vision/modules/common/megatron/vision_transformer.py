@@ -20,13 +20,13 @@ import torch
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer_, ParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer, ParallelTransformerLayer_
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
+    from apex.normalization import MixedFusedRMSNorm
     from apex.transformer.enums import AttnMaskType, AttnType, ModelType
     from apex.transformer.utils import divide as safe_divide
-    from apex.normalization import MixedFusedRMSNorm
 
     HAVE_APEX = True
 
@@ -68,19 +68,18 @@ class DropPath(MegatronModule):
     (when applied in main path of residual blocks).
     """
 
-    def __init__(self, drop_prob=0.):
+    def __init__(self, drop_prob=0.0):
         super(DropPath, self).__init__()
         self.drop_prob = drop_prob
 
     def forward(self, hidden_state):
-        if self.drop_prob == 0. or not self.training:
+        if self.drop_prob == 0.0 or not self.training:
             return hidden_state
         keep_prob = 1 - self.drop_prob
         # work with diff dim tensors, not just 2D ConvNets
         # hidden_state: [s, b, h]
         shape = (1,) + (hidden_state.shape[1],) + (1,) * (hidden_state.ndim - 2)
-        random_tensor = keep_prob + \
-                        torch.rand(shape, dtype=hidden_state.dtype, device=hidden_state.device)
+        random_tensor = keep_prob + torch.rand(shape, dtype=hidden_state.dtype, device=hidden_state.device)
         random_tensor.floor_()  # binarize
         output = hidden_state.div(keep_prob) * random_tensor
         return output
@@ -94,42 +93,42 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
     """
 
     def __init__(
-            self,
-            init_method,
-            output_layer_init_method,
-            layer_number,
-            hidden_size,
-            ffn_hidden_size,
-            num_attention_heads,
-            layer_type=LayerType.encoder,
-            self_attn_mask_type=AttnMaskType.padding,
-            fp32_residual_connection=False,
-            precision=16,
-            apply_query_key_layer_scaling=True,
-            kv_channels=None,
-            layernorm_epsilon=1e-5,
-            hidden_dropout=0.1,
-            bias_dropout_add_fusion=True,
-            persist_layer_norm=False,
-            use_cpu_initialization=False,
-            bias_activation_fusion=True,
-            openai_gelu=False,
-            onnx_safe=False,
-            masked_softmax_fusion=True,
-            attention_dropout=0.1,
-            ffn_dropout=0.0,
-            drop_path_rate=0.0,
-            activation='gelu',
-            megatron_legacy=False,
-            bias=True,
-            chunk_size=64,
-            normalization='layernorm',
-            transformer_block_type='pre_ln',
-            headscale=False,
-            activations_checkpoint_granularity=None,
-            sequence_parallel=False,
-            gradient_accumulation_fusion=False,
-            normalize_attention_scores=True,
+        self,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        hidden_size,
+        ffn_hidden_size,
+        num_attention_heads,
+        layer_type=LayerType.encoder,
+        self_attn_mask_type=AttnMaskType.padding,
+        fp32_residual_connection=False,
+        precision=16,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        layernorm_epsilon=1e-5,
+        hidden_dropout=0.1,
+        bias_dropout_add_fusion=True,
+        persist_layer_norm=False,
+        use_cpu_initialization=False,
+        bias_activation_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
+        ffn_dropout=0.0,
+        drop_path_rate=0.0,
+        activation='gelu',
+        megatron_legacy=False,
+        bias=True,
+        chunk_size=64,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
+        headscale=False,
+        activations_checkpoint_granularity=None,
+        sequence_parallel=False,
+        gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -140,20 +139,20 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0.0 else None
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask,
-            encoder_output=None,
-            enc_dec_attn_mask=None,
-            layer_past=None,
-            get_key_value=False,
-            set_inference_key_value_memory=False,
-            inference_max_sequence_len=None,
-            rotary_pos_emb=None,
-            # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
-            self_attention_relative_position_bias=None,
-            cross_attention_relative_position_bias=None,
-            checkpoint_core_attention=False,
+        self,
+        hidden_states,
+        attention_mask,
+        encoder_output=None,
+        enc_dec_attn_mask=None,
+        layer_past=None,
+        get_key_value=False,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,
+        # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
+        self_attention_relative_position_bias=None,
+        cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -212,12 +211,14 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                 if attention_bias is not None:
                     attention_bias = attention_bias.expand_as(residual)
 
-                layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
+                layernorm_input = bias_dropout_add_func(
+                    attention_output, attention_bias, residual, self.hidden_dropout
+                )
             else:
                 assert self.transformer_block_type != 'normformer', "Normfomer doesn't support drop_path"
-                out = torch.nn.functional.dropout(attention_output + attention_bias,
-                                                  p=self.hidden_dropout,
-                                                  training=self.training)
+                out = torch.nn.functional.dropout(
+                    attention_output + attention_bias, p=self.hidden_dropout, training=self.training
+                )
                 layernorm_input = residual + self.drop_path(out)
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
@@ -235,14 +236,14 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
             return layernorm_input, normalization_output
 
         if (
-                self.layer_type == LayerType.decoder
-                or self.layer_type == LayerType.retrieval_decoder
-                or self.layer_type == LayerType.retrieval_encoder
-                or self.layer_type == LayerType.retrieval_decoder_after_self_attn
+            self.layer_type == LayerType.decoder
+            or self.layer_type == LayerType.retrieval_decoder
+            or self.layer_type == LayerType.retrieval_encoder
+            or self.layer_type == LayerType.retrieval_decoder_after_self_attn
         ):
             if (
-                    self.layer_type == LayerType.retrieval_decoder
-                    or self.layer_type == LayerType.retrieval_decoder_after_self_attn
+                self.layer_type == LayerType.retrieval_decoder
+                or self.layer_type == LayerType.retrieval_decoder_after_self_attn
             ):
                 attention_output, attention_bias = self.inter_attention(
                     normalization_output,
@@ -297,9 +298,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
             output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
 
         else:
-            out = torch.nn.functional.dropout(mlp_output + mlp_bias,
-                                              p=self.hidden_dropout,
-                                              training=self.training)
+            out = torch.nn.functional.dropout(mlp_output + mlp_bias, p=self.hidden_dropout, training=self.training)
             output = residual + self.drop_path(out)
         # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
@@ -326,79 +325,75 @@ class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
             raise ValueError(f"Cannot recognize precision {precision}")
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask,
-            encoder_output=None,
-            enc_dec_attn_mask=None,
-            rotary_pos_emb=None,
-            layer_past=None,
-            get_key_value=False,
-            set_inference_key_value_memory=False,
-            inference_max_sequence_len=None,
-            self_attention_relative_position_bias=None,
-            cross_attention_relative_position_bias=None,
-            checkpoint_core_attention=False,
+        self,
+        hidden_states,
+        attention_mask,
+        encoder_output=None,
+        enc_dec_attn_mask=None,
+        rotary_pos_emb=None,
+        layer_past=None,
+        get_key_value=False,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        self_attention_relative_position_bias=None,
+        cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
             kwargs.pop(key)
         if self.dtype == torch.float32:
-            return super().forward(
-                **kwargs
-            )
+            return super().forward(**kwargs)
         with torch.autocast(device_type="cuda", dtype=self.dtype):
-            return super().forward(
-                **kwargs
-            )
+            return super().forward(**kwargs)
 
 
 class ParallelVisionTransformer(ParallelTransformer):
     """Transformer class."""
 
     def __init__(
-            self,
-            init_method,
-            output_layer_init_method,
-            num_layers,
-            hidden_size,
-            ffn_hidden_size,
-            num_attention_heads,
-            apply_query_key_layer_scaling=True,
-            kv_channels=None,
-            layer_type=LayerType.encoder,  # it can be a list of types or single type
-            self_attn_mask_type=AttnMaskType.padding,
-            pre_process=True,
-            post_process=True,
-            precision=16,
-            fp32_residual_connection=False,
-            activations_checkpoint_method=None,
-            activations_checkpoint_num_layers=None,
-            layernorm_epsilon=1e-5,
-            hidden_dropout=0.1,
-            attention_dropout=0.1,
-            ffn_dropout=0.0,
-            drop_path_rate=0.0,
-            use_cpu_initialization=False,
-            bias_activation_fusion=True,
-            bias_dropout_add_fusion=True,
-            masked_softmax_fusion=True,
-            persist_layer_norm=False,
-            openai_gelu=False,
-            onnx_safe=False,
-            activation='gelu',
-            model_type=ModelType.encoder_or_decoder,
-            megatron_legacy=False,
-            bias=True,
-            chunk_size=64,
-            normalization='layernorm',
-            transformer_block_type='pre_ln',
-            headscale=False,
-            layer_number_offset=0,  # this is use only for attention norm_factor scaling
-            activations_checkpoint_granularity=None,
-            sequence_parallel=False,
-            gradient_accumulation_fusion=False,
-            normalize_attention_scores=True,
+        self,
+        init_method,
+        output_layer_init_method,
+        num_layers,
+        hidden_size,
+        ffn_hidden_size,
+        num_attention_heads,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        layer_type=LayerType.encoder,  # it can be a list of types or single type
+        self_attn_mask_type=AttnMaskType.padding,
+        pre_process=True,
+        post_process=True,
+        precision=16,
+        fp32_residual_connection=False,
+        activations_checkpoint_method=None,
+        activations_checkpoint_num_layers=None,
+        layernorm_epsilon=1e-5,
+        hidden_dropout=0.1,
+        attention_dropout=0.1,
+        ffn_dropout=0.0,
+        drop_path_rate=0.0,
+        use_cpu_initialization=False,
+        bias_activation_fusion=True,
+        bias_dropout_add_fusion=True,
+        masked_softmax_fusion=True,
+        persist_layer_norm=False,
+        openai_gelu=False,
+        onnx_safe=False,
+        activation='gelu',
+        model_type=ModelType.encoder_or_decoder,
+        megatron_legacy=False,
+        bias=True,
+        chunk_size=64,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
+        headscale=False,
+        layer_number_offset=0,  # this is use only for attention norm_factor scaling
+        activations_checkpoint_granularity=None,
+        sequence_parallel=False,
+        gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -409,9 +404,10 @@ class ParallelVisionTransformer(ParallelTransformer):
         self.num_layers = self.get_num_layers(num_layers)
 
         self.drop_path_rates = [
-            rate.item() for rate in
-            torch.linspace(0, self.drop_path_rate,
-                           self.num_layers * parallel_state.get_pipeline_model_parallel_world_size())
+            rate.item()
+            for rate in torch.linspace(
+                0, self.drop_path_rate, self.num_layers * parallel_state.get_pipeline_model_parallel_world_size()
+            )
         ]
 
         # Rebuild with vision transformer layers.
@@ -478,13 +474,13 @@ class ParallelVisionTransformer(ParallelTransformer):
             # Stage 0: [0, 1]  [4, 5]
             # Stage 1: [2, 3]  [6, 7]
             offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
-                    num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
             ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
             if (
-                    self.model_type == ModelType.encoder_and_decoder
-                    and parallel_state.get_pipeline_model_parallel_world_size() > 1
+                self.model_type == ModelType.encoder_and_decoder
+                and parallel_state.get_pipeline_model_parallel_world_size() > 1
             ):
                 pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
                 if layer_type == LayerType.encoder:

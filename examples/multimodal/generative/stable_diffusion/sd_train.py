@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import numpy as np
 import os
+from datetime import timedelta
+
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.utils.data as data
-from datetime import timedelta
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -47,34 +48,29 @@ def main(cfg):
     del cfg.trainer.strategy
 
     batch_size = cfg.model.data.train.batch_size
-    dataset = WebDatasetWithRawText(
-        dataset_cfg=cfg.model.data,
-        is_train=True,
+    dataset = WebDatasetWithRawText(dataset_cfg=cfg.model.data, is_train=True,)
+    data = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, num_workers=cfg.model.data.num_workers, pin_memory=True, drop_last=False
     )
-    data = torch.utils.data.DataLoader(dataset,
-                                       batch_size=batch_size,
-                                       num_workers=cfg.model.data.num_workers,
-                                       pin_memory=True,
-                                       drop_last=False)
     global_bs = cfg.trainer.devices * cfg.trainer.num_nodes * batch_size
 
     callbacks = []
     if not cfg.model.data.webdataset.infinite_sampler:
         wds_sampler = WebDataloaderSamplerCallback(
-            batch_size=batch_size,
-            gradient_accumulation=cfg.trainer.accumulate_grad_batches)
+            batch_size=batch_size, gradient_accumulation=cfg.trainer.accumulate_grad_batches
+        )
         callbacks.append(wds_sampler)
 
     plugins = []
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = pl.Trainer(**cfg.trainer,
-                         plugins=plugins,
-                         callbacks=callbacks,
-                         strategy=strategy)
+    trainer = pl.Trainer(**cfg.trainer, plugins=plugins, callbacks=callbacks, strategy=strategy)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    if not cfg.model.data.webdataset.infinite_sampler and trainer._checkpoint_connector.resume_from_checkpoint_fit_path is not None:
+    if (
+        not cfg.model.data.webdataset.infinite_sampler
+        and trainer._checkpoint_connector.resume_from_checkpoint_fit_path is not None
+    ):
         # Reusming from previous training session
         wds_sampler.resume_flag = True
 

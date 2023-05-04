@@ -17,9 +17,7 @@ import torch.nn as nn
 from torch import distributed as dist
 from torch.nn import functional as F
 
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
 try:
     from megatron.core import parallel_state
@@ -32,10 +30,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def gather_features(
-        image_features,
-        text_features,
-        local_loss=False,
-        gather_with_grad=False,
+    image_features, text_features, local_loss=False, gather_with_grad=False,
 ):
     data_parallel_world_size = parallel_state.get_data_parallel_world_size()
     data_parallel_rank = parallel_state.get_data_parallel_rank()
@@ -65,12 +60,8 @@ def gather_features(
 
 
 class ClipLoss(nn.Module):
-
     def __init__(
-            self,
-            local_loss=False,
-            gather_with_grad=False,
-            cache_labels=False,
+        self, local_loss=False, gather_with_grad=False, cache_labels=False,
     ):
         super().__init__()
         self.local_loss = local_loss
@@ -89,8 +80,8 @@ class ClipLoss(nn.Module):
         device = image_features.device
         if self.world_size > 1:
             all_image_features, all_text_features = gather_features(
-                image_features, text_features,
-                self.local_loss, self.gather_with_grad)
+                image_features, text_features, self.local_loss, self.gather_with_grad
+            )
 
             if self.local_loss:
                 logits_per_image = logit_scale * image_features @ all_text_features.T
@@ -114,10 +105,7 @@ class ClipLoss(nn.Module):
         else:
             labels = self.labels[device]
 
-        total_loss = (
-                             F.cross_entropy(logits_per_image, labels) +
-                             F.cross_entropy(logits_per_text, labels)
-                     ) / 2
+        total_loss = (F.cross_entropy(logits_per_image, labels) + F.cross_entropy(logits_per_text, labels)) / 2
 
         # TODO (yuya): this is not necessary; not necessary if global!
         reduced_loss = average_losses_across_data_parallel_group([total_loss])

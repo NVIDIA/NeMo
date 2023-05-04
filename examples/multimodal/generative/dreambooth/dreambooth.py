@@ -44,6 +44,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 def prepare_reg_data(cfg):
     reg_dir = cfg.model.data.regularization_dir
     num_reg_images = cfg.model.data.num_reg_images
@@ -52,6 +53,7 @@ def prepare_reg_data(cfg):
     os.makedirs(reg_dir, exist_ok=True)
     NUM_REG_IMAGES = len(os.listdir(reg_dir))
     if NUM_REG_IMAGES < num_reg_images:
+
         def model_cfg_modifier(model_cfg):
             model_cfg.precision = cfg.trainer.precision
             model_cfg.ckpt_path = None
@@ -64,9 +66,8 @@ def prepare_reg_data(cfg):
             model_cfg.target = 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
 
         trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-            model_provider=MegatronLatentDiffusion,
-            cfg=cfg,
-            model_cfg_modifier=model_cfg_modifier)
+            model_provider=MegatronLatentDiffusion, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+        )
         model = megatron_diffusion_model.model
         rng = torch.Generator()
         rng.manual_seed(trainer.global_rank * 100 + cfg.model.seed)
@@ -79,8 +80,12 @@ def prepare_reg_data(cfg):
             output = pipeline(model, cfg, verbose=False, rng=rng)
             for text_prompt, pils in zip(reg_prompt, output):
                 for idx, image in enumerate(pils):
-                    image.save(os.path.join(cfg.infer.out_path,
-                                            f'{reg_prompt}_{trainer.global_rank}_{NUM_REG_IMAGES + i * num_images_per_prompt + idx}.png'))
+                    image.save(
+                        os.path.join(
+                            cfg.infer.out_path,
+                            f'{reg_prompt}_{trainer.global_rank}_{NUM_REG_IMAGES + i * num_images_per_prompt + idx}.png',
+                        )
+                    )
         del model
         del trainer
         if torch.cuda.is_available():

@@ -13,19 +13,17 @@
 # limitations under the License.
 
 import os
+
 import torch
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -48,9 +46,7 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronCLIPModel,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
@@ -60,11 +56,7 @@ def main(cfg) -> None:
         vision_encoder = model.model.vision_encoder
         text_encoder = model.model.text_encoder
 
-    val_image_transform, text_transform = get_preprocess_fns(
-        model.cfg,
-        model.tokenizer,
-        is_train=False,
-    )
+    val_image_transform, text_transform = get_preprocess_fns(model.cfg, model.tokenizer, is_train=False,)
 
     # get autocast_dtype
     if trainer.precision == 'bf16':
@@ -77,8 +69,9 @@ def main(cfg) -> None:
         raise ValueError('precision must be in [32, 16, "bf16"]')
 
     image = Image.open(cfg.image_path).convert('RGB')
-    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
-                                                  dtype=autocast_dtype, ):
+    with torch.no_grad(), torch.cuda.amp.autocast(
+        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    ):
         image = val_image_transform(image).unsqueeze(0).cuda()
         texts = text_transform(cfg.texts).cuda()
         image_features = vision_encoder(image)

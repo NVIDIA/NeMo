@@ -21,8 +21,7 @@ from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentation
 
 
 def build_train_valid_datasets(
-        model_cfg,
-        consumed_samples,
+    model_cfg, consumed_samples,
 ):
     data_cfg = model_cfg.data
 
@@ -36,7 +35,7 @@ def build_train_valid_datasets(
 
     def transform_fn(sample):
         image, text = sample["jpg"], sample["txt"]
-        # TODO : If no agumentations just return the image ? 
+        # TODO : If no agumentations just return the image ?
         img_transform = construct_image_augmentations(data_cfg.train.get("augmentations", None))
         text_transform = identical_transform
         return img_transform(image), text_transform(text)
@@ -63,8 +62,7 @@ def build_train_valid_datasets(
 
 
 def build_train_valid_precached_datasets(
-        model_cfg,
-        consumed_samples,
+    model_cfg, consumed_samples,
 ):
     data_cfg = model_cfg.data
 

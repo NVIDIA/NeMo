@@ -14,18 +14,16 @@
 
 import glob
 import os
+
 import torch
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
 from nemo.collections.vision.data.megatron.image_folder import ImageFolder
 from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
@@ -42,8 +40,7 @@ def main(cfg) -> None:
 
     plugins = []
     strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        find_unused_parameters=False,
+        no_ddp_communication_hook=True, find_unused_parameters=False,  # we don't use DDP for async grad allreduce
     )
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
@@ -63,8 +60,8 @@ def main(cfg) -> None:
     )
 
     assert (
-            cfg.trainer.devices * cfg.trainer.num_nodes
-            == model_cfg.tensor_model_parallel_size * model_cfg.pipeline_model_parallel_size
+        cfg.trainer.devices * cfg.trainer.num_nodes
+        == model_cfg.tensor_model_parallel_size * model_cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     # These configs are required to be off during inference.
@@ -86,15 +83,8 @@ def main(cfg) -> None:
 
     model.eval()
 
-    val_transform = ClassificationTransform(
-        model.cfg,
-        (model.cfg.img_h, model.cfg.img_w),
-        train=False
-    )
-    val_data = ImageFolder(
-        root=cfg.model.data.imagenet_val,
-        transform=val_transform,
-    )
+    val_transform = ClassificationTransform(model.cfg, (model.cfg.img_h, model.cfg.img_w), train=False)
+    val_data = ImageFolder(root=cfg.model.data.imagenet_val, transform=val_transform,)
 
     # initialize apex DDP strategy
     def dummy():
@@ -104,11 +94,7 @@ def main(cfg) -> None:
         trainer.strategy.launcher.launch(dummy, trainer=trainer)
     trainer.strategy.setup_environment()
 
-    test_loader = DataLoader(
-        val_data,
-        batch_size=cfg.model.micro_batch_size,
-        num_workers=cfg.model.data.num_workers,
-    )
+    test_loader = DataLoader(val_data, batch_size=cfg.model.micro_batch_size, num_workers=cfg.model.data.num_workers,)
 
     # get autocast_dtype
     if trainer.precision == 'bf16':
@@ -120,9 +106,10 @@ def main(cfg) -> None:
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')
 
-    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
-                                                  dtype=autocast_dtype, ):
-        total = correct = 0.
+    with torch.no_grad(), torch.cuda.amp.autocast(
+        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    ):
+        total = correct = 0.0
         for tokens, labels in tqdm(test_loader):
             logits = model(tokens.cuda())
             class_indices = torch.argmax(logits, -1)

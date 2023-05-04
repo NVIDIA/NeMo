@@ -14,17 +14,15 @@
 
 import glob
 import os
+
 import torch
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
 from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
@@ -44,8 +42,7 @@ def main(cfg) -> None:
     max_dim = cfg.infer.max_dim
     plugins = []
     strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        find_unused_parameters=False,
+        no_ddp_communication_hook=True, find_unused_parameters=False,  # we don't use DDP for async grad allreduce
     )
     print(type(cfg.trainer.precision))
     if cfg.get('cluster_type', None) == 'BCP':
@@ -67,8 +64,8 @@ def main(cfg) -> None:
     )
 
     assert (
-            cfg.trainer.devices * cfg.trainer.num_nodes
-            == model_cfg.tensor_model_parallel_size * model_cfg.pipeline_model_parallel_size
+        cfg.trainer.devices * cfg.trainer.num_nodes
+        == model_cfg.tensor_model_parallel_size * model_cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     # These configs are required to be off during inference.

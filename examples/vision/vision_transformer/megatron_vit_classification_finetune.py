@@ -22,8 +22,8 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
     NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin,
 )
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
 from nemo.core.config import hydra_runner

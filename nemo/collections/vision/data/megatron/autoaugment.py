@@ -22,11 +22,10 @@ Reference:
 [1] https://arxiv.org/abs/1805.09501
 """
 
-import numpy as np
 import random
-from PIL import Image
-from PIL import ImageEnhance
-from PIL import ImageOps
+
+import numpy as np
+from PIL import Image, ImageEnhance, ImageOps
 
 _MAX_LEVEL = 10  # Maximum integer strength of an augmentation, if applicable.
 
@@ -104,14 +103,7 @@ class SubPolicy:
     """
 
     def __init__(
-            self,
-            operation1,
-            probability1,
-            magnitude_idx1,
-            operation2,
-            probability2,
-            magnitude_idx2,
-            fillcolor,
+        self, operation1, probability1, magnitude_idx1, operation2, probability2, magnitude_idx2, fillcolor,
     ):
         """Initialize a SubPolicy.
 
@@ -151,19 +143,19 @@ class SubPolicy:
             "invert",
         ]
         assert (operation1 in supported_ops) and (
-                operation2 in supported_ops
+            operation2 in supported_ops
         ), "SubPolicy:one of oper1 or oper2 refers to an unsupported operation."
 
         assert (
-                0.0 <= probability1 <= 1.0 and 0.0 <= probability2 <= 1.0
+            0.0 <= probability1 <= 1.0 and 0.0 <= probability2 <= 1.0
         ), "SubPolicy: prob1 and prob2 should be within [0., 1.]."
 
         assert (
-                isinstance(magnitude_idx1, int) and 0 <= magnitude_idx1 <= 10
+            isinstance(magnitude_idx1, int) and 0 <= magnitude_idx1 <= 10
         ), "SubPolicy: idx1 should be specified as an integer within [0, 10]."
 
         assert (
-                isinstance(magnitude_idx2, int) and 0 <= magnitude_idx2 <= 10
+            isinstance(magnitude_idx2, int) and 0 <= magnitude_idx2 <= 10
         ), "SubPolicy: idx2 should be specified as an integer within [0, 10]."
 
         # Define a dictionary where each key refers to a specific type of
@@ -177,19 +169,14 @@ class SubPolicy:
             "translateY": np.linspace(0, 150 / 331, num_levels),
             "rotate": np.linspace(0, 30, num_levels),
             "color": np.linspace(0.0, 0.9, num_levels),
-            "posterize": np.round(np.linspace(8, 4, num_levels), 0).astype(
-                np.int
-            ),
+            "posterize": np.round(np.linspace(8, 4, num_levels), 0).astype(np.int),
             "solarize": np.linspace(256, 0, num_levels),  # range [0, 256]
             "contrast": np.linspace(0.0, 0.9, num_levels),
             "sharpness": np.linspace(0.0, 0.9, num_levels),
             "brightness": np.linspace(0.0, 0.9, num_levels),
-            "autocontrast": [0]
-                            * num_levels,  # This augmentation doesn't use magnitude parameter.
-            "equalize": [0]
-                        * num_levels,  # This augmentation doesn't use magnitude parameter.
-            "invert": [0]
-                      * num_levels,  # This augmentation doesn't use magnitude parameter.
+            "autocontrast": [0] * num_levels,  # This augmentation doesn't use magnitude parameter.
+            "equalize": [0] * num_levels,  # This augmentation doesn't use magnitude parameter.
+            "invert": [0] * num_levels,  # This augmentation doesn't use magnitude parameter.
         }
 
         def rotate_with_fill(img, magnitude):
@@ -206,9 +193,7 @@ class SubPolicy:
                 disoccluded areas unveiled by the rotation.
             """
             rotated = img.convert("RGBA").rotate(magnitude)
-            rotated_filled = Image.composite(
-                rotated, Image.new("RGBA", rotated.size, (128,) * 4), rotated
-            )
+            rotated_filled = Image.composite(rotated, Image.new("RGBA", rotated.size, (128,) * 4), rotated)
             return rotated_filled.convert(img.mode)
 
         # Define a dictionary of augmentation functions where each key refers
@@ -233,48 +218,28 @@ class SubPolicy:
             "translateX": lambda img, magnitude: img.transform(
                 img.size,
                 Image.AFFINE,
-                (
-                    1,
-                    0,
-                    magnitude * img.size[0] * random.choice([-1, 1]),
-                    0,
-                    1,
-                    0,
-                ),
+                (1, 0, magnitude * img.size[0] * random.choice([-1, 1]), 0, 1, 0,),
                 fillcolor=fillcolor,
             ),
             "translateY": lambda img, magnitude: img.transform(
                 img.size,
                 Image.AFFINE,
-                (
-                    1,
-                    0,
-                    0,
-                    0,
-                    1,
-                    magnitude * img.size[1] * random.choice([-1, 1]),
-                ),
+                (1, 0, 0, 0, 1, magnitude * img.size[1] * random.choice([-1, 1]),),
                 fillcolor=fillcolor,
             ),
             "rotate": lambda img, magnitude: rotate_with_fill(img, magnitude),
-            "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(
+            "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
+            "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
+            "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
+            "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
                 1 + magnitude * random.choice([-1, 1])
             ),
-            "posterize": lambda img, magnitude: ImageOps.posterize(
-                img, magnitude
+            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])
             ),
-            "solarize": lambda img, magnitude: ImageOps.solarize(
-                img, magnitude
+            "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])
             ),
-            "contrast": lambda img, magnitude: ImageEnhance.Contrast(
-                img
-            ).enhance(1 + magnitude * random.choice([-1, 1])),
-            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(
-                img
-            ).enhance(1 + magnitude * random.choice([-1, 1])),
-            "brightness": lambda img, magnitude: ImageEnhance.Brightness(
-                img
-            ).enhance(1 + magnitude * random.choice([-1, 1])),
             "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
             "equalize": lambda img, magnitude: ImageOps.equalize(img),
             "invert": lambda img, magnitude: ImageOps.invert(img),

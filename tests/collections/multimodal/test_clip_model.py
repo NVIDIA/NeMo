@@ -19,15 +19,15 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.multimodal.data.clip.clip_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.clip.megatron_clip_models import (
-    CLIPVisionTransformer,
-    CLIPTextTransformer,
     CLIPModel,
+    CLIPTextTransformer,
+    CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.data.clip.clip_dataset import build_train_valid_datasets
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 DEVICE_CAPABILITY = None
 if torch.cuda.is_available():
@@ -324,18 +324,17 @@ def clip_trainer_and_model(model_cfg, trainer_cfg, precision):
 
     def dummy():
         return
+
     if model.trainer.strategy.launcher is not None:
         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
     model.trainer.strategy.setup_environment()
 
     return trainer, model
 
+
 def build_datasets(cfg, tokenizer):
-    return build_train_valid_datasets(
-        model_cfg=cfg,
-        consumed_samples=0,
-        tokenizer=tokenizer,
-    )
+    return build_train_valid_datasets(model_cfg=cfg, consumed_samples=0, tokenizer=tokenizer,)
+
 
 @pytest.mark.run_only_on('GPU')
 class TestMegatronCLIPModel:
@@ -351,9 +350,7 @@ class TestMegatronCLIPModel:
     def test_build_dataset(self, clip_trainer_and_model, test_data_dir):
         clip_model = clip_trainer_and_model[1]
         train_ds, validation_ds = build_train_valid_datasets(
-            model_cfg=clip_model.cfg,
-            consumed_samples=0,
-            tokenizer=clip_model.tokenizer,
+            model_cfg=clip_model.cfg, consumed_samples=0, tokenizer=clip_model.tokenizer,
         )
         assert len(train_ds) == 2000
         assert len(validation_ds) == 1000
@@ -375,7 +372,6 @@ class TestMegatronCLIPModel:
             ),
         ],
     )
-
     @pytest.mark.unit
     def test_forward(self, clip_trainer_and_model, test_data_dir, precision=None):
         trainer, clip_model = clip_trainer_and_model
@@ -402,10 +398,7 @@ class TestMegatronCLIPModel:
             B, C, H, W = tokens.shape
             assert H == W
             with torch.autocast('cuda', dtype=dtype):
-                output_tensor = clip_model(
-                    image=tokens.cuda(),
-                    text=texts.cuda(),
-                )
+                output_tensor = clip_model(image=tokens.cuda(), text=texts.cuda(),)
             # output is (B, #classes)
             # assert output_tensor.shape == torch.Size([B, clip_model.cfg['num_classes']])
             # assert output_tensor.dtype == dtype

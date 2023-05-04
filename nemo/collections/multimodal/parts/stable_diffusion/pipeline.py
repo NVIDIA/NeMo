@@ -14,26 +14,23 @@
 import os
 import pickle
 import time
+
 import torch
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 
 
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
     c = cond_stage_model.encode(batch_size * [prompt])
-    if unconditional_guidance_scale != 1.:
+    if unconditional_guidance_scale != 1.0:
         uc = cond_stage_model.encode(batch_size * [""])
     else:
         uc = None
@@ -53,7 +50,7 @@ def initialize_sampler(model, sampler_type):
 def decode_images(model, samples):
     images = model.decode_first_stage(samples)
 
-    images = torch.clamp((images + 1.) / 2., min=0., max=1.)
+    images = torch.clamp((images + 1.0) / 2.0, min=0.0, max=1.0)
 
     return images
 
@@ -100,8 +97,9 @@ def pipeline(model, cfg, verbose=True, rng=None):
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')
 
-    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
-                                                  dtype=autocast_dtype, ):
+    with torch.no_grad(), torch.cuda.amp.autocast(
+        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    ):
 
         in_channels = model.model.diffusion_model.in_channels
 
@@ -122,9 +120,8 @@ def pipeline(model, cfg, verbose=True, rng=None):
 
             latent_shape = [batch_size, height // downsampling_factor, width // downsampling_factor]
             latents = torch.randn(
-                [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor],
-                generator=rng).to(
-                torch.cuda.current_device())
+                [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor], generator=rng
+            ).to(torch.cuda.current_device())
 
             tic = time.perf_counter()
             samples, intermediates = sampler.sample(
@@ -136,7 +133,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
                 unconditional_guidance_scale=unconditional_guidance_scale,
                 unconditional_conditioning=u_cond,
                 eta=eta,
-                x_T=latents
+                x_T=latents,
             )
             toc = time.perf_counter()
             sampling_time = toc - tic
@@ -150,13 +147,15 @@ def pipeline(model, cfg, verbose=True, rng=None):
             total_time = toc_total - tic_total
             output.append(images)
 
-            throughput.append({
-                'text-conditioning-time': conditioning_time,
-                'sampling-time': sampling_time,
-                'decode-time': decode_time,
-                'total-time': total_time,
-                'sampling-steps': inference_steps,
-            })
+            throughput.append(
+                {
+                    'text-conditioning-time': conditioning_time,
+                    'sampling-time': sampling_time,
+                    'decode-time': decode_time,
+                    'total-time': total_time,
+                    'sampling-steps': inference_steps,
+                }
+            )
 
         # Convert output type and save to disk
         if output_type == 'torch':

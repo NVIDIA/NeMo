@@ -24,19 +24,35 @@ from nemo.collections.multimodal.parts.utils import randn_like
 
 
 class DDIMSampler(AbstractBaseSampler):
-
     def __init__(self, model, schedule="linear", **kwargs):
         super().__init__(model, sampler=Sampler.DDIM, schedule="linear", **kwargs)
 
     @torch.no_grad()
-    def p_sampling_fn(self, x, c, t, index, repeat_noise=False, use_original_steps=False, quantize_denoised=False,
-                      temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
-                      unconditional_guidance_scale=1., unconditional_conditioning=None, old_eps=None, t_next=None):
+    def p_sampling_fn(
+        self,
+        x,
+        c,
+        t,
+        index,
+        repeat_noise=False,
+        use_original_steps=False,
+        quantize_denoised=False,
+        temperature=1.0,
+        noise_dropout=0.0,
+        score_corrector=None,
+        corrector_kwargs=None,
+        unconditional_guidance_scale=1.0,
+        unconditional_conditioning=None,
+        old_eps=None,
+        t_next=None,
+    ):
         b, *_, device = *x.shape, x.device
-        e_t = self._get_model_output(x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c,
-                                     corrector_kwargs)
-        x_prev, pred_x0 = self._get_x_prev_and_pred_x0(use_original_steps, b, index, device, x, e_t, quantize_denoised,
-                                                       repeat_noise, temperature, noise_dropout)
+        e_t = self._get_model_output(
+            x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
+        )
+        x_prev, pred_x0 = self._get_x_prev_and_pred_x0(
+            use_original_steps, b, index, device, x, e_t, quantize_denoised, repeat_noise, temperature, noise_dropout
+        )
         return x_prev, pred_x0
 
     @torch.no_grad()
@@ -52,12 +68,21 @@ class DDIMSampler(AbstractBaseSampler):
 
         if noise is None:
             noise = randn_like(x0, generator=self.model.rng)
-        return (extract_into_tensor(sqrt_alphas_cumprod, t, x0.shape) * x0 +
-                extract_into_tensor(sqrt_one_minus_alphas_cumprod, t, x0.shape) * noise)
+        return (
+            extract_into_tensor(sqrt_alphas_cumprod, t, x0.shape) * x0
+            + extract_into_tensor(sqrt_one_minus_alphas_cumprod, t, x0.shape) * noise
+        )
 
     @torch.no_grad()
-    def decode(self, x_latent, cond, t_start, unconditional_guidance_scale=1.0, unconditional_conditioning=None,
-               use_original_steps=False):
+    def decode(
+        self,
+        x_latent,
+        cond,
+        t_start,
+        unconditional_guidance_scale=1.0,
+        unconditional_conditioning=None,
+        use_original_steps=False,
+    ):
 
         timesteps = np.arange(self.ddpm_num_timesteps) if use_original_steps else self.ddim_timesteps
         timesteps = timesteps[:t_start]
@@ -71,7 +96,13 @@ class DDIMSampler(AbstractBaseSampler):
         for i, step in enumerate(iterator):
             index = total_steps - i - 1
             ts = torch.full((x_latent.shape[0],), step, device=x_latent.device, dtype=torch.long)
-            x_dec, _ = self.p_sample_ddim(x_dec, cond, ts, index=index, use_original_steps=use_original_steps,
-                                          unconditional_guidance_scale=unconditional_guidance_scale,
-                                          unconditional_conditioning=unconditional_conditioning)
+            x_dec, _ = self.p_sample_ddim(
+                x_dec,
+                cond,
+                ts,
+                index=index,
+                use_original_steps=use_original_steps,
+                unconditional_guidance_scale=unconditional_guidance_scale,
+                unconditional_conditioning=unconditional_conditioning,
+            )
         return x_dec

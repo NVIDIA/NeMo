@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from scipy import linalg
+from TFinception_V3 import InceptionV3, SwAV, TFInceptionV3, Vgg16
 from torch import nn
-
-from TFinception_V3 import SwAV, TFInceptionV3, InceptionV3, Vgg16
 
 
 def network_init(network='inception'):
@@ -73,8 +73,7 @@ def _calculate_frechet_distance(act_1, act_2, eps=1e-6):
     # Product might be almost singular
     covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
     if not np.isfinite(covmean).all():
-        msg = ('fid calculation produces singular product; '
-               'adding %s to diagonal of cov estimates') % eps
+        msg = ('fid calculation produces singular product; ' 'adding %s to diagonal of cov estimates') % eps
         print(msg)
         offset = np.eye(sigma1.shape[0]) * eps
         covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
@@ -87,8 +86,7 @@ def _calculate_frechet_distance(act_1, act_2, eps=1e-6):
             # raise ValueError('Imaginary component {}'.format(m))
         covmean = covmean.real
     tr_covmean = np.trace(covmean)
-    return {"FID": (diff.dot(diff) + np.trace(sigma1) + np.trace(
-        sigma2) - 2 * tr_covmean)}
+    return {"FID": (diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean)}
 
 
 def is_master():
@@ -109,12 +107,19 @@ def is_local_master():
     return torch.cuda.current_device() == 0
 
 
-def load_or_compute_activations(act_path, data_loader, key_real, key_fake,
-                                generator=None, sample_size=None,
-                                preprocess=None,
-                                is_video=False, few_shot_video=False,
-                                network='inception',
-                                **kwargs):
+def load_or_compute_activations(
+    act_path,
+    data_loader,
+    key_real,
+    key_fake,
+    generator=None,
+    sample_size=None,
+    preprocess=None,
+    is_video=False,
+    few_shot_video=False,
+    network='inception',
+    **kwargs,
+):
     r"""Load mean and covariance from saved npy file if exists. Otherwise, compute the mean and covariance.
 
     Args:
@@ -139,12 +144,12 @@ def load_or_compute_activations(act_path, data_loader, key_real, key_fake,
         # Compute activations.
         if is_video:
             act = get_video_activations(
-                data_loader, key_real, key_fake, generator,
-                sample_size, preprocess, few_shot_video, network, **kwargs)
+                data_loader, key_real, key_fake, generator, sample_size, preprocess, few_shot_video, network, **kwargs
+            )
         else:
             act = get_activations(
-                data_loader, key_real, key_fake, generator,
-                sample_size, preprocess, True, network, **kwargs)
+                data_loader, key_real, key_fake, generator, sample_size, preprocess, True, network, **kwargs
+            )
         if act_path is not None and is_local_master():
             print('Save activations to {}'.format(act_path))
             if not os.path.exists(os.path.dirname(act_path)):
@@ -154,10 +159,19 @@ def load_or_compute_activations(act_path, data_loader, key_real, key_fake,
 
 
 @torch.no_grad()
-def compute_fid(fid_path, data_loader, net_G,
-                key_real='images', key_fake='fake_images',
-                sample_size=None, preprocess=None, return_act=False,
-                is_video=False, few_shot_video=False, **kwargs):
+def compute_fid(
+    fid_path,
+    data_loader,
+    net_G,
+    key_real='images',
+    key_fake='fake_images',
+    sample_size=None,
+    preprocess=None,
+    return_act=False,
+    is_video=False,
+    few_shot_video=False,
+    **kwargs,
+):
     r"""Compute the fid score.
 
     Args:
@@ -177,20 +191,33 @@ def compute_fid(fid_path, data_loader, net_G,
         (float): FID value.
     """
     print('Computing FID.')
-    act_path = os.path.join(os.path.dirname(fid_path),
-                            'activations_real.npy')
+    act_path = os.path.join(os.path.dirname(fid_path), 'activations_real.npy')
     # Get the fake mean and covariance.
     fake_act = load_or_compute_activations(
-        None, data_loader, key_real, key_fake, net_G,
-        sample_size, preprocess, is_video=is_video,
-        few_shot_video=few_shot_video, **kwargs
+        None,
+        data_loader,
+        key_real,
+        key_fake,
+        net_G,
+        sample_size,
+        preprocess,
+        is_video=is_video,
+        few_shot_video=few_shot_video,
+        **kwargs,
     )
 
     # Get the ground truth mean and covariance.
     real_act = load_or_compute_activations(
-        act_path, data_loader, key_real, key_fake, None,
-        sample_size, preprocess, is_video=is_video,
-        few_shot_video=few_shot_video, **kwargs
+        act_path,
+        data_loader,
+        key_real,
+        key_fake,
+        None,
+        sample_size,
+        preprocess,
+        is_video=is_video,
+        few_shot_video=few_shot_video,
+        **kwargs,
     )
 
     if is_master():
@@ -219,8 +246,7 @@ def dist_all_gather_tensor(tensor):
     world_size = get_world_size()
     if world_size < 2:
         return [tensor]
-    tensor_list = [
-        torch.ones_like(tensor) for _ in range(dist.get_world_size())]
+    tensor_list = [torch.ones_like(tensor) for _ in range(dist.get_world_size())]
     with torch.no_grad():
         dist.all_gather(tensor_list, tensor)
     return tensor_list
@@ -257,8 +283,16 @@ def to_cuda(data):
 
 @torch.no_grad()
 def get_activations(
-        data_loader, key_real, key_fake,
-        generator=None, sample_size=None, preprocess=None, align_corners=True, network='inception', **kwargs):
+    data_loader,
+    key_real,
+    key_fake,
+    generator=None,
+    sample_size=None,
+    preprocess=None,
+    align_corners=True,
+    network='inception',
+    **kwargs,
+):
     r"""Compute activation values and pack them in a list.
 
     Args:
@@ -287,7 +321,7 @@ def get_activations(
         if generator is None:
             images = data[key_real]
             if torch.max(images) > 1:
-                images = images / 255.  # convert RGB to (0,1)
+                images = images / 255.0  # convert RGB to (0,1)
         else:
             # Compute the generated image.
             text = data[1]['caption']  ### input is captions
@@ -311,9 +345,18 @@ def get_activations(
 
 
 @torch.no_grad()
-def compute_fid_data(folder_to_store_real_act, data_loader_a, data_loader_b,
-                     key_a='images', key_b='images', sample_size=None,
-                     is_video=False, few_shot_video=False, network='inception', **kwargs):
+def compute_fid_data(
+    folder_to_store_real_act,
+    data_loader_a,
+    data_loader_b,
+    key_a='images',
+    key_b='images',
+    sample_size=None,
+    is_video=False,
+    few_shot_video=False,
+    network='inception',
+    **kwargs,
+):
     r"""Compute the fid score between two datasets.
 
     Args:
@@ -338,13 +381,29 @@ def compute_fid_data(folder_to_store_real_act, data_loader_a, data_loader_b,
     # sample_size = min_data_size if sample_size is None else min(sample_size, min_data_size)
 
     act_a = load_or_compute_activations(
-        path_a, data_loader_a, key_a, key_b, None,
-        sample_size=sample_size, is_video=is_video,
-        few_shot_video=few_shot_video, network=network, **kwargs)
+        path_a,
+        data_loader_a,
+        key_a,
+        key_b,
+        None,
+        sample_size=sample_size,
+        is_video=is_video,
+        few_shot_video=few_shot_video,
+        network=network,
+        **kwargs,
+    )
     act_b = load_or_compute_activations(
-        None, data_loader_b, key_a, key_b, None,
-        sample_size=sample_size, is_video=is_video,
-        few_shot_video=few_shot_video, network=network, **kwargs)
+        None,
+        data_loader_b,
+        key_a,
+        key_b,
+        None,
+        sample_size=sample_size,
+        is_video=is_video,
+        few_shot_video=few_shot_video,
+        network=network,
+        **kwargs,
+    )
     print(act_a.shape, act_b.shape)
     if is_master():
         return _calculate_frechet_distance(act_a, act_b)["FID"]

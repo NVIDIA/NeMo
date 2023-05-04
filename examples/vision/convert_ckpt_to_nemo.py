@@ -25,8 +25,9 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
 """
 
 import os
-import torch
 from argparse import ArgumentParser
+
+import torch
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -44,6 +45,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 def get_args():
     parser = ArgumentParser()
@@ -80,9 +82,7 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument(
-        "--model_type", type=str, required=True, default="vit_classification"
-    )
+    parser.add_argument("--model_type", type=str, required=True, default="vit_classification")
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
@@ -138,8 +138,9 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'vit_classification':
-        model = MegatronVitClassificationModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
-                                                                    trainer=trainer)
+        model = MegatronVitClassificationModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     else:
         raise ValueError(f"Unrecognized model_type {args.model_type}.")
 

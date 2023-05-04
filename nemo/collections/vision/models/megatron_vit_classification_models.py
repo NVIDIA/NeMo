@@ -13,29 +13,25 @@
 # limitations under the License.
 
 import itertools
+from functools import partial
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import torch
-from functools import partial
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
-from typing import Any, Optional, List, Dict
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingSampler,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from nemo.collections.nlp.modules.common.megatron.module import (
-    MegatronModule,
-    Float16Module,
-)
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    get_linear_layer,
-    init_method_normal,
-    scaled_init_method_normal,
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
+    get_linear_layer,
     get_params_for_weight_decay_optimization,
+    init_method_normal,
+    scaled_init_method_normal,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
@@ -70,8 +66,7 @@ except (ImportError, ModuleNotFoundError):
 class VitClassificationModel(MegatronModule):
     """Vision Transformer Model."""
 
-    def __init__(self, model_cfg, num_classes, finetune=False,
-                 pre_process=True, post_process=True):
+    def __init__(self, model_cfg, num_classes, finetune=False, pre_process=True, post_process=True):
         super(VitClassificationModel, self).__init__()
 
         scaled_init_method = (
@@ -91,18 +86,14 @@ class VitClassificationModel(MegatronModule):
             scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            single_token_output=True
+            single_token_output=True,
         )
 
         if self.post_process:
             if not self.finetune:
                 self.head = VitMlpHead(self.hidden_size, self.num_classes)
             else:
-                self.head = get_linear_layer(
-                    self.hidden_size,
-                    self.num_classes,
-                    torch.nn.init.zeros_
-                )
+                self.head = get_linear_layer(self.hidden_size, self.num_classes, torch.nn.init.zeros_)
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -391,7 +382,6 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             buf.copy_(synced)
 
     def get_forward_output_and_loss_func(self):
-
         def loss_func(labels, output_tensor):
             logits = output_tensor.contiguous().float()
             loss = torch.nn.functional.cross_entropy(logits, labels)
@@ -482,8 +472,8 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             acc_outputs = [output[1] for output in outputs]
 
             averaged_metrics = torch.tensor(
-                [torch.stack(loss_outputs).mean(), torch.stack(acc_outputs).mean()],
-                dtype=torch.float32, device='cuda')
+                [torch.stack(loss_outputs).mean(), torch.stack(acc_outputs).mean()], dtype=torch.float32, device='cuda'
+            )
         else:
             averaged_metrics = torch.tensor([0.0, 0.0], dtype=torch.float32, device='cuda')
 
@@ -511,9 +501,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         self._train_ds, self._validation_ds = build_train_valid_datasets(
-            model_cfg=self.cfg,
-            data_path=self.cfg.data.data_path,
-            image_size=(self.cfg.img_h, self.cfg.img_w),
+            model_cfg=self.cfg, data_path=self.cfg.data.data_path, image_size=(self.cfg.img_h, self.cfg.img_w),
         )
         self._test_ds = None
 
@@ -649,9 +637,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             if not self.cfg.data.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(
-                self._validation_ds, consumed_samples,
-            )
+            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples,)
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds') and self._test_ds is not None:

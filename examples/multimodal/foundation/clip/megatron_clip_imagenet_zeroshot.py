@@ -13,24 +13,26 @@
 # limitations under the License.
 
 import os
+
 import torch
 import torch.nn.functional as F
-from PIL import Image
 from omegaconf.omegaconf import OmegaConf, open_dict
+from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from tqdm import tqdm
 
-from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns, ImagenetClassnameDataset
-from nemo.collections.multimodal.data.clip.clip_dataset import tokenize, build_imagenet_validation_dataloader
-from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import openai_imagenet_template, imagenet_classnames
+from nemo.collections.multimodal.data.clip.clip_dataset import (
+    ImagenetClassnameDataset,
+    build_imagenet_validation_dataloader,
+    get_preprocess_fns,
+    tokenize,
+)
+from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames, openai_imagenet_template
 from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -43,6 +45,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 def accuracy(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()
@@ -67,9 +70,7 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronCLIPModel,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
@@ -94,8 +95,9 @@ def main(cfg) -> None:
         cfg.model["text"] = model.cfg.text
 
     imagenet_val = build_imagenet_validation_dataloader(cfg.model, model.tokenizer)
-    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
-                                                  dtype=autocast_dtype, ):
+    with torch.no_grad(), torch.cuda.amp.autocast(
+        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    ):
         # build imagenet classification classifier
         classifier = []
         for texts in imagenet_val["texts"]:
@@ -106,7 +108,7 @@ def main(cfg) -> None:
             classifier.append(class_embedding)
         classifier = torch.stack(classifier, dim=1)
 
-        top1, top5, n = 0., 0., 0.
+        top1, top5, n = 0.0, 0.0, 0.0
         for images, target in tqdm(imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False):
             if images is None or target is None:
                 continue
@@ -116,7 +118,7 @@ def main(cfg) -> None:
             # predict
             image_features = vision_encoder(images)
             image_features = F.normalize(image_features, dim=-1)
-            logits = 100. * image_features @ classifier
+            logits = 100.0 * image_features @ classifier
 
             # measure accuracy
             acc1, acc5 = accuracy(logits, target, topk=(1, 5))
@@ -125,8 +127,8 @@ def main(cfg) -> None:
             n += images.size(0)
 
         logging.info('Finished zero-shot imagenet.')
-        top1 = (top1 / n)
-        top5 = (top5 / n)
+        top1 = top1 / n
+        top5 = top5 / n
 
     imagenet_metric = torch.zeros(2).cuda()
     imagenet_metric[0], imagenet_metric[1] = top1, top5

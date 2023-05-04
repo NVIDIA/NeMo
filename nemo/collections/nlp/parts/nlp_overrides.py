@@ -358,7 +358,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             state_dict = new_state_dict
 
         # Modify state key for Dreambooth inference
-        if conf.get('target') == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion':
+        if (
+            conf.get('target')
+            == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+        ):
             new_state_dict = {}
             for key in state_dict.keys():
                 new_key = key.replace('unet', 'model.diffusion_model')
@@ -367,7 +370,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_key = new_key.replace('.noise_scheduler', '')
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
-
 
         return state_dict
 

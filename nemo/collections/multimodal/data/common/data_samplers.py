@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 from multiprocessing import Value
+
+import torch
 from webdataset.pytorch import IterableDataset
 
 
@@ -28,17 +29,16 @@ class SharedEpoch:
 
 
 class WDSUrlsRandomSampler(IterableDataset):
-
     def __init__(
-            self,
-            urls,
-            total_urls: int,
-            chunk_size: int,
-            consumed_samples: int,
-            data_parallel_rank: int,
-            data_parallel_size: int,
-            drop_last: bool,
-            data_sharding: bool,
+        self,
+        urls,
+        total_urls: int,
+        chunk_size: int,
+        consumed_samples: int,
+        data_parallel_rank: int,
+        data_parallel_size: int,
+        drop_last: bool,
+        data_sharding: bool,
     ):
         r"""Sampler for WebDataset Urls with data parallelism.
         Args:
@@ -80,8 +80,9 @@ class WDSUrlsRandomSampler(IterableDataset):
         if worker_info is not None:
             worker_id, num_workers = worker_info.id, worker_info.num_workers
 
-        self.consumed_urls = self.consumed_samples // self.data_parallel_size \
-                             // self.chunk_size * self.data_parallel_size
+        self.consumed_urls = (
+            self.consumed_samples // self.data_parallel_size // self.chunk_size * self.data_parallel_size
+        )
 
         if self.drop_last or self.remaining_urls == 0:
             active_total_urls = self.total_urls - self.remaining_urls
@@ -106,10 +107,9 @@ class WDSUrlsRandomSampler(IterableDataset):
             full_bucket_offset = current_epoch_urls
             g = torch.Generator()
             g.manual_seed(self.epoch.get_value())
-            idx_range_total = \
-                torch.randperm(full_bucket_size, generator=g).tolist()
+            idx_range_total = torch.randperm(full_bucket_size, generator=g).tolist()
             idx_range_active = idx_range_total[full_bucket_offset:]
-            idx_range = idx_range_active[self.data_parallel_rank::self.data_parallel_size]
+            idx_range = idx_range_active[self.data_parallel_rank :: self.data_parallel_size]
 
         # Use additional permutation to replace out-of-range indices when drop_last is False
         additional_random_idx = torch.randperm(self.total_urls, generator=g).tolist()

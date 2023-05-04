@@ -11,19 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 from functools import partial
-from torch.utils.data import default_collate, Dataset
-from typing import Any, List, Union, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
+
+import torch
+from torch.utils.data import Dataset, default_collate
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
-from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import openai_imagenet_template, imagenet_classnames
+from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames, openai_imagenet_template
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-
 from nemo.collections.vision.data.megatron.image_folder import ImageFolder
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
@@ -68,7 +68,7 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
         if len(tokens) > context_length:
             tokens = tokens[:context_length]  # Truncate
             tokens[-1] = eos_id
-        result[i, :len(tokens)] = torch.tensor(tokens)
+        result[i, : len(tokens)] = torch.tensor(tokens)
 
     if texts_is_str:
         result = result[0]
@@ -80,26 +80,17 @@ def get_preprocess_fns(model_cfg, tokenizer=None, is_train=True):
     img_size = (model_cfg.vision.get("img_h"), model_cfg.vision.get("img_w"))
     img_mean = model_cfg.vision.get("img_mean")
     img_std = model_cfg.vision.get("img_std")
-    img_transform = image_transform(
-        img_size,
-        is_train=is_train,
-        mean=img_mean,
-        std=img_std,
-    )
+    img_transform = image_transform(img_size, is_train=is_train, mean=img_mean, std=img_std,)
     text_transform = lambda x: x
     if tokenizer is not None:
         text_transform = partial(
-            tokenize,
-            tokenizer=tokenizer,
-            context_length=model_cfg.text.get("max_position_embeddings"),
+            tokenize, tokenizer=tokenizer, context_length=model_cfg.text.get("max_position_embeddings"),
         )
     return img_transform, text_transform
 
 
 def build_train_valid_datasets(
-        model_cfg,
-        consumed_samples,
-        tokenizer=None,
+    model_cfg, consumed_samples, tokenizer=None,
 ):
     data_cfg = model_cfg.data
 
@@ -149,10 +140,7 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
     if imagenet_path is None:
         return None
 
-    image_dataset = ImageFolder(
-        root=imagenet_path,
-        transform=val_image_transform,
-    )
+    image_dataset = ImageFolder(root=imagenet_path, transform=val_image_transform,)
 
     image_batch_sampler = MegatronPretrainingSampler(
         total_samples=len(image_dataset),
@@ -169,6 +157,7 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
             return None, None
         else:
             return default_collate(batch)
+
     imagenet_val["images"] = torch.utils.data.DataLoader(
         image_dataset,
         batch_sampler=image_batch_sampler,

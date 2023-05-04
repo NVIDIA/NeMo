@@ -15,23 +15,24 @@
 https://github.com/timothybrooks/instruct-pix2pix/blob/2afcb7e45bd350765f21a58a0c135871e9dc5a78/stable_diffusion/ldm/models/diffusion/ddpm_edit.py
 """
 
+from contextlib import contextmanager
+from functools import partial
+
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from contextlib import contextmanager
 from einops import rearrange, repeat
-from functools import partial
 from pytorch_lightning.utilities.distributed import rank_zero_only
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.instruct_pix2pix.edit_dataset import EditDataset
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion, LatentDiffusion
+from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingSampler,
     MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
 from nemo.utils import logging
 
@@ -46,7 +47,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 class LatentDiffusionEdit(LatentDiffusion):
-
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
         pl_sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(pl_sd.keys()):
@@ -88,8 +88,9 @@ class LatentDiffusionEdit(LatentDiffusion):
                 if k.startswith(ik):
                     print("Deleting key {} from state_dict.".format(k))
                     del sd[k]
-        missing, unexpected = self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(
-            sd, strict=False)
+        missing, unexpected = (
+            self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
+        )
         print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
         if len(missing) > 0:
             print(f"Missing Keys: {missing}")
@@ -97,8 +98,17 @@ class LatentDiffusionEdit(LatentDiffusion):
             print(f"Unexpected Keys: {unexpected}")
 
     @torch.no_grad()
-    def get_input(self, batch, k, return_first_stage_outputs=False, force_c_encode=False,
-                  cond_key=None, return_original_cond=False, bs=None, uncond=0.05):
+    def get_input(
+        self,
+        batch,
+        k,
+        return_first_stage_outputs=False,
+        force_c_encode=False,
+        cond_key=None,
+        return_original_cond=False,
+        bs=None,
+        uncond=0.05,
+    ):
         x = batch[k]
         if bs is not None:
             x = x[:bs]
@@ -118,8 +128,9 @@ class LatentDiffusionEdit(LatentDiffusion):
         input_mask = 1 - rearrange((random >= uncond).float() * (random < 3 * uncond).float(), "n -> n 1 1 1")
 
         null_prompt = self.get_learned_conditioning([""])
-        cond["c_crossattn"] = torch.where(prompt_mask, null_prompt,
-                                          self.get_learned_conditioning(xc["c_crossattn"]).detach())
+        cond["c_crossattn"] = torch.where(
+            prompt_mask, null_prompt, self.get_learned_conditioning(xc["c_crossattn"]).detach()
+        )
         cond["c_concat"] = input_mask * self.encode_first_stage((xc["c_concat"].to(x.device))).mode().detach()
 
         out = [z, cond]
@@ -132,7 +143,6 @@ class LatentDiffusionEdit(LatentDiffusion):
 
 
 class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
-
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
         model = LatentDiffusionEdit(cfg=self.cfg)
@@ -205,9 +215,7 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
             if not self.cfg.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(
-                self._validation_ds, consumed_samples, drop_last
-            )
+            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, drop_last)
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds') and self._test_ds is not None:

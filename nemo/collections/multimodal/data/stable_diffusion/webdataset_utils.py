@@ -14,18 +14,16 @@
 import io
 import os
 import sys
+from urllib.parse import urlparse
+
 import webdataset.gopen as gopen_webdata
 import yaml
-from urllib.parse import urlparse
+from webdataset import cache, filters, shardlists
 from webdataset.compat import FluidInterface
 from webdataset.handlers import reraise_exception
 from webdataset.pipeline import DataPipeline
 from webdataset.pytorch import IterableDataset
-from webdataset.tariterators import tar_file_expander, group_by_keys
-
-from webdataset import cache
-from webdataset import filters
-from webdataset import shardlists
+from webdataset.tariterators import group_by_keys, tar_file_expander
 
 # Number of attempts to read aws objects.
 _NUM_OBJECT_STORE_READ_ATTEMPTS = 10
@@ -77,7 +75,7 @@ def gopen(url, mode="rb", bufsize=8192, **kw):
                 object_content = s3_response_object['Body'].read()
 
                 # This is a check to verify is the object is fully read.
-                full_read = (s3_response_object['ContentLength'] == len(object_content))
+                full_read = s3_response_object['ContentLength'] == len(object_content)
                 if full_read:
                     return io.BytesIO(object_content)
                 else:
@@ -131,11 +129,14 @@ def url_opener(data, handler=reraise_exception, **kw):
 
 
 # Define a new tarfile_samples
-def tarfile_samples(src, handler=reraise_exception,
-                    load_from_object_store=False,
-                    s3_client=None,
-                    s3_bucket_name=None,
-                    local_root_path=None):
+def tarfile_samples(
+    src,
+    handler=reraise_exception,
+    load_from_object_store=False,
+    s3_client=None,
+    s3_bucket_name=None,
+    local_root_path=None,
+):
     r"""
     Given an iterator of filenames, this function opens the URL streams
     and groups data by keys.
@@ -170,20 +171,20 @@ class WebDataset(DataPipeline, FluidInterface):
     r"""Webdataset class modified to support loading from object store."""
 
     def __init__(
-            self,
-            urls,
-            handler=reraise_exception,
-            resampled=False,
-            shardshuffle=None,
-            cache_size=-1,
-            cache_dir=None,
-            detshuffle=False,
-            nodesplitter=shardlists.single_node_only,
-            verbose=False,
-            load_from_object_store=False,
-            s3_client=None,
-            s3_bucket_name=None,
-            local_root_path=None,
+        self,
+        urls,
+        handler=reraise_exception,
+        resampled=False,
+        shardshuffle=None,
+        cache_size=-1,
+        cache_dir=None,
+        detshuffle=False,
+        nodesplitter=shardlists.single_node_only,
+        verbose=False,
+        load_from_object_store=False,
+        s3_client=None,
+        s3_bucket_name=None,
+        local_root_path=None,
     ):
         r"""
         Args:
@@ -207,9 +208,7 @@ class WebDataset(DataPipeline, FluidInterface):
         if isinstance(urls, IterableDataset):
             assert not resampled
             self.append(urls)
-        elif isinstance(urls, str) and (
-                urls.endswith(".yaml") or urls.endswith(".yml")
-        ):
+        elif isinstance(urls, str) and (urls.endswith(".yaml") or urls.endswith(".yml")):
             with (open(urls)) as stream:
                 spec = yaml.safe_load(stream)
             assert "datasets" in spec
@@ -231,23 +230,22 @@ class WebDataset(DataPipeline, FluidInterface):
                 else:
                     self.append(filters.shuffle(shardshuffle))
         if cache_dir is None or cache_size == 0:
-            self.append(tarfile_to_samples(
-                handler=handler,
-                load_from_object_store=load_from_object_store,
-                s3_client=s3_client,
-                s3_bucket_name=s3_bucket_name,
-                local_root_path=local_root_path,
-            ))
+            self.append(
+                tarfile_to_samples(
+                    handler=handler,
+                    load_from_object_store=load_from_object_store,
+                    s3_client=s3_client,
+                    s3_bucket_name=s3_bucket_name,
+                    local_root_path=local_root_path,
+                )
+            )
         else:
 
             # We dont use cache.
             assert cache_size == -1 or cache_size > 0
             self.append(
                 cache.cached_tarfile_to_samples(
-                    handler=handler,
-                    verbose=verbose,
-                    cache_size=cache_size,
-                    cache_dir=cache_dir,
+                    handler=handler, verbose=verbose, cache_size=cache_size, cache_dir=cache_dir,
                 )
             )
 

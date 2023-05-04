@@ -14,6 +14,8 @@
 
 import os
 import re
+from typing import Any, Dict, Optional, Union
+
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
@@ -25,15 +27,17 @@ from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
-from typing import Any, Union, Dict, Optional
 
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
     clip_grad_norm_fp32,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import (
+    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
+    GradScaler,
+    NLPSaveRestoreConnector,
+)
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
@@ -92,12 +96,12 @@ class VisionModel(ModelPT, Exportable):
 
     @classmethod
     def load_from_checkpoint(
-            cls,
-            checkpoint_path: str,
-            map_location: Any = None,
-            hparams_file: Optional[str] = None,
-            strict: bool = True,
-            **kwargs,
+        cls,
+        checkpoint_path: str,
+        map_location: Any = None,
+        hparams_file: Optional[str] = None,
+        strict: bool = True,
+        **kwargs,
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
@@ -351,14 +355,14 @@ class MegatronVisionModel(VisionModel):
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
         if self.trainer.precision_plugin is not None and isinstance(
-                self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
         ):
             precision_plugin = self.trainer.precision_plugin
 
             if (
-                    hasattr(precision_plugin, 'scaler')
-                    and precision_plugin.scaler is not None
-                    and isinstance(precision_plugin.scaler, GradScaler)
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
             ):
                 grad_scaler = precision_plugin.scaler
 
@@ -383,7 +387,7 @@ class MegatronVisionModel(VisionModel):
                     grad_scaler.optimizer_update_skipped = None
 
     def setup_optimization(
-            self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
@@ -476,8 +480,8 @@ class MegatronVisionModel(VisionModel):
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
-                self.init_consumed_samples
-                + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+            self.init_consumed_samples
+            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 
@@ -501,8 +505,8 @@ class MegatronVisionModel(VisionModel):
                 self.cfg.sequence_parallel = False
 
         if (
-                self.cfg.get('gradient_accumulation_fusion', False)
-                and self.cfg.get('pipeline_model_parallel_size', 1) == 1
+            self.cfg.get('gradient_accumulation_fusion', False)
+            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
         ):
             logging.info("Gradient accumulation fusion can only be used with pipeline parallel size > 1.")
             with open_dict(self.cfg):
