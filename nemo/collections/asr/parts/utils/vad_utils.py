@@ -1302,32 +1302,6 @@ def construct_manifest_eval(
     return aligned_vad_asr_output_manifest
 
 
-def extract_audio_features(vad_model: EncDecClassificationModel, manifest_vad_input: str, out_dir: str) -> str:
-    """
-    Extract audio features and write to out_dir
-    """
-
-    file_list = []
-    with open(manifest_vad_input, 'r', encoding='utf-8') as fin:
-        for line in fin.readlines():
-            file_list.append(Path(json.loads(line)['audio_filepath']).stem)
-
-    logging.info(f"Extracting features on {len(file_list)} audio files/json lines!")
-
-    for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
-        test_batch = [x.to(vad_model.device) for x in test_batch]
-        with autocast():
-            processed_signal, processed_signal_length = vad_model.preprocessor(
-                input_signal=test_batch[0], length=test_batch[1],
-            )
-            processed_signal = processed_signal.squeeze(0)[:, :processed_signal_length]
-            processed_signal = processed_signal.cpu()
-            outpath = os.path.join(out_dir, file_list[i] + ".pt")
-            torch.save(processed_signal, outpath)
-        del test_batch
-    return out_dir
-
-
 def load_rttm_file(filepath: str) -> pd.DataFrame:
     """
     Load rttm file and extract speech segments
@@ -1385,7 +1359,7 @@ def load_speech_overlap_segments_from_rttm(rttm_file: str) -> Tuple[List[List[fl
 
     Returns:
         merged (List[List[float]]): merged speech intervals without overlaps
-        overlaps (List[List[float]]): intervals without overlap speech
+        overlaps (List[List[float]]): intervals with overlap speech
     """
     speech_segments = list(load_rttm_file(rttm_file)['segment'])
     speech_segments = [list(x) for x in speech_segments]
@@ -1431,7 +1405,9 @@ def get_nonspeech_segments(
     return nonspeech_segments
 
 
-def get_frame_labels(segments: List[List[float]], frame_length: float, offset: float, duration: float) -> str:
+def get_frame_labels(
+    segments: List[List[float]], frame_length: float, offset: float, duration: float, as_str: bool = True
+) -> str:
     """
     Generate frame-level binary labels for audio, '0' for non-speech and '1' for speech
 
@@ -1443,17 +1419,18 @@ def get_frame_labels(segments: List[List[float]], frame_length: float, offset: f
     """
     labels = []
     n_frames = int(np.ceil(duration / frame_length))
-
     sid = 0
     for i in range(n_frames):
         t = offset + i * frame_length
         while sid < len(segments) - 1 and segments[sid][1] < t:
             sid += 1
-        if segments[sid][0] <= t <= segments[sid][1]:
-            labels.append('1')
+        if segments[sid][1] != 0 and segments[sid][0] <= t <= segments[sid][1]:
+            labels.append(1)
         else:
-            labels.append('0')
-    return ' '.join(labels)
+            labels.append(0)
+    if as_str:
+        return ' '.join([str(x) for x in labels])
+    return [float(x) for x in labels]
 
 
 def plot_sample_from_rttm(
@@ -1499,12 +1476,16 @@ def plot_sample_from_rttm(
     return ipd.Audio(audio, rate=16000)
 
 
-def align_labels_to_frames(probs, labels):
+def align_labels_to_frames(probs, labels, threshold=0.2):
     """
-    Aligns labels to frames when the frame length (e.g., 10ms) is different from the label length (e.g., 20ms)
+    Aligns labels to frames when the frame length (e.g., 10ms) is different from the label length (e.g., 20ms). 
+    The threshold 0.2 is not important, since the actual ratio will always be close to an integer unless using frame/label 
+    lengths that are not multiples of each other (e.g., 15ms frame length and 20ms label length), which is not valid.
+    The value 0.2 here is just for easier unit testing.
     Args:
         probs (List[float]): list of probabilities
         labels (List[int]): list of labels
+        threshold (float): threshold for rounding ratio to integer
     Returns:
         labels (List[int]): list of labels aligned to frames
     """
@@ -1512,12 +1493,13 @@ def align_labels_to_frames(probs, labels):
     labels_len = len(labels)
     probs = torch.tensor(probs).float()
     labels = torch.tensor(labels).long()
+
     if frames_len < labels_len:
         # pad labels with zeros until labels_len is a multiple of frames_len
         ratio = labels_len / frames_len
         res = labels_len % frames_len
         if (
-            ceil(ratio) - ratio < 0.2
+            ceil(ratio) - ratio < threshold
         ):  # e.g., ratio = 2.9, ceil(ratio) = 3, then we pad labels to make it a multiple of 3
             # pad labels with zeros until labels_max_len is a multiple of logits_max_len
             labels = labels.tolist()
@@ -1535,7 +1517,7 @@ def align_labels_to_frames(probs, labels):
         # repeat labels until labels_len is a multiple of frames_len
         ratio = frames_len / labels_len
         res = frames_len % labels_len
-        if ceil(ratio) - ratio < 0.2:
+        if ceil(ratio) - ratio < threshold:
             # e.g., ratio is 1.83, ceil(ratio) = 2, then we repeat labels to make it a multiple of 2, and discard the redundant labels
             labels = labels.repeat_interleave(ceil(ratio), dim=0).long().tolist()
             labels = labels[:frames_len]
@@ -1579,20 +1561,17 @@ def convert_labels_to_speech_segments(labels: List[float], frame_length_in_sec: 
         segments (List[Tuple[float, float]]): list of speech segments
     """
     segments = []
-    start = 0
-    end = 0
+    start = -1
     for i, label in enumerate(labels):
         if label == 1:
-            if start == 0:
+            if start == -1:
                 start = i * frame_length_in_sec
-            end = (i + 1) * frame_length_in_sec
         else:
-            if start != 0:
-                segments.append((start, end))
-                start = 0
-                end = 0
-    if start != 0:
-        segments.append((start, end))
+            if start > -1:
+                segments.append([start, (i - 1) * frame_length_in_sec])
+                start = -1
+    if start != -1:
+        segments.append([start, (len(labels) - 1) * frame_length_in_sec])
     return segments
 
 
@@ -1602,7 +1581,7 @@ def frame_vad_construct_pyannote_object_per_file(
     """
     Construct a Pyannote object for evaluation.
     Args:
-        prediction (str) : path of vad rttm-like table.
+        prediction (str) : path of VAD predictions stored as RTTM or CSV-like txt.
         groundtruth (str): path of groundtruth rttm file.
         frame_length_in_sec(float): frame length in seconds
     Returns:

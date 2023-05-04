@@ -214,7 +214,7 @@ def get_full_path(
                     # WORKAROUND: pathlib does not support URIs, so use os.path
                     data_dir = os.path.dirname(manifest_file)
                 else:
-                    data_dir = Path(manifest_file).parent.as_posix()
+                    data_dir = Path(manifest_file).absolute().parent.as_posix()
 
             # assume audio_file path is relative to data_dir
             audio_file_path = os.path.join(data_dir, audio_file.as_posix())

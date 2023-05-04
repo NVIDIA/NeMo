@@ -45,6 +45,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     load_speech_segments_from_rttm,
     prepare_manifest,
 )
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -57,39 +58,7 @@ def main(cfg):
         raise ValueError("You must input the path of json file of evaluation data")
 
     # each line of dataset should be have different audio_filepath and unique name to simplify edge cases or conditions
-    key_meta_map = {}
-    key_labels_map = {}
-    key_rttm_map = {}
-    manifest_orig = []
-    manifest_dir = Path(cfg.dataset).absolute().parent
-    with open(cfg.dataset, 'r') as manifest:
-        for line in manifest.readlines():
-            entry = json.loads(line.strip())
-            audio_filepath = Path(entry['audio_filepath'])
-            if not audio_filepath.is_absolute():
-                new_audio_filepath = manifest_dir / audio_filepath
-                if new_audio_filepath.is_file():
-                    audio_filepath = new_audio_filepath
-                    entry['audio_filepath'] = str(audio_filepath)
-            uniq_audio_name = audio_filepath.stem
-            if uniq_audio_name in key_meta_map:
-                raise ValueError("Please make sure each line is with different audio_filepath! ")
-            key_meta_map[uniq_audio_name] = {'audio_filepath': str(audio_filepath)}
-            manifest_orig.append(entry)
-
-            if "label" not in entry:
-                rttm_key = "rttm_filepath" if "rttm_filepath" in entry else "rttm_file"
-                segments = load_speech_segments_from_rttm(entry[rttm_key])
-                label_str = get_frame_labels(
-                    segments=segments,
-                    frame_length=cfg.vad.parameters.shift_length_in_sec,
-                    duration=entry['duration'],
-                    offset=entry['offset'],
-                )
-                key_rttm_map[uniq_audio_name] = entry[rttm_key]
-                key_labels_map[uniq_audio_name] = [float(x) for x in label_str.split()]
-            else:
-                key_labels_map[uniq_audio_name] = [float(x) for x in entry["label"].split()]
+    manifest_orig, key_labels_map, key_rttm_map = load_input_manifest(cfg)
 
     # Prepare manifest for streaming VAD
     manifest_vad_input = cfg.dataset
@@ -122,7 +91,6 @@ def main(cfg):
             'num_workers': cfg.num_workers,
             'shuffle': False,
             'normalize_audio_db': cfg.vad.parameters.normalize_audio_db,
-            'normalize_audio_db_target': cfg.vad.parameters.normalize_audio_db_target,
         }
     )
 
@@ -205,44 +173,93 @@ def main(cfg):
     logging.info(f"Finished writing VAD output to manifest: {out_manifest_filepath}")
 
     if cfg.get("evaluate", False):
-        logging.info("Evaluating VAD results")
-        all_probs = []
-        all_labels = []
-        metric = detection.DetectionErrorRate()
-        key_probs_map = {}
-        predictions_list = list(Path(pred_dir).glob("*.frame"))
-        for frame_pred in tqdm(predictions_list, desc="Evaluating VAD results", total=len(predictions_list)):
-            pred_probs = []
-            with frame_pred.open("r") as fin:
-                for line in fin.readlines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    pred_probs.append(float(line))
-            key = frame_pred.stem
-            key_probs_map[key] = pred_probs
-            key_labels_map[key] = align_labels_to_frames(probs=pred_probs, labels=key_labels_map[key])
-            all_probs.extend(key_probs_map[key])
-            all_labels.extend(key_labels_map[key])
-
-            if key in key_rttm_map:
-                groundtruth = key_rttm_map[key]
-            else:
-                groundtruth = key_labels_map[key]
-
-            reference, hypothesis = frame_vad_construct_pyannote_object_per_file(
-                prediction=key_pred_rttm_map[key], groundtruth=groundtruth, frame_length_in_sec=frame_length_in_sec,
-            )
-            metric(reference, hypothesis)
-
-        auroc = roc_auc_score(y_true=all_labels, y_score=all_probs)
-        report = metric.report(display=False)
+        auroc, report = eval_detection_error(
+            pred_dir=pred_dir,
+            key_labels_map=key_labels_map,
+            key_rttm_map=key_rttm_map,
+            key_pred_rttm_map=key_pred_rttm_map,
+            frame_length_in_sec=frame_length_in_sec,
+        )
         DetER = report.iloc[[-1]][('detection error rate', '%')].item()
         FA = report.iloc[[-1]][('false alarm', '%')].item()
         MISS = report.iloc[[-1]][('miss', '%')].item()
         logging.info(f"AUROC: {auroc:.4f}")
         logging.info(f"DetER={DetER:0.4f}, False Alarm={FA:0.4f}, Miss={MISS:0.4f}")
         logging.info(f"with params: {cfg.vad.parameters.postprocessing}")
+    logging.info("Done!")
+
+
+def load_input_manifest(cfg):
+    unique_audio_names = set()
+    key_labels_map = {}
+    key_rttm_map = {}
+    manifest_orig = []
+    manifest_file = Path(cfg.dataset).absolute().as_posix()
+    logging.info(f"Loading manifest file {manifest_file}")
+    with open(manifest_file, 'r') as fin:
+        for line in fin.readlines():
+            entry = json.loads(line.strip())
+            audio_filepath = get_full_path(audio_file=entry['audio_filepath'], manifest_file=manifest_file)
+            entry['audio_filepath'] = str(audio_filepath)
+            uniq_audio_name = Path(audio_filepath).stem
+
+            if uniq_audio_name in unique_audio_names:
+                raise ValueError("Please make sure each line is with different audio_filepath! ")
+            else:
+                unique_audio_names.add(uniq_audio_name)
+
+            manifest_orig.append(entry)
+
+            if "label" not in entry:
+                rttm_key = "rttm_filepath" if "rttm_filepath" in entry else "rttm_file"
+                segments = load_speech_segments_from_rttm(entry[rttm_key])
+                label_str = get_frame_labels(
+                    segments=segments,
+                    frame_length=cfg.vad.parameters.shift_length_in_sec,
+                    duration=entry['duration'],
+                    offset=entry['offset'],
+                )
+                key_rttm_map[uniq_audio_name] = entry[rttm_key]
+                key_labels_map[uniq_audio_name] = [float(x) for x in label_str.split()]
+            else:
+                key_labels_map[uniq_audio_name] = [float(x) for x in entry["label"].split()]
+    return manifest_orig, key_labels_map, key_rttm_map
+
+
+def eval_detection_error(pred_dir, key_labels_map, key_rttm_map, key_pred_rttm_map, frame_length_in_sec):
+    logging.info("Evaluating VAD results")
+    all_probs = []
+    all_labels = []
+    metric = detection.DetectionErrorRate()
+    key_probs_map = {}
+    predictions_list = list(Path(pred_dir).glob("*.frame"))
+    for frame_pred in tqdm(predictions_list, desc="Evaluating VAD results", total=len(predictions_list)):
+        pred_probs = []
+        with frame_pred.open("r") as fin:
+            for line in fin.readlines():
+                line = line.strip()
+                if not line:
+                    continue
+                pred_probs.append(float(line))
+        key = frame_pred.stem
+        key_probs_map[key] = pred_probs
+        key_labels_map[key] = align_labels_to_frames(probs=pred_probs, labels=key_labels_map[key])
+        all_probs.extend(key_probs_map[key])
+        all_labels.extend(key_labels_map[key])
+
+        if key in key_rttm_map:
+            groundtruth = key_rttm_map[key]
+        else:
+            groundtruth = key_labels_map[key]
+
+        reference, hypothesis = frame_vad_construct_pyannote_object_per_file(
+            prediction=key_pred_rttm_map[key], groundtruth=groundtruth, frame_length_in_sec=frame_length_in_sec,
+        )
+        metric(reference, hypothesis)
+
+    auroc = roc_auc_score(y_true=all_labels, y_score=all_probs)
+    report = metric.report(display=False)
+    return auroc, report
 
 
 if __name__ == "__main__":

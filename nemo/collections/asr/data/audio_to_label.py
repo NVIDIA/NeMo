@@ -505,7 +505,7 @@ class _TarredAudioLabelDataset(IterableDataset):
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
                 available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
                 The benefit of replication is that it allows each node to sample data points from the entire
-                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+                dataset independently of other nodes, and reduces dependence on the value of `shuffle_n`.
 
                 .. warning::
                     Replicated strategy allows every node to sample the entire set of available tarfiles,
@@ -942,8 +942,7 @@ class AudioToMultiLabelDataset(Dataset):
         is_regression_task: bool = False,
         cal_labels_occurrence: Optional[bool] = False,
         delimiter: Optional[str] = None,
-        normalize_audio_db: bool = False,
-        normalize_audio_db_target: float = -20.0,
+        normalize_audio_db: Optional[float] = None,
     ):
         super().__init__()
         if isinstance(manifest_filepath, str):
@@ -951,7 +950,6 @@ class AudioToMultiLabelDataset(Dataset):
 
         self.delimiter = delimiter
         self.normalize_audio_db = normalize_audio_db
-        self.normalize_audio_db_target = normalize_audio_db_target
 
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath,
@@ -1022,7 +1020,6 @@ class AudioToMultiLabelDataset(Dataset):
             duration=sample.duration,
             trim=self.trim,
             normalize_db=self.normalize_audio_db,
-            normalize_db_target=self.normalize_audio_db_target,
         )
 
         f, fl = features, torch.tensor(features.size(0)).long()
@@ -1105,9 +1102,8 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
                     or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
-        delimiter (Optional[str]): Delimiter to use when spliting the label string, default to None.
-        normalize_audio_db (bool): Whether to normalize audio signal to a target db, default to False.
-        normalize_audio_db_target (float): Target db to normalize audio signal, default to -20.
+        delimiter (Optional[str]): Delimiter to use when splitting the label string, default to None.
+        normalize_audio_db (Optional[float]):  normalize audio signal to a target db, default to None.
     """
 
     def __init__(
@@ -1128,8 +1124,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
         delimiter: Optional[str] = None,
-        normalize_audio_db: bool = False,
-        normalize_audio_db_target: float = -20.0,
+        normalize_audio_db: Optional[float] = None,
     ):
         super().__init__()
         if isinstance(manifest_filepath, str):
@@ -1139,7 +1134,6 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         self.is_regression_task = is_regression_task
         self.delimiter = delimiter
         self.normalize_audio_db = normalize_audio_db
-        self.normalize_audio_db_target = normalize_audio_db_target
 
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath,
@@ -1279,7 +1273,6 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             duration=manifest_entry.duration,
             trim=self.trim,
             normalize_db=self.normalize_audio_db,
-            normalize_db_target=self.normalize_audio_db_target,
         )
 
         audio_filestream.close()
@@ -1338,9 +1331,8 @@ class AudioToMultiLabelDataset(Dataset):
             Defaults to False.
         cal_labels_occurrence (bool): Whether to calculate occurrence of labels
             Defaults to False.
-        delimiter (Optional[str]): Delimiter to use when spliting the label string, default to None.
-        normalize_audio_db (bool): Whether to normalize audio signal to a target db, default to False.
-        normalize_audio_db_target (float): Target db to normalize audio signal, default to -20.
+        delimiter (Optional[str]): Delimiter to use when splitting the label string, default to None.
+        normalize_audio_db (Optional[float]):  normalize audio signal to a target db, default to None.
     """
 
     @property
