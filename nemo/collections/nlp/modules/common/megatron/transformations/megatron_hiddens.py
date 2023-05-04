@@ -42,10 +42,14 @@ class MegatronHiddensModule(torch.nn.Module):
 
         # register all hidden / loss transforms as submodules to support learned parameters
         if not all([isinstance(ht, MegatronBaseHiddenLoss) for ht in self.hidden_loss_transforms]):
-            raise TypeError(f"hidden_loss_transforms should be a list of MegatronBaseHiddenLoss, but got {hidden_loss_transforms}")
+            raise TypeError(
+                f"hidden_loss_transforms should be a list of MegatronBaseHiddenLoss, but got {hidden_loss_transforms}"
+            )
         self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
         if not all([isinstance(ht, MegatronBaseHiddenTransform) for ht in self.hidden_transforms]):
-            raise TypeError(f"hidden_transforms should be a list of MegatronBaseHiddenTransform, but got {hidden_transforms}")
+            raise TypeError(
+                f"hidden_transforms should be a list of MegatronBaseHiddenTransform, but got {hidden_transforms}"
+            )
         self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
 
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
