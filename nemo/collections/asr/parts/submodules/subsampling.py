@@ -270,10 +270,11 @@ class ConvSubsampling(torch.nn.Module):
         x_ceil = 2 ** 31 / self._conv_channels * 4
         if torch.numel(x) > x_ceil:
             x, success = self.batch_split_conv(x)
-            if not success and self._subsampling == 'dw_striding':
-                x = self.time_split_conv(x)
-            else:
-                x = self.conv(x)
+            if not success:
+                if self._subsampling == 'dw_striding':
+                    x = self.time_split_conv(x)
+                else:
+                    x = self.conv(x) # try anyway
         else:
             x = self.conv(x)
 
