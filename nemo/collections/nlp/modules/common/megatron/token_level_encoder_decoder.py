@@ -480,9 +480,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_input=None,  # Result of running encoder embedding only
         output_enc_hidden_only=False,
     ):
-
-        ##TODO: Remove this code. it is debug code.
-        #hidden_transformations = [MegatronGaussianHiddenTransform()]
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """

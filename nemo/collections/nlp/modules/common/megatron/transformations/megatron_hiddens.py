@@ -15,6 +15,7 @@
 
 import torch
 import functools
+from typing import List
 
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss import MegatronBaseHiddenLoss
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import MegatronBaseHiddenTransform
@@ -26,24 +27,17 @@ class MegatronHiddensModule(torch.nn.Module):
     This class jointly handles the hidden transforms and hidden loss transforms.
     It helps in validating, and applying the transforms.
     """
-    def __init__(self, hidden_transforms: MegatronBaseHiddenLoss, hidden_loss_transforms: MegatronBaseHiddenTransform):
+    def __init__(self, hidden_transforms: List[MegatronBaseHiddenLoss]=[], hidden_loss_transforms: List[MegatronBaseHiddenTransform]=[]):
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
     
-        # validate that all loss transforms are supported by hidden transforms ("hiddens" is given by default)
-        hidden_outputs = set().union(*([ht.output_names for ht in self.hidden_transforms] + ["hiddens"]))
-        loss_inputs = set().union(*[lt.input_names for lt in self.loss_transforms])
-        if not loss_inputs.issubset(hidden_outputs):
-            raise ValueError(
-                f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
-            )
-        
         # register all hidden / loss transforms as submodules to support learned parameters
-        if self.loss_transforms is not None:
-            self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
-        if self.hidden_transforms is not None:
-            self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
-    
+        self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
+        self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
+
+        # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
+        loss_inputs = self.loss_inputs
+            
     @functools.cached_property
     def hidden_outputs(self):
         """Get the hidden outputs from all the hidden transforms"""
@@ -68,3 +62,41 @@ class MegatronHiddensModule(torch.nn.Module):
             )
         
         return list(loss_inputs)
+
+    def apply_hidden_transforms(self, inputs):
+        """
+        Apply hidden transforms
+        Args:
+            inputs: a dictionary of inputs, with "hiddens" as the default key for hidden states
+        
+        Returns:
+            outputs: a dictionary of outputs, collecting 
+        """
+        outputs = inputs.copy()
+        for hidden_transform in self.hidden_transforms:
+            outputs.update(hidden_transform.transform(outputs))
+        
+        return outputs
+
+    def apply_loss_transforms(self, outputs):
+        """
+        Apply loss transforms
+        Args:
+            outputs: a dictionary of outputs (after hidden transforms)
+        
+        Returns:
+            loss_dict: a dictionary of all losses
+        """
+        loss_dict = {}
+        joint_loss = 0.0
+        for i, loss_transform in enumerate(self.loss_transforms):
+            cur_loss_dict = loss_transform.loss(outputs)
+            joint_loss = joint_loss + cur_loss_dict["loss"]
+            cur_loss_dict.pop["loss"]
+            # check if cur_loss keys are unique
+            dup_keys = set(cur_loss_dict.keys()).intersection(set(loss_dict.keys()))
+            if len(dup_keys):
+                raise ValueError(f"Loss transform ({i}) {loss_transform} is trying to override the following loss keys {list(dup_keys)}")
+            loss_dict.update(cur_loss_dict)
+        
+        return loss_dict
