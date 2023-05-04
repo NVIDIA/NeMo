@@ -150,7 +150,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
         self.model_type = ModelType.encoder_or_decoder
 
-        self.enable_autocast = False if (not self.megatron_amp_o2) and (self.autocast_dtype == torch.float) else True
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
 
         if self.pipeline_parallel:
             assert (
