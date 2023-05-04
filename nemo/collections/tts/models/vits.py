@@ -24,7 +24,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.data.tts_dataset import DistributedBucketSampler
+from nemo.collections.tts.data.dataset import DistributedBucketSampler
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
@@ -391,6 +391,13 @@ class VitsModel(TextToWaveform):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_vits/versions/1.13.0/files/vits_ljspeech_fp16_full.nemo",
             description="This model is trained on LJSpeech audio sampled at 22050Hz. This model has been tested on generating female English "
             "voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_hifitts_vits",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_hifitts_vits/versions/r1.15.0/files/vits_en_hifitts.nemo",
+            description="This model is trained on HiFITTS sampled at 44100Hz with and can be used to generate male and female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)

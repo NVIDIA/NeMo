@@ -17,28 +17,40 @@
 import itertools
 
 import torch
-from torch._six import inf
+from torch import inf
 
 from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
 
 try:
     import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
-    from apex.transformer import parallel_state
-    from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
 
 HAVE_APEX_DISTRIBUTED_ADAM = False
+
 if HAVE_APEX:
     try:
         from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
 
         HAVE_APEX_DISTRIBUTED_ADAM = True
+
     except (ImportError, ModuleNotFoundError):
         pass
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
@@ -173,35 +185,21 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
         Total norm of the parameters (viewed as a single vector).
 
     """
-    assert norm_type == 2
     assert isinstance(optimizer, DistributedFusedAdam)
 
     # Filter parameters based on:
     #   - parameter should not be shared
     #   - should not be a replica due to tensor model parallelism
-    params = itertools.chain.from_iterable(param_group['params'] for param_group in optimizer.param_groups)
     params_for_norm = []
-    for param in params:
+    for param in optimizer.parameters(with_fp32_optim_params=True):
         is_not_shared = param_is_not_shared(param)
         is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
         if is_not_shared and is_not_tp_duplicate:
             params_for_norm.append(param)
 
     # Compute grad norm
-    # Note: Compute norm of local grads and sum over all procs
-    grad_norm_sq = optimizer._local_grad_norm(parameters=params_for_norm, norm_type=norm_type)
-    if optimizer.redundant_size > 1:
-        grad_norm_sq /= optimizer.redundant_size
-    torch.distributed.all_reduce(
-        grad_norm_sq, op=torch.distributed.ReduceOp.SUM,
-    )
-    grad_norm = grad_norm_sq.sqrt()
+    # Note: DistributedFusedAdam caches grad norm to avoid redundant
+    # communication.
+    optimizer.grad_norm(parameters=params_for_norm, norm_type=norm_type)
 
-    # Apply gradient clipping
-    # Note: DistributedFusedAdam is only aware of the data-parallel
-    # process group, so we cannot directly apply its gradient clipping
-    # function. However, it caches the grad norm to avoid redundant
-    # communication, so it suffices to overwrite the cache with the
-    # grad norm computed over the world parallel group.
-    optimizer._grad_norm = grad_norm
     return optimizer.clip_grad_norm(max_norm, norm_type=norm_type)
