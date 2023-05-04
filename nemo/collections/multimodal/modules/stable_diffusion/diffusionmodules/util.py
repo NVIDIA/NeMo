@@ -322,7 +322,9 @@ def interpolate_fn(x, xp, yp):
             cand_start_idx,
         ),
     )
-    end_idx = torch.where(torch.eq(start_idx, cand_start_idx), start_idx + 2, start_idx + 1)
+    end_idx = torch.where(
+        torch.eq(start_idx, cand_start_idx), start_idx + 2, start_idx + 1
+    )
     start_x = torch.gather(sorted_all_x, dim=2, index=start_idx.unsqueeze(2)).squeeze(2)
     end_x = torch.gather(sorted_all_x, dim=2, index=end_idx.unsqueeze(2)).squeeze(2)
     start_idx2 = torch.where(
@@ -335,8 +337,12 @@ def interpolate_fn(x, xp, yp):
         ),
     )
     y_positions_expanded = yp.unsqueeze(0).expand(N, -1, -1)
-    start_y = torch.gather(y_positions_expanded, dim=2, index=start_idx2.unsqueeze(2)).squeeze(2)
-    end_y = torch.gather(y_positions_expanded, dim=2, index=(start_idx2 + 1).unsqueeze(2)).squeeze(2)
+    start_y = torch.gather(
+        y_positions_expanded, dim=2, index=start_idx2.unsqueeze(2)
+    ).squeeze(2)
+    end_y = torch.gather(
+        y_positions_expanded, dim=2, index=(start_idx2 + 1).unsqueeze(2)
+    ).squeeze(2)
     cand = start_y + (x - start_x) * (end_y - start_y) / (end_x - start_x)
     return cand
 

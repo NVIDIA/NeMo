@@ -16,8 +16,11 @@
 import torch
 
 from nemo.collections.multimodal.models.stable_diffusion.samplers import Sampler
-from nemo.collections.multimodal.models.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
-from .dpmsolver import NoiseScheduleVP, model_wrapper, DPMSolver
+from nemo.collections.multimodal.models.stable_diffusion.samplers.base_sampler import (
+    AbstractBaseSampler,
+)
+
+from .dpmsolver import DPMSolver, NoiseScheduleVP, model_wrapper
 
 
 class DPMSolverSampler(AbstractBaseSampler):
@@ -32,14 +35,22 @@ class DPMSolverSampler(AbstractBaseSampler):
             x_device = x_float32.to(model.betas.device)
             return x_device
 
-        self.register_buffer('alphas_cumprod', to_torch(model.alphas_cumprod, model))
+        self.register_buffer("alphas_cumprod", to_torch(model.alphas_cumprod, model))
 
     @torch.no_grad()
     def p_sampling_fn(self):
         pass
 
     @torch.no_grad()
-    def dpm_sampling_fn(self, shape, steps, conditioning=None, unconditional_conditioning=None, unconditional_guidance_scale=1., x_T=None):
+    def dpm_sampling_fn(
+        self,
+        shape,
+        steps,
+        conditioning=None,
+        unconditional_conditioning=None,
+        unconditional_guidance_scale=1.0,
+        x_T=None,
+    ):
 
         device = self.model.betas.device
         if x_T is None:
@@ -47,7 +58,7 @@ class DPMSolverSampler(AbstractBaseSampler):
         else:
             img = x_T
 
-        ns = NoiseScheduleVP('discrete', alphas_cumprod=self.alphas_cumprod)
+        ns = NoiseScheduleVP("discrete", alphas_cumprod=self.alphas_cumprod)
 
         model_fn = model_wrapper(
             lambda x, t, c: self.model.apply_model(x, t, c),
@@ -59,6 +70,13 @@ class DPMSolverSampler(AbstractBaseSampler):
             guidance_scale=unconditional_guidance_scale,
         )
         dpm_solver = DPMSolver(model_fn, ns, predict_x0=True, thresholding=False)
-        x = dpm_solver.sample(img, steps=steps, skip_type="time_uniform", method="multistep", order=2, lower_order_final=True)
+        x = dpm_solver.sample(
+            img,
+            steps=steps,
+            skip_type="time_uniform",
+            method="multistep",
+            order=2,
+            lower_order_final=True,
+        )
 
         return x.to(device), None
