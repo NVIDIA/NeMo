@@ -20,7 +20,8 @@ To ensure that speaker names are unique across datasets, it is recommended that 
 names in your manifest with the name of the dataset.
 
 $ python <nemo_root_path>/scripts/dataset_processing/tts/create_speaker_map.py \
-    --manifest_paths=manifest1.json,manifest2.json \
+    --manifest_path=manifest1.json \
+    --manifest_path=manifest2.json \
     --speaker_map_path=speakers.json
 
 Example output:
@@ -47,7 +48,7 @@ def get_args():
         description="Create mapping from speaker names to numerical speaker indices.",
     )
     parser.add_argument(
-        "--manifest_paths", required=True, type=str, help="Path to training manifests, comma delimited",
+        "--manifest_path", required=True, type=Path, action="append", help="Path to training manifest(s).",
     )
     parser.add_argument(
         "--speaker_map_path", required=True, type=Path, help="Path for output speaker index JSON",
@@ -61,11 +62,9 @@ def get_args():
 
 def main():
     args = get_args()
-    manifest_path_string = args.manifest_paths
+    manifest_paths = args.manifest_path
     speaker_map_path = args.speaker_map_path
     overwrite = args.overwrite
-
-    manifest_paths = [Path(manifest_path) for manifest_path in manifest_path_string.split(",")]
 
     for manifest_path in manifest_paths:
         if not manifest_path.exists():
