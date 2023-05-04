@@ -274,7 +274,7 @@ class ConvSubsampling(torch.nn.Module):
                 if self._subsampling == 'dw_striding':
                     x = self.time_split_conv(x)
                 else:
-                    x = self.conv(x) # try anyway
+                    x = self.conv(x)  # try anyway
         else:
             x = self.conv(x)
 
