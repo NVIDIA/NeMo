@@ -66,6 +66,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
+from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.utils.streaming_utils import (
     BatchedFrameASRRNNT,
     LongestCommonSubsequenceBatchedFrameASRRNNT,
@@ -98,10 +99,19 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
+    # Set to True to output greedy timestamp information (only supported models)
+    compute_timestamps: bool = False
+
+    # Set to True to output language ID information
+    compute_langs: bool = False
+
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models",
+
+    # # Decoding strategy for RNNT models
+    # rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -111,6 +121,9 @@ class TranscriptionConfig:
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
+
+    # Decoder type for hybrid model could be None for ctc model and ctc for hybrid model
+    decoder_type: Optional[str] = None
 
     # Decoding configs
     max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
@@ -125,6 +138,9 @@ class TranscriptionConfig:
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
+
+    for key in cfg:
+        cfg[key] = None if cfg[key] == 'None' else cfg[key]
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -142,6 +158,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if cfg.audio_dir is not None:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
         manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
+
+    if cfg.decoder_type not in [None, 'rnnt']:
+        raise ValueError(
+            "decoder_type needs to be either None (rnnt model) or ctc (hybrid model with rnnt decoder)for speech_to_text_buffered_infer_rnnt!"
+        )
 
     # setup GPU
     if cfg.cuda is None:
@@ -194,8 +215,29 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             decoding_cfg.strategy = "greedy_batch"
         decoding_cfg.preserve_alignments = True  # required to compute the middle token for transducers.
         decoding_cfg.fused_batch_size = -1  # temporarily stop fused batch during inference.
+        decoding_cfg.beam.return_best_hypothesis = True  # return and write the best hypothsis only
 
-    asr_model.change_decoding_strategy(decoding_cfg)
+    # Setup decoding strategy
+    if hasattr(asr_model, 'change_decoding_strategy'):
+        if not isinstance(asr_model, EncDecRNNTModel) and not isinstance(asr_model, EncDecHybridRNNTCTCModel):
+            raise ValueError(
+                "The script supports rnnt model and hybrid model with rnnt decodng! use ctc/speech_to_text_buffered_infer_ctc.py for other conditions."
+            )
+        else:
+            # rnnt model
+            if isinstance(asr_model, EncDecRNNTModel):
+                asr_model.change_decoding_strategy(decoding_cfg)
+
+            # hybrid ctc rnnt model with decoder_type = rnnt
+            if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+                if not cfg.decoder_type or cfg.decoder_type != "rnnt":
+                    raise ValueError(
+                        "If the model is a EncDecHybridRNNTCTCModel model, decoder_type should either be null or set to 'rnnt' for this script."
+                    )
+                asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+
+    with open_dict(cfg):
+        cfg.decoding = decoding_cfg
 
     feature_stride = model_cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * cfg.model_stride

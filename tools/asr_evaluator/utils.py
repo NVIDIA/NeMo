@@ -99,6 +99,8 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
     if (
         (cfg.pretrained_name and 'transducer' in cfg.pretrained_name)
         or (cfg.model_path and 'transducer' in cfg.model_path)
+        or (cfg.pretrained_name and 'hybrid' in cfg.pretrained_name and cfg.inference.decoder_type != 'ctc')
+        or (cfg.model_path and 'hybrid' in cfg.model_path and cfg.inference.decoder_type != 'ctc')
     ):
         script_path = (
             Path(__file__).parents[2]
