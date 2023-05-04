@@ -197,7 +197,7 @@ class NgramMerge:
         """
         if os.path.isfile(ngram_arpa) and not force:
             logging.info("File " + ngram_arpa + " exists. Skipping.")
-            return
+            return None
         else:
             sh_args = [
                 os.path.join(self.ngram_bin_path, "ngramprint"),
@@ -255,7 +255,7 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
 
     if os.path.isfile(test_far) and not force:
         logging.info("File " + test_far + " exists. Skipping.")
-        return
+        return None
     else:
         sh_args = [
             "farcompilestrings",
@@ -308,7 +308,7 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool):
     ngram_kenlm = ngram_arpa + ".kenlm"
     if os.path.isfile(ngram_kenlm) and not force:
         logging.info("File " + ngram_kenlm + " exists. Skipping.")
-        return
+        return None
     else:
         sh_args = [kenlm_bin_path, "trie", "-i", ngram_arpa, ngram_kenlm]
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
