@@ -25,6 +25,13 @@ from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidde
 
 __all__ = ["MegatronHiddensModule"]
 
+def get_hiddens_module(cfg=None):
+    """Build a MegatronHiddensModule from a configuration cfg"""
+    if cfg is None:
+        return None
+    
+    # TODO: finish me
+    return MegatronHiddensModule(hidden_transforms, hidden_loss_transforms)
 
 class MegatronHiddensModule(torch.nn.Module):
     """

@@ -16,6 +16,7 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
+from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import MegatronHiddensModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
@@ -44,6 +45,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         encoder_attn_mask_type: AttnMaskType = None,
         decoder_attn_mask_type: AttnMaskType = None,
         hidden_steps: int = None,
+        hiddens_module: MegatronHiddensModule = None,  # allows for hidden state transformations before the decoder
     ):
         super(MegatronTransformerEncoderDecoderModule, self).__init__()
 
@@ -53,6 +55,12 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         if isinstance(encoder, MegatronPerceiverEncoderModule) and hidden_steps is None:
             raise ValueError(
                 f"hidden_steps cannot be None for perceiver encoders. It is needed to compute the encoder-decoder cross attention mask."
+            )
+
+        self.hiddens_module = hiddens_module
+        if self.hiddens_module is not None and not isinstance(self.hiddens_module, MegatronHiddensModule):
+            raise TypeError(
+                f"hiddens_module must be of type MegatronHiddensModule, but got {type(self.hiddens_module)} instead."
             )
 
         # try to infer mask_type if not given
@@ -83,6 +91,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         self._encoder_key = "encoder"
         self._decoder_key = "decoder"
+        self._hiddens_module = "hiddens_module"
 
     def encode(
         self,
@@ -195,6 +204,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
         state_dict_[self._decoder_key] = self.decoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
 
+        if self.hiddens_module is not None:
+            state_dict_[self._hiddens_module] = self.hiddens_module.state_dict(destination, prefix, keep_vars)
+
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
@@ -202,3 +214,5 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
         self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
+        if self.hiddens_module is not None:
+            self.hiddens_module.load_state_dict(state_dict[self._hiddens_module], strict=strict)
