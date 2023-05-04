@@ -22,6 +22,7 @@ from torch.nn import LayerNorm
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
 from nemo.utils import logging
 
+
 class StackingSubsampling(torch.nn.Module):
     """Stacking subsampling which simply stacks consecutive frames to reduce the sampling rate
     Args:
@@ -267,8 +268,8 @@ class ConvSubsampling(torch.nn.Module):
 
         # avoiding a bug / feature limiting indexing of tensors to 2**31
         # after the first conv numel will be * conv-channels but 2*2 downsampled
-        x_ceil = 2**31 / self._conv_channels * 4 
-        if torch.numel(x) > x_ceil: 
+        x_ceil = 2 ** 31 / self._conv_channels * 4
+        if torch.numel(x) > x_ceil:
             x, success = self.batch_split_conv(x)
             if not success and self._subsampling == 'dw_striding':
                 x = self.time_split_conv(x)
@@ -307,13 +308,13 @@ class ConvSubsampling(torch.nn.Module):
     def batch_split_conv(self, x):
         """ Tries to split input by batch, run conv and concat results """
         b, _, _, _ = x.size()
-        if b == 1: # can't split if batch size is 1
+        if b == 1:  # can't split if batch size is 1
             return x, False
 
-        x_ceil = 2**31 / self._conv_channels * 4 
+        x_ceil = 2 ** 31 / self._conv_channels * 4
         p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
-        new_batch_size  = b // (2**p)
-        if new_batch_size == 0: # input is too big
+        new_batch_size = b // (2 ** p)
+        if new_batch_size == 0:  # input is too big
             return x, False
 
         logging.debug(f'conv subsampling: using split batch size {new_batch_size}')
@@ -321,19 +322,19 @@ class ConvSubsampling(torch.nn.Module):
 
     def time_split_conv(self, x):
         """ For dw convs, tries to split input by time, run conv and concat results """
-        x = self.conv[0](x) # full conv2D 
-        x = self.conv[1](x) # activation
+        x = self.conv[0](x)  # full conv2D
+        x = self.conv[1](x)  # activation
 
-        for i in range(self._sampling_num-1):
-            p = math.ceil(math.log(torch.numel(x) / 2**31, 2))
+        for i in range(self._sampling_num - 1):
+            p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
             _, _, t, _ = x.size()
-            new_t = int(t // (2**(p+1))) * 2 # forcing new_t to be even
+            new_t = int(t // (2 ** (p + 1))) * 2  # forcing new_t to be even
             logging.debug(f'conv dw subsampling: using split T size {new_t}')
-            x = self.chunked_conv(self.conv[i*3+2], new_t, x) # conv2D, depthwise
-            x = torch.cat([self.conv[i*3+3](chunk) for chunk in torch.split(x, new_t, 2)], 2) # conv2D, pointwise
-            x = self.conv[i*3+4](x) # activation
+            x = self.chunked_conv(self.conv[i * 3 + 2], new_t, x)  # conv2D, depthwise
+            x = torch.cat([self.conv[i * 3 + 3](chunk) for chunk in torch.split(x, new_t, 2)], 2)  # conv2D, pointwise
+            x = self.conv[i * 3 + 4](x)  # activation
         return x
-    
+
     def chunked_conv(self, conv, chunk_size, x):
         """ Performs exact chunked convolution"""
         t_size = x.size()[2]
@@ -346,13 +347,13 @@ class ConvSubsampling(torch.nn.Module):
                 step = t_size - i
                 if step == 2:
                     break
-            out = conv(x[:,:,i:i+step,:])
+            out = conv(x[:, :, i : i + step, :])
             if i > 0:
-                out = out[:,:,1:,:] # throw away the first element in the output
+                out = out[:, :, 1:, :]  # throw away the first element in the output
             out_chunks.append(out)
-            i += step - 2 # advance but step back by 2
+            i += step - 2  # advance but step back by 2
 
-        return torch.cat(out_chunks,2)
+        return torch.cat(out_chunks, 2)
 
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
