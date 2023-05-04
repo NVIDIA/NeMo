@@ -254,28 +254,27 @@ def tdt_rnnt_loss_gpu(
     omega: float,
 ):
     """
-    Wrapper method for accessing GPU Multi-blank RNNT loss (https://arxiv.org/pdf/2211.03541.pdf).
+    Wrapper method for accessing GPU TDT loss (https://arxiv.org/abs/2304.06795).
 
     CUDA implementation ported from [HawkAaron/warp-transducer](https://github.com/HawkAaron/warp-transducer).
 
     Args:
-        acts: Activation tensor of shape [B, T, U, V+1].
+        label_acts: Activation tensor of shape [B, T, U, V], where V includes the blank symbol.
+        duration_acts: Activation tensor of shape [B, T, U, D], where D is the number of durations.
         labels: Ground truth labels of shape [B, U].
         input_lengths: Lengths of the acoustic sequence as a vector of ints [B].
         label_lengths: Lengths of the target sequence as a vector of ints [B].
         costs: Zero vector of length [B] in which costs will be set.
-        grads: Zero tensor of shape [B, T, U, V+1] where the gradient will be set.
+        label_grads: Zero tensor of shape [B, T, U, V] where the gradient to label_acts will be set.
+        duration_grads: Zero tensor of shape [B, T, U, D] where the gradient to duration_acts will be set.
         blank_label: Index of the standard blank token in the vocabulary.
-        durations: A list of supported durations for big blank symbols
-            in the model, e.g. [2, 4, 8]. Note we only include durations for ``big
-            blanks'' here and it should not include 1 for the standard blank.
-            Those big blanks have vocabulary indices after the standard blank index.
+        durations: A list of supported durations for TDT. Must include 0 and 1.
         fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
             FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
         clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
         num_threads: Number of threads for OpenMP.
         sigma: logit-undernormalization weight used in the multi-blank model. Refer to
-            the multi-blank paper https://arxiv.org/pdf/2211.03541 for detailed explanations.
+            the multi-blank paper https://arxiv.org/abs/2304.06795 for detailed explanations.
         omega: weight for regular RNN-T loss
     """
     minibatch_size = label_acts.shape[0]
