@@ -65,6 +65,7 @@ def initialize_model_parallel_for_nemo(
     pipeline_model_parallel_split_rank=None,
     micro_batch_size=None,
     global_batch_size=None,
+    rampup_batch_size=None,
     use_fp8=False,
     init_mpi_proc_group=False,
     seed=1234,
@@ -123,7 +124,7 @@ def initialize_model_parallel_for_nemo(
                 global_batch_size=global_batch_size,
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=app_state.data_parallel_size,
-                rampup_batch_size=None,
+                rampup_batch_size=rampup_batch_size,
             )
         else:
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatches):

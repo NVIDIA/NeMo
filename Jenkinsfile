@@ -60,8 +60,9 @@ pipeline {
     // TODO: remove when pip package is available
     stage('Megatron Core installation') {
       steps {
-        sh 'git clone https://github.com/aklife97/Megatron-LM.git && \
+        sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
+            git checkout 3db2063b1ff992a971ba18f7101eecc9c4e90f03 && \
             pip install -e .'
       }
     }
@@ -2561,6 +2562,8 @@ pipeline {
         model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
         model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.num_workers=1 \
+        model.validation_ds.num_workers=1 \
         ~model.test_ds \
         model.train_ds.dataset_type=text_memmap \
         model.encoder_tokenizer.library=sentencepiece \
@@ -2602,6 +2605,8 @@ pipeline {
         model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
         model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.num_workers=1 \
+        model.validation_ds.num_workers=1 \
         ~model.test_ds \
         model.train_ds.dataset_type=text_memmap \
         model.encoder_tokenizer.library=sentencepiece \
@@ -3778,6 +3783,102 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.encoder.activations_checkpoint_method='block' \
         model.encoder.activations_checkpoint_num_layers=1 \
         model.encoder.position_embedding_type=alibi \
+        model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
+        model.decoder.num_attention_heads=8 \
+        model.decoder.activation='swiglu' \
+        model.decoder.masked_softmax_fusion=False \
+        model.decoder.bias_activation_fusion=False \
+        model.decoder.activations_checkpoint_method='block' \
+        model.decoder.activations_checkpoint_num_layers=1 \
+        model.encoder.transformer_block_type='pre_ln' \
+        model.decoder.transformer_block_type='pre_ln' \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
+        model.share_token_embeddings=False \
+        model.share_decoder_tokens_head_embeddings=False"
+        sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/t5_index_mappings"
+      }
+    }
+    stage('L2: Megatron T5 with KERPLE Pretraining and Resume Training TP=2') {
+      when {
+        anyOf {
+          branch 'r1.18.0'
+          changeRequest target: 'r1.18.0'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.encoder.num_layers=4 \
+        model.encoder.hidden_size=64 \
+        model.encoder.num_attention_heads=8 \
+        model.encoder.activation='swiglu' \
+        model.encoder.masked_softmax_fusion=False \
+        model.encoder.bias_activation_fusion=False \
+        model.encoder.activations_checkpoint_method='block' \
+        model.encoder.activations_checkpoint_num_layers=1 \
+        model.encoder.position_embedding_type=kerple \
+        model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
+        model.decoder.num_attention_heads=8 \
+        model.decoder.activation='swiglu' \
+        model.decoder.masked_softmax_fusion=False \
+        model.decoder.bias_activation_fusion=False \
+        model.decoder.activations_checkpoint_method='block' \
+        model.decoder.activations_checkpoint_num_layers=1 \
+        model.encoder.transformer_block_type='pre_ln' \
+        model.decoder.transformer_block_type='pre_ln' \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
+        model.share_token_embeddings=False \
+        model.share_decoder_tokens_head_embeddings=False"
+        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.encoder.num_layers=4 \
+        model.encoder.hidden_size=64 \
+        model.encoder.num_attention_heads=8 \
+        model.encoder.activation='swiglu' \
+        model.encoder.masked_softmax_fusion=False \
+        model.encoder.bias_activation_fusion=False \
+        model.encoder.activations_checkpoint_method='block' \
+        model.encoder.activations_checkpoint_num_layers=1 \
+        model.encoder.position_embedding_type=kerple \
         model.decoder.num_layers=2 \
         model.decoder.hidden_size=64 \
         model.decoder.num_attention_heads=8 \
