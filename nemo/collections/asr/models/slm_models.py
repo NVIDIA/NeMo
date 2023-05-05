@@ -12,6 +12,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
+    BoolType,
     LabelsType,
     LengthsType,
     LogprobsType,
@@ -62,6 +63,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "targets": NeuralType(('B', 'T'), LabelsType(), optional=True),
             "target_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "apply_mask": NeuralType(optional=True),
         }
 
     @property
@@ -124,7 +126,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
             )
         else:
             log_probs, encoded_len, masks, tokens = self.forward(
-                input_signal=input_signal, input_signal_length=input_signal_length
+                input_signal=input_signal, input_signal_length=input_signal_length, apply_mask=True
             )
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)

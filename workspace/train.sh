@@ -6,7 +6,7 @@ data_dir="/media/data/datasets/LibriSpeech"
 train_manifests="[${data_dir}/train_clean_360_cleaned.json,${data_dir}/train_clean_100_cleaned.json,${data_dir}/train_other_500_cleaned.json]"
 # train_manifests="[${data_dir}/test_clean.json]"
 dev_manifests="${data_dir}/dev_clean_cleaned.json"
-batch_size=4
+batch_size=8
 num_workers=8
 
 CUDA_VISIBLE_DEVICES="0" python speech_pretrain.py \

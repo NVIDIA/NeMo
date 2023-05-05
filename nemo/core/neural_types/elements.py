@@ -52,6 +52,7 @@ __all__ = [
     'Length',
     'IntType',
     'FloatType',
+    'BoolType',
     'NormalDistributionSamplesType',
     'NormalDistributionMeanType',
     'NormalDistributionLogVarianceType',
