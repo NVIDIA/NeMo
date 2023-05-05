@@ -26,7 +26,7 @@ from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.data.dataset import ConcatDataset, CodeSwitchedDataset
+from nemo.collections.common.data.dataset import CodeSwitchedDataset, ConcatDataset
 from nemo.utils import logging
 
 
@@ -408,10 +408,10 @@ def get_code_switched_dataset(
     tokenizer: Optional['TokenizerSpec'] = None,
     augmentor: Optional['AudioAugmentor'] = None,
 ) -> CodeSwitchedDataset:
-    
+
     tarred_audio_filepaths = config.get('tarred_audio_filepaths', None)
     manifest_filepaths = config['manifest_filepath']
-    
+
     # needed to support validation Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
     if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
@@ -443,7 +443,7 @@ def get_code_switched_dataset(
                 augmentor=None,
             )
         datasets[lang] = dataset
-    
+
     config = OmegaConf.to_container(config)
     dataset = CodeSwitchedDataset(
         datasets,
@@ -466,7 +466,7 @@ def get_code_switched_dataset(
         sample_rate=config['sample_rate'],
         augmentor=augmentor,
     )
-    
+
     return dataset
 
 
@@ -624,12 +624,18 @@ def get_audio_to_text_char_dataset_from_config(
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         if not 'code_switch_languages' in config:
-            logging.warning(f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}")
+            logging.warning(
+                f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}"
+            )
             return None
-        if ('code_switch_probabilities' in config) and (config['code_switch_probabilities'] is not None) and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6)):
+        if (
+            ('code_switch_probabilities' in config)
+            and (config['code_switch_probabilities'] is not None)
+            and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6))
+        ):
             logging.warning(f"`code_switch_probabilities` need to sum to 1. Config: {config}")
             return None
-        
+
         shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
         dataset = get_code_switched_dataset(
             config=config,
@@ -744,12 +750,18 @@ def get_audio_to_text_bpe_dataset_from_config(
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         if not 'code_switch_languages' in config:
-            logging.warning(f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}")
+            logging.warning(
+                f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}"
+            )
             return None
-        if ('code_switch_probabilities' in config) and (config['code_switch_probabilities'] is not None) and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6)):
+        if (
+            ('code_switch_probabilities' in config)
+            and (config['code_switch_probabilities'] is not None)
+            and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6))
+        ):
             logging.warning(f"`code_switch_probabilities` need to sum to 1. Config: {config}")
             return None
-        
+
         shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
         dataset = get_code_switched_dataset(
             config=config,
