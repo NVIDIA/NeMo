@@ -657,6 +657,65 @@ The transducer model is comprised of three models combined. One of these models 
 
 The only condition that needs to be met is that **the final layer of the acoustic model must have the hidden dimension defined in ``model_defaults.enc_hidden``**.
 
+Conformer Encoder
+~~~~~~~~~~~~~~~~~
+
+The subsampling and conformer layer configs are documented in-line below.
+
+.. code-block:: yaml
+
+  encoder:
+    _target_: nemo.collections.asr.modules.ConformerEncoder
+    feat_in: ${model.preprocessor.features}
+    feat_out: -1 # you may set it if you need different output size other than the default d_model
+    n_layers: 17 # large model
+    d_model: 512
+
+    # Sub-sampling parameters
+    # striding for regular Conformer, dw_striding for Fast Conformer
+    subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding. 
+    # use 4 for regular Conformer, 8 for Fast Conformer
+    subsampling_factor: 8 # must be power of 2 for striding and vggnet
+
+    # 512 for regular Conformer, 256 for Fast Conformer
+    subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
+    causal_downsampling: false
+
+    # Reduction parameters: Can be used to add another subsampling layer at a given position.
+    # Having a 2x reduction will speedup the training and inference speech while keeping similar WER.
+    # Adding it at the end will give the best WER while adding it at the beginning will give the best speedup.
+    reduction: null # pooling, striding, or null
+    reduction_position: null # Encoder block index or -1 for subsampling at the end of encoder
+    reduction_factor: 1
+
+    # Feed forward module's params
+    ff_expansion_factor: 4
+
+    # Multi-headed Attention Module's params
+    self_attention_model: rel_pos # rel_pos or abs_pos
+    n_heads: 8 # may need to be lower for smaller d_models
+    # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
+    att_context_size: [-1, -1] # -1 means unlimited context
+    att_context_style: regular # regular or chunked_limited
+    xscaling: true # scales up the input embeddings by sqrt(d_model)
+    untie_biases: true # unties the biases of the TransformerXL layers
+    pos_emb_max_len: 5000
+
+    # Convolution module's params
+
+    conv_kernel_size: 9 # 31 for regular Conformer, 9 for Fast Conformer
+    conv_norm_type: 'batch_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
+    # conv_context_size can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
+    # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
+    conv_context_size: null
+
+    ### regularization
+    dropout: 0.1 # The dropout used in most of the Conformer Modules
+    dropout_pre_encoder: 0.1 # The dropout used before the encoder
+    dropout_emb: 0.0 # The dropout used for embeddings
+    dropout_att: 0.1 # The dropout for multi-headed attention modules
+
+
 Decoder / Prediction Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
