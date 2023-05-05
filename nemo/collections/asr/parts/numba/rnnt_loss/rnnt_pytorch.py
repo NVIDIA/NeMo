@@ -131,7 +131,7 @@ class _TDTRNNTNumba(Function):
         if is_cuda:
             loss_func = rnnt.tdt_rnnt_loss_gpu
         else:
-            ValueError("TDT is not yet implemented for non CUDA computation.")
+            raise ValueError("TDT is not yet implemented for non CUDA computation.")
 
         label_grads = torch.zeros_like(label_acts) if label_acts.requires_grad else None
         duration_grads = torch.zeros_like(duration_acts) if duration_acts.requires_grad else None
