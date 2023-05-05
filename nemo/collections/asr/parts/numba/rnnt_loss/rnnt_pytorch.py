@@ -548,6 +548,8 @@ class TDTLossNumba(Module):
         label_lens: Tensor of (batch) containing label length of each example
         """
 
+        # TODO(hainan): in the future, we could further optimize this so that we don't need to
+        # make copies of the acts tensor.
         label_acts = acts[:, :, :, : -len(self.durations)].contiguous()
         duration_acts = torch.nn.functional.log_softmax(acts[:, :, :, -len(self.durations) :], dim=-1).contiguous()
 
