@@ -526,15 +526,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank and possibly big blank tokens
-            if self.blank_id != 0:
-                # use < here works both for standard and multi-blank RNN-T.
-                prediction = [p for p in prediction if p < self.blank_id]
-            elif self.blank_id != 0 and self.big_blank_durations is not None:
+            if self.big_blank_durations is not None:  # multi-blank RNNT
                 num_extra_outputs = len(self.big_blank_durations)
                 prediction = [p for p in prediction if p < self.blank_id - num_extra_outputs]
-
-                # Simply remove any blank and possibly big blank tokens
-            else:
+            elif self.durations is not None:  # TDT model.
+                prediction = [p for p in prediction if p < self.blank_id]
+            else:  # standard RNN-T
                 prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
@@ -1102,9 +1099,12 @@ class RNNTDecoding(AbstractRNNTDecoding):
     def __init__(
         self, decoding_cfg, decoder, joint, vocabulary,
     ):
-        blank_id = (
-            len(vocabulary) + joint.num_extra_outputs
-        )  # we need to ensure blank is the last token in the vocab. This is needed for multi-blank RNN-T models.
+        # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
+        blank_id = len(vocabulary) + joint.num_extra_outputs
+
+        if 'durations' in decoding_cfg:  # this means it's a TDT model.
+            blank_id = len(vocabulary)
+
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(

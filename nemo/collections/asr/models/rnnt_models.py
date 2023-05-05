@@ -72,6 +72,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
         num_classes = self.joint.num_classes_with_blank - 1  # for standard RNNT and multi-blank
+
         if loss_name == 'tdt_rnnt':
             num_classes = num_classes - self.joint.num_extra_outputs
 
