@@ -267,7 +267,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None:
                 if self.durations is not None:
-                    self.decoding = greedy_decode.GreedyTDTRNNTInfer(
+                    self.decoding = greedy_decode.GreedyTDTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
@@ -310,7 +310,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         elif self.cfg.strategy == 'greedy_batch':
             if self.big_blank_durations is None:
                 if self.durations is not None:
-                    self.decoding = greedy_decode.GreedyBatchedTDTRNNTInfer(
+                    self.decoding = greedy_decode.GreedyBatchedTDTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,

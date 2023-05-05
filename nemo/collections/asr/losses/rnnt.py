@@ -34,7 +34,7 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTRNNTLossPytorch
+from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTLossPytorch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
@@ -48,7 +48,7 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.numba.rnnt_loss import MultiblankRNNTLossNumba, RNNTLossNumba, TDTRNNTLossNumba
+    from nemo.collections.asr.parts.numba.rnnt_loss import MultiblankRNNTLossNumba, RNNTLossNumba, TDTLossNumba
 
     NUMBA_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -109,19 +109,19 @@ RNNT_LOSS_RESOLVER = {
         is_available=True,
         installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
     ),
-    "tdt_rnnt": RNNTLossConfig(
-        loss_name="tdt_rnnt",
+    "tdt": RNNTLossConfig(
+        loss_name="tdt",
         lib_name="numba",
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
-    "tdt_rnnt_pytorch": RNNTLossConfig(
-        loss_name="pytorch",
+    "tdt_pytorch": RNNTLossConfig(
+        loss_name="tdt_pytorch",
         lib_name="torch",
         min_version='0.0',
         is_available=True,
-        installation_msg="Pure Pytorch implementation of TDT RNN-T loss. Slow and for debugging purposes only.",
+        installation_msg="Pure Pytorch implementation of TDT loss. Slow and for debugging purposes only.",
     ),
 }
 
@@ -228,13 +228,13 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'tdt_rnnt':
+    elif loss_name == 'tdt':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
         durations = loss_kwargs.pop('durations', None)
         sigma = loss_kwargs.pop('sigma', 0.0)
         omega = loss_kwargs.pop('omega', 0.0)
-        loss_func = TDTRNNTLossNumba(
+        loss_func = TDTLossNumba(
             blank=blank_idx,
             durations=durations,
             reduction='none',
@@ -245,10 +245,10 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'tdt_rnnt_pytorch':
+    elif loss_name == 'tdt_pytorch':
         durations = loss_kwargs.pop('durations', None)
         sigma = loss_kwargs.pop('sigma', 0.0)
-        loss_func = TDTRNNTLossPytorch(blank=blank_idx, durations=durations, reduction='none', sigma=sigma)
+        loss_func = TDTLossPytorch(blank=blank_idx, durations=durations, reduction='none', sigma=sigma)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     else:

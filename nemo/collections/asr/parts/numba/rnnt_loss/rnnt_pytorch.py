@@ -34,7 +34,7 @@ from torch.nn import Module
 from nemo.collections.asr.parts.numba.rnnt_loss import rnnt
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cpu_utils import cpu_rnnt
 
-__all__ = ['rnnt_loss', 'RNNTLossNumba', 'MultiblankRNNTLossNumba', 'TDTRNNTLossNumba']
+__all__ = ['rnnt_loss', 'RNNTLossNumba', 'MultiblankRNNTLossNumba', 'TDTLossNumba']
 
 
 class _RNNTNumba(Function):
@@ -91,7 +91,7 @@ class _RNNTNumba(Function):
             return ctx.grads.mul_(grad_output), None, None, None, None, None, None, None
 
 
-class _TDTRNNTNumba(Function):
+class _TDTNumba(Function):
     """
     Numba class for TDT loss (https://arxiv.org/abs/2304.06795)
     """
@@ -129,7 +129,7 @@ class _TDTRNNTNumba(Function):
             raise ValueError("`clamp` must be 0.0 or positive float value.")
 
         if is_cuda:
-            loss_func = rnnt.tdt_rnnt_loss_gpu
+            loss_func = rnnt.tdt_loss_gpu
         else:
             raise ValueError("TDT is not yet implemented for non CUDA computation.")
 
@@ -336,7 +336,7 @@ def multiblank_rnnt_loss(
     )
 
 
-def tdt_rnnt_loss(
+def tdt_loss(
     acts,
     labels,
     act_lens,
@@ -379,7 +379,7 @@ def tdt_rnnt_loss(
         # log_softmax is computed within GPU version.
         acts = torch.nn.functional.log_softmax(acts, -1)
 
-    return _TDTRNNTNumba.apply(acts, labels, act_lens, label_lens, blank, durations, reduction, fastemit_lambda, clamp)
+    return _TDTNumba.apply(acts, labels, act_lens, label_lens, blank, durations, reduction, fastemit_lambda, clamp)
 
 
 class RNNTLossNumba(Module):
@@ -499,16 +499,18 @@ class MultiblankRNNTLossNumba(Module):
         )
 
 
-class TDTRNNTLossNumba(Module):
+class TDTLossNumba(Module):
     """
     Parameters:
         blank (int): standard blank label.
-        durations: list of durations for multi-blank transducer, e.g.
-            [2, 4, 8].
+        durations: list of durations for TDT model, e.g.
+            [0, 1, 2, 3, 4].
         sigma: hyper-parameter for logit under-normalization method for training
-            multi-blank transducers. Recommended value 0.05.
-        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+            TDT. Recommended value 0.05.
+        omega: hyper-parameter for RNN-T loss for loss combination.
+        Refer to https://arxiv.org/abs/2304.06795 for detailed explanations for
             the above parameters;
+
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
             'mean': the output losses will be divided by the target lengths and
@@ -528,13 +530,13 @@ class TDTRNNTLossNumba(Module):
         sigma: float = 0.0,
         omega: float = 0.0,
     ):
-        super(TDTRNNTLossNumba, self).__init__()
+        super(TDTLossNumba, self).__init__()
         self.blank = blank
         self.durations = durations
         self.fastemit_lambda = fastemit_lambda
         self.clamp = float(clamp) if clamp > 0 else 0.0
         self.reduction = reduction
-        self.loss = _TDTRNNTNumba.apply
+        self.loss = _TDTNumba.apply
         self.sigma = sigma
         self.omega = omega
 

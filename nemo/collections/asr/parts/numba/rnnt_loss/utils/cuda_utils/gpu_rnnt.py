@@ -523,7 +523,7 @@ class MultiblankGPURNNT(GPURNNT):
         return used_offset, (denom, alphas, betas, llForward, llBackward, bigblank_durations)
 
 
-class TDTGPURNNT(GPURNNT):
+class GPUTDT(GPURNNT):
     def __init__(
         self,
         sigma: float,
@@ -542,12 +542,12 @@ class TDTGPURNNT(GPURNNT):
         stream,
     ):
         """
-        Helper class to launch the CUDA Kernels to compute TDT Transducer Loss (https://arxiv.org/pdf/2211.03541).
+        Helper class to launch the CUDA Kernels to compute TDT Loss (https://arxiv.org/pdf/2211.03541).
 
         Args:
             sigma: Hyper-parameter related to the logit-normalization method in training tdt transducers.
             omega: Hyper-parameter related to the sampled training.
-            num_durations: Number of big blank symbols the model has. This should not include the standard blank symbol.
+            num_durations: Number of durations the model supports.
             minibatch: Int representing the batch size.
             maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
             maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
@@ -556,7 +556,7 @@ class TDTGPURNNT(GPURNNT):
                 blocks used as working memory.
             tdt_workspace: An allocated chunk of memory that will be sliced off and reshaped into required
                 blocks used as working memory specifically for the tdt related computations.
-            blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+            blank: Index of the blank token in the vocabulary. Must be the last token in the vocab.
             fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
                 FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
             clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
@@ -589,8 +589,10 @@ class TDTGPURNNT(GPURNNT):
         Compute both the loss and the gradients.
 
         Args:
-            acts: A flattened tensor of shape [B, T, U, V+1] representing the activation matrix.
-            grad: A flattented zero tensor of same shape as acts.
+            label_acts: A flattened tensor of shape [B, T, U, V] representing the activation matrix for tokens.
+            duration_acts: A flattened tensor of shape [B, T, U, D] representing the activation matrix for durations.
+            label_grad: A flattented zero tensor of same shape as label_acts.
+            duration_grad: A flattented zero tensor of same shape as duration_acts.
             costs: A zero vector of length B which will be updated inplace with the log probability costs.
             flat_labels: A flattened matrix of labels of shape [B, U]
             label_lengths: A vector of length B that contains the original lengths of the acoustic sequence.
@@ -598,7 +600,7 @@ class TDTGPURNNT(GPURNNT):
 
         Updates:
             This will launch kernels that will update inline the following variables:
-            -   grads: Gradients of the activation matrix wrt the costs vector.
+            -   *_grads: Gradients of the activation matrix wrt the costs vector.
             -   costs: Negative log likelihood of the forward variable.
 
         Returns:

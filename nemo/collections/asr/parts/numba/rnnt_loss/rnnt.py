@@ -236,7 +236,7 @@ def rnnt_loss_gpu(
     return True
 
 
-def tdt_rnnt_loss_gpu(
+def tdt_loss_gpu(
     label_acts: torch.Tensor,
     duration_acts: torch.Tensor,
     labels: torch.Tensor,
@@ -310,7 +310,7 @@ def tdt_rnnt_loss_gpu(
     label_acts, label_acts_shape = rnnt_helper.flatten_tensor(label_acts)
     duration_acts, duration_acts_shape = rnnt_helper.flatten_tensor(duration_acts)
 
-    wrapper = gpu_rnnt.TDTGPURNNT(
+    wrapper = gpu_rnnt.GPUTDT(
         minibatch=minibatch_size,
         maxT=maxT,
         maxU=maxU,

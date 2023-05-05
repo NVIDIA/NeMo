@@ -18,12 +18,12 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTRNNTLossPytorch
+from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTLossPytorch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import (
     MultiblankRNNTLossNumba,
     RNNTLossNumba,
-    TDTRNNTLossNumba,
+    TDTLossNumba,
 )
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
@@ -498,7 +498,7 @@ class TestMultiblankRNNTLoss:
             assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "multi-blank gradient mismatch."
 
 
-class TestTDTRNNTLoss:
+class TestTDTLoss:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_randomized_act_label(self, device):
@@ -512,10 +512,10 @@ class TestTDTRNNTLoss:
             acts = torch.rand([B, T, U, V + 1 + len(durations)])
             labels = [[random.randrange(0, V) for i in range(U - 1)] for j in range(B)]
 
-            fn_pt = TDTRNNTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
+            fn_pt = TDTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
             pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
 
-            fn_ag = TDTRNNTLossPytorch(
+            fn_ag = TDTLossPytorch(
                 blank=V, reduction='sum', durations=durations, sigma=sigma
             )  # ag for automatic gradient computation
             ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)

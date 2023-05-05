@@ -1,8 +1,8 @@
-# It contains the default values for training an TDT Conformer-Transducer ASR model with stateless decoders, large size (~120M) with Transducer loss and sub-word encoding.
+# This file contains the default values for training an TDT Conformer-Transducer ASR model, large size (~120M) with sub-word encoding.
 
 # You can find detailed info about TDT models at https://arxiv.org/abs/2304.06795. 
 
-name: "TDT-Conformer-Transducer-BPE"
+name: "Conformer-TDT-BPE"
 
 model:
   sample_rate: 16000
@@ -169,9 +169,9 @@ model:
 
   loss:
     # This is the main different between a TDT model and a conventional RNNT model -- the loss function.
-    loss_name: "tdt_rnnt"
+    loss_name: "tdt"
 
-    tdt_rnnt_kwargs:
+    tdt_kwargs:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       # You may enable FastEmit to reduce the latency of the model for streaming
       fastemit_lambda: 0.001  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
@@ -180,7 +180,7 @@ model:
       # refer to https://arxiv.org/abs/2304.06795 for the meaning of the following three configs.
       durations: [0, 1, 2, 3, 4]
       sigma: 0.05 # hyper-param for under-normalization.
-      omega: 0.0 # weight for regular RNN-T loss.
+      omega: 0.1 # weight for regular RNN-T loss.
 
   # Adds Gaussian noise to the gradients of the decoder to avoid overfitting
   variational_noise:

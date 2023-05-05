@@ -2204,7 +2204,7 @@ class GreedyBatchedRNNTInferConfig:
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
 
 
-class GreedyTDTRNNTInfer(_GreedyRNNTInfer):
+class GreedyTDTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
 
     Sequence level greedy decoding, performed auto-repressively.
@@ -2456,7 +2456,7 @@ class GreedyTDTRNNTInfer(_GreedyRNNTInfer):
         return hypothesis
 
 
-class GreedyBatchedTDTRNNTInfer(_GreedyRNNTInfer):
+class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
     """A batch level greedy transducer decoder.
     Batch level greedy decoding, performed auto-repressively.
     Args:

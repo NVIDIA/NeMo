@@ -908,9 +908,10 @@ def compute_tdt_alphas_kernel(
     Compute alpha (forward variable) probabilities over the transduction step.
 
     Args:
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
-        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
-            across entire vocabulary.
+        acts: Tensor of shape [B, T, U, V] flattened. Represents the logprobs activation tensor for tokens.
+        acts: Tensor of shape [B, T, U, D] flattened. Represents the logprobs activation tensor for duration.
+        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor for tokens.
+
         alphas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the forward variable
             probabilities.
         llForward: Zero tensor of shape [B]. Represents the log-likelihood of the forward pass.
@@ -925,8 +926,7 @@ def compute_tdt_alphas_kernel(
         maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
-        big_blank_: Index of the RNNT big blank token in the vocabulary. Generally the first or last token in the vocab.
+        blank_: Index of the TDT blank token in the vocabulary. Must be the last token in the vocab.
 
     Updates:
         Kernel inplace updates the following inputs:
