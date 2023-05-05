@@ -19,14 +19,14 @@ from math import isclose
 from typing import Any, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.data.dataset import ConcatDataset
+from nemo.collections.common.data.dataset import ConcatDataset, CodeSwitchedDataset
 from nemo.utils import logging
 
 
@@ -232,6 +232,7 @@ def get_bpe_dataset(
         use_start_end_token=config.get('use_start_end_token', True),
         return_sample_id=config.get('return_sample_id', False),
         channel_selector=config.get('channel_selector', None),
+        language=config.get('language', None),
     )
     return dataset
 
@@ -389,6 +390,7 @@ def get_tarred_dataset(
                 global_rank=global_rank,
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
+                language=config.get('language', None),
             )
         if bucketing_weights:
             [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
@@ -396,6 +398,76 @@ def get_tarred_dataset(
             datasets.append(dataset)
 
     return get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
+
+
+def get_code_switched_dataset(
+    config: dict,
+    shuffle_n: int,
+    global_rank: int,
+    world_size: int,
+    tokenizer: Optional['TokenizerSpec'] = None,
+    augmentor: Optional['AudioAugmentor'] = None,
+) -> CodeSwitchedDataset:
+    
+    tarred_audio_filepaths = config.get('tarred_audio_filepaths', None)
+    manifest_filepaths = config['manifest_filepath']
+    
+    # needed to support validation Datasets that arrive here as
+    # [[dataset1,dataset2]] otherwise ModelPT would interfere
+    if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
+        manifest_filepaths = config['manifest_filepath'][0]
+    if tarred_audio_filepaths is None:
+        tarred_audio_filepaths = [None] * len(manifest_filepaths)
+    datasets = {}
+    for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
+        zip(tarred_audio_filepaths, manifest_filepaths)
+    ):
+        lang = config['code_switch_languages'][dataset_idx]
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+        with open_dict(conf):
+            conf['tarred_audio_filepaths'] = tarred_audio_filepath
+            conf['language'] = lang
+        if tarred_audio_filepath is None or len(tarred_audio_filepath) == 0:
+            if tokenizer is None:
+                dataset = get_char_dataset(config=conf, augmentor=None)
+            else:
+                dataset = get_bpe_dataset(config=conf, tokenizer=tokenizer, augmentor=None)
+        else:
+            dataset = get_tarred_dataset(
+                config=conf,
+                tokenizer=tokenizer,
+                shuffle_n=shuffle_n,
+                global_rank=global_rank,
+                world_size=world_size,
+                augmentor=None,
+            )
+        datasets[lang] = dataset
+    
+    config = OmegaConf.to_container(config)
+    dataset = CodeSwitchedDataset(
+        datasets,
+        shuffle=config.get('code_switch_shuffle', True),
+        min_duration=config.get('code_switch_min_duration', 16),
+        max_duration=config.get('code_switch_max_duration', 20),
+        min_monolingual=config.get('code_switch_min_monolingual', 0.2),
+        lang_probs=config.get('code_switch_probabilities', None),
+        db_norm=config.get('code_switch_db_norm', -25.0),
+        pause_start=config.get('code_switch_pause_start', 20),
+        pause_join=config.get('code_switch_pause_join', 80),
+        pause_end=config.get('code_switch_pause_end', 20),
+        sampling_scales=config.get('code_switch_sampling_scales', None),
+        seed=config.get('code_switch_seed', None),
+        global_rank=global_rank,
+        world_size=world_size,
+        pure_random=config.get('code_switch_pure_random', False),
+        force_monochannel=config.get('code_switch_force_monochannel', False),
+        infinity_mode=config.get('code_switch_infinity_mode', False),
+        sample_rate=config['sample_rate'],
+        augmentor=augmentor,
+    )
+    
+    return dataset
 
 
 def get_dali_char_dataset(
@@ -546,8 +618,29 @@ def get_audio_to_text_char_dataset_from_config(
         )
         return dataset
 
+    # Instantiate a code-switched dataset if config is present
+    if config.get('is_code_switch', False):
+        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+            return None
+        if not 'code_switch_languages' in config:
+            logging.warning(f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}")
+            return None
+        if ('code_switch_probabilities' in config) and (config['code_switch_probabilities'] is not None) and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6)):
+            logging.warning(f"`code_switch_probabilities` need to sum to 1. Config: {config}")
+            return None
+        
+        shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+        dataset = get_code_switched_dataset(
+            config=config,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+            tokenizer=None,
+            augmentor=augmentor,
+        )
     # Instantiate tarred dataset loader or normal dataset loader
-    if config.get('is_tarred', False):
+    elif config.get('is_tarred', False):
         if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
             'manifest_filepath' in config and config['manifest_filepath'] is None
         ):
@@ -645,8 +738,29 @@ def get_audio_to_text_bpe_dataset_from_config(
         )
         return dataset
 
+    # Instantiate a code-switched dataset if config is present
+    if config.get('is_code_switch', False):
+        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+            return None
+        if not 'code_switch_languages' in config:
+            logging.warning(f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}")
+            return None
+        if ('code_switch_probabilities' in config) and (config['code_switch_probabilities'] is not None) and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6)):
+            logging.warning(f"`code_switch_probabilities` need to sum to 1. Config: {config}")
+            return None
+        
+        shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+        dataset = get_code_switched_dataset(
+            config=config,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+            tokenizer=tokenizer,
+            augmentor=augmentor,
+        )
     # Instantiate tarred dataset loader or normal dataset loader
-    if config.get('is_tarred', False):
+    elif config.get('is_tarred', False):
         if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
             'manifest_filepath' in config and config['manifest_filepath'] is None
         ):

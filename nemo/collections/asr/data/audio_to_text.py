@@ -653,6 +653,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        language: Optional[str] = None,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -670,12 +671,15 @@ class AudioToBPEDataset(_AudioTextDataset):
             pad_id = 0
 
         class TokenizerWrapper:
-            def __init__(self, tokenizer):
+            def __init__(self, tokenizer, lang=None):
                 if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
                 self._tokenizer = tokenizer
+                # this is checked and used by collections.AudioText, allows use of manifests
+                # with agg tokeniser even if they don't have a lang field per json line
+                self.lang = lang
 
             def __call__(self, *args):
                 if isinstance(args[0], List) and self.is_aggregate:
@@ -689,7 +693,7 @@ class AudioToBPEDataset(_AudioTextDataset):
 
         super().__init__(
             manifest_filepath=manifest_filepath,
-            parser=TokenizerWrapper(tokenizer),
+            parser=TokenizerWrapper(tokenizer, language),
             sample_rate=sample_rate,
             int_values=int_values,
             augmentor=augmentor,
@@ -1242,6 +1246,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        language: Optional[str] = None,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -1259,12 +1264,15 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             pad_id = 0
 
         class TokenizerWrapper:
-            def __init__(self, tokenizer):
+            def __init__(self, tokenizer, lang=None):
                 if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
                 self._tokenizer = tokenizer
+                # this is checked and used by collections.AudioText, allows use of manifests
+                # with agg tokeniser even if they don't have a lang field per json line
+                self.lang = lang
 
             def __call__(self, *args):
                 if isinstance(args[0], List) and self.is_aggregate:
@@ -1279,7 +1287,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         super().__init__(
             audio_tar_filepaths=audio_tar_filepaths,
             manifest_filepath=manifest_filepath,
-            parser=TokenizerWrapper(tokenizer),
+            parser=TokenizerWrapper(tokenizer, language),
             sample_rate=sample_rate,
             int_values=int_values,
             augmentor=augmentor,
