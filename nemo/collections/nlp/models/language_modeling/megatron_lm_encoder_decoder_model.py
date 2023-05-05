@@ -328,6 +328,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            enable_autocast=True,
         )
 
         # only the last stages of the pipeline return losses
@@ -659,6 +660,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
     def validation_epoch_end(self, outputs):
+        # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
+        if len(outputs) == 0:
+            logging.warning("validation_epoch_end: outputs is empty")
+            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -817,7 +822,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True if num_workers > 0 else False,
         )
 
     def setup(self, stage=None):
@@ -987,6 +996,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_microbatches=1,
             decoder_seq_length=encoder_seq_length,
             dtype=self.autocast_dtype,
+            enable_autocast=True,
         )
 
         if output_tensor:
@@ -1150,6 +1160,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 num_microbatches=1,
                 decoder_seq_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
+                enable_autocast=True,
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
