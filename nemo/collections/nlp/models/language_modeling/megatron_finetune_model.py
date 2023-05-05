@@ -284,7 +284,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
+        tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         fwd_bwd_function = get_forward_backward_func()
@@ -300,6 +300,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
         )
 
         # only the last stages of the pipeline return losses
