@@ -29,8 +29,8 @@ IGNORE_INDEX = -100
 END_SIGNAL = "\n"
 END_NAME_SIGNAL = "\n"
 
-SYSTEM_TOKEN = "<extra_id_0>"
-TURN_TOKEN = ["<extra_id_1>", "<extra_id_2>"]
+SYSTEM_TOKEN = "<extra_id_0>System\n"
+TURN_TOKEN = "<extra_id_1>"
 
 
 def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role):
@@ -39,11 +39,11 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. s_id has that extra token too
         skip_name_len = len(
-            tokenizer.text_to_ids('<extra_id_0>' + speaker + END_NAME_SIGNAL))
+            tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
-            # Check whether the mask is applied to the correct position, the first token is turn token: <extra_id_1> or <extra_id_2>
+            # Check whether the mask is applied to the correct position, the first token is turn token: <extra_id_1>
             # s_id[2:] skips the artifact empty token and the turn token
             # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
             if not torch.equal(target[cur_idx + 1:cur_idx + tokenized_len],
@@ -68,7 +68,7 @@ def _add_speaker_and_signal(header, source, mask_role):
     conversation = header
     for i, sentence in enumerate(source):
         sentence_from = sentence["from"]
-        role_token = TURN_TOKEN[i % 2]
+        role_token = TURN_TOKEN
         sentence["value"] = (
             BEGIN_SIGNAL
             + role_token + sentence_from + END_NAME_SIGNAL
@@ -78,7 +78,7 @@ def _add_speaker_and_signal(header, source, mask_role):
         conversation += sentence["value"]
         # if the last turn is not masked, add next token start token to the end, which will be included for loss calculation
         if sentence_from != mask_role and i == len(source) - 1:
-            conversation += TURN_TOKEN[(i + 1) % 2]
+            conversation += TURN_TOKEN
     return conversation
 
 
