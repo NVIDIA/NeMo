@@ -131,7 +131,7 @@ class _TDTRNNTNumba(Function):
         if is_cuda:
             loss_func = rnnt.tdt_rnnt_loss_gpu
         else:
-            exit(-1)
+            ValueError("TDT is not yet implemented for non CUDA computation.")
 
         label_grads = torch.zeros_like(label_acts) if label_acts.requires_grad else None
         duration_grads = torch.zeros_like(duration_acts) if duration_acts.requires_grad else None
@@ -548,19 +548,6 @@ class TDTRNNTLossNumba(Module):
 
         label_acts = acts[:, :, :, : -len(self.durations)].contiguous()
         duration_acts = torch.nn.functional.log_softmax(acts[:, :, :, -len(self.durations) :], dim=-1).contiguous()
-
-        #        if not acts.is_cuda:
-        #            # Since CPU requires log_softmax to be computed explicitly, we need to perform grad clipping
-        #            # *after* we have obtained the gradients of loss(logsoftmax()).
-        #            # This is highly wasteful since it requires a copy of the entire joint tensor which is expensive.
-        #            # CUDA version is much more efficient since it performs an inplace logsoftmax, and therefore
-        #            # can inplace clamp the gradient.
-        #            if self.clamp > 0.0:
-        #                acts = cpu_rnnt.LogSoftmaxGradModification.apply(acts, self.clamp)
-        #
-        #            # NOTE manually done log_softmax for CPU version,
-        #            # log_softmax is computed within GPU version.
-        #            acts = torch.nn.functional.log_softmax(acts, -1)
 
         return self.loss(
             label_acts,

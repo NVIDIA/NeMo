@@ -801,7 +801,7 @@ class TDTGPURNNT(GPURNNT):
             return global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE
 
         return self.compute_cost_and_score(
-            label_acts, duration_acts, None, costs, pad_labels, label_lengths, input_lengths
+            label_acts, duration_acts, None, None, costs, pad_labels, label_lengths, input_lengths
         )
 
     def _prepare_workspace(self) -> (int, Tuple[torch.Tensor]):
