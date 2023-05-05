@@ -520,8 +520,8 @@ class TestTDTLoss:
             )  # ag for automatic gradient computation
             ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
 
-            assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt-blank costs mismatch."
-            assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "tdt-blank gradient mismatch."
+            assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt costs mismatch."
+            assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "td gradient mismatch."
 
 
 if __name__ == "__main__":
