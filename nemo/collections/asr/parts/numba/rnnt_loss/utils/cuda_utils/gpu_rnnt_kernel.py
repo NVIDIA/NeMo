@@ -909,7 +909,7 @@ def compute_tdt_alphas_kernel(
 
     Args:
         acts: Tensor of shape [B, T, U, V] flattened. Represents the logprobs activation tensor for tokens.
-        acts: Tensor of shape [B, T, U, D] flattened. Represents the logprobs activation tensor for duration.
+        duration_acts: Tensor of shape [B, T, U, D] flattened. Represents the logprobs activation tensor for duration.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor for tokens.
 
         alphas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the forward variable
@@ -1066,7 +1066,8 @@ def compute_tdt_betas_kernel(
     Compute beta (backward variable) probabilities over the transduction step.
 
     Args:
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
+        acts: Tensor of shape [B, T, U, V] flattened. Represents the logprobs activation tensor for tokens.
+        duration_acts: Tensor of shape [B, T, U, D] flattened. Represents the logprobs activation tensor for duations.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
         betas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the backward variable
@@ -1211,9 +1212,11 @@ def compute_tdt_grad_kernel(
     Compute gradients over the transduction step.
 
     Args:
-        grads: Zero Tensor of shape [B, T, U, V+1]. Is updated by this kernel to contain the gradients
-            of this batch of samples.
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
+        grads: Zero Tensor of shape [B, T, U, V] to store gradients for tokens.
+        duration_grads: Zero Tensor of shape [B, T, U, D] to store gradients for durations.
+
+        acts: Tensor of shape [B, T, U, V] flattened. Represents the logprobs activation tensor for tokens.
+        duration_acts: Tensor of shape [B, T, U, D] flattened. Represents the logprobs activation tensor for durations.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
         alphas: Alpha variable, contains forward probabilities. A tensor of shape [B, T, U].

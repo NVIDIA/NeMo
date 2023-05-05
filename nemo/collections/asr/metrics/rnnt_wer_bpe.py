@@ -196,12 +196,10 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
-        blank_id = tokenizer.tokenizer.vocab_size  # RNNT or Multi-blank RNNT.
+        blank_id = tokenizer.tokenizer.vocab_size  # RNNT or TDT models.
 
-        # TDT model.
-        if 'durations' in decoding_cfg:
-            blank_id = tokenizer.tokenizer.vocab_size
-        elif 'big_blank_durations' in decoding_cfg:
+        # multi-blank RNNTs
+        if 'big_blank_durations' in decoding_cfg:
             blank_id = tokenizer.tokenizer.vocab_size + joint.num_extra_outputs
 
         self.tokenizer = tokenizer

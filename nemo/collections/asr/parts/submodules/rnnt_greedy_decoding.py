@@ -2205,14 +2205,14 @@ class GreedyBatchedRNNTInferConfig:
 
 
 class GreedyTDTInfer(_GreedyRNNTInfer):
-    """A greedy transducer decoder.
+    """A greedy TDT decoder.
 
     Sequence level greedy decoding, performed auto-repressively.
 
     Args:
         decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
         joint_model: rnnt_utils.AbstractRNNTJoint implementation.
-        blank_index: int index of the blank token. Must be len(vocabulary) for multi=blank RNNTs.
+        blank_index: int index of the blank token. Must be len(vocabulary) for TDT models.
         durations: a list containing durations for TDT.
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
@@ -2355,9 +2355,6 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         if self.preserve_frame_confidence:
             hypothesis.frame_confidence = [[]]
 
-        # For timestep t in X_t
-        duration = 1
-
         time_idx = 0
         while time_idx < out_len:
             # Extract encoder embedding at timestep t
@@ -2457,12 +2454,12 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
 
 class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
-    """A batch level greedy transducer decoder.
+    """A batch level greedy TDT decoder.
     Batch level greedy decoding, performed auto-repressively.
     Args:
         decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
         joint_model: rnnt_utils.AbstractRNNTJoint implementation.
-        blank_index: int index of the blank token. Must be len(vocabulary) for multi-blank RNNTs.
+        blank_index: int index of the blank token. Must be len(vocabulary) for TDT models.
         durations: a list containing durations.
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
@@ -2626,9 +2623,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             # Mask buffers
             blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
 
-            # mask for if the utterance in the batch should stay in the same frame.
-            #            stay_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-
             # Get max sequence length
             max_out_len = out_len.max()
 
@@ -2779,7 +2773,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             for hyp in hypotheses:
                 hyp.alignments = [[]]
         else:
-            alignments = None
+            hyp.alignments = None
 
         # If confidence scores need to be preserved, register a danling list to hold the values
         if self.preserve_frame_confidence:
