@@ -16,9 +16,7 @@
 import torch
 
 from nemo.collections.multimodal.models.stable_diffusion.samplers import Sampler
-from nemo.collections.multimodal.models.stable_diffusion.samplers.base_sampler import (
-    AbstractBaseSampler,
-)
+from nemo.collections.multimodal.models.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
 
 from .dpmsolver import DPMSolver, NoiseScheduleVP, model_wrapper
 
@@ -71,12 +69,7 @@ class DPMSolverSampler(AbstractBaseSampler):
         )
         dpm_solver = DPMSolver(model_fn, ns, predict_x0=True, thresholding=False)
         x = dpm_solver.sample(
-            img,
-            steps=steps,
-            skip_type="time_uniform",
-            method="multistep",
-            order=2,
-            lower_order_final=True,
+            img, steps=steps, skip_type="time_uniform", method="multistep", order=2, lower_order_final=True,
         )
 
         return x.to(device), None
