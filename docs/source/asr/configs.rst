@@ -705,9 +705,12 @@ The subsampling and conformer layer configs are documented in-line below.
 
     conv_kernel_size: 9 # 31 for regular Conformer, 9 for Fast Conformer
     conv_norm_type: 'batch_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
-    # conv_context_size can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
+    # conv_context_size can be "causal" or a list of two integers 
+    # while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
     # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
     conv_context_size: null
+    # if subsampling is dw_striding; can be 'conv1d' (default) or 'linear' (slightly faster)
+    conv_pointwise_type: conv1d
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
