@@ -65,7 +65,7 @@ class BertExample(object):
             labels_mask: bool tensor with 0s in place of label tokens to be masked
             labels: indices of semiotic classes which should be predicted from each of the
                 corresponding input tokens
-            spans: list of tuples (class_id, start_position, end_position), end is exclusive
+            spans: list of tuples (class_id, start_position, end_position), end is exclusive, class is always 1(CUSTOM)
             default_label: The default label
         """
         input_len = len(input_ids)
@@ -174,9 +174,15 @@ class BertExampleBuilder(object):
                     end = int(end)
                     tags[start:end] = [int(t) for i in range(end - start)]
         # get input features for characters
-        (input_ids, input_mask, segment_ids, labels_mask, labels, _, _,) = self._get_input_features(
-            hyp=hyp, ref=ref, tags=tags
-        )
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            labels_mask,
+            labels,
+            _,
+            _,
+        ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags)
 
         # get input features for words
         hyp_with_words = hyp.replace(" ", "").replace("_", " ")
@@ -195,22 +201,13 @@ class BertExampleBuilder(object):
         character_pos_to_subword_pos = self._map_characters_to_subwords(input_ids, input_ids_for_subwords)
 
         # used in inference to take argmax over whole words instead of separate characters to get more consistent predictions
-        word_indices = self._map_characters_to_words(input_ids, hyp, infer)
+        word_indices = self._map_characters_to_words(hyp, infer)
 
         # used in validation step to calculate accuracy on whole custom phrases instead of separate characters
         spans = self._get_spans(span_info)
 
         if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
-            print(
-                "Max len exceeded: len(input_ids)=",
-                len(input_ids),
-                "; _max_seq_length=",
-                self._max_seq_length,
-                "; len(spans)=",
-                len(spans),
-                "; _max_spans_length=",
-                self._max_spans_length,
-            )
+            print("Max len exceeded: len(input_ids)=", len(input_ids), "; _max_seq_length=", self._max_seq_length, "; len(spans)=", len(spans), "; _max_spans_length=", self._max_spans_length)
             return None
 
         example = BertExample(
@@ -254,13 +251,10 @@ class BertExampleBuilder(object):
             result_spans.append((cid, start, end))
         return result_spans
 
-    def _map_characters_to_words(
-        self, input_ids: List[int], hyp: str, infer: bool
-    ) -> Tuple[List[int], List[Tuple[int, int]]]:
+    def _map_characters_to_words(self, hyp: str, infer: bool) -> Tuple[List[int], List[Tuple[int, int]]]:
         """ Maps each single character to the position of its corresponding word.
 
             Args:
-                input_ids: List of character token ids.
                 hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
                 infer: If false, return empty list.
             Returns:
@@ -269,16 +263,13 @@ class BertExampleBuilder(object):
                     The goal is that all characters belonging to one word had same value, distinct from all others.
 
             Example:
-                input_ids: [101, 1037, 1055, 1056, 1054, 1051, 1050, ..., 1051, 102, 1040, ..., 1050, 102, 1037, ..., 1041, 102, ..., 102]
                 hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
                 infer: True
 
                 word_indices: [(1, 12), (12, 13), (13, 18), (18, 19), (19, 24), (24, 25), (25, 28), (28, 29), (29, 37), (37, 38), (38, 42)]
         """
         if not infer:
-            return [], []
-
-        result_id = 1
+            return []
 
         word_indices = []
         begin, end = 1, 1
@@ -290,9 +281,6 @@ class BertExampleBuilder(object):
                 word_indices.append((end, end + 1))  # add space itself
                 begin = end + 1
                 end = begin
-
-                result_id += 1
-                result_id += 1
             else:
                 end += 1
         word_indices.append((begin, end))  # add last word
