@@ -337,7 +337,6 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-
         self.depthwise_conv = CausalConv1D(
             in_channels=dw_conv_input_dim,
             out_channels=dw_conv_input_dim,
@@ -363,11 +362,10 @@ class ConformerConvolution(nn.Module):
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
         self.activation = Swish()
-        
+
         self.pointwise_conv2 = nn.Conv1d(
             in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
-
 
     def forward(self, x, pad_mask=None, cache=None, cache_next=None):
         if self.conv_pointwise_type == 'conv1d':
