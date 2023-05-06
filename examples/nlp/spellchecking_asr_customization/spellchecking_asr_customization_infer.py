@@ -25,10 +25,10 @@ USAGE Example:
 2. Run:
     export TOKENIZERS_PARALLELISM=false
     python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/spellchecking_asr_customization_train.py \
-      pretrained_model=./training.nemo \
-      inference.from_file=./input.txt \
-      inference.out_file=./output.txt \
-      model.max_sequence_len=1024 #\
+      pretrained_model=./training.nemo
+      inference.from_file=./input.txt
+      inference.out_file=./output.txt
+      model.max_sequence_len=1024
       inference.batch_size=128
 
 This script uses the `/examples/nlp/spellchecking_asr_customization/conf/spellchecking_asr_customization_config.yaml`
@@ -86,7 +86,10 @@ def main(cfg: DictConfig) -> None:
         if not os.path.exists(input_filename):
             logging.info(f"Skip non-existing {input_filename}.")
             continue
-        all_preds = model._infer(dataloader_cfg, input_filename)
+        if cfg.infer_reproduce_paper:
+            all_preds = model.infer_reproduce_paper(dataloader_cfg, input_filename)
+        else:
+            all_preds = model.infer(dataloader_cfg, input_filename)
         with open(output_filename, "w", encoding="utf-8") as f_out:
             f_out.write("\n".join(all_preds))
         logging.info(f"Predictions saved to {output_filename}.")

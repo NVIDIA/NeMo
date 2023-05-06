@@ -309,7 +309,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
     # Functions for inference
     @torch.no_grad()
-    def _infer(self, dataloader_cfg: DictConfig, input_name: str) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
+    def infer(self, dataloader_cfg: DictConfig, input_name: str) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
         """ Main function for Inference
 
         Args:
@@ -468,6 +468,107 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 )
         except Exception as e:
             raise ValueError("Error processing file " + input_name)
+
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            logging.set_verbosity(logging_level)
+
+        return all_preds
+
+    @torch.no_grad()
+    def infer_reproduce_paper(self, dataloader_cfg: DictConfig, input_name: str) -> List[str]:
+        """ Main function for Inference
+
+        Args:
+            infer_cfg: config for dataloader
+            input_name: Input file with tab-separated text records. Each record consists of 2 items:
+                - ASR hypothesis
+                - candidate customization entry
+
+        Returns:
+            all_preds: A list of tab-separated text records, same size as input list. Each record consists of 4 items:
+                - final output text
+                - ASR hypothesis
+                - labels
+        """
+        mode = self.training
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        all_tag_preds = []
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            self.to(device)
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, input_name)
+
+            for batch in iter(infer_datalayer):
+                (
+                    input_ids,
+                    input_mask,
+                    segment_ids,
+                    input_ids_for_subwords,
+                    input_mask_for_subwords,
+                    segment_ids_for_subwords,
+                    character_pos_to_subword_pos,
+                    _
+                ) = batch
+
+                tag_logits = self.forward(
+                    input_ids=input_ids.to(self.device),
+                    input_mask=input_mask.to(self.device),
+                    segment_ids=segment_ids.to(self.device),
+                    input_ids_for_subwords=input_ids_for_subwords.to(self.device),
+                    input_mask_for_subwords=input_mask_for_subwords.to(self.device),
+                    segment_ids_for_subwords=segment_ids_for_subwords.to(self.device),
+                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device)
+                )
+                tag_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
+                all_tag_preds.extend(tag_preds)
+
+            all_preds = []
+            for i, example in enumerate(infer_datalayer.dataset.examples):
+                tag_preds = all_tag_preds[i]
+                hyp, ref = infer_datalayer.dataset.hyps_refs[i]
+                letters = hyp.split(" ")
+                candidates = ref.split(";")
+                report_str = ""
+                tag_preds_for_sent = tag_preds[1 : (len(letters) + 1)]  # take only predictions for actual sent letters
+                last_tag = -1
+                tag_begin = -1
+                for idx, tag in enumerate(tag_preds_for_sent):
+                    if tag != last_tag:
+                        if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_') and letters[idx] == "_":
+                            source = " ".join(letters[tag_begin:idx])
+                            source_len = source.count(" ") + 1
+                            target = candidates[last_tag - 1]
+                            target_len = target.count(" ") + 1
+                            len_ratio = target_len / source_len
+                            if len_ratio >= 0.7 and len_ratio <= 1.3:
+                                report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
+                        tag_begin = idx
+                    last_tag = tag
+                if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_'):
+                    source = " ".join(letters[tag_begin:])
+                    source_len = source.count(" ") + 1
+                    target = candidates[last_tag - 1]
+                    target_len = target.count(" ") + 1
+                    len_ratio = target_len / source_len
+                    if len_ratio >= 0.7 and len_ratio <= 1.3:
+                        report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
+
+                all_preds.append(
+                    "\n"
+                    + " ".join(letters)
+                    + "\n"
+                    + " ".join(list(map(str, tag_preds_for_sent)))
+                    + "\n\t"
+                    + ref
+                    + "\n"
+                    + report_str
+                )
 
         finally:
             # set mode back to its original value
