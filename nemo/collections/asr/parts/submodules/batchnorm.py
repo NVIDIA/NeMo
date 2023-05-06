@@ -20,6 +20,7 @@ from typing import List
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.nn import functional as F
 
 
 class FusedBatchNorm1d(nn.Module):
