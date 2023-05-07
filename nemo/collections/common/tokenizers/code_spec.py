@@ -6,6 +6,7 @@ __all__ = ["Code"]
 
 
 class Code(object):
+
     def __init__(self, col_name: str, code_len: int, start_id: int):
         """
         @params:

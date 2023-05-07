@@ -1,11 +1,12 @@
 import math
 from typing import List, Tuple, Union
 
-import numpy as np
 import pandas as pd
-from code_spec import Code
+import numpy as np
 from numpy import ndarray
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer, QuantileTransformer, RobustScaler
+
+from code_spec import Code
 
 # from nemo.utils import logging
 
@@ -13,18 +14,64 @@ __all__ = ["IntCode", "FloatCode", "CategoryCode"]
 
 
 class NumericCode(Code):
+    """
+    Special tokens are intended to be strings to differentiate from numeric types that they could potentially map to
+    For example, if a value in your dataset is intended as a placeholder mapping the original placeholder value from
+    '3.14' to '3.14HOLD' could be desirable. In this case the special_tokens would be ['3.14HOLD'] and '3.14HOLD' would
+    be expected to be in the data instead of 3.14.
+
+    +/- inf could be considered as special tokens if desirable.
+    """
     NA_token = 'nan'
 
-    def __init__(
-        self, col_name: str, code_len: int, start_id: int, base: int, fill_all: bool = True, has_nan: bool = True
-    ):
+    def __init__(self,
+                 col_name: str,
+                 code_len: int,
+                 start_id: int,
+                 base: int,
+                 special_tokens: List[str] = None,
+                 fill_all: bool = True,
+                 has_nan: bool = True):
         super().__init__(col_name, code_len, start_id)
         self.fill_all = fill_all
         self.has_nan = has_nan
         self.base = base
         self.digits_id_to_item = None
         self.digits_item_to_id = None
+        self.special_tokens_to_token_ids = {}
+        if special_tokens:
+            if all(isinstance(tok, str) for tok in special_tokens):
+                self.special_tokens_to_token_ids = {token: [] for token in special_tokens}
+            else:
+                raise ValueError('Special tokens should be a list of strings to not conflict with numerical dtype')
+
+        self.token_ids_to_special_tokens = {}
         self.NA_token_id = None
+
+        if self.NA_token in self.special_tokens_to_token_ids:
+            raise ValueError('"nan" token found in special tokens. Please remove.')
+
+    @property
+    def code_range(self) -> List[Tuple[int, int]]:
+        """
+        get the vocab id range for each of the encoded tokens
+        @returns [(min, max), (min, max), ...]
+        """
+        # first largest digits
+        outputs = []
+        c = 0
+        for i in reversed(range(self.code_len)):
+            ids = self.digits_id_to_item[i].keys()
+            if c == 0:  # for first dictionary only since nans and special tokens are only added there
+                if self.has_nan:
+                    # the first token contains the N/A, the second is not included in bound
+                    outputs.append((min(ids), max(ids) + 2 + len(self.special_tokens_to_token_ids)))
+                else:
+                    outputs.append((min(ids), max(ids) + 1 + len(self.special_tokens_to_token_ids)))  # non N/A
+            else:
+                outputs.append((min(ids), max(ids) + 1))
+            c += 1
+        return outputs
 
     def transform_data_to_int_array(self, data_series: ndarray):
         """
@@ -37,7 +84,7 @@ class NumericCode(Code):
         Returns:
 
         """
-        # todo handle +/- inf as special tokens
+
         raise NotImplementedError()
 
     def compute_code(self, data_series: ndarray):
@@ -51,9 +98,22 @@ class NumericCode(Code):
 
         """
         significant_val = self.transform_data_to_int_array(
-            np.unique(data_series)
-        )  # saves min of data_series and subtracts it out of data
+            np.unique(data_series))  # saves min of data_series and subtracts it out of data
         self.tokenize_numeric_data(significant_val)
+
+    def add_special_tokens(self):
+        """special tokens are essentially categorical exceptions to floats"""
+        for idx_shift, special_token in enumerate(self.special_tokens_to_token_ids):
+            self.end_id += 1  # add the special token
+            codes = []
+            ranges = self.code_range
+            for _, i in enumerate(ranges):
+                if _ == 0:
+                    codes.append(i[1] - 1 - len(self.special_tokens_to_token_ids) + idx_shift)
+                else:
+                    codes.append(i[1] - 1)
+            self.special_tokens_to_token_ids[special_token] = codes
+        self.token_ids_to_special_tokens = {v[0]: k for k, v in self.special_tokens_to_token_ids.items()}
 
     def tokenize_numeric_data(self, significant_val: ndarray):
         """
@@ -85,6 +145,7 @@ class NumericCode(Code):
                 self.end_id += 1
         self.digits_id_to_item = digits_id_to_item
         self.digits_item_to_id = digits_item_to_id
+        self.add_special_tokens()
         if self.has_nan:
             self.end_id += 1  # add the N/A token
             codes = []
@@ -95,11 +156,16 @@ class NumericCode(Code):
 
 
 class IntCode(NumericCode):
-    def __init__(
-        self, col_name: str, code_len: int, start_id: int, fill_all: bool = True, base: int = 100, has_nan: bool = True
-    ):
 
-        super(IntCode, self).__init__(col_name, code_len, start_id, base, fill_all, has_nan)
+    def __init__(self, col_name: str,
+                 code_len: int,
+                 start_id: int,
+                 fill_all: bool = True,
+                 base: int = 100,
+                 special_tokens: List[str] = None,
+                 has_nan: bool = True):
+
+        super(IntCode, self).__init__(col_name, code_len, start_id, base, special_tokens, fill_all, has_nan)
         self.min_value = -np.inf
         # self.transform = None  # only used for FloatCode
         self.digits_id_to_item = None
@@ -139,8 +205,7 @@ class IntCode(NumericCode):
         if self.min_value == -np.inf:
             raise ValueError(
                 'minimum value of array is negative infinity. Please map infinity to other value or consider using'
-                'a special token to represent + or - infinity'
-            )
+                'a special token to represent + or - infinity')
         return array - self.min_value
 
     def _transform_val_to_int(self, val: Union[int, float]) -> int:
@@ -164,32 +229,13 @@ class IntCode(NumericCode):
         """
         return decoded + self.min_value
 
-    @property
-    def code_range(self) -> List[Tuple[int, int]]:
-        """
-        get the vocab id range for each of the encoded tokens
-        @returns [(min, max), (min, max), ...]
-        """
-        # first largest digits
-        outputs = []
-        c = 0
-        for i in reversed(range(self.code_len)):
-            ids = self.digits_id_to_item[i].keys()
-            if c == 0:
-                if self.has_nan:
-                    outputs.append((min(ids), max(ids) + 2))  # the first token contains the N/A
-                else:
-                    outputs.append((min(ids), max(ids) + 1))  # non N/A
-            else:
-                outputs.append((min(ids), max(ids) + 1))
-            c += 1
-        return outputs
-
     def encode(self, item: str) -> List[int]:
         if self.has_nan and item == self.NA_token:
             return self.NA_token_id
         elif not self.has_nan and item == self.NA_token:
             raise ValueError(f"column {self.name} cannot handle nan, please set has_nan=True")
+        elif self.special_tokens_to_token_ids and item in self.special_tokens_to_token_ids:
+            return self.special_tokens_to_token_ids[item]
         val = float(item)
         val_int = self._transform_val_to_int(val)
         digits = []
@@ -215,6 +261,8 @@ class IntCode(NumericCode):
     def decode(self, ids: List[int]) -> str:
         if self.has_nan and ids[0] == self.NA_token_id[0]:
             return self.NA_token
+        elif self.token_ids_to_special_tokens and ids[0] in self.token_ids_to_special_tokens:
+            return self.token_ids_to_special_tokens[ids[0]]
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
@@ -227,16 +275,17 @@ class FloatCode(NumericCode):
     AVAILABLE_TRANSFORMS = ["yeo-johnson", "quantile", "robust", "identity", "log1p"]  # best is not really a transform
 
     def __init__(
-        self,
-        col_name: str,
-        code_len: int,
-        start_id: int,
-        fill_all: bool = True,
-        base: int = 100,
-        has_nan: bool = True,
-        transform: str = 'quantile',
+            self,
+            col_name: str,
+            code_len: int,
+            start_id: int,
+            fill_all: bool = True,
+            base: int = 100,
+            special_tokens: List[str] = None,
+            has_nan: bool = True,
+            transform: str = 'quantile',
     ):
-        super(FloatCode, self).__init__(col_name, code_len, start_id, base, fill_all, has_nan)
+        super(FloatCode, self).__init__(col_name, code_len, start_id, base, special_tokens, fill_all, has_nan)
         self.min_value = -np.inf
         self.transform: str = transform
         self.scalar = None
@@ -294,10 +343,8 @@ class FloatCode(NumericCode):
             values -= self.min_value
 
         if self.min_value == -np.inf:
-            raise ValueError(
-                'minimum value of array is negative infinity. Please map infinity to other value or '
-                'consider using a special token to represent + or - infinity'
-            )
+            raise ValueError('minimum value of array is negative infinity. Please map infinity to other value or '
+                             'consider using a special token to represent + or - infinity')
 
         # extra digits used for 'float' part of the number
         digits = int(math.log(values.max(), self.base)) + 1
@@ -323,20 +370,18 @@ class FloatCode(NumericCode):
             return QuantileTransformer(output_distribution='uniform', n_quantiles=1000)
         elif self.transform == 'robust':
             return RobustScaler()
-        elif self.transform is None or (
-            isinstance(self.transform, str) and self.transform.lower() in ['none', '', 'identity']
-        ):
+        elif self.transform is None or (isinstance(self.transform, str) and
+                                        self.transform.lower() in ['none', '', 'identity']):
             # sklearn FunctionTransformer implements identity transformation by default.
             return FunctionTransformer(validate=True)
         elif self.transform == 'log1p':
-            return FunctionTransformer(
-                func=np.log1p, inverse_func=lambda x: np.exp(x) - 1, validate=True, check_inverse=True
-            )
+            return FunctionTransformer(func=np.log1p,
+                                       inverse_func=lambda x: np.exp(x) - 1,
+                                       validate=True,
+                                       check_inverse=True)
         elif self.transform != 'best':
-            raise ValueError(
-                'Supported data transformations are "best", "yeo-johnson", "quantile", "robust", log1p, '
-                'and "identity"'
-            )
+            raise ValueError('Supported data transformations are "best", "yeo-johnson", "quantile", "robust", log1p, '
+                             'and "identity"')
 
     def get_best_transform(self, data_series: ndarray) -> str:
         """
@@ -352,21 +397,19 @@ class FloatCode(NumericCode):
         num_bins = 31
         uniq_data = np.unique(data_series)  # saves on compute cost for repeated elements
 
-        results = {
-            'transform': [],
-            'mse': [],
-            'max_err': [],
-            'min_err': [],
-            'errors_across_series': [],
-        }
-        for transform in self.AVAILABLE_TRANSFORMS:  # todo
+        results = {'transform': [],
+                   'mse': [],
+                   'max_err': [],
+                   'min_err': [],
+                   'errors_across_series': [],
+                   }
+        for transform in self.AVAILABLE_TRANSFORMS:
             self.transform = transform
-            self.set_scalar_transform()
+            self.scalar = self.set_scalar_transform()
             self.compute_code(uniq_data)
 
-            error, error_pct, stats, distr_of_err_pcts, errs_throughout = self.calculate_transform_errors(
-                data_series, bins=num_bins
-            )
+            error, error_pct, stats, distr_of_err_pcts, errs_throughout = self.calculate_transform_errors(data_series,
+                                                                                                          bins=num_bins)
             mse, max_err, min_err = stats
             errors_across_series, bins = errs_throughout
             results['transform'].append(transform)
@@ -377,12 +420,8 @@ class FloatCode(NumericCode):
         errors_across_series = results.pop('errors_across_series')
         data = pd.concat([pd.DataFrame(results), pd.DataFrame(errors_across_series)], axis=1)
         # for now just use the errors across series and take the counts if it has the smallest error
-        best_ranked_index = (
-            data.loc[:, range(0, num_bins)]
-            .apply(lambda x: [True if i == min(x) else False for i in x], axis=0)
-            .sum(axis=1)
-            .argmax()
-        )
+        best_ranked_index = data.loc[:, range(0, num_bins)].apply(lambda x: [True if i == min(x) else False
+                                                                             for i in x], axis=0).sum(axis=1).argmax()
         if hasattr(best_ranked_index, '__iter__'):  # in case of a tie-breaker
             best_ranked_index = best_ranked_index[0]
         best_transform = data.loc[best_ranked_index, 'transform']
@@ -466,10 +505,23 @@ class FloatCode(NumericCode):
         return val
 
     def encode(self, item: str) -> List[int]:
+        """
+        This encoding method encodes token by token. Performance can be improved/vectorized if a sequence of tokens from
+         the same column is passed. It maintains compatibility with earlier versions of this Float Encoder.
+
+        Args:
+            item: (str)
+
+        Returns: List of Token Ids
+
+        """
         if self.has_nan and item == self.NA_token:
             return self.NA_token_id
         elif not self.has_nan and item == self.NA_token:
             raise ValueError(f"column {self.name} cannot handle nan, please set has_nan=True")
+        elif self.special_tokens_to_token_ids and item in self.special_tokens_to_token_ids:
+            return self.special_tokens_to_token_ids[item]
+
         val = float(item)
         val_int = self._transform_val_to_int(val)
         digits = []
@@ -495,6 +547,8 @@ class FloatCode(NumericCode):
     def decode(self, ids: List[int]) -> str:
         if self.has_nan and ids[0] == self.NA_token_id[0]:
             return self.NA_token
+        elif self.token_ids_to_special_tokens and ids[0] in self.token_ids_to_special_tokens:
+            return self.token_ids_to_special_tokens[ids[0]]
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])

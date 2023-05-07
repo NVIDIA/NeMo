@@ -1,13 +1,13 @@
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-from code_spec import Code
-from datatype_code import CategoryCode, FloatCode, IntCode
 
+from code_spec import Code
+from datatype_code import IntCode, FloatCode, CategoryCode
 # from vector_tokenizer import VectorCode
 
 
-column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}  # , 'vector': VectorCode}
+column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}  #, 'vector': VectorCode}
 
 
 class ColumnCodes(object):
@@ -43,6 +43,15 @@ class ColumnCodes(object):
         self.sizes.append(ccode.code_len)
 
     def encode(self, col: str, item) -> List[int]:
+        """
+        Calls a column's encode method by passing in the provided item. The dtype of item is usually a string
+        Args:
+            col: (str) the column name
+            item: the object to be encoded (usually a string)
+
+        Returns: The token id(s)
+
+        """
         if isinstance(col, list):
             col = tuple(col)
 
@@ -52,16 +61,44 @@ class ColumnCodes(object):
             raise ValueError(f"cannot encode {col} {item}")
 
     def decode(self, col: str, ids: List[int]) -> str:
+        """
+        Call's a columns decode method by passing in the provided token ids.
+        Args:
+            col: (str) the column name
+            ids: the list of token ids to be decoded
+
+        Returns: the decoded object, usually a string.
+
+        """
         if col in self.column_codes:
             return self.column_codes[col].decode(ids)
         else:
-            raise ValueError("cannot decode")
+            raise ValueError(f"cannot decode column {col} with token_ids {ids} because it has not been added via the "
+                             f"'register' method")
 
     def get_range(self, column_id: int) -> List[Tuple[int, int]]:
+        """Get single column's token_id range"""
         return self.column_codes[self.columns[column_id]].code_range
+
+    def get_code_ranges(self) -> List[List[Tuple[int, int]]]:
+        """
+        Get all the column's token_id ranges
+        Returns:
+
+        """
+        return [self.get_range(col_idx) for col_idx in self.column_idx]
 
     @classmethod
     def get_column_codes(cls, column_configs, example_arrays):
+        """
+        Trains a ColumnCodes tokenizer using the provided configs and example arrays.
+        Args:
+            column_configs: list of dicts
+            example_arrays: list of numpy arrays
+
+        Returns:
+
+        """
         column_codes = cls()
         beg = 0
         cc = None
