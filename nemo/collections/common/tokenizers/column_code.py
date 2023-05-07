@@ -1,13 +1,13 @@
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-
 from code_spec import Code
-from datatype_code import IntCode, FloatCode, CategoryCode
+from datatype_code import CategoryCode, FloatCode, IntCode
+
 # from vector_tokenizer import VectorCode
 
 
-column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}  #, 'vector': VectorCode}
+column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}  # , 'vector': VectorCode}
 
 
 class ColumnCodes(object):
@@ -73,8 +73,10 @@ class ColumnCodes(object):
         if col in self.column_codes:
             return self.column_codes[col].decode(ids)
         else:
-            raise ValueError(f"cannot decode column {col} with token_ids {ids} because it has not been added via the "
-                             f"'register' method")
+            raise ValueError(
+                f"cannot decode column {col} with token_ids {ids} because it has not been added via the "
+                f"'register' method"
+            )
 
     def get_range(self, column_id: int) -> List[Tuple[int, int]]:
         """Get single column's token_id range"""

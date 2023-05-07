@@ -1,9 +1,7 @@
-import pytest
 import numpy as np
 import pandas as pd
-
+import pytest
 from tabular_tokenizer import TabularTokenizer
-
 
 pd.set_option('display.width', 400)
 pd.set_option('display.max_columns', 100)
@@ -15,10 +13,7 @@ DELIMITER = ','
 
 @pytest.fixture()
 def tabular_tokenizer(column_codes):
-    _tabular_tokenizer = TabularTokenizer(column_codes,
-                                          special_tokens=[NEW_LINE, END_OF_TEXT],
-                                          delimiter=DELIMITER
-                                          )
+    _tabular_tokenizer = TabularTokenizer(column_codes, special_tokens=[NEW_LINE, END_OF_TEXT], delimiter=DELIMITER)
     return _tabular_tokenizer
 
 
@@ -79,7 +74,10 @@ def test_text_to_tokens(tabular_tokenizer, corpus, doc, data):
     token_ids = tabular_tokenizer.tokenize(doc['text'], [data.columns[0]] + list(data.columns[5:]))
     assert all(i <= tabular_tokenizer.vocab_size for i in token_ids), 'all token ids should be integers'
     # check newline exists but is not last token
-    assert tabular_tokenizer.special_tokens_encoder['\n'] in token_ids and token_ids[-1] != tabular_tokenizer.special_tokens_encoder['\n']
+    assert (
+        tabular_tokenizer.special_tokens_encoder['\n'] in token_ids
+        and token_ids[-1] != tabular_tokenizer.special_tokens_encoder['\n']
+    )
     # ensure that for partial row that the rows don't all have the same elements. Subtract 1 because of endoftext token
     assert (len(token_ids) - 1) % token_ids.index(tabular_tokenizer.special_tokens_encoder['\n']) != 0
 
@@ -103,7 +101,6 @@ def test_token_ids_to_text(tabular_tokenizer, data):
     doc = {'text': u.str.cat(sep='\n')}
     token_ids = tabular_tokenizer.tokenize(doc['text'])
 
-
     # document = corpus[0]['text']
     # token_ids = tabular_tokenizer.text_to_tokens(document)
     output = tabular_tokenizer.token_ids_to_text(token_ids)
@@ -115,7 +112,6 @@ def test_token_ids_to_text(tabular_tokenizer, data):
     token_ids = tabular_tokenizer.tokenize(doc['text'], [data.columns[0]] + list(data.columns[5:]))
     output = tabular_tokenizer.token_ids_to_text(token_ids)
 
-
     # pass just a partial row with unordered cols
     u = data['0_categorical_letter'].astype(str).copy()
     for col in data.columns[5:]:
@@ -123,7 +119,6 @@ def test_token_ids_to_text(tabular_tokenizer, data):
     doc = {'text': u.iloc[0]}
     token_ids = tabular_tokenizer.tokenize(doc['text'], [data.columns[0]] + list(data.columns[5:]))
     output = tabular_tokenizer.token_ids_to_text(token_ids)
-
 
     # passes 2 rows with unordered cols where the second row is a partial row missing the last 2 items
     u = data['0_categorical_letter'].astype(str).copy()

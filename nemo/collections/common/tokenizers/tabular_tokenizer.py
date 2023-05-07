@@ -48,6 +48,7 @@ class TabularTokenizer(TokenizerSpec):
     """
     Composite Tabular Tokenizer allows for multiple tokenizers to be used depending on the table structure
     """
+
     def __init__(self, coder, special_tokens=None, delimiter=','):
         if special_tokens is None:
             special_tokens = [NEW_LINE, END_OF_TEXT]
@@ -71,7 +72,10 @@ class TabularTokenizer(TokenizerSpec):
         self.partial_row_placeholder = '<PARTIAL_ROW_PLACEHOLDER>'
         self.partial_row_placeholder_token_id = self.vocab_size + 1
         for column in self.code_column.columns:
-            if hasattr(self.code_column.column_codes[column], 'special_tokens_to_token_ids') and self.partial_row_placeholder in self.code_column.column_codes[column].special_tokens_to_token_ids:
+            if (
+                hasattr(self.code_column.column_codes[column], 'special_tokens_to_token_ids')
+                and self.partial_row_placeholder in self.code_column.column_codes[column].special_tokens_to_token_ids
+            ):
                 raise ValueError(f'Cannot use partial_row_placeholder due to conflict as a special token in {column}')
 
     def __len__(self):
@@ -104,8 +108,9 @@ class TabularTokenizer(TokenizerSpec):
         if len(split) > 2:
             raise ValueError('There are multiple END_OF_TEXT in this document! Please clean docs thoroughly...')
         if len(split) == 2 and split[0] and split[1]:
-            raise ValueError('END_OF_TEXT located in the middle of the document. This is not handled yet. '
-                             'Pass as 2 docs')
+            raise ValueError(
+                'END_OF_TEXT located in the middle of the document. This is not handled yet. ' 'Pass as 2 docs'
+            )
 
         # only add end of text token if it also exists too, hence check for len of split
         end_of_text_position_at_end_of_doc = True if split[0] and len(split) == 2 else False
@@ -117,7 +122,7 @@ class TabularTokenizer(TokenizerSpec):
             max_l = max(len(d), max_l)
             data.append(d)
         for idx in range(len(data)):
-            if len(data[idx]) != max_l: # then we have a partial row
+            if len(data[idx]) != max_l:  # then we have a partial row
                 for iteration in range(max_l - len(data[idx])):
                     data[idx].append(self.partial_row_placeholder)
 
@@ -130,7 +135,7 @@ class TabularTokenizer(TokenizerSpec):
 
         # this allows for unordered columns, and/or fewer columns than in the original table. If fewer columns in the
         # original table, it assumes the columns are ordered
-        columns = columns if columns else self.code_column.columns[:min(len(self.code_column.columns), data.shape[1])]
+        columns = columns if columns else self.code_column.columns[: min(len(self.code_column.columns), data.shape[1])]
 
         # # add an extra column for the newline chars - this is added at the end?????????
         token_column_width = sum([self.code_column.column_codes[col].code_len for col in columns])
@@ -151,14 +156,20 @@ class TabularTokenizer(TokenizerSpec):
                 subset = subset.astype(str)
                 for item in subset:
                     if item == self.partial_row_placeholder:
-                        tokens.append(self.code_column.column_codes[column_name].code_len * [self.partial_row_placeholder_token_id])
+                        tokens.append(
+                            self.code_column.column_codes[column_name].code_len
+                            * [self.partial_row_placeholder_token_id]
+                        )
                         continue
                     tokens.append(self.code_column.column_codes[column_name].encode(item))
                     # tokens.extend(self.code_column.column_codes[column_name].encode(item))
             elif self.code_column.column_codes[column_name].__class__.__name__ in ['IntCode', 'FloatCode']:
                 for item in subset:
                     if item == self.partial_row_placeholder:
-                        tokens.append(self.code_column.column_codes[column_name].code_len * [self.partial_row_placeholder_token_id])
+                        tokens.append(
+                            self.code_column.column_codes[column_name].code_len
+                            * [self.partial_row_placeholder_token_id]
+                        )
                         continue
                     tokens.append(self.code_column.column_codes[column_name].encode(item))
             # elif self.code_column.column_codes[column_name].__class__.__name__ == 'FloatCode':
@@ -169,7 +180,9 @@ class TabularTokenizer(TokenizerSpec):
                 tokens = self.code_column.column_codes[column_name].encode(subset)
             else:
                 raise NotImplementedError('Unable to encode column schema. Is this a new tokenizer?')
-            token_ids[:, current_col_idx:current_col_idx + self.code_column.column_codes[column_name].code_len] = tokens
+            token_ids[
+                :, current_col_idx : current_col_idx + self.code_column.column_codes[column_name].code_len
+            ] = tokens
             current_col_idx += self.code_column.column_codes[column_name].code_len
 
         include_last_newline = True
@@ -232,8 +245,10 @@ class TabularTokenizer(TokenizerSpec):
                     if tok_rng[0] <= token_id < tok_rng[1]:
                         buffer.append(token_id)
                     else:
-                        raise ValueError(f'Cannot decode token_id: {token_id} with column_idx {dec_col_idx} and these'
-                                         f'ranges: {code_ranges[dec_col_idx]}')
+                        raise ValueError(
+                            f'Cannot decode token_id: {token_id} with column_idx {dec_col_idx} and these'
+                            f'ranges: {code_ranges[dec_col_idx]}'
+                        )
                 else:
                     # decode, add delimiter, and set buffer to [] and dec_col_idx to -1
                     decoded.append(self.code_column.decode(self.code_column.columns[dec_col_idx], buffer))

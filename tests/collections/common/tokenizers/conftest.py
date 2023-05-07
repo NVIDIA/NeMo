@@ -1,13 +1,11 @@
 import json
-from typing import Tuple, List, Iterable
+from typing import Iterable, List, Tuple
 
 import numpy as np
-from numpy.random import default_rng
 import pandas as pd
 import pytest
-
 from column_code import ColumnCodes
-
+from numpy.random import default_rng
 
 mus = [0.01, 10_000]
 sigmas = [1, 200]
@@ -15,7 +13,7 @@ Ns = [4000, 4000]
 
 
 def get_distr_args(rng, dist: str) -> Iterable:
-    if dist in ['normal', 'laplace']: # loc, scale or mean,sigma
+    if dist in ['normal', 'laplace']:  # loc, scale or mean,sigma
         loc = rng.uniform(-10, 10)
         scale = rng.uniform(1e-2, 20)
         return loc, scale
@@ -49,8 +47,9 @@ def generate_single_dist(rng, N, dist, *args):
     elif dist == 't' or dist == 'students-t':
         X = rng.standard_t(*args, size=N)  # df > 0
     else:
-        raise ValueError('dist not found in supported dists: normal, lognormal, laplace, exponential, poisson, power,'
-                         ' cauchy, t')
+        raise ValueError(
+            'dist not found in supported dists: normal, lognormal, laplace, exponential, poisson, power,' ' cauchy, t'
+        )
     shift_distr = rng.integers(0, 2)
     if shift_distr:
         shift = rng.uniform(-20, 20)
@@ -63,13 +62,13 @@ def generate_single_dist(rng, N, dist, *args):
 
 def generate_multimodal_data(rng, nrows: int, dists: list):
     assert len(dists) > 1
-    assert nrows//len(dists) > 30, 'generate more rows'
+    assert nrows // len(dists) > 30, 'generate more rows'
 
     count = 0
     column_data = []
     for dist in dists:
         args = get_distr_args(rng, dist)
-        X_i = generate_single_dist(rng, nrows//len(dists), dist, *args)
+        X_i = generate_single_dist(rng, nrows // len(dists), dist, *args)
         count += len(X_i)
         column_data.append(X_i)
 
@@ -99,15 +98,16 @@ def data(request) -> pd.DataFrame:
     rng = default_rng(seed=0)
     nrows, ncols = request.param
     assert isinstance(nrows, int) and nrows > 0
-    assert isinstance(ncols, int) and ncols >= 4, 'we want to use one of each column type first, the rest will be ' \
-                                                  'randomly chosen'
+    assert isinstance(ncols, int) and ncols >= 4, (
+        'we want to use one of each column type first, the rest will be ' 'randomly chosen'
+    )
     column_options = ['categorical_letter', 'categorical_integer', 'float_single_dist', 'float_multi_dist']
     distribution_options = ['normal', 'lognormal', 'laplace', 'exponential', 'poisson', 'power', 'cauchy', 't']
 
     options = rng.choice(column_options, size=ncols - len(column_options))
     columns = np.concatenate([column_options, options])
 
-    data = {str(i)+'_'+columns[i]: [] for i in range(len(columns))}
+    data = {str(i) + '_' + columns[i]: [] for i in range(len(columns))}
 
     # loop over columns and generate the rows
 
@@ -139,19 +139,21 @@ def tab_structure(data, request):
     categorical_columns = [col for col in columns if 'letter' in col]
     integer_columns = [col for col in columns if 'integer' in col]
     vector_columns = []  # [col for col in data_cols if col not in float_col]
-    vector_cols_structure = {'name': [],
-                             'idx': [],
-                             "code_type": "vector",
-                             # all the vector args should be the same for all vector columns
-                             "args": {"radius_code_len": 5,  # number of tokens used to code the column
-                                      "degrees_precision": 'four_decimal',
-                                      'custom_degrees_tokens': 0,
-                                      "base": 100,  # the positional base number. ie. it uses 32 tokens for one digit
-                                      "fillall": True,
-                                      # whether to use full base number for each token or derive it from the data.
-                                      "hasnan": True,  # can it handles nan or not
-                                      }
-                             }
+    vector_cols_structure = {
+        'name': [],
+        'idx': [],
+        "code_type": "vector",
+        # all the vector args should be the same for all vector columns
+        "args": {
+            "radius_code_len": 5,  # number of tokens used to code the column
+            "degrees_precision": 'four_decimal',
+            'custom_degrees_tokens': 0,
+            "base": 100,  # the positional base number. ie. it uses 32 tokens for one digit
+            "fillall": True,
+            # whether to use full base number for each token or derive it from the data.
+            "hasnan": True,  # can it handles nan or not
+        },
+    }
     for idx, c in enumerate([col for col in columns if col != 'year']):
         item = {}
 
@@ -179,18 +181,20 @@ def tab_structure(data, request):
                     "has_nan": True,  # can it handles nan or not
                     "transform": "best"
                     # can be ['yeo-johnson', 'quantile', 'robust', 'log1p', 'identity'], check https://scikit-learn.org/stable/modules/classes.html#module-sklearn.preprocessing
-                }
+                },
             }
         elif c in integer_columns:
-            item = {"name": c,
-                    "code_type": "int",
-                    "idx": idx,
-                    "args": {
-                        "code_len": 3,  # number of tokens used to code the column
-                        "base": 100,  # the positional base number. ie. it uses 32 tokens for one digit
-                        "fill_all": True,  # whether to use full base number for each token or derive it from the data.
-                        "has_nan": True,  # can it handles nan or not
-                    }}
+            item = {
+                "name": c,
+                "code_type": "int",
+                "idx": idx,
+                "args": {
+                    "code_len": 3,  # number of tokens used to code the column
+                    "base": 100,  # the positional base number. ie. it uses 32 tokens for one digit
+                    "fill_all": True,  # whether to use full base number for each token or derive it from the data.
+                    "has_nan": True,  # can it handles nan or not
+                },
+            }
         elif c in vector_columns:
             vector_cols_structure['name'].append(c)
             vector_cols_structure['idx'].append(idx)

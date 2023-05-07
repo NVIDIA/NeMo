@@ -1,10 +1,9 @@
-import pytest
-import numpy as np
 import math
 
-from tqdm import tqdm
-
+import numpy as np
+import pytest
 from datatype_code import FloatCode, IntCode
+from tqdm import tqdm
 
 
 @pytest.fixture()
@@ -14,8 +13,16 @@ def data_series():
 
 @pytest.fixture()
 def float_code(data_series):
-    float_cd = FloatCode('name', code_len=3, start_id=0, fill_all=True, base=100, special_tokens=['a', 'b'],
-                         has_nan=True, transform='best')
+    float_cd = FloatCode(
+        'name',
+        code_len=3,
+        start_id=0,
+        fill_all=True,
+        base=100,
+        special_tokens=['a', 'b'],
+        has_nan=True,
+        transform='best',
+    )
     float_cd.compute_code(data_series)
     return float_cd
 
@@ -51,4 +58,4 @@ def test_decode(data_series, float_code):
     nan = float_code.decode(float_code.encode('nan'))
     assert a == 'a' and b == 'b' and nan == 'nan'
 
-    assert max(abs(decoded-to_encode)/abs(to_encode)) < 0.05
+    assert max(abs(decoded - to_encode) / abs(to_encode)) < 0.05
