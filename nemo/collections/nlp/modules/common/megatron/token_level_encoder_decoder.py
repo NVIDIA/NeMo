@@ -31,7 +31,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_e
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import (
-    MegatronHiddensModule,
     get_hiddens_module,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -128,7 +127,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
         tokens_head_bias=True,
-        hiddens_module: MegatronHiddensModule = None,  # allows for hidden state transformations before the decoder
+        hiddens_cfg: DictConfig = None,  # allows for hidden state transformations before the decoder
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -372,7 +371,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
             )
 
-        hiddens_cfg = encoder_cfg.get('hiddens', None)
         hiddens_module = get_hiddens_module(hiddens_cfg)
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
             encoder=encoder,
