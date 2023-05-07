@@ -328,6 +328,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            enable_autocast=True,
         )
 
         # only the last stages of the pipeline return losses
@@ -821,7 +822,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True if num_workers > 0 else False,
         )
 
     def setup(self, stage=None):
@@ -991,6 +996,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_microbatches=1,
             decoder_seq_length=encoder_seq_length,
             dtype=self.autocast_dtype,
+            enable_autocast=True,
         )
 
         if output_tensor:
@@ -1154,6 +1160,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 num_microbatches=1,
                 decoder_seq_length=encoder_seq_length,
                 dtype=self.autocast_dtype,
+                enable_autocast=True,
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
