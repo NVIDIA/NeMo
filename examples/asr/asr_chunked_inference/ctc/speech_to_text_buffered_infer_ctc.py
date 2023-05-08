@@ -27,7 +27,9 @@ python speech_to_text_buffered_infer_ctc.py \
     total_buffer_in_secs=4.0 \
     chunk_len_in_secs=1.6 \
     model_stride=4 \
-    batch_size=32
+    batch_size=32 \
+    clean_groundtruth_text=True \
+    langid='en'
 
 # NOTE:
     You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
