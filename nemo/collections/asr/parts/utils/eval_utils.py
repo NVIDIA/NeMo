@@ -104,7 +104,7 @@ def cal_write_wer(
 
             if 'text' not in sample:
                 raise ValueError(
-                    "ground-truth text does not present in manifest! Cannot calculate Word Error Rate. Exiting!"
+                    "ground-truth text is not present in manifest! Cannot calculate Word Error Rate. Exiting!"
                 )
 
             hyp = sample[pred_text_attr_name]
