@@ -53,6 +53,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     setup_model,
     write_transcription,
 )
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -93,6 +94,11 @@ class TranscriptionConfig:
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
+     # Config for word / character error rate calculation 
+    calculate_wer: bool = True
+    clean_groundtruth_text: bool = False
+    langid: str = "en" # specify this for convert_num_to_words step in groundtruth cleaning
+    use_cer: bool = False
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -192,10 +198,22 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         manifest,
         filepaths,
     )
-    output_filename = write_transcription(
+    output_filename, pred_text_attr_name = write_transcription(
         hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
+
+    if cfg.calculate_wer:
+        output_manifest_w_wer, total_res, _ = cal_write_wer(
+            pred_manifest=output_filename,
+            pred_text_attr_name=pred_text_attr_name,
+            clean_groundtruth_text=cfg.clean_groundtruth_text,
+            langid=cfg.langid,
+            use_cer=cfg.use_cer,
+            output_filename=None,
+            )
+        logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+        logging.info(f"{total_res}")
 
     return cfg
 
