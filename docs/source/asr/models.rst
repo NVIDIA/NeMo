@@ -337,6 +337,12 @@ The model consists of three models:
         :alt: Hybrid ASR-TTS Model
         :scale: 50%
 
+For the detailed information see:
+
+* :ref:`Text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>` preparation
+* :ref:`Configs and training <Hybrid-ASR-TTS_model__Config>`
+
+
 Example scripts:
 
 * Finetuning existing ASR model using text-only data: ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text_finetune.py`` with the corresponding config ``<NeMo_git_root>/examples/asr/conf/asr_tts/hybrid_asr_tts.yaml``
