@@ -343,12 +343,6 @@ For the detailed information see:
 * :ref:`Configs and training <Hybrid-ASR-TTS_model__Config>`
 
 
-Example scripts:
-
-* Finetuning existing ASR model using text-only data: ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text_finetune.py`` with the corresponding config ``<NeMo_git_root>/examples/asr/conf/asr_tts/hybrid_asr_tts.yaml``
-* Training ASR model from scratch: ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text.py``, requires config for instantiating ASR model, e.g. ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` or  ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``
-
-
 References
 ----------
 
