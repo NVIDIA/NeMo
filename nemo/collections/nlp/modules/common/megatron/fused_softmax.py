@@ -51,7 +51,12 @@ if HAVE_APEX:
                 input = input * self.scale
             mask_output = self.mask_func(input, mask) if mask is not None else input
             probs = torch.nn.Softmax(dim=-1)(mask_output)
-            if mask is not None:
+            if mask is None:
+                raise ValueError(
+                    "Attention mask should not be `None` when falling back to native pytorch softmax" \
+                    " forward. The behavior will most likely be different from the fused softmax."
+                )
+            else:
                 all_k_masked = mask.all(axis=-1)
                 zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
                 probs = probs * zero_attention_mask
