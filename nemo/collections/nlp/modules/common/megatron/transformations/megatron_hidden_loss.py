@@ -89,7 +89,11 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
         # here we return only the hidden loss part
         loss = -0.5 * (log_prob_P_z + log_prob_q_z_given_x)
 
-        return {"loss": loss, "log_prob_P_z": log_prob_P_z, "log_prob_q_z_given_x": log_prob_q_z_given_x}
+        return {
+            "loss": loss, 
+            "log_prob_P_z": log_prob_P_z, 
+            "log_prob_q_z_given_x": log_prob_q_z_given_x,
+        }
 
 
 class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
