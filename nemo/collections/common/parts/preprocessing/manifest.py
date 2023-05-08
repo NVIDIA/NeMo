@@ -159,7 +159,10 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
 
 
 def get_full_path(
-    audio_file: Union[str, List[str]], manifest_file: Optional[str] = None, data_dir: Optional[str] = None,
+    audio_file: Union[str, List[str]],
+    manifest_file: Optional[str] = None,
+    data_dir: Optional[str] = None,
+    audio_file_len_limit: int = 255,
 ) -> Union[str, List[str]]:
     """Get full path to audio_file.
 
@@ -174,6 +177,7 @@ def get_full_path(
                     Alternatively, a list of paths may be provided.
         manifest_file: path to a manifest file
         data_dir: path to a directory containing data, use only if a manifest file is not provided
+        audio_file_len_limit: limit for length of audio_file when using relative paths
 
     Returns:
         Full path to audio_file or a list of paths.
@@ -191,7 +195,7 @@ def get_full_path(
         ]
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
-        if not os.path.isabs(audio_file) and not os.path.exists(audio_file):
+        if len(audio_file) < audio_file_len_limit and not os.path.isabs(audio_file) and not os.path.isfile(audio_file):
             # If audio_file is not available and the path is not absolute, the full path is assumed
             # to be relative to the manifest file parent directory or data directory.
             if manifest_file is None and data_dir is None:
@@ -212,7 +216,7 @@ def get_full_path(
                 # If audio was originally on an object store, use locally-cached path
                 audio_file_path = datastore_path_to_local_path(audio_file_path)
 
-            if os.path.exists(audio_file_path):
+            if os.path.isfile(audio_file_path):
                 audio_file = os.path.abspath(audio_file_path)
             else:
                 audio_file = expanduser(audio_file)
