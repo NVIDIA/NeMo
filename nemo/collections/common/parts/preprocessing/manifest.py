@@ -159,9 +159,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
 
 
 def get_full_path(
-    audio_file: Union[str, List[str]],
-    manifest_file: Optional[str] = None,
-    data_dir: Optional[str] = None,
+    audio_file: Union[str, List[str]], manifest_file: Optional[str] = None, data_dir: Optional[str] = None,
 ) -> Union[str, List[str]]:
     """Get full path to audio_file.
 
