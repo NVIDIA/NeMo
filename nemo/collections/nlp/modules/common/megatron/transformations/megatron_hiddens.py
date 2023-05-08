@@ -11,27 +11,91 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+In order to register external hidden transforms and losses please use the following methods:
+* register_hidden_loss(cls_name: str, class_path: str)
+* register_hidden_transform(cls_name: str, class_path: str)
 
+This will add support to corresponding config entries:
+model:
+    hiddens:
+        transforms:
+            name: 
+                cls_name: <cls_name>
+                ... (all related kwargs)
+        loss:
+            name: 
+                cls_name: <cls_name>
+                ... (all related kwargs)
+"""
 
 import functools
 from typing import List
 
 import torch
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss import MegatronBaseHiddenLoss
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import (
     MegatronBaseHiddenTransform,
 )
+from nemo.utils.model_utils import import_class_by_path
+from nemo.utils import logging
 
 __all__ = ["MegatronHiddensModule"]
 
+# a registry of all hidden transforms and losses (maps name to class path)
+_LOSS_CLASS_REGISTRY = {
+    
+}
 
+_TRANSFORM_CLASS_REGISTRY = {
+    
+}
+
+def register_hidden_loss(cls_name: str, class_path: str):
+    """Register a hidden loss"""
+    if cls_name in _LOSS_CLASS_REGISTRY:
+        raise ValueError(f"Cannot register duplicate hidden loss ({cls_name})")
+    _LOSS_CLASS_REGISTRY[cls_name] = class_path
+    logging.info(f"Registered hidden loss {cls_name} at {class_path}")
+
+def register_hidden_transform(cls_name: str, class_path: str):
+    """Register a hidden transform"""
+    if cls_name in _TRANSFORM_CLASS_REGISTRY:
+        raise ValueError(f"Cannot register duplicate hidden transform ({cls_name})")
+    _TRANSFORM_CLASS_REGISTRY[cls_name] = class_path
+    logging.info(f"Registered hidden transform {cls_name} at {class_path}")
+    
 def get_hiddens_module(cfg=None):
     """Build a MegatronHiddensModule from a configuration cfg"""
     if cfg is None:
         return None
 
-    # TODO: finish me
+    # build all hidden transforms
+    transforms_cfg = cfg.get("transforms", {})
+    hidden_transforms = []
+    for name,cur_cfg in transforms_cfg.items():
+        cls_kwargs = OmegaConf.to_container(cur_cfg)
+        if not "cls_name" in cls_kwargs:
+            raise KeyError(f"Missing 'cls_name' in hidden transform {name}")
+
+        cls_name = cls_kwargs.pop("cls_name")
+        cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+        hidden_transforms.append(cur_transform)
+    
+    # build all hidden losses
+    loss_cfg = transforms_cfg.get("loss", {})
+    hidden_loss_transforms = []    
+    for name,cur_cfg in loss_cfg.items():
+        cls_kwargs = OmegaConf.to_container(cur_cfg)
+        if not "cls_name" in cls_kwargs:
+            raise KeyError(f"Missing 'cls_name' in hidden loss {name}")
+
+        cls_name = cls_kwargs.pop("cls_name")
+        cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+        hidden_loss_transforms.append(cur_loss)
+    
     return MegatronHiddensModule(hidden_transforms, hidden_loss_transforms)
 
 
