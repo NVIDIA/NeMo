@@ -19,6 +19,7 @@ from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.models.enhancement_models import EncMaskDecAudioToAudioModel
+from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.models.k2_sequence_models import (
