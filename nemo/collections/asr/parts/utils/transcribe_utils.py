@@ -275,7 +275,7 @@ def write_transcription(
     filepaths: List[str] = None,
     compute_langs: bool = False,
     compute_timestamps: bool = False,
-) -> str:
+) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
@@ -347,7 +347,7 @@ def write_transcription(
                         item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename
+    return cfg.output_filename, pred_text_attr_name
 
 
 def transcribe_partial_audio(
