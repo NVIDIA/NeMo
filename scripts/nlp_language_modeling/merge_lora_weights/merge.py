@@ -93,24 +93,6 @@ def main(cfg) -> None:
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
-    app_state = AppState()
-    app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-    app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
-    app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-    (
-        app_state.tensor_model_parallel_rank,
-        app_state.pipeline_model_parallel_rank,
-        app_state.model_parallel_size,
-        app_state.data_parallel_size,
-        app_state.pipeline_model_parallel_split_rank,
-        app_state.virtual_pipeline_model_parallel_rank,
-    ) = fake_initialize_model_parallel(
-        world_size=app_state.model_parallel_size,
-        rank=trainer.global_rank,
-        tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
-        pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
-        pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
-    )
             
     if cfg.gpt_model_file:
         save_restore_connector = NLPSaveRestoreConnector()
