@@ -46,6 +46,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
@@ -53,7 +54,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     setup_model,
     write_transcription,
 )
-from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -94,11 +94,12 @@ class TranscriptionConfig:
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
-     # Config for word / character error rate calculation 
+    # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
-    langid: str = "en" # specify this for convert_num_to_words step in groundtruth cleaning
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -211,7 +212,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             langid=cfg.langid,
             use_cer=cfg.use_cer,
             output_filename=None,
-            )
+        )
         logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
         logging.info(f"{total_res}")
 

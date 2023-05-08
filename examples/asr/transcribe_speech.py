@@ -25,6 +25,7 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -32,7 +33,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     transcribe_partial_audio,
     write_transcription,
 )
-from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -157,10 +157,10 @@ class TranscriptionConfig:
     # Use this for model-specific changes before transcription
     model_change: ModelChangeConfig = ModelChangeConfig()
 
-    # Config for word / character error rate calculation 
+    # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
-    langid: str = "en" # specify this for groundtruth cleaning
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
 
 
@@ -356,7 +356,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             langid=cfg.langid,
             use_cer=cfg.use_cer,
             output_filename=None,
-            )
+        )
         logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
         logging.info(f"{total_res}")
 

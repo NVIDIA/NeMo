@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple
 import json
+from typing import Tuple
+
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
 from nemo.utils import logging
+
 
 def clean_label(_str: str, num_to_words: bool = True, langid="en") -> str:
     """
@@ -83,10 +85,10 @@ def cal_write_wer(
     pred_manifest: str = None,
     pred_text_attr_name: str = "pred_text",
     clean_groundtruth_text: bool = False,
-    langid : str = 'en',
-    use_cer: bool = False, 
-    output_filename: str=None,
-    ) -> Tuple[str, dict]:
+    langid: str = 'en',
+    use_cer: bool = False,
+    output_filename: str = None,
+) -> Tuple[str, dict]:
     """ 
     Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
     We use WER in function name as a convention, but Error Rate (ER) currently support Word Error Rate (WER) and Character Error Rate (CER)
@@ -101,7 +103,9 @@ def cal_write_wer(
             sample = json.loads(line)
 
             if 'text' not in sample:
-                raise ValueError("ground-truth text does not present in manifest! Cannot calculate Word Error Rate. Exiting!")
+                raise ValueError(
+                    "ground-truth text does not present in manifest! Cannot calculate Word Error Rate. Exiting!"
+                )
 
             hyp = sample[pred_text_attr_name]
             ref = sample['text']

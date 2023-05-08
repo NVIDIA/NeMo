@@ -68,6 +68,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import (
     BatchedFrameASRRNNT,
     LongestCommonSubsequenceBatchedFrameASRRNNT,
@@ -78,7 +79,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     setup_model,
     write_transcription,
 )
-from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -123,11 +123,12 @@ class TranscriptionConfig:
     merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
     lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
 
-    # Config for word / character error rate calculation 
+    # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
-    langid: str = "en" # specify this for convert_num_to_words step in groundtruth cleaning
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -259,7 +260,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
-
     if cfg.calculate_wer:
         output_manifest_w_wer, total_res, _ = cal_write_wer(
             pred_manifest=output_filename,
@@ -268,7 +268,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             langid=cfg.langid,
             use_cer=cfg.use_cer,
             output_filename=None,
-            )
+        )
         logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
         logging.info(f"{total_res}")
 
