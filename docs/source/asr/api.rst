@@ -35,7 +35,7 @@ Model Classes
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
 
 
-.. autoclass:: nemo.collections.asr.models.ASRWithTTSModel
+.. autoclass:: nemo.collections.asr.models.hybrid_asr_tts_models.ASRWithTTSModel
     :show-inheritance:
     :members: from_asr_config, from_pretrained_models, save_asr_model_to, setup_training_data
 
