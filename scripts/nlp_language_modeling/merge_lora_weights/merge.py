@@ -39,6 +39,7 @@ class RequestDataSet(Dataset):
 
 
 def load_lora(lora_extracted_dir, tp):
+    assert os.path.isdir(lora_extracted_dir), "requires the untar'ed the lora .nemo file"
     lora_state_dict = {}
     for i in range(tp):
         l = torch.load(
