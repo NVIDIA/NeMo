@@ -67,7 +67,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import DataIteratorList, get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -551,7 +551,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
 
         if not isinstance(self.model, list) or len(self.model) == 1:
-            return [data_iterator]
+            return DataIteratorList([data_iterator])
 
         class CachingIterator:
             """Iterator wrapper that caches values"""
@@ -589,10 +589,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 return val
 
         # Make list of iterator wrappers
-        data_iterator_list = [CachingIterator(data_iterator)]
-        while len(data_iterator_list) < len(self.model):
-            data_iterator_list.append(data_iterator_list[0].make_proxy())
-        return data_iterator_list
+        iters = [CachingIterator(data_iterator)]
+        while len(iters) < len(self.model):
+            iters.append(iters[0].make_proxy())
+        return DataIteratorList(iters)
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
