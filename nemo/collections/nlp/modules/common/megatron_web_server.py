@@ -78,7 +78,6 @@ def create_gen_function(port=5555, chat=False):
             bot_message = bot_message[len(prompt):]
             return bot_message
     return get_generation
-       
 
 
 def get_demo(share, username, password, server_port=5555, web_port=9889, loop=None):
@@ -127,6 +126,8 @@ def get_demo(share, username, password, server_port=5555, web_port=9889, loop=No
 def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889, loop=None):
     asyncio.set_event_loop(loop)
     with gr.Blocks() as demo:
+        # store the mutliple turn conversation
+        conversation_history = []
         with gr.Row():
             with gr.Column(scale=2, width=200):
                 greedy_flag = gr.Checkbox(label="Greedy", value=True)
@@ -149,17 +150,17 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 clear = gr.Button("Clear")
 
                 def user(user_message, history):
+                    conversation_history.append(user_message + '\n')
                     user_message = user_message.replace('\n', '<br>')
                     return "", history + [[user_message, None]]
 
                 def bot(history, preamble, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings, human_name, assistant_name):
-                    prompts = history[:-1]
                     prompt_text = ''
-                    for prompt in prompts:
-                        prompt_text += human_name + prompt[
-                            0].replace('<br>', '\n') + '\n' + assistant_name + prompt[1].replace('<br>', '\n') + '\n'
-                    prompt_text += human_name + history[-1][
-                        0].replace('<br>', '\n') + '\n' + assistant_name
+                    names = [human_name, assistant_name]
+                    for i, meg in enumerate(conversation_history):
+                        name = names[i % 2]
+                        prompt_text += name + meg
+                    prompt_text += assistant_name
                     bot_message = create_gen_function(server_port, chat=True)(
                         prompt_text, preamble, greedy_flag, add_BOS,
                         token_to_gen, min_token_to_gen,
@@ -168,12 +169,18 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                     if bot_message.endswith(human_name):
                         bot_message = bot_message[:-len(human_name)]
                     history[-1][1] = bot_message
+                    conversation_history.append(bot_message)
                     return history
 
                 msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
                     bot, [chatbot, preamble, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality, end_strings, human_name, assistant_name], chatbot
                 )
-                clear.click(lambda: None, None, chatbot, queue=False)
+
+                def clear_fun():
+                    conversation_history.clear()
+                    return None
+
+                clear.click(clear_fun, None, chatbot, queue=False)
         demo.launch(share=share, server_port=web_port, server_name='0.0.0.0', auth=(username, password))
 
 
