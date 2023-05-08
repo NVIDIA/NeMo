@@ -101,7 +101,7 @@ class TranscriptionConfig:
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -194,8 +194,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             decoding_cfg.strategy = "greedy_batch"
         decoding_cfg.preserve_alignments = True  # required to compute the middle token for transducers.
         decoding_cfg.fused_batch_size = -1  # temporarily stop fused batch during inference.
-
+        decoding_cfg.beam.return_best_hypothesis = True
+        
     asr_model.change_decoding_strategy(decoding_cfg)
+
+    with open_dict(cfg):
+        cfg.decoding = decoding_cfg
 
     feature_stride = model_cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * cfg.model_stride
