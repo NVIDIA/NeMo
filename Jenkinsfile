@@ -62,7 +62,7 @@ pipeline {
       steps {
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout 3db2063b1ff992a971ba18f7101eecc9c4e90f03 && \
+            git checkout 8a987bb0fc44efa3bf9a09b28f2eef6702e40dff && \
             pip install -e .'
       }
     }
@@ -4016,7 +4016,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/t5_index_mappings"
       }
     }
-    
+
     stage('L2: Megatron T5 Prompt Learning TP1 PP1') {
       when {
         anyOf {
@@ -4101,7 +4101,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
-    
+
     // TODO: add when https://github.com/NVIDIA/apex/pull/1596 is merged
     // stage('L2: Megatron T5 Prompt Learning TP1 PP2') {
     //   when {
