@@ -105,8 +105,8 @@ def main():
 
     if args.normalizer_config_path:
         normalizer_config = OmegaConf.load(args.normalizer_config_path)
-        lower_case_norm = normalizer_config.input_case == "lower_cased"
         normalizer = instantiate(normalizer_config)
+        lower_case_norm = normalizer.input_case == "lower_cased"
     else:
         normalizer = None
         lower_case_norm = False
