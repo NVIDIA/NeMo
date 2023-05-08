@@ -15,7 +15,6 @@
 import json
 import os
 from os.path import expanduser
-from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from nemo.utils import logging
@@ -163,7 +162,6 @@ def get_full_path(
     audio_file: Union[str, List[str]],
     manifest_file: Optional[str] = None,
     data_dir: Optional[str] = None,
-    audio_file_len_limit: int = 255,
 ) -> Union[str, List[str]]:
     """Get full path to audio_file.
 
@@ -178,7 +176,6 @@ def get_full_path(
                     Alternatively, a list of paths may be provided.
         manifest_file: path to a manifest file
         data_dir: path to a directory containing data, use only if a manifest file is not provided
-        audio_file_len_limit: limit for length of audio_file when using relative paths
 
     Returns:
         Full path to audio_file or a list of paths.
@@ -196,11 +193,7 @@ def get_full_path(
         ]
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
-        if (
-            (len(audio_file) < audio_file_len_limit)
-            and not os.path.isabs(audio_file)
-            and not os.path.exists(audio_file)
-        ):
+        if not os.path.isabs(audio_file) and not os.path.exists(audio_file):
             # If audio_file is not available and the path is not absolute, the full path is assumed
             # to be relative to the manifest file parent directory or data directory.
             if manifest_file is None and data_dir is None:
