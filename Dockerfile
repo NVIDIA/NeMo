@@ -46,7 +46,7 @@ WORKDIR /workspace/
 # Install Megatron-core
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 8a987bb0fc44efa3bf9a09b28f2eef6702e40dff && \
+  git checkout 9f8bdeb4814ed61fbc9c7d5b39c7710e77b99754 && \
   pip install -e .
 
 WORKDIR /tmp/
