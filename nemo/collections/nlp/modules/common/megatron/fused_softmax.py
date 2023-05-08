@@ -53,7 +53,7 @@ if HAVE_APEX:
             probs = torch.nn.Softmax(dim=-1)(mask_output)
             if mask is None:
                 raise ValueError(
-                    "Attention mask should not be `None` when falling back to native pytorch softmax" \
+                    "Attention mask should not be `None` when falling back to native pytorch softmax"
                     " forward. The behavior will most likely be different from the fused softmax."
                 )
             else:
