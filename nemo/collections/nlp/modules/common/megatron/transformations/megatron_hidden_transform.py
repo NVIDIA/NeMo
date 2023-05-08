@@ -104,4 +104,9 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
             # sum over the last dimension (hidden_size)
             z_log_prob = z_log_prob.sum(dim=-1)
 
-        return {"z": z, "z_mean": z_mean, "z_logvar": z_logvar, "z_log_prob": z_log_prob}
+        return {
+            "z": z, 
+            "z_mean": z_mean, 
+            "z_logvar": z_logvar, 
+            "z_log_prob": z_log_prob,
+        }
