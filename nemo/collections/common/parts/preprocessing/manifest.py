@@ -195,7 +195,7 @@ def get_full_path(
         ]
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
-        if len(audio_file) < audio_file_len_limit and not os.path.isabs(audio_file) and not os.path.isfile(audio_file):
+        if (len(audio_file) < audio_file_len_limit) and not os.path.isabs(audio_file) and not os.path.isfile(audio_file):
             # If audio_file is not available and the path is not absolute, the full path is assumed
             # to be relative to the manifest file parent directory or data directory.
             if manifest_file is None and data_dir is None:
