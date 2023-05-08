@@ -89,4 +89,37 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
         # here we return only the hidden loss part
         loss = -0.5 * (log_prob_P_z + log_prob_q_z_given_x)
 
-        return {"loss": loss}
+        return {"loss": loss, "log_prob_P_z": log_prob_P_z, "log_prob_q_z_given_x": log_prob_q_z_given_x}
+
+class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
+    """
+    Based on <https://arxiv.org/abs/1312.6114>
+    Implements VAE loss with a unit Normal anchor.
+    """
+
+    def __init__(self, name="vae", loss_weight=1.0, min_kl_value=None):
+        super().__init__(name=name, loss_weight=loss_weight)
+        
+        # minimum value for KL divergence
+        if min_kl_value is None:
+            self.min_kl_value = min_kl_value
+        else:
+            self.min_kl_value = float(min_kl_value)
+
+    @property
+    def input_names(self):
+        return ["z", "z_log_prob"]
+
+    def _loss(self, inputs):
+        z = inputs["z"]
+        # get posterior
+        log_prob_q_z_given_x = inputs["z_log_prob"]
+        # compute log prob of anchor a unit Normal distribution
+        log_prob_p_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
+
+        # VAE loss = log_p_x_given_z - KL(q(z|x) || p(z))
+        kl_div =  (log_prob_q_z_given_x - log_prob_p_z)
+        # here we return only the hidden loss part
+        loss = - kl_div
+
+        return {"loss": loss, "kl_div": kl_div, "log_prob_p_z": log_prob_p_z, "log_prob_q_z_given_x": log_prob_q_z_given_x}

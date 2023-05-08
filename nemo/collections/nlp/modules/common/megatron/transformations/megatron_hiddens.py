@@ -138,7 +138,7 @@ class MegatronHiddensModule(torch.nn.Module):
             duplicate_names = set([x for x in all_output_names if all_output_names.count(x) > 1])
             raise ValueError(f"Hidden transforms have duplicate output names: {list(duplicate_names)}")
 
-        return output_names
+        return list(output_names)
 
     @functools.cached_property
     def loss_inputs(self):
