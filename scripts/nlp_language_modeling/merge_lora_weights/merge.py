@@ -1,6 +1,7 @@
 #!/usr/bin/env
 
 import os
+from typing import Any, Dict
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -11,10 +12,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from typing import Dict, Any
-from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state
@@ -24,6 +24,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 class RequestDataSet(Dataset):
     def __init__(self, sentences):
@@ -36,15 +37,20 @@ class RequestDataSet(Dataset):
     def __getitem__(self, idx):
         return self.sentences[idx]
 
+
 def load_lora(lora_extracted_dir, tp):
     lora_state_dict = {}
     for i in range(tp):
-        l = torch.load(lora_extracted_dir + '/mp_rank_0' + str(i) + '/model_weights.ckpt', map_location=torch.device('cpu'))
+        l = torch.load(
+            lora_extracted_dir + '/mp_rank_0' + str(i) + '/model_weights.ckpt', map_location=torch.device('cpu')
+        )
         lora_state_dict[i] = l
     return lora_state_dict
 
 
-def merge(base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, curr_rank: int):
+def merge(
+    base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, curr_rank: int
+):
     """ 
     Iterate through all the self_attention.query_key_value projection feedforward weights in all the layers.
     Collect the corresponding lora weights for each layer and across tp ranks.
@@ -59,8 +65,12 @@ def merge(base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any]
 
     for nl in range(num_layers):
         key_self_attn_kqv = f'model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight'
-        key_lora_in = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
-        key_lora_out = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
+        key_lora_in = (
+            f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
+        )
+        key_lora_out = (
+            f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
+        )
         wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
         wt_lora_out = lora_state_dict[curr_rank][key_lora_out]
         wt_self_attn = base_model_state_dict[key_self_attn_kqv]
@@ -111,7 +121,7 @@ def main(cfg) -> None:
         pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
         pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
     )
-            
+
     if cfg.gpt_model_file:
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.gpt_model_file):
@@ -168,25 +178,26 @@ def main(cfg) -> None:
 
     # merge the lora weights with the base model, for this current rank.
     merged_weights = merge(
-            model.state_dict(),
-            lora_weights,
-            tp=model.cfg.tensor_model_parallel_size,
-            num_layers=model.cfg.num_layers,
-            curr_rank=model.global_rank,
-        )
-    
+        model.state_dict(),
+        lora_weights,
+        tp=model.cfg.tensor_model_parallel_size,
+        num_layers=model.cfg.num_layers,
+        curr_rank=model.global_rank,
+    )
+
     # load the merged_weights back into the base model, for this current rank.
     model.load_state_dict(merged_weights)
 
     # Going to go through the motions of inference to force PTL to run subprocess for loading all base model's ranks.
     ds = RequestDataSet(["Q: how are you?"])
     request_dl = DataLoader(dataset=ds, batch_size=1)
-    config = {'greedy' : True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
+    config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
     model.save_to(cfg.merged_model_path)
     logging.info(f"saved merged model to {cfg.merged_model_path}")
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
