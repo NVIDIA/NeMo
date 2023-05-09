@@ -19,7 +19,9 @@ In order to register external hidden transforms and losses please use the follow
 This will add support to corresponding config entries:
 model:
     hiddens:
-        transforms:
+        enabled: True
+        enc_output_name: <name of the encoder output>
+        transform:
             name: 
                 cls_name: <cls_name>
                 ... (all related kwargs)
@@ -68,11 +70,12 @@ def register_hidden_transform(cls_name: str, class_path: str):
 
 def get_hiddens_module(cfg=None):
     """Build a MegatronHiddensModule from a configuration cfg"""
-    if cfg is None:
+    # check if we need to build a hiddens module - model.hiddens.enabled must be True
+    if cfg is None or not cfg.get("enabled", False):
         return None
 
     # build all hidden transforms
-    transforms_cfg = cfg.get("transforms", {})
+    transforms_cfg = cfg.get("transform", {})
     hidden_transforms = []
     for name, cur_cfg in transforms_cfg.items():
         cls_kwargs = OmegaConf.to_container(cur_cfg)
@@ -95,7 +98,13 @@ def get_hiddens_module(cfg=None):
         cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
         hidden_loss_transforms.append(cur_loss)
 
-    return MegatronHiddensModule(hidden_transforms, hidden_loss_transforms)
+    enc_output_name = cfg.get("enc_output_name", "hiddens")
+    
+    return MegatronHiddensModule(
+        hidden_transforms=hidden_transforms, 
+        hidden_loss_transforms=hidden_loss_transforms, 
+        enc_output_name=enc_output_name,
+    )
 
 
 class MegatronHiddensModule(torch.nn.Module):
@@ -108,9 +117,11 @@ class MegatronHiddensModule(torch.nn.Module):
         self,
         hidden_transforms: List[MegatronBaseHiddenLoss] = [],
         hidden_loss_transforms: List[MegatronBaseHiddenTransform] = [],
+        enc_output_name: str = "hiddens",
     ):
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
+        self.enc_output_name = enc_output_name
 
         # register all hidden / loss transforms as submodules to support learned parameters
         if not all([isinstance(ht, MegatronBaseHiddenLoss) for ht in self.hidden_loss_transforms]):
@@ -191,3 +202,15 @@ class MegatronHiddensModule(torch.nn.Module):
             loss_dict.update(cur_loss_dict)
 
         return loss_dict
+    
+    def get_enc_output(self, outputs):
+        """
+        Returns the encoder output from transformed hiddens output.
+        e.g., return z for latent variable models.
+
+        Args:
+            outputs: a dictionary of outputs (after hidden transforms)
+        
+        Returns:
+            enc_output: a tensor encoder outputs (e.g., to be used by decoder)
+        """

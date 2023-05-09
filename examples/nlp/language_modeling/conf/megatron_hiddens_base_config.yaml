@@ -1,0 +1,24 @@
+# this file main purpose is documentation, and it should not be used directly 
+enabled: True # set to True to enable hiddens transformations and loss
+enc_output_name: z # name of key in hidden transforms output to pass to decoder (e.g., z for VAE/MIM)
+transform: # a dictionary of transforms to apply to hiddens
+  # <transform_name>: # name of transform
+  #   cls_name: <transform_class_path_name> # class path name
+  #   <transform_param>: <transform_value> # transform parameters
+  #   ...
+  q_z_given_x: # Gaussian posterior with reparameterization
+    cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform # class path name
+    hidden_size: 512 # hidden size of the encoder
+    min_logvar: -7.0 # minimum log variance
+loss: # a a dictionary of loss terms to add to reconstruction loss
+  # <loss_name>: # name of loss
+  #   cls_name: <loss_class_path_name> # class path name
+  #   <loss_param>: <loss_value> # loss parameters
+  #   ...
+    mim: # A-MIM example
+      cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronMIMHiddenLoss
+      loss_weight: 1.0 # weight of the latent loss
+    mim: # VAE example
+      cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronVAEHiddenLoss
+      loss_weight: 1.0 # weight of the latent loss
+      min_kl_value: null # minimum KL value if a float is provided

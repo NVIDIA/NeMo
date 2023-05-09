@@ -111,6 +111,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             get_key_value=enc_get_key_value,
             enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
         )
+        
+        # apply hidden transformations if needed
+        if self.hiddens_module is not None:
+            enc_output = self.hiddens_module.apply_hidden_transforms({"hiddens": enc_output})
 
         return enc_output
 
@@ -186,7 +190,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_output = self.decode(
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
-            enc_output=enc_output,
+            enc_output=enc_output if torch.is_tensor(enc_output) else self.hiddens_module.get_enc_output(enc_output),
             enc_attn_mask=enc_attn_mask,
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,

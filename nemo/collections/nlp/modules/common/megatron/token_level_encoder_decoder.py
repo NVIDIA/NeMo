@@ -370,6 +370,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
         hiddens_module = get_hiddens_module(hiddens_cfg)
+        self.hiddens_enabled = hiddens_module is not None
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
             encoder=encoder,
             decoder=decoder,
@@ -439,6 +440,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             assert (
                 self.share_decoder_tokens_head_embeddings
             ), "Decoder token embeddings and the outputlayer must be shared when using pipeline model parallel size > 1"
+            assert (
+                not self.hiddens_enabled
+            ), "Hiddens module must not be enabled when using pipeline model parallel size > 1"
+
         return encoder_kv_channels, decoder_kv_channels
 
     def set_input_tensor(self, input_tensor):
