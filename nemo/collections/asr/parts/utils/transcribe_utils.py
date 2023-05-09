@@ -383,12 +383,16 @@ def transcribe_partial_audio(
     pad_to_value = asr_model.preprocessor.featurizer.pad_to
 
     if decoder_type is not None:  # Hybrid model
-        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor if decoder_type == 'rnnt' else asr_model.decoding.ctc_decoder_predictions_tensor
+        decode_function = (
+            asr_model.decoding.rnnt_decoder_predictions_tensor
+            if decoder_type == 'rnnt'
+            else asr_model.decoding.ctc_decoder_predictions_tensor
+        )
     elif hasattr(asr_model, 'joint'):  # RNNT model
         decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
     else:  # CTC model
         decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
-    
+
     try:
         asr_model.preprocessor.featurizer.dither = 0.0
         asr_model.preprocessor.featurizer.pad_to = 0
@@ -421,10 +425,8 @@ def transcribe_partial_audio(
                     lg = logits[idx][: logits_len[idx]]
                     hypotheses.append(lg.cpu().numpy())
             else:
-                current_hypotheses, all_hyp = decode_function(
-                    logits, logits_len, return_hypotheses=return_hypotheses,
-                )
-                
+                current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
+
                 if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
                     current_hypotheses = current_hypotheses[0]
 
