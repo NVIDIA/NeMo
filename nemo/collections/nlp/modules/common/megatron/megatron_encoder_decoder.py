@@ -111,7 +111,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             get_key_value=enc_get_key_value,
             enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
         )
-        
+
         # apply hidden transformations if needed
         if self.hiddens_module is not None:
             enc_output = self.hiddens_module.apply_hidden_transforms({"hiddens": enc_output})

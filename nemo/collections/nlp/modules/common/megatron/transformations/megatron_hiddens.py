@@ -99,10 +99,10 @@ def get_hiddens_module(cfg=None):
         hidden_loss_transforms.append(cur_loss)
 
     enc_output_name = cfg.get("enc_output_name", "hiddens")
-    
+
     return MegatronHiddensModule(
-        hidden_transforms=hidden_transforms, 
-        hidden_loss_transforms=hidden_loss_transforms, 
+        hidden_transforms=hidden_transforms,
+        hidden_loss_transforms=hidden_loss_transforms,
         enc_output_name=enc_output_name,
     )
 
@@ -202,7 +202,7 @@ class MegatronHiddensModule(torch.nn.Module):
             loss_dict.update(cur_loss_dict)
 
         return loss_dict
-    
+
     def get_enc_output(self, outputs):
         """
         Returns the encoder output from transformed hiddens output.
