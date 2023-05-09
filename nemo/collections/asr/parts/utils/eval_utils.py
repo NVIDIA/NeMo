@@ -88,7 +88,7 @@ def cal_write_wer(
     langid: str = 'en',
     use_cer: bool = False,
     output_filename: str = None,
-) -> Tuple[str, dict]:
+) -> Tuple[str, dict, str]:
     """ 
     Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
     We use WER in function name as a convention, but Error Rate (ER) currently support Word Error Rate (WER) and Character Error Rate (CER)
@@ -103,9 +103,10 @@ def cal_write_wer(
             sample = json.loads(line)
 
             if 'text' not in sample:
-                raise ValueError(
-                    "ground-truth text is not present in manifest! Cannot calculate Word Error Rate. Exiting!"
+                logging.info(
+                    "ground-truth text is not present in manifest! Cannot calculate Word Error Rate. Returning!"
                 )
+                return None, None, eval_metric
 
             hyp = sample[pred_text_attr_name]
             ref = sample['text']
