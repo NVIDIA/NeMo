@@ -19,6 +19,7 @@ from typing import List
 
 import torch
 import torch.nn as nn
+from pytorch_lightning.pytorch.plugins.layer_sync import LayerSync
 from torch import Tensor
 from torch.nn import functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
@@ -112,14 +113,12 @@ class SafeSyncBatchNorm(torch.nn.SyncBatchNorm):
     SyncBatchNorm that works with empty inputs.
     """
 
-
     def forward(self, input: Tensor) -> Tensor:
         r"""
         Fix for NaN in inputs. (The only difference wrt original)
         """
         input = torch.nan_to_num(input)
         return super().forward(input)
-
 
     @classmethod
     def convert_safesync_batchnorm(cls, module, process_group=None):
@@ -144,9 +143,7 @@ class SafeSyncBatchNorm(torch.nn.SyncBatchNorm):
             if hasattr(module, "qconfig"):
                 module_output.qconfig = module.qconfig
         for name, child in module.named_children():
-            module_output.add_module(
-                name, cls.convert_safesync_batchnorm(child, process_group)
-            )
+            module_output.add_module(name, cls.convert_safesync_batchnorm(child, process_group))
         del module
         return module_output
 
@@ -194,4 +191,4 @@ class TorchSafeSyncBatchNorm(LayerSync):
         for name, child in model.named_children():
             converted_module.add_module(name, self.revert(child))
         del model
-        return 
+        return
