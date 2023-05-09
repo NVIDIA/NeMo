@@ -208,6 +208,7 @@ class LoraKQVAdapter(ParallelLinearAdapter):
 
     pass
 
+
 class LoraKVAdapter(ParallelLinearAdapter):
     """
     Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
@@ -215,6 +216,7 @@ class LoraKVAdapter(ParallelLinearAdapter):
     """
 
     pass
+
 
 class LoraQAdapter(ParallelLinearAdapter):
     """
@@ -224,17 +226,21 @@ class LoraQAdapter(ParallelLinearAdapter):
 
     pass
 
+
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapter.__module__, LoraKQVAdapter.__name__)
+
 
 @dataclass
 class LoraQAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraQAdapter.__module__, LoraQAdapter.__name__)
 
+
 @dataclass
 class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKVAdapter.__module__, LoraKVAdapter.__name__)
+
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """

@@ -22,8 +22,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
-    LoraQAdapterConfig,
     LoraKVAdapterConfig,
+    LoraQAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -114,7 +114,14 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         self.megatron_legacy = megatron_legacy
 
-        self.set_accepted_adapter_types([InfusedAdapterConfig._target_, LoraKQVAdapterConfig._target_, LoraQAdapterConfig._target_, LoraKVAdapterConfig._target_])
+        self.set_accepted_adapter_types(
+            [
+                InfusedAdapterConfig._target_,
+                LoraKQVAdapterConfig._target_,
+                LoraQAdapterConfig._target_,
+                LoraKVAdapterConfig._target_,
+            ]
+        )
 
         if kv_channels is None:
             assert (
