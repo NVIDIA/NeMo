@@ -25,11 +25,10 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import
 
 __all__ = ['RetroDemoWebApp', 'get_demo']
 
-HUMAN_TOKEN = '<extra_id_1>'
-ASSITANT_TOKEN = '<extra_id_2>'
+TURN_TOKEN = '<extra_id_1>'
 
 DEFAULT_SYSTEM = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n"
-SYSTEM_TOKEN = ''
+SYSTEM_TOKEN = '<extra_id_0>System\n'
 # HUMAN_TOKEN = 'Human:'
 # ASSITANT_TOKEN = 'Assistant:'
 
@@ -142,8 +141,8 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 )
                 end_strings = gr.Textbox(label="End strings (comma separated)", value=f"<|endoftext|>,<extra_id_1>,", lines=1,)
             with gr.Column(scale=1, min_width=800):
-                human_name = gr.Textbox(label="Human Name", value="<extra_id_1>", line=1,)
-                assistant_name = gr.Textbox(label="Assistant Name", value="<extra_id_2>", line=1,)
+                human_name = gr.Textbox(label="Human Name", value="User", line=1,)
+                assistant_name = gr.Textbox(label="Assistant Name", value="Assistant", line=1,)
                 preamble = gr.Textbox(label="System", value=DEFAULT_SYSTEM, lines=2,)
                 chatbot = Chatbot()
                 msg = gr.Textbox(label="User", value="", lines=1,)
@@ -159,8 +158,8 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                     names = [human_name, assistant_name]
                     for i, meg in enumerate(conversation_history):
                         name = names[i % 2]
-                        prompt_text += name + meg
-                    prompt_text += assistant_name
+                        prompt_text += TURN_TOKEN + name + '\n' + meg
+                    prompt_text += TURN_TOKEN + assistant_name + '\n'
                     bot_message = create_gen_function(server_port, chat=True)(
                         prompt_text, preamble, greedy_flag, add_BOS,
                         token_to_gen, min_token_to_gen,
