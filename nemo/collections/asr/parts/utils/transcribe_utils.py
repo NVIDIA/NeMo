@@ -275,7 +275,7 @@ def write_transcription(
     filepaths: List[str] = None,
     compute_langs: bool = False,
     compute_timestamps: bool = False,
-) -> str:
+) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
@@ -320,7 +320,7 @@ def write_transcription(
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
-                if not cfg.ctc_decoding.beam.return_best_hypothesis:
+                if not cfg.decoding.beam.return_best_hypothesis:
                     item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
@@ -343,11 +343,11 @@ def write_transcription(
                         item['pred_lang'] = best_hyps[idx].langs
                         item['pred_lang_chars'] = best_hyps[idx].langs_chars
 
-                    if not cfg.ctc_decoding.beam.return_best_hypothesis:
+                    if not cfg.decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename
+    return cfg.output_filename, pred_text_attr_name
 
 
 def transcribe_partial_audio(
