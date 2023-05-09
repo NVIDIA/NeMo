@@ -21,6 +21,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.nn import functional as F
+from torch.nn.modules.batchnorm import _BatchNorm
+from pytorch_lightning.pytorch.plugins.layer_sync import LayerSync
 
 
 class FusedBatchNorm1d(nn.Module):
@@ -105,59 +107,91 @@ def replace_bn_with_fused_bn_all(model: nn.Module) -> List[str]:
     return replaced_module_names
 
 
-class SafeBatchNorm1d(nn.BatchNorm1d):
+class SafeSyncBatchNorm(torch.nn.SyncBatchNorm):
     """
-    BatchNorm1d that works with empty inputs.
-    Modified from https://pytorch.org/docs/stable/_modules/torch/nn/modules/batchnorm.html#BatchNorm1d
+    SyncBatchNorm that works with empty inputs.
     """
+
 
     def forward(self, input: Tensor) -> Tensor:
-        self._check_input_dim(input)
-
-        # exponential_average_factor is set to self.momentum
-        # (when it is available) only so that it gets updated
-        # in ONNX graph when this node is exported to ONNX.
-        if self.momentum is None:
-            exponential_average_factor = 0.0
-        else:
-            exponential_average_factor = self.momentum
-
-        if self.training and self.track_running_stats:
-            # TODO: if statement only here to tell the jit to skip emitting this when it is None
-            if self.num_batches_tracked is not None:  # type: ignore[has-type]
-                self.num_batches_tracked.add_(1)  # type: ignore[has-type]
-                if self.momentum is None:  # use cumulative moving average
-                    exponential_average_factor = 1.0 / float(self.num_batches_tracked)
-                else:  # use exponential moving average
-                    exponential_average_factor = self.momentum
-
-        r"""
-        Decide whether the mini-batch stats should be used for normalization rather than the buffers.
-        Mini-batch stats are used in training mode, and in eval mode when buffers are None.
-        """
-        if self.training:
-            bn_training = True
-        else:
-            bn_training = (self.running_mean is None) and (self.running_var is None)
-
         r"""
         Fix for NaN in inputs. (The only difference wrt original)
         """
         input = torch.nan_to_num(input)
+        return super().forward(input)
 
-        r"""
-        Buffers are only updated if they are to be tracked and we are in training mode. Thus they only need to be
-        passed when the update should occur (i.e. in training mode when they are tracked), or when buffer stats are
-        used for normalization (i.e. in eval mode when buffers are not None).
+
+    @classmethod
+    def convert_safesync_batchnorm(cls, module, process_group=None):
+
+        module_output = module
+        if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+            module_output = SafeSyncBatchNorm(
+                module.num_features,
+                module.eps,
+                module.momentum,
+                module.affine,
+                module.track_running_stats,
+                process_group,
+            )
+            if module.affine:
+                with torch.no_grad():
+                    module_output.weight = module.weight
+                    module_output.bias = module.bias
+            module_output.running_mean = module.running_mean
+            module_output.running_var = module.running_var
+            module_output.num_batches_tracked = module.num_batches_tracked
+            if hasattr(module, "qconfig"):
+                module_output.qconfig = module.qconfig
+        for name, child in module.named_children():
+            module_output.add_module(
+                name, cls.convert_safesync_batchnorm(child, process_group)
+            )
+        del module
+        return module_output
+
+
+class TorchSafeSyncBatchNorm(LayerSync):
+    """A plugin that wraps all batch normalization layers of a model with synchronization logic for
+    multiprocessing.
+    # adapted from https://github.com/Lightning-AI/lightning/blob/master/src/lightning/pytorch/plugins/layer_sync.py
+    """
+
+    def apply(self, model: Module) -> Module:
+        """Add global batchnorm for a model spread across multiple GPUs and nodes.
+        Override this method to synchronize batchnorm layers between specific process groups instead
+        of the whole world.
+        Args:
+            model: Reference to the current LightningModule
+        Return:
+            LightningModule with batchnorm layers synchronized within the process groups.
         """
-        return F.batch_norm(
-            input,
-            # If buffers are not to be tracked, ensure that they won't be updated
-            self.running_mean if not self.training or self.track_running_stats else None,
-            self.running_var if not self.training or self.track_running_stats else None,
-            self.weight,
-            self.bias,
-            bn_training,
-            exponential_average_factor,
-            self.eps,
-        )
+        return SafeSyncBatchNorm.convert_safesync_batchnorm(model)
+
+    def revert(self, model: Module) -> Module:
+        """Convert the wrapped batchnorm layers back to regular batchnorm layers.
+        Args:
+            model: Reference to the current LightningModule
+        Return:
+            LightningModule with regular batchnorm layers that will no longer sync across processes.
+        """
+        converted_module = model
+        if isinstance(model, SafeSyncBatchNorm):
+            # Unfortunately, LayerSync does not store the original class - if it did
+            # we could return the one that was originally created.
+            converted_module = _BatchNorm(
+                model.num_features, model.eps, model.momentum, model.affine, model.track_running_stats
+            )
+            if model.affine:
+                with torch.no_grad():
+                    converted_module.weight = model.weight
+                    converted_module.bias = model.bias
+            converted_module.running_mean = model.running_mean
+            converted_module.running_var = model.running_var
+            converted_module.num_batches_tracked = model.num_batches_tracked
+            if hasattr(model, "qconfig"):
+                converted_module.qconfig = model.qconfig
+        for name, child in model.named_children():
+            converted_module.add_module(name, self.revert(child))
+        del model
+        return 
