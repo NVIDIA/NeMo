@@ -37,7 +37,7 @@ def initialize_sampler(model, sampler_type):
         sampler = DDIMSampler(model)
     elif sampler_type == 'PLMS':
         sampler = PLMSSampler(model)
-    elif sampler_type == 'DPM-SOLVER':
+    elif sampler_type == 'DPM':
         sampler = DPMSolverSampler(model)
     else:
         raise ValueError(f'Sampler {sampler_type} is not supported.')
