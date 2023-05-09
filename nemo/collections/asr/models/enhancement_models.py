@@ -60,6 +60,11 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         self.mask_processor = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mask_processor)
         self.decoder = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.decoder)
 
+        if 'mixture_consistency' in self._cfg:
+            self.mixture_consistency = EncMaskDecAudioToAudioModel.from_config_dict(self._cfg.mixture_consistency)
+        else:
+            self.mixture_consistency = None
+
         # Future enhancement:
         # If subclasses need to modify the config before calling super()
         # Check ASRBPE* classes do with their mixin
@@ -369,6 +374,10 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
 
         # Mask-based processor in the encoded domain
         processed, processed_length = self.mask_processor(input=encoded, input_length=encoded_length, mask=mask)
+
+        # Mixture consistency
+        if self.mixture_consistency is not None:
+            processed = self.mixture_consistency(mixture=encoded, estimate=processed)
 
         # Decoder
         processed, processed_length = self.decoder(input=processed, input_length=processed_length)
