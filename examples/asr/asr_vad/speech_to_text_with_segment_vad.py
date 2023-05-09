@@ -476,18 +476,30 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
 
     # Setup decoding strategy
     decode_function = None
-    if hasattr(asr_model, 'change_decoding_strategy'):
-        # Check if ctc or rnnt model
-        if hasattr(asr_model, 'joint'):  # RNNT model
+    decoder_type = cfg.get("decoder_type", None)
+    if not hasattr(asr_model, 'change_decoding_strategy'):
+        raise ValueError(f"ASR model {cfg.asr_model} does not support decoding strategy.")
+    if decoder_type is not None:  # Hybrid model
+        if decoder_type == 'rnnt':
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
-            asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+            asr_model.change_decoding_strategy(cfg.rnnt_decoding, decoder_type=decoder_type)
             decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
-        else:
-            asr_model.change_decoding_strategy(cfg.ctc_decoding)
+        elif decoder_type == 'ctc':
+            asr_model.change_decoding_strategy(cfg.ctc_decoding, decoder_type=decoder_type)
             decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
+        else:
+            raise ValueError(
+                f"Unknown decoder type for hybrid model: {decoder_type}, supported types: ['rnnt', 'ctc']"
+            )
+    elif hasattr(asr_model, 'joint'):  # RNNT model
+        cfg.rnnt_decoding.fused_batch_size = -1
+        cfg.rnnt_decoding.compute_langs = cfg.compute_langs
+        asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
     else:
-        raise ValueError(f"Only support CTC or RNNT models that have `change_decoding_strategy()` implemented.")
+        asr_model.change_decoding_strategy(cfg.ctc_decoding)
+        decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
 
     # Compute output filename
     if cfg.output_filename is None:
