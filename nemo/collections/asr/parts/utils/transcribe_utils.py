@@ -412,9 +412,10 @@ def transcribe_partial_audio(
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            logits, logits_len, greedy_predictions = asr_model.forward(
+            outputs = asr_model.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
+            logits, logits_len = outputs[0], outputs[1]
             if logprobs:
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
@@ -437,7 +438,6 @@ def transcribe_partial_audio(
 
                 hypotheses += current_hypotheses
 
-            del greedy_predictions
             del logits
             del test_batch
 
