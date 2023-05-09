@@ -214,3 +214,9 @@ class MegatronHiddensModule(torch.nn.Module):
         Returns:
             enc_output: a tensor encoder outputs (e.g., to be used by decoder)
         """
+        if torch.is_tensor(outputs):
+            enc_output = outputs
+        else:
+            enc_output = outputs[self.enc_output_name]
+        
+        return enc_output

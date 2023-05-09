@@ -190,7 +190,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_output = self.decode(
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
-            enc_output=enc_output if torch.is_tensor(enc_output) else self.hiddens_module.get_enc_output(enc_output),
+            enc_output=self.hiddens_module.get_enc_output(enc_output), # will return enc_output id it is a torch.tensor
             enc_attn_mask=enc_attn_mask,
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
@@ -198,6 +198,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
         )
 
+        # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor
         return dec_output, enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

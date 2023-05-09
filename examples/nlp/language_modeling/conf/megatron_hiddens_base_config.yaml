@@ -17,8 +17,8 @@ loss: # a a dictionary of loss terms to add to reconstruction loss
   #   ...
     mim: # A-MIM example
       cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronMIMHiddenLoss
-      loss_weight: 1.0 # weight of the latent loss
+      loss_weight: 1.0 # weight of the MIM latent loss
     mim: # VAE example
       cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronVAEHiddenLoss
-      loss_weight: 1.0 # weight of the latent loss
+      loss_weight: 1e-2 # weight of KL term in loss
       min_kl_value: null # minimum KL value if a float is provided
