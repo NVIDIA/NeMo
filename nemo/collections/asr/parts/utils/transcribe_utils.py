@@ -382,8 +382,7 @@ def transcribe_partial_audio(
     dither_value = asr_model.preprocessor.featurizer.dither
     pad_to_value = asr_model.preprocessor.featurizer.pad_to
 
-    if hasattr(asr_model, 'change_decoding_strategy') and decoder_type is not None:  # Hybrid model
-        asr_model.change_decoding_strategy(decoder_type=decoder_type) 
+    if decoder_type is not None:  # Hybrid model
         decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor if decoder_type == 'rnnt' else asr_model.decoding.ctc_decoder_predictions_tensor
     elif hasattr(asr_model, 'joint'):  # RNNT model
         decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
