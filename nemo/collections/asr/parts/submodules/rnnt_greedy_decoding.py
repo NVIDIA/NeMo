@@ -2672,7 +2672,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                     skip = self.durations[int(torch.min(dk))]
 
                     if blank_mask.all():
-                        #                    print("SKIP is", skip)
                         if skip == 0:
                             skip = 1
                     need_to_stay = skip == 0
