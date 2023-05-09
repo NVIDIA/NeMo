@@ -269,8 +269,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             use_cer=cfg.use_cer,
             output_filename=None,
         )
-        logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
-        logging.info(f"{total_res}")
+        if output_manifest_w_wer:
+            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(f"{total_res}")
 
     return cfg
 
