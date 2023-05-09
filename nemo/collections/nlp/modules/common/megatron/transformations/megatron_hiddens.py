@@ -218,5 +218,5 @@ class MegatronHiddensModule(torch.nn.Module):
             enc_output = outputs
         else:
             enc_output = outputs[self.enc_output_name]
-        
+
         return enc_output
