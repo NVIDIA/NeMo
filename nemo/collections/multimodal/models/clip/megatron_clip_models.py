@@ -85,13 +85,18 @@ class CLIPVisionTransformer(MegatronModule):
         self.global_average_pool = model_cfg.global_average_pool
         self.pre_process = pre_process
         self.post_process = post_process
+
+        if model_cfg.get("class_token_length") is None or model_cfg.get("class_token_length") <= 0:
+            class_token = False
+        else:
+            class_token = True
         self.backbone = VitBackbone(
             model_cfg,
             init_method=init_method_normal(model_cfg.init_method_std),
             scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            class_token=False,
+            class_token=class_token,
             single_token_output=False,
         )
 
@@ -197,9 +202,19 @@ class CLIPTextTransformer(MegatronModule):
         if self.post_process:
             self.head = torch.nn.Linear(model_cfg.hidden_size, self.output_dim, bias=False,)
 
+        self.attn_mask = self.build_attention_mask(model_cfg.max_position_embeddings)
+
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
+
+    def build_attention_mask(self, max_position_embeddings):
+        # lazily create causal attention mask, with full attention between the tokens
+        mask = torch.empty(max_position_embeddings, max_position_embeddings, dtype=bool, device='cuda')
+        mask.fill_(True)
+        mask.triu_(1)  # zero out the lower diagonal
+        mask = mask.reshape(1, 1, max_position_embeddings, max_position_embeddings)
+        return mask
 
     def forward(
         self, input_ids,
@@ -211,7 +226,7 @@ class CLIPTextTransformer(MegatronModule):
         hidden_states = self.language_model(
             input_ids,
             self.position_ids,
-            None,
+            self.attn_mask,
             token_type_ids=None,
             layer_past=None,
             get_key_value=False,
