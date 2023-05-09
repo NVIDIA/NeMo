@@ -128,7 +128,6 @@ def train_model_selection(
 def main(cfg: BuildEnsembleConfig):
     logging.info(f'Build ensemble config: {OmegaConf.to_yaml(cfg)}')
 
-    # TODO: does this validate arguments? Do we need the check?
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
@@ -181,10 +180,9 @@ def main(cfg: BuildEnsembleConfig):
 
         # creating ensemble checkpoint
         ensemble_model = ConfidenceEnsembleModel(
-            cfg=DictConfig({}),
+            cfg=DictConfig({'model_selection_block': model_selection_block_path, 'confidence': cfg.confidence,}),
             trainer=None,
             models=[model_cfg.model for model_cfg in cfg.ensemble],
-            model_selection_block_path=model_selection_block_path,
         )
         ensemble_model.save_to(cfg.output_path)
 

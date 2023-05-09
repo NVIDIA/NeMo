@@ -350,10 +350,6 @@ def transcribe_speech(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
 
-    from IPython import embed
-
-    embed()
-
     # write audio transcriptions
     output_filename, pred_text_attr_name = write_transcription(
         transcriptions,
