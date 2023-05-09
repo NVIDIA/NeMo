@@ -19,10 +19,10 @@ from typing import List
 
 import torch
 import torch.nn as nn
+from pytorch_lightning.plugins import LayerSync
 from torch import Tensor
 from torch.nn import functional as F
 from torch.nn.modules.batchnorm import _BatchNorm
-from pytorch_lightning.plugins import LayerSync
 
 
 class FusedBatchNorm1d(nn.Module):
