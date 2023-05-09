@@ -101,6 +101,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         super().__init__()
         self.model = model
         self.fp8_enabled = model.cfg.get('fp8', False)
+        self.fp8_recipe = None
         if self.fp8_enabled and HAVE_TE:
             self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
                 margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
