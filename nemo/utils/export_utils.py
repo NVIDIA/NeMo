@@ -455,9 +455,7 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     }
 
     replace_modules(model, default_Apex_replacements)
-    # Apply CastToFloat for torch.float32
-    if hasattr(model, 'dtype') and model.dtype == torch.float32:
-        replace_modules(model, default_replacements)
+    replace_modules(model, default_replacements)
     # This one has to be the last
     replace_modules(model, script_replacements)
 
