@@ -14,8 +14,20 @@
 
 
 import math
-
 import torch
+
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    init_method_normal,
+)
+
+try:
+    from megatron.core import tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronBaseHiddenTransform", "MegatronGaussianHiddenTransform"]
 
@@ -61,12 +73,23 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
     Constructes a diagonal Gaussian distribution from the hidden states and samples from it using reparametrization.
     """
 
-    def __init__(self, hidden_size, min_logvar=-8):
+    def __init__(self, hidden_size, min_logvar=-8, init_method_std=0.02):
         # limit smaller allowed variance (for numerical stability)
         self.min_logvar = min_logvar
         self.hidden_size = hidden_size
-        # project hiddens to mean and log variance
-        self.hiddens_to_mean_logvar = torch.nn.Linear(hidden_size, hidden_size * 2)
+        # project hiddens to mean and log variance (support tensor parallelism)
+        self.hiddens_to_mean_logvar = tensor_parallel.ColumnParallelLinear(
+                    hidden_size,
+                    hidden_size * 2
+                    gather_output=True,
+                    init_method=init_method_normal(init_method_std),                    
+                    skip_bias_add=False,
+                    use_cpu_initialization=False,
+                    bias=True,
+                    sequence_parallel_enabled=False,
+                    async_tensor_model_parallel_allreduce=True,
+                    gradient_accumulation_fusion=False,
+                )
 
     @property
     def output_names(self):

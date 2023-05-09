@@ -192,7 +192,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_attn_mask=dec_attn_mask,
             enc_output=self.hiddens_module.get_enc_output(
                 enc_output
-            ),  # will return enc_output id it is a torch.tensor
+            ) if self.hiddens_module is not None else enc_output,  # will return enc_output id it is a torch.tensor
             enc_attn_mask=enc_attn_mask,
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,

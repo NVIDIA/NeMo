@@ -591,7 +591,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
             if self.post_process and self.add_decoder:
-                dec_output, enc_output = output  # [s, b, h]
+                dec_output, enc_output = output  # [s, b, h], enc_output might be a dict if hiddens_module is used
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
                     token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
