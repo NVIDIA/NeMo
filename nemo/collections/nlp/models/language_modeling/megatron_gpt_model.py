@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import warnings
 import queue
 from functools import partial
 from typing import Any, Iterator, List, Optional, Union, Dict
@@ -36,8 +37,8 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
-    get_params_for_weight_decay_optimization,
     get_ltor_masks_and_position_ids,
+    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
@@ -55,8 +56,8 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
-from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 try:
@@ -95,12 +96,15 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     """
     Megatron GPT Wrapper for ONNX export
     """
+
     def __init__(self, model):
         super().__init__()
         self.model = model
         self.fp8_enabled = model.cfg.get('fp8', False)
         if self.fp8_enabled and HAVE_TE:
-                self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3)
+            self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
+            )
 
         self.dtype = None
         if model.cfg['precision'] == 'bf16':
@@ -113,21 +117,22 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
             raise ValueError(f"precision: {model.cfg['precision']} is not supported.")
 
     def forward(self, tokens, position_ids, attention_mask):
-        with transformer_engine.pytorch.onnx_export(self.fp8_enabled), \
-            transformer_engine.pytorch.fp8_autocast(enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe), \
-            torch.no_grad(), torch.inference_mode(), torch.autocast('cuda', dtype=self.dtype), \
-            warnings.catch_warnings() if self.fp8_enabled and HAVE_TE else torch.no_grad(), \
-            torch.inference_mode(), torch.autocast('cuda', dtype=self.dtype), \
-            warnings.catch_warnings():
-                warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
-                assert tokens.shape == position_ids.shape
-                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
-                output_tensor = self.model.forward(
-                    tokens=tokens.cuda(),
-                    text_position_ids=position_ids.cuda(),
-                    attention_mask=attention_mask.cuda(),
-                    labels=None,
-                )
+        with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
+            enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
+        ), torch.no_grad(), torch.inference_mode(), torch.autocast(
+            'cuda', dtype=self.dtype
+        ), warnings.catch_warnings() if self.fp8_enabled and HAVE_TE else torch.no_grad(), torch.inference_mode(), torch.autocast(
+            'cuda', dtype=self.dtype
+        ), warnings.catch_warnings():
+            warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
+            assert tokens.shape == position_ids.shape
+            assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+            output_tensor = self.model.forward(
+                tokens=tokens.cuda(),
+                text_position_ids=position_ids.cuda(),
+                attention_mask=attention_mask.cuda(),
+                labels=None,
+            )
 
         return output_tensor
 
@@ -165,6 +170,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     @property
     def output_names(self) -> List[str]:
         return ['log_probs']
+
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
