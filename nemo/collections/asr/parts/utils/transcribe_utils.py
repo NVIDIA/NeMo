@@ -360,11 +360,11 @@ def transcribe_partial_audio(
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
     augmentor: DictConfig = None,
+    decoder_type: Optional[str] = None,
 ) -> List[str]:
     """
-    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
-
-    assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
+    """
 
     if return_hypotheses and logprobs:
         raise ValueError(
@@ -382,6 +382,14 @@ def transcribe_partial_audio(
     dither_value = asr_model.preprocessor.featurizer.dither
     pad_to_value = asr_model.preprocessor.featurizer.pad_to
 
+    if hasattr(asr_model, 'change_decoding_strategy') and decoder_type is not None:  # Hybrid model
+        asr_model.change_decoding_strategy(decoder_type=decoder_type) 
+        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor if decoder_type == 'rnnt' else asr_model.decoding.ctc_decoder_predictions_tensor
+    elif hasattr(asr_model, 'joint'):  # RNNT model
+        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
+    else:  # CTC model
+        decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
+    
     try:
         asr_model.preprocessor.featurizer.dither = 0.0
         asr_model.preprocessor.featurizer.pad_to = 0
@@ -413,9 +421,12 @@ def transcribe_partial_audio(
                     lg = logits[idx][: logits_len[idx]]
                     hypotheses.append(lg.cpu().numpy())
             else:
-                current_hypotheses, all_hyp = asr_model.decoding.ctc_decoder_predictions_tensor(
-                    logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
+                current_hypotheses, all_hyp = decode_function(
+                    logits, logits_len, return_hypotheses=return_hypotheses,
                 )
+                
+                if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
+                    current_hypotheses = current_hypotheses[0]
 
                 if return_hypotheses:
                     # dump log probs per file
