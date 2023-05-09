@@ -22,8 +22,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
-    LoraQAdapterConfig,
     LoraKVAdapterConfig,
+    LoraQAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -114,7 +114,14 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         self.megatron_legacy = megatron_legacy
 
-        self.set_accepted_adapter_types([InfusedAdapterConfig._target_, LoraKQVAdapterConfig._target_, LoraQAdapterConfig._target_, LoraKVAdapterConfig._target_])
+        self.set_accepted_adapter_types(
+            [
+                InfusedAdapterConfig._target_,
+                LoraKQVAdapterConfig._target_,
+                LoraQAdapterConfig._target_,
+                LoraKVAdapterConfig._target_,
+            ]
+        )
 
         if kv_channels is None:
             assert (
@@ -382,7 +389,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
             # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-            (query_layer, key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_x_layer, 3)
+            (query_layer, key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
+                mixed_x_layer, 3, contiguous_split_chunks=True
+            )
         else:
             # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
             mixed_kv_layer, _ = self.key_value(encoder_output)
@@ -402,7 +411,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
             # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
+            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
+                mixed_kv_layer, 2, contiguous_split_chunks=True
+            )
 
             # Attention head [sq, b, h] --> [sq, b, hp]
             query_layer, _ = self.query(hidden_states)

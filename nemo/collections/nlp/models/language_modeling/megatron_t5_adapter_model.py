@@ -34,10 +34,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
+    InfusedAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKVAdapterConfig,
     LoraQAdapterConfig,
-    InfusedAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
@@ -421,6 +421,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
     def list_available_models(cls):
         pass
 
+
 class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
     """
     TODO  (@adithyare)
@@ -434,7 +435,11 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
         ), "The adapter dim should be divisible by tensor_model_parallel_size."
 
         encoder_adapter_name_keys = [AdapterName.LORA_KQV_ADAPTER]
-        decoder_adapter_name_keys = [AdapterName.LORA_KQV_ADAPTER, AdapterName.LORA_KV_ADAPTER, AdapterName.LORA_Q_ADAPTER]
+        decoder_adapter_name_keys = [
+            AdapterName.LORA_KQV_ADAPTER,
+            AdapterName.LORA_KV_ADAPTER,
+            AdapterName.LORA_Q_ADAPTER,
+        ]
         frozen_model_cfg = MegatronT5Model.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -489,7 +494,7 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
         else:
             kv_channels = component_cfg.kv_channels
         projection_size = kv_channels * component_cfg.num_attention_heads
-        
+
         if adapter_key == AdapterName.LORA_KQV_ADAPTER:
             adapter_cfg = LoraKQVAdapterConfig(
                 in_features=component_cfg.hidden_size,
@@ -531,12 +536,13 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
             )
         else:
             raise RuntimeError("Unexpected adapter key name..")
-    
+
         return adapter_cfg
 
     @classmethod
     def list_available_models(cls):
         pass
+
 
 class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
     """
