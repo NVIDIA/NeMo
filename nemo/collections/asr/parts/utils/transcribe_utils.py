@@ -14,6 +14,7 @@
 import glob
 import json
 import os
+import random
 import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
@@ -233,6 +234,10 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
                 filepaths.append(audio_file)
         partial_audio = all(has_two_fields)
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
+
+    # TODO: is it ok to add this here?
+    if cfg.get('max_samples') and cfg.max_samples < len(filepaths):
+        filepaths = random.sample(filepaths, cfg.max_samples)
 
     return filepaths, partial_audio
 

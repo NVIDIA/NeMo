@@ -1,0 +1,9 @@
+ensemble:
+  - model: stt_en_conformer_ctc_large
+    training_manifest: /mnt/datadrive/data/5lang-evals/voxpopuli/en/train/train.json
+    max_training_samples: 10
+  - model: stt_it_conformer_ctc_large
+    training_manifest: /mnt/datadrive/data/5lang-evals/voxpopuli/it/train/train.json
+    max_training_samples: 10
+
+output_path: confidence-ensemble.nemo
