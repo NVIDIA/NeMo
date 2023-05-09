@@ -1,4 +1,22 @@
 #!/usr/bin/env
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+Merge lora weights into a base GPT LM. Only PP=1 supported so far.
+"""
+
 
 import os
 from typing import Any, Dict
@@ -172,11 +190,13 @@ def main(cfg) -> None:
     model.load_state_dict(merged_weights)
 
     # Going to go through the motions of inference to force PTL to run subprocess for loading all base model's ranks.
-    ds = RequestDataSet(["Q: how are you?"])
+    input = "Context: In 2004, philosopher and psychologist Michel ter Hark (Groningen, The Netherlands) published a book, called Popper, Otto Selz and the rise of evolutionary epistemology, in which he claimed that Popper took some of his ideas from his tutor, the German psychologist Otto Selz. Selz never published his ideas, partly because of the rise of Nazism, which forced him to quit his work in 1933, and the prohibition of referring to Selz' work. Popper, the historian of ideas and his scholarship, is criticised in some academic quarters for his rejection of Plato, Hegel and Marx. Question: Who claimed Otto Selz deserved credit for ideas published by Popper? Answer:"
+    ds = RequestDataSet([input])
     request_dl = DataLoader(dataset=ds, batch_size=1)
     config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
+    print(response)
 
     model.save_to(cfg.merged_model_path)
     logging.info(f"saved merged model to {cfg.merged_model_path}")
