@@ -152,7 +152,7 @@ def twod_interpolate_position_embeddings_hook(
             input_param_tok = input_param[:class_token_length, :]
             input_param_grid = input_param[class_token_length:, :]
         else:
-            input_param_tok = torch.zeros(class_token_length, hidden_size)
+            input_param_tok = torch.zeros(class_token_length, hidden_size, device=input_param.device)
             input_param_grid = input_param
 
         assert input_param.shape[1] == hidden_size
