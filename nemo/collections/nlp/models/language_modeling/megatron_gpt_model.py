@@ -551,7 +551,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
 
         if not isinstance(self.model, list) or len(self.model) == 1:
-            return DataIteratorList([data_iterator])
+            return [data_iterator]
 
         class CachingIterator:
             """Iterator wrapper that caches values"""
