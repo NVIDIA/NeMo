@@ -550,6 +550,8 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
                         logits, logits_len = outputs[0], outputs[1]
 
                         current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=False,)
+                        if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
+                            current_hypotheses = current_hypotheses[0]  # handle RNNT output
 
                         hypotheses += current_hypotheses
                         if all_hyp is not None:
