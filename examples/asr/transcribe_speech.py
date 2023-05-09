@@ -268,7 +268,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    # prepare audio filepaths and decide wether it's partical audio
+    # prepare audio filepaths and decide wether it's partial audio
     filepaths, partial_audio = prepare_audio_data(cfg)
 
     # setup AMP (optional)
