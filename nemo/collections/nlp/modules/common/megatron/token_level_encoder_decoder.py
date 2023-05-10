@@ -143,6 +143,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
+        if precision == 'bf16':
+            self.dtype = torch.bfloat16
+        elif int(precision) == 16:
+            self.dtype = torch.float16
+        elif int(precision) == 32:
+            self.dtype = torch.float32
+        else:
+            raise ValueError
+
         encoder, decoder = None, None
         if add_encoder:
             if pre_process:
@@ -393,6 +402,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     gather_output=not self.parallel_output,
                     init_method=init_method_normal(decoder_cfg.init_method_std),
                     use_cpu_initialization=use_cpu_initialization,
+                    params_dtype=self.dtype,
                 )
 
             self._tokens_head_key = 'tokens_head'

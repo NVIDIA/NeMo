@@ -114,6 +114,15 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         self.set_accepted_adapter_types([InfusedAdapterConfig._target_, LoraKQVAdapterConfig._target_])
 
+        if precision == 'bf16':
+            self.dtype = torch.bfloat16
+        elif int(precision) == 16:
+            self.dtype = torch.float16
+        elif int(precision) == 32:
+            self.dtype = torch.float32
+        else:
+            raise ValueError
+
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -141,6 +150,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 gather_output=False,
                 init_method=init_method,
                 use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -153,6 +163,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 projection_size,
                 gather_output=False,
                 init_method=init_method,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -164,6 +176,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 2 * projection_size,
                 gather_output=False,
                 init_method=init_method,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -194,6 +208,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            params_dtype=self.dtype,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,

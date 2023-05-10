@@ -178,6 +178,15 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.position_embedding_type = position_embedding_type
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
+        if precision == 'bf16':
+            self.dtype = torch.bfloat16
+        elif int(precision) == 16:
+            self.dtype = torch.float16
+        elif int(precision) == 32:
+            self.dtype = torch.float32
+        else:
+            raise ValueError
+
         if not bias and bias_dropout_add_fusion:
             raise ValueError(
                 'bias_dropout_add_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
@@ -381,6 +390,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 use_cpu_initialization=use_cpu_initialization,
+                dtype=self.dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
@@ -401,6 +411,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 use_cpu_initialization=use_cpu_initialization,
+                dtype=self.dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
@@ -701,15 +712,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
         )
-
-        if precision == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(precision) == 16:
-            self.dtype = torch.float16
-        elif int(precision) == 32:
-            self.dtype = torch.float32
-        else:
-            raise ValueError
 
     def forward(
         self,

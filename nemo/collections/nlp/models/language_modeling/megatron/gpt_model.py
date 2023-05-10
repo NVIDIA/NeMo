@@ -172,6 +172,15 @@ class GPTModel(MegatronModule):
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
 
+        if precision == 'bf16':
+            self.dtype = torch.bfloat16
+        elif int(precision) == 16:
+            self.dtype = torch.float16
+        elif int(precision) == 32:
+            self.dtype = torch.float32
+        else:
+            raise ValueError
+
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -243,7 +252,10 @@ class GPTModel(MegatronModule):
 
         if self.share_embeddings_and_output_weights:
             self.initialize_word_embeddings(
-                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+                init_method=init_method_normal(init_method_std),
+                vocab_size=vocab_size,
+                hidden_size=hidden_size,
+                param_dtype=self.dtype,
             )
 
     def set_input_tensor(self, input_tensor):
