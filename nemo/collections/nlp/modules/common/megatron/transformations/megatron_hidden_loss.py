@@ -28,10 +28,12 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
     Returned dict includes a loss value and additional outputs.
     """
 
-    def __init__(self, name="", loss_weight=1.0):
+    def __init__(self, name="", loss_weight=1.0, scale_loss_by_hidden_size=False):
         # allows to name the loss
         self.name = name
         self.loss_weight = float(loss_weight)
+        # whether to scale loss by 1 / hidden size
+        self.scale_loss_by_hidden_size = scale_loss_by_hidden_size
 
     def _validate_inputs(self, inputs):
         """Validate inputs"""
@@ -71,8 +73,12 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
     A-MIM - asymmetric MIM (without sampling)
     """
 
-    def __init__(self, name="mim", loss_weight=1.0):
-        super().__init__(name=name, loss_weight=loss_weight)
+    def __init__(self, name="mim", loss_weight=1.0, scale_loss_by_hidden_size=False):
+        super().__init__(
+            name=name, 
+            loss_weight=loss_weight,
+            scale_loss_by_hidden_size=scale_loss_by_hidden_size,
+            )
 
     @property
     def input_names(self):
@@ -102,8 +108,12 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
     Implements VAE loss with a unit Normal anchor.
     """
 
-    def __init__(self, name="vae", loss_weight=1.0, min_kl_value=None):
-        super().__init__(name=name, loss_weight=loss_weight)
+    def __init__(self, name="vae", loss_weight=1.0, min_kl_value=None, scale_loss_by_hidden_size=False):
+        super().__init__(
+            name=name, 
+            loss_weight=loss_weight,
+            scale_loss_by_hidden_size=scale_loss_by_hidden_size,
+            )
 
         # minimum value for KL divergence
         if min_kl_value is None:
