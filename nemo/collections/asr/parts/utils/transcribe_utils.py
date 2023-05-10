@@ -276,7 +276,7 @@ def write_transcription(
     filepaths: List[str] = None,
     compute_langs: bool = False,
     compute_timestamps: bool = False,
-) -> str:
+) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
@@ -325,7 +325,7 @@ def write_transcription(
                     item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
-            with open(cfg.dataset_manifest, 'r', encoding='utf_8') as fr:
+            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item[pred_text_attr_name] = best_hyps[idx].text
@@ -348,7 +348,7 @@ def write_transcription(
                         item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename
+    return cfg.output_filename, pred_text_attr_name
 
 
 def transcribe_partial_audio(
@@ -460,7 +460,7 @@ class PunctuationCapitalization:
     def separate_punctuation(self, lines: List[str]) -> List[str]:
         if self.regex_punctuation is not None:
             return [
-                self.regex_extra_space.sub('', self.regex_punctuation.sub(r' \1 ', line)).strip() for line in lines
+                self.regex_extra_space.sub(' ', self.regex_punctuation.sub(r' \1 ', line)).strip() for line in lines
             ]
         else:
             return lines
@@ -470,7 +470,7 @@ class PunctuationCapitalization:
 
     def rm_punctuation(self, lines: List[str]) -> List[str]:
         if self.regex_punctuation is not None:
-            return [self.regex_extra_space.sub('', self.regex_punctuation.sub(' ', line)).strip() for line in lines]
+            return [self.regex_extra_space.sub(' ', self.regex_punctuation.sub(' ', line)).strip() for line in lines]
         else:
             return lines
 

@@ -34,7 +34,9 @@ python speech_to_text_buffered_infer_rnnt.py \
     total_buffer_in_secs=4.0 \
     chunk_len_in_secs=1.6 \
     model_stride=4 \
-    batch_size=32
+    batch_size=32 \
+    clean_groundtruth_text=True \
+    langid='en'
 
 # Longer Common Subsequence (LCS) Merge algorithm
 
@@ -67,6 +69,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import (
     BatchedFrameASRRNNT,
     LongestCommonSubsequenceBatchedFrameASRRNNT,
@@ -126,6 +129,12 @@ class TranscriptionConfig:
     # Merge algorithm for transducers
     merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
     lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
+
+    # Config for word / character error rate calculation
+    calculate_wer: bool = True
+    clean_groundtruth_text: bool = False
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    use_cer: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -224,6 +233,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with open_dict(cfg):
         cfg.decoding = decoding_cfg
 
+    with open_dict(cfg):
+        cfg.decoding = decoding_cfg
+
     feature_stride = model_cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * cfg.model_stride
     total_buffer = cfg.total_buffer_in_secs
@@ -269,10 +281,23 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         filepaths=filepaths,
     )
 
-    output_filename = write_transcription(
+    output_filename, pred_text_attr_name = write_transcription(
         hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
+
+    if cfg.calculate_wer:
+        output_manifest_w_wer, total_res, _ = cal_write_wer(
+            pred_manifest=output_filename,
+            pred_text_attr_name=pred_text_attr_name,
+            clean_groundtruth_text=cfg.clean_groundtruth_text,
+            langid=cfg.langid,
+            use_cer=cfg.use_cer,
+            output_filename=None,
+        )
+        if output_manifest_w_wer:
+            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(f"{total_res}")
 
     return cfg
 

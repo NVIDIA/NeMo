@@ -346,7 +346,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
             enable_autocast=True,
         )
@@ -440,7 +440,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        # (@adithyare) we need to check for the _scaler attribute to enable pp>1 for adapter training
+        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
@@ -628,7 +629,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -664,8 +666,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.eval()
 
-        return self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.train()
+
+        return loss
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
