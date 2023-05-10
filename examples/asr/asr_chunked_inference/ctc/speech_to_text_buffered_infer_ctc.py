@@ -198,10 +198,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
 
-            if 'cur_decoder' in asr_model: # hybrid model with ctc decoding or potential other models containing decoding switch feature
+            if (
+                'cur_decoder' in asr_model
+            ):  # hybrid model with ctc decoding or potential other models containing decoding switch feature
                 asr_model.change_decoding_strategy(cfg.decoding, decoder_type='ctc')
 
-            else: #ctc model
+            else:  # ctc model
                 asr_model.change_decoding_strategy(cfg.decoding)
 
     asr_model.eval()
