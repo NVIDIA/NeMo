@@ -885,7 +885,7 @@ Hybrid ASR-TTS Model Configuration
 
 :ref:`Hybrid ASR-TTS model <Hybrid-ASR-TTS_model>` consists of three parts:
 
-* ASR model (``EncDecCTCModelBPE`` or ``EncDecRNNTBPEModel``)
+* ASR model (``EncDecCTCModelBPE``, ``EncDecRNNTBPEModel`` or ``EncDecHybridRNNTCTCBPEModel``)
 * TTS Mel Spectrogram Generator (currently, only :ref:`FastPitch <FastPitch_model>` model is supported)
 * Enhancer model (optional)
 
@@ -895,7 +895,7 @@ Main parts of the config:
 
 * ASR model
     * ``asr_model_path``: path to the ASR model checkpoint (`.nemo`) file, loaded only once, then the config of the ASR model is stored in the ``asr_model`` field
-    * ``asr_model_type``: needed only when training from scratch, ``rnnt_bpe`` corresponds to ``EncDecRNNTBPEModel``, ``ctc_bpe`` to ``EncDecCTCModelBPE``
+    * ``asr_model_type``: needed only when training from scratch. ``rnnt_bpe`` corresponds to ``EncDecRNNTBPEModel``, ``ctc_bpe`` to ``EncDecCTCModelBPE``, ``hybrid_rnnt_ctc_bpe`` to ``EncDecHybridRNNTCTCBPEModel``
     * ``asr_model_fuse_bn``: fusing BatchNorm in the pretrained ASR model, can improve quality in finetuning scenario
 * TTS model
     * ``tts_model_path``: path to the pretrained TTS model checkpoint (`.nemo`) file, loaded only once, then the config of the model is stored in the ``tts_model`` field
