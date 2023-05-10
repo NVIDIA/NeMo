@@ -116,6 +116,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         post_process=True,
         fp16_cross_entropy=False,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         precision=16,
         embedding_init_method_std=0.02,
         embedding_dropout=0.1,
@@ -144,7 +145,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
-        self.dtype = utils.dtype_from_precision(precision)
+        self.dtype = utils.dtype_from_precision(precision, megatron_amp_O2)
 
         encoder, decoder = None, None
         if add_encoder:
@@ -213,6 +214,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 post_process=post_process,
                 init_method_std=encoder_cfg.get('init_method_std', 0.02),
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=encoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=encoder_cfg.get('attention_dropout', 0.1),
                 ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
@@ -343,6 +345,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 post_process=post_process,
                 init_method_std=decoder_cfg.get('init_method_std', 0.02),
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=decoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=decoder_cfg.get('attention_dropout', 0.1),
                 ffn_dropout=decoder_cfg.get('ffn_dropout', 0.0),

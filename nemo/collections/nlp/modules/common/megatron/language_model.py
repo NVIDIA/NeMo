@@ -75,6 +75,7 @@ def get_language_model(
     post_process=True,
     init_method_std=0.02,
     use_cpu_initialization=False,
+    megatron_amp_O2=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
     ffn_dropout=0.0,
@@ -150,6 +151,7 @@ def get_language_model(
         pre_process=pre_process,
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
+        megatron_amp_O2=megatron_amp_O2,
         hidden_dropout=hidden_dropout,
         attention_dropout=attention_dropout,
         ffn_dropout=ffn_dropout,
@@ -253,6 +255,7 @@ class Embedding(MegatronModule):
         init_method,
         num_tokentypes=0,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         dtype=torch.float32,
         fp32_residual_connection=False,
         sequence_parallel=False,
@@ -454,6 +457,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
@@ -513,7 +517,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
-        self.dtype = utils.dtype_from_precision(precision)
+        self.dtype = utils.dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
 
@@ -531,6 +535,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 init_method=self.init_method,
                 num_tokentypes=self.num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 embedding_dropout_prob=self.hidden_dropout,
                 sequence_parallel=sequence_parallel,
                 position_embedding_type=position_embedding_type,
@@ -569,6 +574,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
@@ -623,6 +629,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,

@@ -16,7 +16,7 @@ __all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix', 'get_classificati
 
 import os
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 
 import numpy as np
 import torch
@@ -27,7 +27,10 @@ from torch import Tensor
 from nemo.utils import logging
 
 
-def dtype_from_precision(precision: Union[int, str]) -> torch.dtype:
+def dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool]) -> torch.dtype:
+    if megatron_amp_O2 is not None and megatron_amp_O2 is False:
+        return torch.float32
+
     if precision == 'bf16':
         return torch.bfloat16
     elif int(precision) == 16:

@@ -147,10 +147,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
 
-        else:
-            # If 02 is not enabled, force all parameters to fp32
-            self.to(dtype=torch.float32)
-
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
         elif int(self.trainer.precision) == 32:
@@ -208,6 +204,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
+            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
             ffn_dropout=self.cfg.get('ffn_dropout', 0.0),

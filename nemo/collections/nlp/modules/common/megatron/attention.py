@@ -89,6 +89,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         layer_type=None,
@@ -112,7 +113,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.multi_query_attention = multi_query_attention
 
         self.megatron_legacy = megatron_legacy
-        self.dtype = utils.dtype_from_precision(precision)
+        self.dtype = utils.dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types([InfusedAdapterConfig._target_, LoraKQVAdapterConfig._target_])
 
@@ -519,6 +520,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
@@ -541,6 +543,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
