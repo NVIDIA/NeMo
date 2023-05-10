@@ -16,16 +16,11 @@ import pickle
 import time
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
 from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.multimodal.models.stable_diffusion.samplers.sampler_dpm import DPMSolverSampler
 
 
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
@@ -42,8 +37,10 @@ def initialize_sampler(model, sampler_type):
         sampler = DDIMSampler(model)
     elif sampler_type == 'PLMS':
         sampler = PLMSSampler(model)
+    elif sampler_type == 'DPM':
+        sampler = DPMSolverSampler(model)
     else:
-        raise ValueError(f'Sampler {sampler_type} is not supported for {cls.__name__}')
+        raise ValueError(f'Sampler {sampler_type} is not supported.')
     return sampler
 
 

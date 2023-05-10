@@ -13,4 +13,4 @@
 # limitations under the License.
 from enum import Enum
 
-Sampler = Enum('Sampler', ['PLMS', 'DDIM'])
+Sampler = Enum('Sampler', ['PLMS', 'DDIM', 'DPM'])

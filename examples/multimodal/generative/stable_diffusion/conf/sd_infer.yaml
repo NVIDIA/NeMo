@@ -6,8 +6,8 @@ infer:
   height: 512
   width: 512
   down_factor: 8
-  inference_steps: 50
-  sampler_type: 'PLMS'
+  inference_steps: 25
+  sampler_type: 'DPM'
   eta: 0
   output_type: 'pil'
   save_to_file: True

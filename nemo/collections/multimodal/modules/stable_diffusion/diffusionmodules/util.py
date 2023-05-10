@@ -22,7 +22,6 @@
 
 
 import math
-import os
 
 import numpy as np
 import torch
@@ -53,10 +52,10 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
 
 
 def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
-    if ddim_discr_method == 'uniform':
+    if ddim_discr_method == "uniform":
         c = num_ddpm_timesteps // num_ddim_timesteps
         ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
-    elif ddim_discr_method == 'quad':
+    elif ddim_discr_method == "quad":
         ddim_timesteps = ((np.linspace(0, np.sqrt(num_ddpm_timesteps * 0.8), num_ddim_timesteps)) ** 2).astype(int)
     else:
         raise NotImplementedError(f'There is no ddim discretization method called "{ddim_discr_method}"')
@@ -65,7 +64,7 @@ def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timestep
     # add one to get the final alpha values right (the ones from first scale to data during sampling)
     steps_out = ddim_timesteps + 1
     if verbose:
-        print(f'Selected timesteps for ddim sampler: {steps_out}')
+        print(f"Selected timesteps for ddim sampler: {steps_out}")
     return steps_out
 
 
@@ -77,10 +76,10 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     # according the the formula provided in https://arxiv.org/abs/2010.02502
     sigmas = eta * np.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
     if verbose:
-        print(f'Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}')
+        print(f"Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}")
         print(
-            f'For the chosen value of eta, which is {eta}, '
-            f'this results in the following sigma_t schedule for ddim sampler {sigmas}'
+            f"For the chosen value of eta, which is {eta}, "
+            f"this results in the following sigma_t schedule for ddim sampler {sigmas}"
         )
     return sigmas, alphas, alphas_prev
 
@@ -181,7 +180,7 @@ def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, use_
         if dim % 2:
             embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
     else:
-        embedding = repeat(timesteps, 'b -> b d', d=dim)
+        embedding = repeat(timesteps, "b -> b d", d=dim)
     if use_fp16:
         return embedding.half()
     else:
@@ -270,3 +269,39 @@ def noise_like(shape, device, repeat=False):
     repeat_noise = lambda: torch.randn((1, *shape[1:]), device=device).repeat(shape[0], *((1,) * (len(shape) - 1)))
     noise = lambda: torch.randn(shape, device=device)
     return repeat_noise() if repeat else noise()
+
+
+def interpolate_fn(x, xp, yp):
+    """
+    A piecewise linear function y = f(x), using xp and yp as keypoints.
+    """
+    N, K = x.shape[0], xp.shape[1]
+    all_x = torch.cat([x.unsqueeze(2), xp.unsqueeze(0).repeat((N, 1, 1))], dim=2)
+    sorted_all_x, x_indices = torch.sort(all_x, dim=2)
+    x_idx = torch.argmin(x_indices, dim=2)
+    cand_start_idx = x_idx - 1
+    start_idx = torch.where(
+        torch.eq(x_idx, 0),
+        torch.tensor(1, device=x.device),
+        torch.where(torch.eq(x_idx, K), torch.tensor(K - 2, device=x.device), cand_start_idx,),
+    )
+    end_idx = torch.where(torch.eq(start_idx, cand_start_idx), start_idx + 2, start_idx + 1)
+    start_x = torch.gather(sorted_all_x, dim=2, index=start_idx.unsqueeze(2)).squeeze(2)
+    end_x = torch.gather(sorted_all_x, dim=2, index=end_idx.unsqueeze(2)).squeeze(2)
+    start_idx2 = torch.where(
+        torch.eq(x_idx, 0),
+        torch.tensor(0, device=x.device),
+        torch.where(torch.eq(x_idx, K), torch.tensor(K - 2, device=x.device), cand_start_idx,),
+    )
+    y_positions_expanded = yp.unsqueeze(0).expand(N, -1, -1)
+    start_y = torch.gather(y_positions_expanded, dim=2, index=start_idx2.unsqueeze(2)).squeeze(2)
+    end_y = torch.gather(y_positions_expanded, dim=2, index=(start_idx2 + 1).unsqueeze(2)).squeeze(2)
+    cand = start_y + (x - start_x) * (end_y - start_y) / (end_x - start_x)
+    return cand
+
+
+def expand_dims(v, dims):
+    """
+    Expand the tensor `v` to the dim `dims`.
+    """
+    return v[(...,) + (None,) * (dims - 1)]

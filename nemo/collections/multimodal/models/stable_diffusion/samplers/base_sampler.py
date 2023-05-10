@@ -48,34 +48,41 @@ class AbstractBaseSampler(ABC):
             verbose=verbose,
         )
         alphas_cumprod = self.model.alphas_cumprod
-        assert alphas_cumprod.shape[0] == self.ddpm_num_timesteps, 'alphas have to be defined for each timestep'
+        assert alphas_cumprod.shape[0] == self.ddpm_num_timesteps, "alphas have to be defined for each timestep"
         to_torch = lambda x: x.clone().detach().to(torch.float32).to(torch.cuda.current_device())
-        self.register_buffer('betas', to_torch(self.model.betas))
-        self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
-        self.register_buffer('alphas_cumprod_prev', to_torch(self.model.alphas_cumprod_prev))
+        self.register_buffer("betas", to_torch(self.model.betas))
+        self.register_buffer("alphas_cumprod", to_torch(alphas_cumprod))
+        self.register_buffer("alphas_cumprod_prev", to_torch(self.model.alphas_cumprod_prev))
         # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod.cpu())))
-        self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1.0 - alphas_cumprod.cpu())))
-        self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1.0 - alphas_cumprod.cpu())))
-        self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1.0 / alphas_cumprod.cpu())))
-        self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1.0 / alphas_cumprod.cpu() - 1)))
+        self.register_buffer("sqrt_alphas_cumprod", to_torch(np.sqrt(alphas_cumprod.cpu())))
+        self.register_buffer(
+            "sqrt_one_minus_alphas_cumprod", to_torch(np.sqrt(1.0 - alphas_cumprod.cpu())),
+        )
+        self.register_buffer("log_one_minus_alphas_cumprod", to_torch(np.log(1.0 - alphas_cumprod.cpu())))
+        self.register_buffer("sqrt_recip_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod.cpu())))
+        self.register_buffer(
+            "sqrt_recipm1_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod.cpu() - 1)),
+        )
         # ddim sampling parameters
         ddim_sigmas, ddim_alphas, ddim_alphas_prev = make_ddim_sampling_parameters(
-            alphacums=alphas_cumprod.cpu(), ddim_timesteps=self.ddim_timesteps, eta=ddim_eta, verbose=verbose
+            alphacums=alphas_cumprod.cpu(), ddim_timesteps=self.ddim_timesteps, eta=ddim_eta, verbose=verbose,
         )
-        self.register_buffer('ddim_sigmas', ddim_sigmas)
-        self.register_buffer('ddim_alphas', ddim_alphas)
-        self.register_buffer('ddim_alphas_prev', ddim_alphas_prev)
-        self.register_buffer('ddim_sqrt_one_minus_alphas', np.sqrt(1.0 - ddim_alphas))
+        self.register_buffer("ddim_sigmas", ddim_sigmas)
+        self.register_buffer("ddim_alphas", ddim_alphas)
+        self.register_buffer("ddim_alphas_prev", ddim_alphas_prev)
+        self.register_buffer("ddim_sqrt_one_minus_alphas", np.sqrt(1.0 - ddim_alphas))
         sigmas_for_original_sampling_steps = ddim_eta * torch.sqrt(
             (1 - self.alphas_cumprod_prev)
             / (1 - self.alphas_cumprod)
             * (1 - self.alphas_cumprod / self.alphas_cumprod_prev)
         )
-        self.register_buffer('ddim_sigmas_for_original_num_steps', sigmas_for_original_sampling_steps)
+        self.register_buffer("ddim_sigmas_for_original_num_steps", sigmas_for_original_sampling_steps)
 
     @abstractmethod
     def p_sampling_fn(self):
+        pass
+
+    def dpm_sampling_fn(self):
         pass
 
     @torch.no_grad()
@@ -116,7 +123,18 @@ class AbstractBaseSampler(ABC):
         # sampling
         C, H, W = shape
         size = (batch_size, C, H, W)
-        print(f'Data shape for sampling is {size}, eta {eta}')
+        print(f"Data shape for sampling is {size}, eta {eta}")
+
+        if self.sampler is Sampler.DPM:
+            return self.dpm_sampling_fn(
+                shape=shape,
+                steps=S,
+                conditioning=conditioning,
+                unconditional_conditioning=unconditional_conditioning,
+                unconditional_guidance_scale=unconditional_guidance_scale,
+                x_T=x_T,
+            )
+
         samples, intermediates = self.sampling_fn(
             conditioning,
             size,
@@ -164,12 +182,14 @@ class AbstractBaseSampler(ABC):
             img = torch.randn(shape, generator=self.model.rng, device=device)
         else:
             img = x_T
+
         if timesteps is None:
             timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
         elif timesteps is not None and not ddim_use_original_steps:
             subset_end = int(min(timesteps / self.ddim_timesteps.shape[0], 1) * self.ddim_timesteps.shape[0]) - 1
             timesteps = self.ddim_timesteps[:subset_end]
-        intermediates = {'x_inter': [img], 'pred_x0': [img]}
+        intermediates = {"x_inter": [img], "pred_x0": [img]}
+
         # TODO: Is this needed
         if self.sampler is Sampler.PLMS:
             time_range = list(reversed(range(0, timesteps))) if ddim_use_original_steps else np.flip(timesteps)
@@ -177,14 +197,14 @@ class AbstractBaseSampler(ABC):
             time_range = reversed(range(0, timesteps)) if ddim_use_original_steps else np.flip(timesteps)
         total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
         print(f"Running {self.sampler.name} Sampling with {total_steps} timesteps")
-        iterator = tqdm(time_range, desc=f'{self.sampler.name} Sampler', total=total_steps)
+        iterator = tqdm(time_range, desc=f"{self.sampler.name} Sampler", total=total_steps)
         old_eps = []
         for i, step in enumerate(iterator):
             index = total_steps - i - 1
             ts = torch.full((b,), step, device=device, dtype=torch.long)
             if self.sampler is Sampler.PLMS:
                 ts_next = torch.full(
-                    (b,), time_range[min(i + 1, len(time_range) - 1)], device=device, dtype=torch.long
+                    (b,), time_range[min(i + 1, len(time_range) - 1)], device=device, dtype=torch.long,
                 )
             else:
                 old_eps = None
@@ -220,12 +240,12 @@ class AbstractBaseSampler(ABC):
             if img_callback:
                 img_callback(pred_x0, i)
             if index % log_every_t == 0 or index == total_steps - 1:
-                intermediates['x_inter'].append(img)
-                intermediates['pred_x0'].append(pred_x0)
+                intermediates["x_inter"].append(img)
+                intermediates["pred_x0"].append(pred_x0)
         return img, intermediates
 
     def _get_model_output(
-        self, x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
+        self, x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs,
     ):
         if unconditional_conditioning is None or unconditional_guidance_scale == 1.0:
             e_t = self.model.apply_model(x, t, c)
@@ -243,7 +263,17 @@ class AbstractBaseSampler(ABC):
         return e_t
 
     def _get_x_prev_and_pred_x0(
-        self, use_original_steps, b, index, device, x, e_t, quantize_denoised, repeat_noise, temperature, noise_dropout
+        self,
+        use_original_steps,
+        b,
+        index,
+        device,
+        x,
+        e_t,
+        quantize_denoised,
+        repeat_noise,
+        temperature,
+        noise_dropout,
     ):
         alphas = self.model.alphas_cumprod if use_original_steps else self.ddim_alphas
         alphas_prev = self.model.alphas_cumprod_prev if use_original_steps else self.ddim_alphas_prev
