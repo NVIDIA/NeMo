@@ -153,6 +153,7 @@ class RequestDataSet(Dataset):
     def __getitem__(self, idx):
         return self.sentences[idx]
 
+
 def remove_padded_prompts(response, nb_paddings):
     result = {}
     for k, v in response.items():
@@ -160,6 +161,7 @@ def remove_padded_prompts(response, nb_paddings):
             v = v[:-nb_paddings]
         result[k] = v
     return result
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
