@@ -75,10 +75,8 @@ class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
 
     def __init__(self, name="mim", loss_weight=1.0, scale_loss_by_hidden_size=False):
         super().__init__(
-            name=name, 
-            loss_weight=loss_weight,
-            scale_loss_by_hidden_size=scale_loss_by_hidden_size,
-            )
+            name=name, loss_weight=loss_weight, scale_loss_by_hidden_size=scale_loss_by_hidden_size,
+        )
 
     @property
     def input_names(self):
@@ -110,10 +108,8 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
 
     def __init__(self, name="vae", loss_weight=1.0, min_kl_value=None, scale_loss_by_hidden_size=False):
         super().__init__(
-            name=name, 
-            loss_weight=loss_weight,
-            scale_loss_by_hidden_size=scale_loss_by_hidden_size,
-            )
+            name=name, loss_weight=loss_weight, scale_loss_by_hidden_size=scale_loss_by_hidden_size,
+        )
 
         # minimum value for KL divergence
         if min_kl_value is None:
