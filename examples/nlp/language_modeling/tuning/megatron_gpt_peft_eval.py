@@ -22,12 +22,7 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
-    MegatronGPTAdapterModel,
-    MegatronGPTAdapterPTuningModel,
-    MegatronGPTIA3Model,
-    MegatronGPTLoRAModel,
     MegatronGPTPEFTModel,
-    MegatronGPTPTuningModel,
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -63,22 +58,6 @@ Usage:
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
             trainer.max_epochs=2
 """
-
-
-def _get_peft_scheme(cfg):
-    if cfg.peft.peft_scheme == "adapter":
-        peft_cls = MegatronGPTAdapterModel
-    elif cfg.peft.peft_scheme == "ia3":
-        peft_cls = MegatronGPTIA3Model
-    elif cfg.peft.peft_scheme == "ptuning":
-        peft_cls = MegatronGPTPTuningModel
-    elif cfg.peft.peft_scheme == "adapter_and_ptuning":
-        peft_cls = MegatronGPTAdapterPTuningModel
-    elif cfg.peft.peft_scheme == "lora":
-        peft_cls = MegatronGPTLoRAModel
-    else:
-        raise RuntimeError("Invalid Peft scheme")
-    return peft_cls
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
