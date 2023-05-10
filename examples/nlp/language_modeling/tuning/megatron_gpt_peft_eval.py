@@ -125,6 +125,8 @@ def main(cfg) -> None:
         # update the model config of the trained model with params we want to set at inference time.
         peft_model_cfg.precision = cfg.trainer.precision
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
+        peft_model_cfg.activations_checkpoint_granularity = None
+        peft_model_cfg.activations_checkpoint_method = None
 
     with open_dict(cfg):
         # update the config with the trained model config
@@ -137,8 +139,7 @@ def main(cfg) -> None:
     )
     if os.path.isdir(peft_model_cfg.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    peft_cls = _get_peft_scheme(peft_model_cfg)
-    model = peft_cls.restore_from(
+    model = NLPModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=peft_model_cfg,
