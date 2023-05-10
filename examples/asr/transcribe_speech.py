@@ -25,6 +25,7 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -47,7 +48,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
 
   compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)
-  
+
   (Optionally: You can limit the type of timestamp computations using below overrides)
   ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
   rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
@@ -60,14 +61,19 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
-  allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available 
+  allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
   overwrite_transcripts: Bool which when set allows repeated transcriptions to overwrite previous results.
-  
+
   ctc_decoding: Decoding sub-config for CTC. Refer to documentation for specific values.
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
+
+  calculate_wer: Bool to decide whether to calculate wer/cer at end of this script
+  clean_groundtruth_text: Bool to clean groundtruth text
+  langid: Str used for convert_num_to_words during groundtruth cleaning
+  use_cer: Bool to use Character Error Rate (CER)  or Word Error Rate (WER)
 
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
@@ -82,6 +88,8 @@ python transcribe_speech.py \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
+    clean_groundtruth_text=True \
+    langid='en' \
     batch_size=32 \
     compute_timestamps=False \
     compute_langs=False \
@@ -149,6 +157,12 @@ class TranscriptionConfig:
     # Use this for model-specific changes before transcription
     model_change: ModelChangeConfig = ModelChangeConfig()
 
+    # Config for word / character error rate calculation
+    calculate_wer: bool = True
+    clean_groundtruth_text: bool = False
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    use_cer: bool = False
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -209,7 +223,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # collect additional transcription information
     return_hypotheses = True
 
-    # we will adjust this flag is the model does not support it
+    # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
 
@@ -254,7 +268,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    # prepare audio filepaths and decide wether it's partical audio
+    # prepare audio filepaths and decide wether it's partial audio
     filepaths, partial_audio = prepare_audio_data(cfg)
 
     # setup AMP (optional)
@@ -322,7 +336,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         transcriptions = transcriptions[0]
 
     # write audio transcriptions
-    output_filename = write_transcription(
+    output_filename, pred_text_attr_name = write_transcription(
         transcriptions,
         cfg,
         model_name,
@@ -331,6 +345,19 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         compute_timestamps=compute_timestamps,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
+
+    if cfg.calculate_wer:
+        output_manifest_w_wer, total_res, _ = cal_write_wer(
+            pred_manifest=output_filename,
+            pred_text_attr_name=pred_text_attr_name,
+            clean_groundtruth_text=cfg.clean_groundtruth_text,
+            langid=cfg.langid,
+            use_cer=cfg.use_cer,
+            output_filename=None,
+        )
+        if output_manifest_w_wer:
+            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(f"{total_res}")
 
     return cfg
 
