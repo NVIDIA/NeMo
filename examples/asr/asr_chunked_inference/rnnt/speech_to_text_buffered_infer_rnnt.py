@@ -111,7 +111,7 @@ class TranscriptionConfig:
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models",
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -218,9 +218,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         if not isinstance(asr_model, EncDecRNNTModel) and not isinstance(asr_model, EncDecHybridRNNTCTCModel):
-            raise ValueError(
-                "The script supports rnnt model and hybrid model with rnnt decodng! use ctc/speech_to_text_buffered_infer_ctc.py for other conditions."
-            )
+            raise ValueError("The script supports rnnt model and hybrid model with rnnt decodng!")
         else:
             # rnnt model
             if isinstance(asr_model, EncDecRNNTModel):
