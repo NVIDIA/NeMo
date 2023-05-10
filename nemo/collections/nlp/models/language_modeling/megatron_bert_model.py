@@ -204,7 +204,6 @@ class MegatronBertModel(MegatronBaseModel):
                 )
             else:
                 batch = next(dataloader_iter)
-                print(f"rank {self.local_rank} {batch['text'].shape}")
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
@@ -309,7 +308,6 @@ class MegatronBertModel(MegatronBaseModel):
         if self.cfg.data.dataloader_type == "LDDL":
             #this is of type bert dataset
             seq_length = dataloader_iter.iterator.loaders.get_seqlen()
-            print(f"seqlen {seq_len}")
             tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -507,7 +505,6 @@ class MegatronBertModel(MegatronBaseModel):
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
         global_batch_size_on_this_data_parallel_rank = num_micro_batches * self.cfg.micro_batch_size
-        print(f"global batch size {global_batch_size_on_this_data_parallel_rank}")
         samples_consumed_dploader = self.compute_consumed_samples(0) // data_parallel_size
         # We run under the assumption that the datapath is the prefix if LDDL dataloader
         train_lddl_data_path = self.cfg.data.data_prefix[0]
@@ -519,7 +516,7 @@ class MegatronBertModel(MegatronBaseModel):
             shuffle_buffer_warmup_factor=16,
             vocab_file=self.cfg.tokenizer.vocab_file,
             data_loader_kwargs={
-                'batch_size': self.cfg.micro_batch_size,
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
                 'num_workers': self.cfg.data.num_workers,
                 'prefetch_factor': 2,
             },
@@ -532,7 +529,7 @@ class MegatronBertModel(MegatronBaseModel):
             sequence_length_alignment=8,
             ignore_index=-1,
             samples_seen = samples_consumed_dploader,
-            global_batch_size = global_batch_size_on_this_data_parallel_rank
+            micro_batch_size = self.cfg.micro_batch_size
         )
         logging.info(f'Completed build train LDDL Dataloader')
         if len(self.cfg.data.data_prefix) > 1:
@@ -545,7 +542,7 @@ class MegatronBertModel(MegatronBaseModel):
             shuffle_buffer_warmup_factor=16,
             vocab_file=self.cfg.tokenizer.vocab_file,
             data_loader_kwargs={
-                'batch_size': self.cfg.micro_batch_size,
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
                 'num_workers': self.cfg.data.num_workers,
                 'prefetch_factor': 2,
             },
@@ -557,7 +554,7 @@ class MegatronBertModel(MegatronBaseModel):
             start_epoch=0,
             sequence_length_alignment=8,
             ignore_index=-1,
-            global_batch_size = global_batch_size_on_this_data_parallel_rank
+            micro_batch_size = self.cfg.micro_batch_size
         )
         if len(self.cfg.data.data_prefix) > 2:
             test_lddl_data_path = self.cfg.data.data_prefix[2]
@@ -569,7 +566,7 @@ class MegatronBertModel(MegatronBaseModel):
             shuffle_buffer_warmup_factor=16,
             vocab_file=self.cfg.tokenizer.vocab_file,
             data_loader_kwargs={
-                'batch_size': self.cfg.micro_batch_size,
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
                 'num_workers': self.cfg.data.num_workers,
                 'prefetch_factor': 2,
             },
@@ -581,7 +578,7 @@ class MegatronBertModel(MegatronBaseModel):
             start_epoch=0,
             sequence_length_alignment=8,
             ignore_index=-1,
-            global_batch_size = global_batch_size_on_this_data_parallel_rank
+            micro_batch_size = self.cfg.micro_batch_size
         )
         logging.info(f'Completed build LDDL Dataloaders')
 
