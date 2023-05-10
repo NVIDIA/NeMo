@@ -162,7 +162,7 @@ def get_idx(end, device):
     return torch.arange(start=0, end=end, dtype=torch.float32, device=device)
 
 
-def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, use_fp16=False):
+def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
     """
     Create sinusoidal timestep embeddings.
     :param timesteps: a 1-D Tensor of N indices, one per batch element.
@@ -181,10 +181,7 @@ def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, use_
             embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
     else:
         embedding = repeat(timesteps, "b -> b d", d=dim)
-    if use_fp16:
-        return embedding.half()
-    else:
-        return embedding
+    return embedding
 
 
 def zero_module(module):

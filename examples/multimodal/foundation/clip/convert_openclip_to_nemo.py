@@ -13,9 +13,13 @@
 # limitations under the License.
 
 import os
+from argparse import ArgumentParser
+
+import einops
+import open_clip
 import torch
 from apex.transformer import parallel_state
-from argparse import ArgumentParser
+from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -24,24 +28,13 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank
-import open_clip
-from omegaconf import OmegaConf
-import einops
 
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument(
-        "--arch",
-        type=str,
-        default="ViT-H-14"
-    )
+    parser.add_argument("--arch", type=str, default="ViT-H-14")
 
-    parser.add_argument(
-        "--version",
-        type=str,
-        default="laion2b_s32b_b79k"
-    )
+    parser.add_argument("--version", type=str, default="laion2b_s32b_b79k")
 
     parser.add_argument(
         "--hparams_file",
@@ -66,6 +59,7 @@ def get_args():
 
     args = parser.parse_args()
     return args
+
 
 def mapping_state_dict(open_model):
     open_state_dict = open_model.state_dict()
@@ -114,21 +108,21 @@ def mapping_state_dict(open_model):
                 key_ = key_.replace(pat, key_mapping[pat])
         for pat in layer_mapping:
             if key_.endswith(pat):
-                key_ = key_[:-len(pat)] + layer_mapping[pat]
+                key_ = key_[: -len(pat)] + layer_mapping[pat]
                 break
         nemo_state_dict[key_] = open_state_dict[key]
 
     nemo_state_dict["text_encoder.head.weight"] = nemo_state_dict["text_encoder.head.weight"].T
     nemo_state_dict["vision_encoder.head.weight"] = nemo_state_dict["vision_encoder.head.weight"].T
-    nemo_state_dict["vision_encoder.backbone.cls_token"] = nemo_state_dict["vision_encoder.backbone.cls_token"].reshape(1, 1, -1)
+    nemo_state_dict["vision_encoder.backbone.cls_token"] = nemo_state_dict[
+        "vision_encoder.backbone.cls_token"
+    ].reshape(1, 1, -1)
     w = nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"]
-    nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"] = einops.rearrange(
-        w,
-        "b c p1 p2 -> b (p1 p2 c)",
-    )
+    nemo_state_dict["vision_encoder.backbone.linear_encoder.weight"] = einops.rearrange(w, "b c p1 p2 -> b (p1 p2 c)",)
     nemo_state_dict["vision_encoder.backbone.linear_encoder.bias"] = torch.zeros(w.shape[0])
 
     return nemo_state_dict
+
 
 def convert(local_rank, rank, world_size, args):
     app_state = AppState()
