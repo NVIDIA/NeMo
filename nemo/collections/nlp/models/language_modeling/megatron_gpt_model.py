@@ -147,6 +147,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
 
+        else:
+            # If 02 is not enabled, force all parameters to fp32
+            self.to(dtype=torch.float32)
+
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
         elif int(self.trainer.precision) == 32:
