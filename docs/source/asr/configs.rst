@@ -972,6 +972,7 @@ Training from Scratch
 To train ASR model from scratch using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text.py`` script with conventional ASR model config, e.g. ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` or  ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``
 
 Please specify the ASR model type, paths to the TTS model, and (optional) enhancer, along with text-only data-related fields.
+Use ``++`` or ``+`` markers for these options, since the options are not present in the original ASR model config.
 
 .. code-block:: shell
 
