@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedSc
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
+from nemo.collections.nlp.parts import utils_funcs as utils
 from nemo.core import adapter_mixins
 
 try:
@@ -111,17 +112,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.multi_query_attention = multi_query_attention
 
         self.megatron_legacy = megatron_legacy
+        self.dtype = utils.dtype_from_precision(precision)
 
         self.set_accepted_adapter_types([InfusedAdapterConfig._target_, LoraKQVAdapterConfig._target_])
-
-        if precision == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(precision) == 16:
-            self.dtype = torch.float16
-        elif int(precision) == 32:
-            self.dtype = torch.float32
-        else:
-            raise ValueError
 
         if kv_channels is None:
             assert (

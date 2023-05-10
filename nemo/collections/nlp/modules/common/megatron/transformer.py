@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.parts import utils_funcs as utils
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 
@@ -176,16 +177,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
-        self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
+        self.dtype = utils.dtype_from_precision(precision)
 
-        if precision == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(precision) == 16:
-            self.dtype = torch.float16
-        elif int(precision) == 32:
-            self.dtype = torch.float32
-        else:
-            raise ValueError
+        self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
         if not bias and bias_dropout_add_fusion:
             raise ValueError(
@@ -824,14 +818,7 @@ class AutocastTransformerLayer(TransformerLayer):
         )
         # use_emha=use_emha,
 
-        if autocast_dtype == 32:
-            self.dtype = torch.float32
-        elif autocast_dtype == 16:
-            self.dtype = torch.float16
-        elif autocast_dtype == 'bf16':
-            self.dtype = torch.bfloat16
-        else:
-            raise ValueError
+        self.dtype = utils.dtype_from_precision(autocast_dtype)
 
     def forward(
         self,

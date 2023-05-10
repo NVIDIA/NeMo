@@ -24,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.collections.nlp.parts import utils_funcs as utils
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -171,15 +172,7 @@ class GPTModel(MegatronModule):
         self.sequence_parallel = sequence_parallel
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
-
-        if precision == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(precision) == 16:
-            self.dtype = torch.float16
-        elif int(precision) == 32:
-            self.dtype = torch.float32
-        else:
-            raise ValueError
+        self.dtype = utils.dtype_from_precision(precision)
 
         if kv_channels is None:
             assert (
