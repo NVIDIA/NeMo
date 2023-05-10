@@ -37,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.collections.nlp.parts import utils_funcs as utils
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 
 try:
@@ -143,14 +144,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
-        if precision == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(precision) == 16:
-            self.dtype = torch.float16
-        elif int(precision) == 32:
-            self.dtype = torch.float32
-        else:
-            raise ValueError
+        self.dtype = utils.dtype_from_precision(precision)
 
         encoder, decoder = None, None
         if add_encoder:
