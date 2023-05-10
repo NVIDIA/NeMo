@@ -153,6 +153,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
         speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
         speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
+        use_log_energy = cfg.get("use_log_energy", True)
         if n_speakers > 1 and "add" not in input_fft.cond_input.condition_types:
             input_fft.cond_input.condition_types.append("add")
         if speaker_emb_condition_prosody:
@@ -177,7 +178,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             energy_embedding_kernel_size,
             cfg.n_mel_channels,
             cfg.max_token_duration,
-            cfg.use_log_energy,
+            use_log_energy,
         )
         self._input_types = self._output_types = None
         self.export_config = {

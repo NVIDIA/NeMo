@@ -18,11 +18,11 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.tts.parts.utils.tts_dataset_utils import get_abs_rel_paths, get_audio_filepaths, normalize_volume
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     filter_dataset_by_duration,
     get_abs_rel_paths,
     get_audio_filepaths,
+    normalize_volume,
     stack_tensors,
 )
 
