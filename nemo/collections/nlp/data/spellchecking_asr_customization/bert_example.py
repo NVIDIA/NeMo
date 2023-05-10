@@ -40,7 +40,7 @@ class BertExample(object):
         input_mask_for_subwords: List[int],
         segment_ids_for_subwords: List[int],
         character_pos_to_subword_pos: List[int],
-        word_indices: List[Tuple[int, int]],
+        fragment_indices: List[Tuple[int, int, int]],
         labels_mask: List[int],
         labels: List[int],
         spans: List[Tuple[int, int, int]],
@@ -61,7 +61,7 @@ class BertExample(object):
             input_mask_for_subwords: list of bools with 0s in place of input_ids_for_subwords to be masked
             segment_ids_for_subwords: same as segment_ids but for input_ids_for_subwords
             character_pos_to_subword_pos: list of size=len(input_ids), value=(position of corresponding subword in input_ids_for_subwords) 
-            word_indices: list of tuples (start_position, end_position), end is exclusive
+            fragment_indices: list of tuples (start_position, end_position, candidate_id), end is exclusive, candidate_id can be -1 if not set
             labels_mask: bool tensor with 0s in place of label tokens to be masked
             labels: indices of semiotic classes which should be predicted from each of the
                 corresponding input tokens
@@ -96,7 +96,7 @@ class BertExample(object):
                 ("input_mask_for_subwords", input_mask_for_subwords),
                 ("segment_ids_for_subwords", segment_ids_for_subwords),
                 ("character_pos_to_subword_pos", character_pos_to_subword_pos),
-                ("word_indices", word_indices),
+                ("fragment_indices", fragment_indices),
                 ("labels_mask", labels_mask),
                 ("labels", labels),
                 ("spans", spans),
@@ -140,39 +140,44 @@ class BertExampleBuilder(object):
         Args:
             hyp: Hypothesis text.
             ref: Candidate customization variants divided by ';'
-            target: String of labels(1-based index of correct example or 0) or None when building an example during inference.
-            span_info: String of format "CUSTOM 6 20;CUSTOM 40 51", number of parts corresponds to number of targets
+            target:
+                if infer==False, string of labels (each label is 1-based index of correct candidate) or 0.
+                if infer==True, it can be None or string of labels (each label is 1-based index of some candidate). In inference this can be used to get corresponding fragments to fragment_indices.
+            span_info:
+                string of format "CUSTOM 6 20;CUSTOM 40 51", number of parts corresponds to number of targets.
+                If infer==False, numbers are correct start and end(exclusive) positions of the corresponding target candidate in the text.
+                If infer==True, numbers are EXPECTED positions in the text. In inference this can be used to get corresponding fragments to fragment_indices.
             infer: inference mode
         Returns:
             BertExample, or None if the conversion from text to tags was infeasible
 
-        Example:
+        Example (infer=False):
             hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
             ref: "d i d i e r _ s a u m o n;a s t r o n o m i e;t r i s t a n _ g u i l l o t;t r i s t e s s e;m o n a d e;c h r i s t i a n;a s t r o n o m e r;s o l o m o n;d i d i d i d i d i;m e r c y"
             target: "1 3"
             span_info: "CUSTOM 12 23;CUSTOM 28 41"
-            
         """
         if not ref.count(";") == 9:
             raise ValueError("Expect 10 candidates: " + ref)
 
+        span_info_parts = span_info.split(";")
+        targets = list(map(int, target.split(" ")))
+        if len(span_info_parts) != len(targets):
+            raise ValueError(
+                "len(span_info_parts)="
+                + str(len(span_info_parts))
+                + " is different from len(target_parts)="
+                + str(len(targets))
+            )
+
         tags = [0 for _ in hyp.split()]
         if not infer:
-            span_info_parts = span_info.split(";")
-            target_parts = target.split(" ")
-            if len(span_info_parts) != len(target_parts):
-                raise ValueError(
-                    "len(span_info_parts)="
-                    + str(len(span_info_parts))
-                    + " is different from len(target_parts)="
-                    + str(len(target_parts))
-                )
-            if target is not None and span_info is not None and len(span_info) > 0:
-                for p, t in zip(span_info_parts, target_parts):
-                    c, start, end = p.split(" ")
-                    start = int(start)
-                    end = int(end)
-                    tags[start:end] = [int(t) for i in range(end - start)]
+            for p, t in zip(span_info_parts, targets):
+                c, start, end = p.split(" ")
+                start = int(start)
+                end = int(end)
+                tags[start:end] = [t for i in range(end - start)]
+
         # get input features for characters
         (
             input_ids,
@@ -200,11 +205,16 @@ class BertExampleBuilder(object):
         # used in forward to concatenate subword embeddings to character embeddings
         character_pos_to_subword_pos = self._map_characters_to_subwords(input_ids, input_ids_for_subwords)
 
-        # used in inference to take argmax over whole words instead of separate characters to get more consistent predictions
-        word_indices = self._map_characters_to_words(hyp, infer)
+        fragment_indices = []
+        if infer:
+            # used in inference to take argmax over whole fragments instead of separate characters to get more consistent predictions
+            # fragment_indices = self._get_fragment_indices(hyp, targets, span_info_parts)
+            fragment_indices = self._get_fragment_indices(hyp, targets, span_info_parts)
 
-        # used in validation step to calculate accuracy on whole custom phrases instead of separate characters
-        spans = self._get_spans(span_info)
+        spans = []
+        if not infer:
+            # during training spans are used in validation step to calculate accuracy on whole custom phrases instead of separate characters
+            spans = self._get_spans(span_info_parts)
 
         if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
             print("Max len exceeded: len(input_ids)=", len(input_ids), "; _max_seq_length=", self._max_seq_length, "; len(spans)=", len(spans), "; _max_spans_length=", self._max_spans_length)
@@ -218,7 +228,7 @@ class BertExampleBuilder(object):
             input_mask_for_subwords=input_mask_for_subwords,
             segment_ids_for_subwords=segment_ids_for_subwords,
             character_pos_to_subword_pos=character_pos_to_subword_pos,
-            word_indices=word_indices,
+            fragment_indices=fragment_indices,
             labels_mask=labels_mask,
             labels=labels,
             spans=spans,
@@ -226,18 +236,15 @@ class BertExampleBuilder(object):
         )
         return example
 
-    def _get_spans(self, span_info: str) -> List[Tuple[int, int, int]]:
+    def _get_spans(self, span_info_parts: List[str]) -> List[Tuple[int, int, int]]:
         """ Converts span_info string into a list of (class_id, start, end) where start, end are coordinates of starting and ending(exclusive) tokens in input_ids of BertExample
             
             Example:
-                span_info: "CUSTOM 37 41;CUSTOM 47 52;CUSTOM 42 46;CUSTOM 0 7"
+                span_info_parts: ["CUSTOM 37 41", "CUSTOM 47 52", "CUSTOM 42 46", "CUSTOM 0 7"]
                 result: [(1, 38, 42), (1, 48, 53), (1, 43, 47), (1, 1, 8)]
         """
         result_spans = []
-        if span_info is None:
-            return result_spans
 
-        span_info_parts = span_info.split(";")
         for p in span_info_parts:
             if p == "":
                 break
@@ -251,40 +258,74 @@ class BertExampleBuilder(object):
             result_spans.append((cid, start, end))
         return result_spans
 
-    def _map_characters_to_words(self, hyp: str, infer: bool) -> Tuple[List[int], List[Tuple[int, int]]]:
+    def _get_word_indices(self, hyp: str) -> Tuple[List[int], List[Tuple[int, int, int]]]:
         """ Maps each single character to the position of its corresponding word.
 
             Args:
                 hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
-                infer: If false, return empty list.
             Returns:
-                List of word positions in ASR-hypothesis.
-                    Its length is equal to len(input_ids), it values are from 0 to (number of words + number of spaces), 0 is reserved for [CLS]
-                    The goal is that all characters belonging to one word had same value, distinct from all others.
+                List of tuples (start, end, -1) positions in ASR-hypothesis. -1 means that candidate_id is not set.
 
             Example:
                 hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
-                infer: True
-
-                word_indices: [(1, 12), (12, 13), (13, 18), (18, 19), (19, 24), (24, 25), (25, 28), (28, 29), (29, 37), (37, 38), (38, 42)]
+                fragment_indices: [(1, 12, -1), (12, 13, -1), (13, 18, -1), (18, 19, -1), (19, 24, -1), (24, 25, -1), (25, 28, -1), (28, 29, -1), (29, 37, -1), (37, 38, -1), (38, 42, -1)]
         """
-        if not infer:
-            return []
 
-        word_indices = []
+        fragment_indices = []
         begin, end = 1, 1
 
         letters = hyp.split()
         for i in range(len(letters)):
             if letters[i] == "_":
-                word_indices.append((begin, end))  # add previous word
-                word_indices.append((end, end + 1))  # add space itself
+                fragment_indices.append((begin, end, -1))  # add previous word
+                fragment_indices.append((end, end + 1, -1))  # add space itself
                 begin = end + 1
                 end = begin
             else:
                 end += 1
-        word_indices.append((begin, end))  # add last word
-        return word_indices
+        fragment_indices.append((begin, end, -1))  # add last word
+        return fragment_indices
+
+    def _get_fragment_indices(self, hyp: str, targets: List[int], span_info_parts: List[str]) -> Tuple[List[int], List[Tuple[int, int, int]]]:
+        """ Maps each single character to the position of its corresponding word.
+
+            Args:
+                hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
+                targets: [1 2 3 4 6 7 9]
+                span_info_parts: ["CUSTOM 12 25", "CUSTOM 0 10", "CUSTOM 27 42", ...], where numbers are EXPECTED start/end positions of corresponding target candidates in the text. These positions will be adjusted in this functuion.
+            Returns:
+                List of tuples (start, end, target) where start and end are positions in ASR-hypothesis, target is candidate_id.
+                Note that returned fragments can be unsorted and can overlap, it's ok.
+            Example:
+                hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
+                fragment_indices: [(1, 12, 2), (13, 24, 1), (13, 28, 1), ..., (29, 42, 3)]
+            """
+
+        fragment_indices = []
+
+        letters = hyp.split()
+
+        for target, p in zip(targets, span_info_parts):
+            _, start, end = p.split(" ")
+            start = int(start)
+            end = int(end)
+
+            # Adjust start by finding the nearest left space or beginning of text. If start is already some word beginning, it won't change.
+            k = start
+            while(k > 0 and letters[k] != '_'):
+                k -= 1
+            adjusted_start = k if k == 0 else k + 1
+
+            # Adjust end by finding the nearest right space. If end is already space or sentence end, it won't change.
+            k = end
+            while(k < len(letters) and letters[k] != '_'):
+                k += 1
+            adjusted_end = k
+
+            # +1 because this should be indexing on input_ids which has [CLS] token at beginning
+            fragment_indices.append((adjusted_start + 1, adjusted_end + 1, target))
+
+        return fragment_indices
 
     def _map_characters_to_subwords(self, input_ids: List[int], input_ids_for_subwords: List[int]) -> List[int]:
         """ Maps each single character to the position of its corresponding subword.
@@ -505,9 +546,12 @@ class BertExampleBuilder(object):
                 if len(examples) % 1000 == 0:
                     logging.info("{} examples processed.".format(len(examples)))
                 if infer:
-                    hyp, ref = line.rstrip('\n').split('\t')
+                    parts = line.rstrip('\n').split('\t')
+                    hyp, ref, target, span_info = parts[0], parts[1], None, None
+                    if len(parts) == 4:
+                        target, span_info = parts[2], parts[3]
                     try:
-                        example = self.build_bert_example(hyp, ref, infer=infer)
+                        example = self.build_bert_example(hyp, ref, target=target, span_info=span_info, infer=infer)
                     except Exception as e:
                         logging.warning(str(e))
                         logging.warning(line)

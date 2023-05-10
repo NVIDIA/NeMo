@@ -88,10 +88,10 @@ def main(cfg: DictConfig) -> None:
             continue
         if cfg.infer_reproduce_paper:
             all_preds = model.infer_reproduce_paper(dataloader_cfg, input_filename)
+            with open(output_filename, "w", encoding="utf-8") as f_out:
+                f_out.write("\n".join(all_preds))
         else:
-            all_preds = model.infer(dataloader_cfg, input_filename)
-        with open(output_filename, "w", encoding="utf-8") as f_out:
-            f_out.write("\n".join(all_preds))
+            all_preds = model.infer(dataloader_cfg, input_filename, output_filename)
         logging.info(f"Predictions saved to {output_filename}.")
 
 
