@@ -121,6 +121,15 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.num_chunked_cross_attention = len(dec_cross_attention)
         self.megatron_lm_compatible = megatron_lm_compatible
 
+        if precision == 'bf16':
+            self.dtype = torch.bfloat16
+        elif int(precision) == 16:
+            self.dtype = torch.float16
+        elif int(precision) == 32:
+            self.dtype = torch.float32
+        else:
+            raise ValueError
+
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -138,6 +147,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 embedding_dropout_prob=hidden_dropout,
                 position_embedding_type='learned_absolute' if add_position_embedding else '',
                 transpose_batch_sequence=False,
+                dtype=self.dtype,
             )
             self._embedding_key = "embedding"
 

@@ -252,6 +252,7 @@ class Embedding(MegatronModule):
         init_method,
         num_tokentypes=0,
         use_cpu_initialization=False,
+        dtype=torch.float32,
         fp32_residual_connection=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
@@ -268,12 +269,13 @@ class Embedding(MegatronModule):
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
             vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
+            params_dtype=dtype,
         )
         self._word_embeddings_key = 'word_embeddings'
 
         if self.position_embedding_type == 'learned_absolute':
             # Position embedding (serial).
-            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size)
+            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size, dtype=dtype)
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
@@ -284,7 +286,7 @@ class Embedding(MegatronModule):
         # token types and add them as needed.
         self._tokentype_embeddings_key = 'tokentype_embeddings'
         if self.num_tokentypes > 0:
-            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size)
+            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size, dtype=dtype)
             # Initialize the token-type embeddings.
             self.init_method(self.tokentype_embeddings.weight)
         else:
@@ -537,6 +539,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 sequence_parallel=sequence_parallel,
                 position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
+                dtype=self.dtype,
             )
             self._embedding_key = 'embedding'
 

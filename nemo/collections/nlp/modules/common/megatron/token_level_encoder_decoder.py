@@ -162,6 +162,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     init_method=init_method_normal(embedding_init_method_std),
                     num_tokentypes=num_tokentypes,
                     use_cpu_initialization=use_cpu_initialization,
+                    dtype=self.dtype,
                     embedding_dropout_prob=embedding_dropout,
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
@@ -263,6 +264,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         init_method=init_method_normal(embedding_init_method_std),
                         num_tokentypes=num_tokentypes,
                         use_cpu_initialization=use_cpu_initialization,
+                        dtype=self.dtype,
                         embedding_dropout_prob=embedding_dropout,
                         position_embedding_type=decoder_cfg.get('position_embedding_type', 'learned_absolute'),
                     )
