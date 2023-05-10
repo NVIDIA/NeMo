@@ -275,7 +275,7 @@ def write_transcription(
     filepaths: List[str] = None,
     compute_langs: bool = False,
     compute_timestamps: bool = False,
-) -> str:
+) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
@@ -289,14 +289,14 @@ def write_transcription(
 
     if isinstance(transcriptions[0], rnnt_utils.Hypothesis):  # List[rnnt_utils.Hypothesis]
         best_hyps = transcriptions
-        assert cfg.ctc_decoding.beam.return_best_hypothesis, "Works only with return_best_hypothesis=true"
+        assert cfg.decoding.beam.return_best_hypothesis, "Works only with return_best_hypothesis=true"
     elif isinstance(transcriptions[0], list) and isinstance(
         transcriptions[0][0], rnnt_utils.Hypothesis
     ):  # List[List[rnnt_utils.Hypothesis]] NBestHypothesis
         best_hyps, beams = [], []
         for hyps in transcriptions:
             best_hyps.append(hyps[0])
-            if not cfg.ctc_decoding.beam.return_best_hypothesis:
+            if not cfg.decoding.beam.return_best_hypothesis:
                 beam = []
                 for hyp in hyps:
                     beam.append((hyp.text, hyp.score))
@@ -320,7 +320,7 @@ def write_transcription(
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
-                if not cfg.ctc_decoding.beam.return_best_hypothesis:
+                if not cfg.decoding.beam.return_best_hypothesis:
                     item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
@@ -343,11 +343,11 @@ def write_transcription(
                         item['pred_lang'] = best_hyps[idx].langs
                         item['pred_lang_chars'] = best_hyps[idx].langs_chars
 
-                    if not cfg.ctc_decoding.beam.return_best_hypothesis:
+                    if not cfg.decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename
+    return cfg.output_filename, pred_text_attr_name
 
 
 def transcribe_partial_audio(

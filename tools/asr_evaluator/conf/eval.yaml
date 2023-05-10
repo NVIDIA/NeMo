@@ -13,7 +13,7 @@ engine:
         chunk_len_in_secs: 1.6 #null # Need to specify if use buffered inference (default for offline_by_chunked is 20)
         total_buffer_in_secs: 4 #null # Need to specify if use buffered inference (default for offline_by_chunked is 22)
         model_stride: 4 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models
-    
+        decoder_type: null # Used for hybrid CTC RNNT model only. Specify decoder_type *ctc* or *rnnt* for hybrid CTC RNNT model.
     test_ds:
         manifest_filepath: null
         sample_rate: 16000
@@ -38,9 +38,10 @@ engine:
   
 analyst:
     metric_calculator:
+        exist_pred_manifest: null # specify the previously generated manifest will skip engine
         clean_groundtruth_text: True
         langid: "en" # speciify language to clean text. Note use text normalization in NeMo for better performancce
-        output_filename: null # specify it if wanna skip engine and use previously generated manifest
+        output_filename: null
         use_cer: False
 
     metadata:
