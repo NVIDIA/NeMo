@@ -67,7 +67,7 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
-
+from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import (
@@ -121,6 +121,9 @@ class TranscriptionConfig:
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
+
+    # Decoding strategy for RNNT models
+    decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
     # Decoding configs
     max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
@@ -205,15 +208,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model = asr_model.to(asr_model.device)
 
     # Change Decoding Config
-    decoding_cfg = asr_model.cfg.decoding
-    with open_dict(decoding_cfg):
+    with open_dict(cfg.decoding):
         if cfg.stateful_decoding:
-            decoding_cfg.strategy = "greedy"
+            cfg.decoding.strategy = "greedy"
         else:
-            decoding_cfg.strategy = "greedy_batch"
-        decoding_cfg.preserve_alignments = True  # required to compute the middle token for transducers.
-        decoding_cfg.fused_batch_size = -1  # temporarily stop fused batch during inference.
-        decoding_cfg.beam.return_best_hypothesis = True  # return and write the best hypothsis only
+            cfg.decoding.strategy = "greedy_batch"
+        cfg.decoding.preserve_alignments = True  # required to compute the middle token for transducers.
+        cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
+        cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
@@ -222,14 +224,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             # rnnt model
             if isinstance(asr_model, EncDecRNNTModel):
-                asr_model.change_decoding_strategy(decoding_cfg)
+                asr_model.change_decoding_strategy(cfg.decoding)
 
             # hybrid ctc rnnt model with decoder_type = rnnt
             if hasattr(asr_model, 'cur_decoder'):
-                asr_model.change_decoding_strategy(decoding_cfg, decoder_type='rnnt')
-
-    with open_dict(cfg):
-        cfg.decoding = decoding_cfg
+                asr_model.change_decoding_strategy(cfg.decoding, decoder_type='rnnt')
 
     feature_stride = model_cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * cfg.model_stride
