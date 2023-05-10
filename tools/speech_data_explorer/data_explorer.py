@@ -1338,7 +1338,8 @@ def metric(a, b, met):
         cer = -1
         return round(float(wer) * 100, 2), -1
     if met == "CER":
-        cer = torchmetrics.functional.char_error_rate(a, b)
+        #cer = torchmetrics.functional.char_error_rate(a, b)
+        cer = editdistance.distance(a, b) / len(a)
         wer = -1
         return -1, round(float(cer) * 100, 2)
 
