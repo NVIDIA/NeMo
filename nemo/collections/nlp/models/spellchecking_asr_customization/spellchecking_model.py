@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import pdb
 from time import perf_counter
 from typing import Dict, List, Optional, Tuple
 
@@ -308,8 +307,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         return self.validation_epoch_end(outputs)
 
     # Functions for inference
+
     @torch.no_grad()
-    def infer(self, dataloader_cfg: DictConfig, input_name: str) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
+    def infer(self, dataloader_cfg: DictConfig, input_name: str, output_name: str) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
         """ Main function for Inference
 
         Args:
@@ -317,12 +317,13 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             input_name: Input file with tab-separated text records. Each record consists of 2 items:
                 - ASR hypothesis
                 - candidate phrases separated by semicolon
+            output_name: Output file with tab-separated text records. Each record consists of 2 items:
+                - ASR hypothesis
+                - candidate phrases separated by semicolon
+                - list of possible replacements with probabilities (start, pos, candidate_id, prob), separated by semicolon
+                - list of labels, predicted for each letter (for debug purposes)
 
-        Returns:
-            all_preds: A list of tuples (ASR-hypothesis, list of replacements). Each replacement consists of 3 items:
-                - beginning coordinate in ASR-hypothesis
-                - end coordinate in ASR hypothesis
-                - replacement text (= one of candidates)
+        Returns: None
         """
         mode = self.training
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -335,8 +336,8 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             logging.set_verbosity(logging.WARNING)
             infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, input_name)
 
-            all_tag_preds = []
-            all_word_preds = []
+            all_tag_preds = []  # list(size=number of sentences) of lists(size=number of letters) of tag predictions (best candidate_id for each letter)
+            all_possible_replacements = []  # list(size=number of sentences) of lists(size=number of potential replacements) of tuples(start, pos, candidate_id, prob)
             for batch in iter(infer_datalayer):
                 (
                     input_ids,
@@ -346,7 +347,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     input_mask_for_subwords,
                     segment_ids_for_subwords,
                     character_pos_to_subword_pos,
-                    word_indices,
+                    fragment_indices,
                 ) = batch
 
                 # tag_logits.shape = [batch_size, char_seq_len, num_labels]; num_labels=11: ids from 0 to 10; .dtype=float32
@@ -360,112 +361,71 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device),
                 )
 
-                # We want predictions to be consistent at least within each single word,
-                # otherwise we won't be able to use this replacement.
-                # Here we sum the predictions for all characters within each word and take argmax for words instead of characters.
-                # Note that "space"(underscore) symbol is regarded as separate "word".
-                indices_len = word_indices.shape[1]
+                # fragment_indices.shape=[batsh_size, num_fragments, 3], where last dimension is [start, end, label], where label is candidate id from 1 to 10
+                # Next we want to convert predictions for separate letters to probabilities for each whole fragment from fragment_indices.
+                # To achieve this we first sum the letter logits in each fragment and divide by its length. 
+                # (We use .cumsum and then difference between end and start to get sum per fragment).
+                # Then we convert logits to probs with softmax and for each fragment extract only the prob for given label.
+                # Finally we get a list of tuples (start, end, label, prob)
+                indices_len = fragment_indices.shape[1]
+                # this padding adds a row of zeros (size=num_labels) as first element of sequence in second dimension. This is needed for cumsum operations.
                 padded_logits = torch.nn.functional.pad(tag_logits, pad=(0, 0, 1, 0))
-                batch_size, seq_len, num_labels = padded_logits.shape
+                batch_size, seq_len, num_labels = padded_logits.shape  # seq_len is +1 compared to that of tag_logits, because of padding
+                #cumsum.shape=[batch_size, seq_len, num_labels] 
                 cumsum = padded_logits.cumsum(dim=1)
+                # the size -1 is inferred from other dimensions. We get rid of batch dimension.
                 cumsum_view = cumsum.view(-1, num_labels)
                 word_index = (
                     torch.ones((batch_size, indices_len), dtype=torch.long)
                     * torch.arange(batch_size).reshape((-1, 1))
                     * seq_len
                 ).view(-1)
-                lower_index = (word_indices[..., 0]).view(-1) + word_index
-                higher_index = (word_indices[..., 1]).view(-1) + word_index
+                lower_index = (fragment_indices[..., 0]).view(-1) + word_index
+                higher_index = (fragment_indices[..., 1]).view(-1) + word_index
                 d_index = (higher_index - lower_index).reshape((-1, 1)).to(self.device)  # word lengths
                 dlog = cumsum_view[higher_index, :] - cumsum_view[lower_index, :]  # sum of logits
                 # word_logits.shape=[batch_size, indices_len, num_labels]
                 word_logits = (dlog / d_index.float()).view(batch_size, indices_len, num_labels)
-                # torch.argmax(word_logits, dim=-1) gives a tensor of best predicted labels with shape [batch_size, indices_len]
-                word_preds = tensor2list(torch.argmax(word_logits, dim=-1))
-                all_word_preds.extend(word_preds)
+                # convert logits to probs, same shape
+                word_probs = torch.nn.functional.softmax(word_logits, dim=-1).to(self.device)
+                # candidate_index.shape=[batch_size, indices_len]
+                candidate_index = fragment_indices[:, :, 2].to(self.device)
+                # candidate_probs.shape=[batch_size, indices_len]
+                candidate_probs = torch.take_along_dim(word_probs, candidate_index.unsqueeze(2), dim=-1).squeeze(2)
+                for i in range(batch_size):
+                    possible_replacements = []
+                    for j in range(indices_len):
+                        start, end, candidate_id = int(fragment_indices[i][j][0]), int(fragment_indices[i][j][1]), int(fragment_indices[i][j][2])
+                        prob = round(float(candidate_probs[i][j]), 5)
+                        if prob < 0.01:
+                            continue
+                        # -1 because in the output file we will not have a [CLS] token
+                        possible_replacements.append(str(start - 1) + " " + str(end - 1) + " " + str(candidate_id) + " " + str(prob))
+                    all_possible_replacements.append(possible_replacements)
 
                 # torch.argmax(tag_logits, dim=-1) gives a tensor of best predicted labels with shape [batch_size, char_seq_len], .dtype = int64
-                # tag_preds is list of lists of predicted labels
-                tag_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
-                all_tag_preds.extend(tag_preds)
+                # character_preds is list of lists of predicted labels
+                character_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
+                all_tag_preds.extend(character_preds)
 
-            all_preds = []
-            for i in range(len(infer_datalayer.dataset.examples)):
-                tag_preds = all_tag_preds[i]
-                word_preds = all_word_preds[i]
-                hyp, ref = infer_datalayer.dataset.hyps_refs[i]
-                letters = hyp.split(" ")
-                candidates = ref.split(";")
-                report_str = ""
-                replacements = []
-
-                # hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
-                # ref: "d i d i e r _ s a u m o n;a s t r o n o m i e;t r i s t a n _ g u i l l o t;t r i s t e s s e;m o n a d e;c h r i s t i a n;a s t r o n o m e r;s o l o m o n;d i d i d i d i d i;m e r c y"
-                # word_indices[0] = [[ 1, 12], [12, 13], [13, 18], ..., [38, 42], [ 0,  1], ...
-                # all_word_preds[0] = [0, 0, 9, 0, 8, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0...
-                last_pred = -1
-                last_phrase_begin = -1
-                last_phrase_end = -1
-                for j in range(len(word_indices[i])):
-                    begin, end = word_indices[i][j]
-                    # break if reached padding
-                    if begin == 0 and end == 1:
-                        break
-                    # offset -1 because "letters" does not contain CLS token
-                    begin -= 1
-                    end -= 1
-                    word_pred = all_word_preds[i][j]
-                    if last_pred == word_pred:
-                        last_phrase_end = end
-                        continue
-                    if last_pred > 0:
-                        source = " ".join(letters[last_phrase_begin:last_phrase_end])
-                        target = candidates[last_pred - 1]
-                        len_ratio = len(target) / len(source)
-                        if len_ratio >= 0.7 and len_ratio <= 1.3:
-                            replacements.append((last_pred, last_phrase_begin, last_phrase_end))
-                            report_str += "REPLACE1:\t" + source + "\t" + target + "\n"
-                    if word_pred == 0:
-                        last_pred = -1
-                        last_phrase_begin = -1
-                        last_phrase_end = -1
-                    else:
-                        last_pred = word_pred
-                        last_phrase_begin = begin
-                        last_phrase_end = end
-                if last_pred > 0:
-                    source = " ".join(letters[last_phrase_begin:last_phrase_end])
-                    target = candidates[last_pred - 1]
-                    len_ratio = len(target) / len(source)
-                    if len_ratio >= 0.7 and len_ratio <= 1.3:
-                        replacements.append((last_pred, last_phrase_begin, last_phrase_end))
-                        report_str += "REPLACE1:\t" + source + "\t" + target + "\n"
-
-                tag_preds_for_sent = tag_preds[
-                    1 : (len(letters) + 1)
-                ]  # take only predictions for actual sent letters (starting from 1 because of [CLS] token)
-                last_tag = -1
-                tag_begin = -1
-                for idx, tag in enumerate(tag_preds_for_sent):
-                    if tag != last_tag:
-                        if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_') and letters[idx] == "_":
-                            source = " ".join(letters[tag_begin:idx])
-                            target = candidates[last_tag - 1]
-                            len_ratio = len(target) / len(source)
-                            if len_ratio >= 0.7 and len_ratio <= 1.3:
-                                report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
-                        tag_begin = idx
-                    last_tag = tag
-                if last_tag >= 1 and (tag_begin == 0 or letters[tag_begin - 1] == '_'):
-                    source = " ".join(letters[tag_begin:])
-                    target = candidates[last_tag - 1]
-                    len_ratio = len(target) / len(source)
-                    if len_ratio >= 0.7 and len_ratio <= 1.3:
-                        report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
-
-                all_preds.append(
-                    "\n" + hyp + "\n" + " ".join(list(map(str, tag_preds_for_sent))) + "\n\t" + ref + "\n" + report_str
+            if len(all_possible_replacements) != len(all_tag_preds) or len(all_possible_replacements) != len(infer_datalayer.dataset.examples):
+                raise IndexError(
+                    "number of sentences mismatch: len(all_possible_replacements)="
+                    + str(len(all_possible_replacements))
+                    + "; len(all_tag_preds)="
+                    + str(len(all_tag_preds))
+                    + "; len(infer_datalayer.dataset.examples)="
+                    + str(len(infer_datalayer.dataset.examples)) 
                 )
+            # save results to file            
+            with open(output_name, "w", encoding="utf-8") as out:
+                for i in range(len(infer_datalayer.dataset.examples)):
+                    hyp, ref = infer_datalayer.dataset.hyps_refs[i]
+                    num_letters = hyp.count(" ") + 1
+                    tag_pred_str = " ".join(list(map(str, all_tag_preds[i][1 : (num_letters + 1)])))
+                    possible_replacements_str = ";".join(all_possible_replacements[i])
+                    out.write(hyp + "\t" + ref + "\t" + possible_replacements_str + "\t" + tag_pred_str + "\n")
+
         except Exception as e:
             raise ValueError("Error processing file " + input_name)
 
@@ -474,7 +434,6 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             self.train(mode=mode)
             logging.set_verbosity(logging_level)
 
-        return all_preds
 
     @torch.no_grad()
     def infer_reproduce_paper(self, dataloader_cfg: DictConfig, input_name: str) -> List[str]:
