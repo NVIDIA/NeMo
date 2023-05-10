@@ -227,7 +227,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.change_decoding_strategy(decoding_cfg)
 
             # hybrid ctc rnnt model with decoder_type = rnnt
-            if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+            if hasattr(asr_model, 'cur_decoder'):
                 asr_model.change_decoding_strategy(decoding_cfg, decoder_type='rnnt')
 
     with open_dict(cfg):

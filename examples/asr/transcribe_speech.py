@@ -251,7 +251,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 decoding_cfg.preserve_alignments = cfg.compute_timestamps
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
-            if 'cur_decoder' in EncDecHybridRNNTCTCModel:
+            if hasattr(asr_model, 'cur_decoder'):
                 asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
             else:
                 asr_model.change_decoding_strategy(decoding_cfg)
