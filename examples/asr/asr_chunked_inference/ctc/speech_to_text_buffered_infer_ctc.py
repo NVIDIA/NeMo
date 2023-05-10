@@ -45,7 +45,7 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
@@ -89,9 +89,6 @@ class TranscriptionConfig:
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
     model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models.
-
-    # Decoding strategy for CTC models
-    decoding: CTCDecodingConfig = CTCDecodingConfig()
 
     # Decoding strategy for CTC models
     decoding: CTCDecodingConfig = CTCDecodingConfig()

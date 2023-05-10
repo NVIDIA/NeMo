@@ -231,9 +231,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with open_dict(cfg):
         cfg.decoding = decoding_cfg
 
-    with open_dict(cfg):
-        cfg.decoding = decoding_cfg
-
     feature_stride = model_cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * cfg.model_stride
     total_buffer = cfg.total_buffer_in_secs
