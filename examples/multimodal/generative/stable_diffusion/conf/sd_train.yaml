@@ -7,7 +7,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: True
+  replace_sampler_ddp: False
   max_epochs: 2 # PTL default. In practice, max_steps will be reached first.
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -15,11 +15,6 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: True
-  strategy:
-    bucket_cap_mb: 256
-    gradient_as_bucket_view: True
-    find_unused_parameters: False
-    allreduce_precision: 32
 
 exp_manager:
   exp_dir: null
@@ -48,7 +43,12 @@ exp_manager:
 
 
 model:
-  base_learning_rate: 1.0e-4
+  precision: ${trainer.precision}
+  # specify micro_batch_size, global_batch_size, and model parallelism
+  # gradient accumulation will be done automatically based on data_parallel_size
+  micro_batch_size: 1 # limited by GPU memory
+  global_batch_size: 1 # will use more micro batches to reach global batch size
+
   linear_start: 0.00085
   linear_end: 0.012
   num_timesteps_cond: 1
@@ -65,7 +65,7 @@ model:
   use_ema: False
   scale_by_std: False
   ckpt_path:
-  ignore_keys: [ ]
+  ignore_keys: []
   parameterization: eps
   clip_denoised: True
   load_only_unet: False
@@ -79,7 +79,7 @@ model:
   logvar_init: 0
   beta_schedule: linear
   loss_type: l2
-  learning_rate: 1.0e-04
+
   concat_mode: True
   cond_stage_forward:
   text_embedding_dropout_rate: 0.1
@@ -89,22 +89,22 @@ model:
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained:
-    from_NeMo: #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
+    from_pretrained: /ckpts/nemo-v1-2.ckpt
+    from_NeMo: True #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
     out_channels: 4
     model_channels: 320
     attention_resolutions:
-      - 4
-      - 2
-      - 1
+    - 4
+    - 2
+    - 1
     num_res_blocks: 2
     channel_mult:
-      - 1
-      - 2
-      - 4
-      - 4
+    - 1
+    - 2
+    - 4
+    - 4
     num_heads: 8
     use_spatial_transformer: true
     transformer_depth: 1
@@ -126,12 +126,12 @@ model:
       out_ch: 3
       ch: 128
       ch_mult:
-        - 1
-        - 2
-        - 4
-        - 4
+      - 1
+      - 2
+      - 4
+      - 4
       num_res_blocks: 2
-      attn_resolutions: [ ]
+      attn_resolutions: []
       dropout: 0.0
     lossconfig:
       target: torch.nn.Identity
@@ -142,28 +142,43 @@ model:
     device: cuda
     max_length: 77
 
+  # miscellaneous
+  seed: 1234
+  resume_from_checkpoint: null # manually set the checkpoint file to load from
+  apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+  gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
-  scheduler_config:
-    cls: nemo.collections.multimodal.parts.stable_diffusion.lr_scheduler.LambdaLinearScheduler
-    warm_up_steps: [ 0 ]
-    cycle_lengths: [ 10000000000000 ] # incredibly large number to prevent corner cases
-    f_start: [ 1.0e-6 ]
-    f_max: [ 1.e-4 ]
-    f_min: [ 1.e-10 ]
+  optim:
+    name: fused_adam
+    lr: 1e-4
+    weight_decay: 0.
+    betas:
+      - 0.9
+      - 0.999
+    sched:
+      name: WarmupHoldPolicy
+      warmup_steps: 10000
+      hold_steps: 10000000000000 # Incredibly large value to hold the lr as constant
 
+  # Nsys profiling options
+  nsys_profile:
+    enabled: False
+    start_step: 10  # Global batch to start profiling
+    end_step: 10 # Global batch to end profiling
+    ranks: [ 0 ] # Global rank IDs to profile
+    gen_shape: False # Generate model and kernel details including input shapes
 
   data:
-    num_workers: 16
-    train:
-      batch_size: 4
-      dataset_path:
-        - /datasets/coyo/test.pkl
-      augmentations:
-        resize_smallest_side: 512
-        center_crop_h_w: 512, 512
-        horizontal_flip: False
-      filterings:
+      num_workers: 16
+      train:
+          dataset_path:
+              - /datasets/coyo/test.pkl
+          augmentations:
+            resize_smallest_side: 512
+            center_crop_h_w: 512, 512
+            horizontal_flip: False
+          filterings:
 
-    webdataset:
-      infinite_sampler: True
-      local_root_path: /datasets/coyo
+      webdataset:
+          infinite_sampler: False
+          local_root_path: /datasets/coyo

@@ -167,35 +167,13 @@ class SpatialRescaler(nn.Module):
         return self(x)
 
 
-class CLIPTextModelZero(CLIPTextModel):
-    config_class = CLIPTextConfig
-
-    def __init__(self, config: CLIPTextConfig):
-        super().__init__(config)
-        self.text_model = CLIPTextTransformerZero(config)
-
-
-class CLIPTextTransformerZero(CLIPTextTransformer):
-    def _build_causal_attention_mask(self, bsz, seq_len, dtype, device=None):  # TODO mmy check dtype
-        # lazily create causal attention mask, with full attention between the vision tokens
-        # pytorch uses additive attention mask; fill with -inf
-        mask = torch.empty(bsz, seq_len, seq_len, device=device)
-        mask.fill_(float("-inf"))
-        mask.triu_(1)  # zero out the lower diagonal
-        mask = mask.unsqueeze(1)  # expand mask
-        return mask.half()
-
-
 class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
 
     def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, use_fp16=False):
         super().__init__()
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
-        if use_fp16:
-            self.transformer = CLIPTextModelZero.from_pretrained(version)
-        else:
-            self.transformer = CLIPTextModel.from_pretrained(version)
+        self.transformer = CLIPTextModel.from_pretrained(version)
         self.device = device
         self.max_length = max_length
         self.freeze()
