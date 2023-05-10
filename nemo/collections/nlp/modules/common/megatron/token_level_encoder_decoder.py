@@ -37,8 +37,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts import utils_funcs as utils
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
+from nemo.collections.nlp.parts import utils_funcs as utils
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
