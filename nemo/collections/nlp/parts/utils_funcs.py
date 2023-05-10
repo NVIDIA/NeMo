@@ -16,7 +16,7 @@ __all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix', 'get_classificati
 
 import os
 import time
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
