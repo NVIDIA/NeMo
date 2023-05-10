@@ -7,7 +7,7 @@ from nemo.utils import logging
 def optional_import_guard(warn_on_error=False):
     """
     Context manager to wrap optional import.
-    Suppresses ImportError(also, ModuleNotFoundError), adds warning if `warn_on_error` is True.
+    Suppresses `ImportError` (also, `ModuleNotFoundError`), adds warning if `warn_on_error` is True.
     Use separately for each library.
 
     >>> with optional_import_guard():
