@@ -21,9 +21,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
-    MegatronGPTPEFTModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
