@@ -110,9 +110,6 @@ class TranscriptionConfig:
     total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
     model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models",
 
-    # # Decoding strategy for RNNT models
-    # rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
-
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
@@ -121,9 +118,6 @@ class TranscriptionConfig:
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
-
-    # Decoder type for hybrid model could be None for ctc model and ctc for hybrid model
-    decoder_type: Optional[str] = None
 
     # Decoding configs
     max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
@@ -158,11 +152,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if cfg.audio_dir is not None:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
         manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
-
-    if cfg.decoder_type not in [None, 'rnnt']:
-        raise ValueError(
-            "decoder_type needs to be either None (rnnt model) or ctc (hybrid model with rnnt decoder)for speech_to_text_buffered_infer_rnnt!"
-        )
 
     # setup GPU
     if cfg.cuda is None:
@@ -230,11 +219,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             # hybrid ctc rnnt model with decoder_type = rnnt
             if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-                if not cfg.decoder_type or cfg.decoder_type != "rnnt":
-                    raise ValueError(
-                        "If the model is a EncDecHybridRNNTCTCModel model, decoder_type should either be null or set to 'rnnt' for this script."
-                    )
-                asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+                asr_model.change_decoding_strategy(decoding_cfg, decoder_type='rnnt')
 
     with open_dict(cfg):
         cfg.decoding = decoding_cfg

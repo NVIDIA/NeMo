@@ -119,6 +119,7 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
         f"output_filename={cfg.output_filename} "
         f"random_seed={cfg.random_seed} "
         f"batch_size={cfg.test_ds.batch_size} "
+        f"num_workers={cfg.test_ds.num_workers} "
         f"chunk_len_in_secs={cfg.inference.chunk_len_in_secs} "
         f"total_buffer_in_secs={cfg.inference.total_buffer_in_secs} "
         f"model_stride={cfg.inference.model_stride} "
@@ -157,6 +158,7 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
             f"dataset_manifest={cfg.test_ds.manifest_filepath} "
             f"output_filename={cfg.output_filename} "
             f"batch_size={cfg.test_ds.batch_size} "
+            f"num_workers={cfg.test_ds.num_workers} "
             f"random_seed={cfg.random_seed} "
             f"eval_config_yaml={f.name} "
             f"decoder_type={cfg.inference.decoder_type} ",

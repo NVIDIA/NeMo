@@ -88,7 +88,7 @@ class TranscriptionConfig:
     model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models",
 
     # Decoding strategy for CTC models
-    ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
+    decoding: CTCDecodingConfig = CTCDecodingConfig()
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -99,9 +99,6 @@ class TranscriptionConfig:
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
-
-    # decoder type for hybrid model could be None for ctc model and ctc for hybrid model
-    decoder_type: Optional[str] = None
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -122,11 +119,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
-
-    if cfg.decoder_type not in [None, 'ctc']:
-        raise ValueError(
-            "decoder_type needs to be either None (ctc model) or ctc (hybrid model with ctc decoder)for speech_to_text_buffered_infer_ctc!"
-        )
 
     filepaths = None
     manifest = cfg.dataset_manifest
@@ -194,20 +186,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
 
-            # ctc model
-            if isinstance(asr_model, EncDecCTCModel):
-                asr_model.change_decoding_strategy(cfg.ctc_decoding)
+            if 'cur_decoder' in asr_model: # hybrid model with ctc decoding or potential other models containing decoding switch feature
+                asr_model.change_decoding_strategy(cfg.decoding, decoder_type='ctc')
 
-            # hybrid ctc rnnt model with decoder_type=ctc
-            if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-                if cfg.decoder_type != "ctc":
-                    raise ValueError(
-                        "If the model is a EncDecHybridRNNTCTCModel model, decoder_type should be specified and set to 'ctc' for this script."
-                    )
-                asr_model.change_decoding_strategy(cfg.ctc_decoding, decoder_type=cfg.decoder_type)
-
-    with open_dict(cfg):
-        cfg.decoding = cfg.ctc_decoding
+            else: #ctc model
+                asr_model.change_decoding_strategy(cfg.decoding)
 
     asr_model.eval()
     asr_model = asr_model.to(asr_model.device)

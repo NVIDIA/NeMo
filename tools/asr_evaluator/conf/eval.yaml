@@ -19,6 +19,7 @@ engine:
         manifest_filepath: null
         sample_rate: 16000
         batch_size: 32
+        num_workers: 4
         
         augmentor:
           silence:
