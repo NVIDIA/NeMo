@@ -65,6 +65,22 @@ Usage:
 """
 
 
+def _get_peft_scheme(cfg):
+    if cfg.peft.peft_scheme == "adapter":
+        peft_cls = MegatronGPTAdapterModel
+    elif cfg.peft.peft_scheme == "ia3":
+        peft_cls = MegatronGPTIA3Model
+    elif cfg.peft.peft_scheme == "ptuning":
+        peft_cls = MegatronGPTPTuningModel
+    elif cfg.peft.peft_scheme == "adapter_and_ptuning":
+        peft_cls = MegatronGPTAdapterPTuningModel
+    elif cfg.peft.peft_scheme == "lora":
+        peft_cls = MegatronGPTLoRAModel
+    else:
+        raise RuntimeError("Invalid Peft scheme")
+    return peft_cls
+
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -121,8 +137,8 @@ def main(cfg) -> None:
     )
     if os.path.isdir(peft_model_cfg.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    # peft_cls = _get_peft_scheme(peft_model_cfg)
-    model = NLPModel.restore_from(
+    peft_cls = _get_peft_scheme(peft_model_cfg)
+    model = peft_cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=peft_model_cfg,
