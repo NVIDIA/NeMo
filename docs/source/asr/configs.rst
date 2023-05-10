@@ -887,7 +887,7 @@ Hybrid ASR-TTS Model Configuration
 
 * ASR model (``EncDecCTCModelBPE``, ``EncDecRNNTBPEModel`` or ``EncDecHybridRNNTCTCBPEModel``)
 * TTS Mel Spectrogram Generator (currently, only :ref:`FastPitch <FastPitch_model>` model is supported)
-* Enhancer model (optional)
+* :ref:`Enhancer model <SpectrogramEnhancer_model>` (optional)
 
 Also, the config allows to specify :ref:`text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>`.
 
