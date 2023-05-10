@@ -549,6 +549,7 @@ if comparison_mode:
     name_1, name_2 = args.names_compared
     print(name_1, name_2)
 
+
 print('Loading data...')
 if not comparison_mode:
     data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
@@ -933,12 +934,52 @@ wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
 # wordstable_columns_tool.append({'name': 'Accuracy_' + name_1 + ', %', 'id': 'accuracy_1'})
 # wordstable_columns_tool.append({'name': 'Accuracy_' + name_2 + ', %', 'id': 'accuracy_2'})
 
+
+
+
+
+
 if comparison_mode:
     model_name_1, model_name_2 = name_1, name_2
 
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
+    from jiwer import wer as _wer
+    
+    def metric(a, b, met=None):
+        cer = editdistance.distance(a, b) / len(a)
+        wer = _wer(a, b)
+        return round(float(wer) * 100, 2), round(float(cer) * 100, 2)
 
+    def write_metrics(data, Ox, Oy):
+        da = pd.DataFrame.from_records(data)
+        gt = da['text']
+        tt_1 = da[Ox]
+        tt_2 = da[Oy]
+        #logging.error("CODE 4", str(gt))
+        wer_tt1_c, cer_tt1_c = [], []
+        wer_tt2_c, cer_tt2_c = [], []
+        #logging.error("CODE 1 | ", str(da))
+        for j in range(len(gt)):
+            wer_tt1, cer_tt1 = metric(gt[j], tt_1[j])  # first model
+            wer_tt2, cer_tt2 = metric(gt[j], tt_2[j])  # second model
+            wer_tt1_c.append(wer_tt1)
+            cer_tt1_c.append(cer_tt1)
+            wer_tt2_c.append(wer_tt2)
+            cer_tt2_c.append(cer_tt2)
+
+        da['wer_' + Ox] = pd.Series(wer_tt1_c, index=da.index)
+        da['wer_' + Oy] = pd.Series(wer_tt2_c, index=da.index)
+        da['cer_' + Ox] = pd.Series(cer_tt1_c, index=da.index)
+        da['cer_' + Oy] = pd.Series(cer_tt2_c, index=da.index)
+        a = da
+        return da.to_dict('records')
+    data_with_metrics = write_metrics(data, model_name_1, model_name_2)
+    
+    
+    
+    
+    
     def prepare_data(df, name1=model_name_1, name2=model_name_2):
         res = pd.DataFrame()
         tmp = df['word']
@@ -1049,7 +1090,35 @@ if comparison_mode:
         if query is None:
             return "No filter query"
         return dcc.Markdown('`filter_query = "{}"`'.format(query))
+        
+    ############
+    @app.callback(
+        Output('filter-query-input-2', 'style'),
+        Output('filter-query-output-2', 'style'),
+        Input('filter-query-read-write', 'value'),
+    )
+    def query_input_output(val):
+        input_style = {'width': '100%'}
+        output_style = {}
+        input_style.update(display='inline-block')
+        output_style.update(display='none')
+        return input_style, output_style
+    
+    
+    @app.callback(Output('datatable-advanced-filtering-2', 'filter_query'), Input('filter-query-input-2', 'value'))
+    def write_query(query):
+        if query is None:
+            return ''
+        return query
 
+    @app.callback(Output('filter-query-output-2', 'children'), Input('datatable-advanced-filtering-2', 'filter_query'))
+    def read_query(query):
+        if query is None:
+            return "No filter query"
+        return dcc.Markdown('`filter_query = "{}"`'.format(query))
+    ############
+    
+    
     def display_query(query):
         if query is None:
             return ''
@@ -1068,34 +1137,36 @@ if comparison_mode:
             ]
         )
 
+
     comparison_layout = [
         html.Div(
             [dcc.Markdown("model 1:" + ' ' + model_name_1[10:]), dcc.Markdown("model 2:" + ' ' + model_name_2[10:]),
-             dcc.Dropdown(['word level', 'utterance level'],'word level', placeholder="choose comparison lvl", id='lvl_choose')]
+             dcc.Dropdown(['word level', 'utterance level'], 'word level', placeholder="choose comparison lvl",
+                          id='lvl_choose')]
         ),
         html.Hr(),
         html.Div([
-                html.Div(
-                    [
-                        dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_1, id='xaxis-column'),
-                        dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_2, id='yaxis-column'),
-                        dcc.Dropdown(
-                            for_col_names.select_dtypes(include='number').columns[::],
-                            placeholder='Select what will encode color of points',
-                            id='color-column',
-                        ),
-                        dcc.Dropdown(
-                            for_col_names.select_dtypes(include='number').columns[::],
-                            placeholder='Select what will encode size of points',
-                            id='size-column',
-                        ),
-                        dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing'),
-                        dcc.Input(id='radius', placeholder='Enter radius of spacing (std is 0.01)'),
-                        html.Hr(),
-                        dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
-                    ],
-                    style={'width': '50%', 'display': 'inline-block', 'float': 'middle'},
-                ),
+            html.Div(
+                [
+                    dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_1, id='xaxis-column'),
+                    dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_2, id='yaxis-column'),
+                    dcc.Dropdown(
+                        for_col_names.select_dtypes(include='number').columns[::],
+                        placeholder='Select what will encode color of points',
+                        id='color-column',
+                    ),
+                    dcc.Dropdown(
+                        for_col_names.select_dtypes(include='number').columns[::],
+                        placeholder='Select what will encode size of points',
+                        id='size-column',
+                    ),
+                    dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing'),
+                    dcc.Input(id='radius', placeholder='Enter radius of spacing (std is 0.01)'),
+                    html.Hr(),
+                    dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
+                ],
+                style={'width': '50%', 'display': 'inline-block', 'float': 'middle'},
+            ),
             html.Hr(),
             html.Div(id='filter-query-output'),
             dash_table.DataTable(
@@ -1110,83 +1181,105 @@ if comparison_mode:
             html.Hr(),
             html.Div(id='datatable-query-structure', style={'whitespace': 'pre'}),
             html.Hr(),
-            dbc.Row(dbc.Col(dcc.Graph(id='voc_graph'),),),
+            dbc.Row(dbc.Col(dcc.Graph(id='voc_graph'), ), ),
             html.Hr(),
-        ], id='wrd_lvl', style={'display': 'block'},),
-    html.Div([
+        ], id='wrd_lvl', style={'display': 'block'}, ),
         html.Div([
-            dcc.Dropdown(['WER', 'CER'], 'WER', placeholder="Choose metric", id="choose_metric"),
-            dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
-            html.Hr(),
-                     html.Hr(),
-                     # html.Div(id='filter-query-output'),
-                     # dash_table.DataTable(
-                     #     id='datatable-advanced-filtering',
-                     #     columns=[{'name': k.replace('_', ' '), 'id': k, 'hideable': True} for k in data[0]],
-                     #     data=vocabulary_1,
-                     #     editable=False,
-                     #     page_action='native',
-                     #     page_size=5,
-                     #     filter_action="native",
-                     # ),
-            dbc.Row(
-                dbc.Col(
-                    dash_table.DataTable(
-                        id='datatable',
-                        columns=[{'name': k.replace('_', ' '), 'id': k, 'hideable': True} for k in data[0]],
-                        filter_action='custom',
-                        filter_query='',
-                        sort_action='custom',
-                        sort_mode='single',
-                        sort_by=[],
-                        row_selectable='single',
-                        selected_rows=[0],
-                        page_action='custom',
-                        page_current=0,
-                        page_size=DATA_PAGE_SIZE,
-                        page_count=math.ceil(len(data) / DATA_PAGE_SIZE),
-                        style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0,
-                                    'textAlign': 'center'},
-                        style_header={
-                            'color': 'text-primary',
-                            'text_align': 'center',
-                            'height': 'auto',
-                            'whiteSpace': 'normal',
-                        },
-                        css=[
-                            {'selector': '.dash-spreadsheet-menu', 'rule': 'position:absolute; bottom: 8px'},
-                            {'selector': '.dash-filter--case', 'rule': 'display: none'},
-                            {'selector': '.column-header--hide', 'rule': 'display: none'},
-                        ],
-                    ),
-                )
-            ),
+            html.Div([
+                         dcc.Dropdown(['WER', 'CER'], 'WER', placeholder="Choose metric", id="choose_metric"),
+                         dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
+                         html.Hr(),
+                         html.Hr(),
+                         dcc.Input(id='filter-query-input-2', placeholder='Enter filter query'),
+                         html.Div(id='filter-query-output-2'),
+                         dbc.Row(
+                            dbc.Col(
+                                 dash_table.DataTable(
+                                     id='datatable-advanced-filtering-2',
+                                     columns=[{'name': k.replace('_', ' '), 'id': k, 'hideable': True} for k in data_with_metrics[0]],
+                                     data=data_with_metrics,
+                                     editable=False,
+                                     page_action='native',
+                                     page_size=5,
+                                     row_selectable='single',
+                                     selected_rows=[0],
+                                     page_current=0,
+                                     filter_action="native",
+                                     style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0,
+                                                                 'textAlign': 'center'},
+                                     style_header={
+                                         'color': 'text-primary',
+                                         'text_align': 'center',
+                                         'height': 'auto',
+                                         'whiteSpace': 'normal',
+                                         
+                                     },
+                                     css=[
+                                         {'selector': '.dash-spreadsheet-menu',
+                                          'rule': 'position:absolute; bottom: 8px'},
+                                         {'selector': '.dash-filter--case', 'rule': 'display: none'},
+                                         {'selector': '.column-header--hide', 'rule': 'display: none'},
+                                      ],
+                                  ),
+                              )
+                          ),
+                                                ] + [
+                          dbc.Row(
+                              [
+                                  dbc.Col(
+                                      html.Div(children=k.replace('_', '-')),
+                                      width=2,
+                                      class_name='mt-1 bg-light font-monospace text-break small rounded border',
+                                  ),
+                                  dbc.Col(html.Div(id='__' + k),
+                                          class_name='mt-1 bg-light font-monospace text-break small rounded border'),
+                              ]
+                          ) for k in data_with_metrics[0]
+                     
+                     ] 
+                     ), 
+           
+            
+            html.Div([
+                dbc.Row(dbc.Col(dcc.Graph(id='utt_graph'), ), ),
+                html.Hr(),
+                dcc.Input(id='clicked_aidopath'),
+                html.Hr(),
+                dcc.Input(id='my-output-1'),
+            ]),
+            html.Div([
+                dbc.Row(dbc.Col(html.Audio(id='player-1', controls=True), ), class_name='mt-3'),
+                dbc.Row(dbc.Col(dcc.Graph(id='signal-graph-1')), class_name='mt-3'),
 
-        ] + [
-                dbc.Row(
+            ]),
+        ], id='unt_lvl', style={'width': '250%', 'display': 'block'})
+    ]
+
+
+if args.show_statistics is not None:
+                    comparison_layout += [  dbc.Row(
                     [
                         dbc.Col(
-                            html.Div(children=k.replace('_', ' ')),
+                            html.Div(children='text diff.'),
                             width=2,
                             class_name='mt-1 bg-light font-monospace text-break small rounded border',
-                        ),
-                        dbc.Col(html.Div(id='_' + k), class_name='mt-1 bg-light font-monospace text-break small rounded border'),
-                    ]
-    ) for k in data[0]
-        ]),
-    html.Div([
-        dbc.Row(dbc.Col(dcc.Graph(id='utt_graph'), ), ),
-        html.Hr(),
-        dcc.Input(id='clicked_aidopath'),
-        html.Hr(id='my-output-1')
-    ]),
-    html.Div([
-        dbc.Row(dbc.Col(html.Audio(id='player', controls=True), ), class_name='mt-3 '),
-        dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), class_name='mt-3'),
+                            ),
+                            dbc.Col(
+                                html.Iframe(
+                                    id='__diff',
+                                    sandbox='',
+                                    srcDoc='',
+                                    style={'border': 'none', 'width': '100%', 'height': '100%'},
+                                    className='bg-light font-monospace text-break small',
+                                ),
+                                class_name='mt-1 bg-light font-monospace text-break small rounded border',
+                            ),
+                    ], 
+                    ),]
 
-    ]),
-    ], id='unt_lvl', style={'width': 500, 'display': 'block'})
-    ]
+
+
+
 
 
 @app.callback(
@@ -1194,34 +1287,38 @@ if comparison_mode:
     Output(component_id='unt_lvl', component_property='style'),
     Input(component_id='lvl_choose', component_property='value')])
 def show_hide_element(visibility_state):
+    if args.show_statistics is not None:
+        a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'block'}
+    else:
+        a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'none'}
     if visibility_state == 'word level':
-        return {'width': '50%', 'display': 'inline-block', 'float': 'middle'}, {'width': '50%', 'display': 'none', 'float': 'middle'}
+        return {'width': '50%', 'display': 'inline-block', 'float': 'middle'}, {'width': '50%', 'display': 'none', 'float': 'middle'},
     if visibility_state == 'utterance level':
-        return {'width': '100%', 'display': 'none', 'float': 'middle'}, {'width': '100%', 'display': 'inline-block', 'float': 'middle'}
+        return {'width': '100%', 'display': 'none', 'float': 'middle'}, {'width': '100%', 'display': 'inline-block', 'float': 'middle'},
 
 
 store = []
 
 
 @app.callback(
-    [Output('datatable', 'page_current'), Output('my-output-1', 'value')],
-    [Input('utt_graph', 'clickData')],
+    [Output('datatable-advanced-filtering-2', 'page_current'), Output('my-output-1', 'value')],
+    [Input('utt_graph', 'clickData'),],
 )
 def real_select_click(hoverData):
     if hoverData is not None:
         path = str(hoverData['points'][0]['customdata'][-1])
-        for t in range(len(data)):
-            if data[t]['audio_filepath'] == path:
+        for t in range(len(data_with_metrics)):
+            if data_with_metrics[t]['audio_filepath'] == path:
                 ind = t
-                s = t % DATA_PAGE_SIZE
+                s = t #% 5
                 sel = s
-                pg = math.ceil(ind // DATA_PAGE_SIZE)
+                pg = math.ceil(ind // 5)
         return pg, sel
     else:
-        return 1, 1
+        return 0, 0
 
 @app.callback(
-    [Output('datatable', 'selected_rows')],
+    [Output('datatable-advanced-filtering-2', 'selected_rows')],
     [Input('my-output-1', 'value')],
 )
 def real_select_click(num):
@@ -1236,84 +1333,20 @@ CALCULATED_METRIC = [False, False]
 
 @app.callback(
      [Output('utt_graph', 'figure'), Output('clicked_aidopath', 'value'),
-      Input('choose_metric', 'value'), Input('utt_graph', 'clickData'),],
+      Input('choose_metric', 'value'), Input('utt_graph', 'clickData'), Input('datatable-advanced-filtering-2', 'derived_virtual_data')],
+      
 )
-def calculate_metrics(met, hoverData,):
-    da = pd.DataFrame.from_records(data)
+def draw_table_with_metrics(met, hoverData, data_virt):
     Ox = name_1
     Oy = name_2
     if met == "WER":
         cerower = 'wer_'
     else:
         cerower = 'cer_'
-
-    if (met == "WER" and (CALCULATED_METRIC[0] is False)) or (met == "CER" and (CALCULATED_METRIC[1] is False)):
-        from collections import defaultdict
-        #tmp_d = defaultdict(list)
-        # with open(args.manifest) as f:
-        #     for line_json in f:
-        #         line = json.loads(line_json)
-        #         gt = line["text"]
-        #         tt_1 = line[Ox]
-        #         tt_2 = line[Oy]
-        #         wer_tt1, cer_tt1 = metric(gt, tt_1, met)  # first model
-        #         wer_tt2, cer_tt2 = metric(gt, tt_2, met)  # second model
-        #
-        #         tmp = {'length': len(gt), 'numwords': len(gt.split()), 'wer_' + Ox: wer_tt1, 'wer_' + Oy: wer_tt2,
-        #                'cer_' + Ox: cer_tt1, 'cer_' + Oy: cer_tt2, }
-        #         line.update(tmp)
-        #         for k, v in line.items():
-        #             tmp_d[k].append(v)
-        # a = pd.DataFrame.from_dict(tmp_d)
-
-        gt = da['text']
-        tt_1 = da[Ox]
-        tt_2 = da[Oy]
-        #logging.error("CODE 4", str(gt))
-        wer_tt1_c, cer_tt1_c = [], []
-        wer_tt2_c, cer_tt2_c = [], []
-        #logging.error("CODE 1 | ", str(da))
-        for j in range(len(gt)):
-            wer_tt1, cer_tt1 = metric(gt[j], tt_1[j], met)  # first model
-            wer_tt2, cer_tt2 = metric(gt[j], tt_2[j], met)  # second model
-            wer_tt1_c.append(wer_tt1)
-            cer_tt1_c.append(cer_tt1)
-            wer_tt2_c.append(wer_tt2)
-            cer_tt2_c.append(cer_tt2)
-
-        da['wer_' + Ox] = pd.Series(wer_tt1_c, index=da.index)
-        da['wer_' + Oy] = pd.Series(wer_tt2_c, index=da.index)
-        da['cer_' + Ox] = pd.Series(cer_tt1_c, index=da.index)
-        da['cer_' + Oy] = pd.Series(cer_tt2_c, index=da.index)
-        a = da
-
-
-    else:
-        if len(CALCULATED_METRIC) == 3:
-            a = CALCULATED_METRIC[2]
-        else:
-            if CALCULATED_METRIC[0] is not False and CALCULATED_METRIC[1] is not False:
-                a = CALCULATED_METRIC[0]
-                a['cer_' + Ox] = CALCULATED_METRIC[1]['cer_' + Ox]
-                a['cer_' + Oy] = CALCULATED_METRIC[1]['cer_' + Oy]
-                CALCULATED_METRIC.append(a)
-            else:
-                if met == "WER":
-                    a = CALCULATED_METRIC[0]
-                if met == "CER":
-                    a = CALCULATED_METRIC[1]
-
-
-    if met == "WER":
-        cerower = 'wer_'
-        CALCULATED_METRIC[0] = a
-    else:
-        cerower = 'cer_'
-        CALCULATED_METRIC[1] = a
-
-
-    c = a
-    fig = px.scatter(a, x=cerower + Ox, y=cerower + Oy, width=1000, height=900, color='num_words',
+    da = pd.DataFrame.from_records(data_virt)
+    
+    c = da
+    fig = px.scatter(c, x=cerower + Ox, y=cerower + Oy, width=1000, height=900, color='num_words',
                      hover_data={'text': True, Ox: True, Oy: True,
                                  'wer_' + Ox: True, 'wer_' + Oy: True,
                                  'cer_' + Ox: True, 'cer_' + Oy: True,
@@ -1330,18 +1363,15 @@ def calculate_metrics(met, hoverData,):
 
     return fig, path
 
-import torchmetrics
-def metric(a, b, met):
+#import torchmetrics
 
-    if met == "WER":
-        wer = torchmetrics.functional.word_error_rate(a, b)
-        cer = -1
-        return round(float(wer) * 100, 2), -1
-    if met == "CER":
+    #if met == "WER":
+        #wer = torchmetrics.functional.word_error_rate(a, b)
+        #cer = -1
+        #return round(float(wer) * 100, 2), -1
+    #if met == "CER":
         #cer = torchmetrics.functional.char_error_rate(a, b)
-        cer = editdistance.distance(a, b) / len(a)
-        wer = -1
-        return -1, round(float(cer) * 100, 2)
+
 
 
 
@@ -1449,6 +1479,17 @@ def show_item(idx, data):
     if len(idx) == 0:
         raise PreventUpdate
     return [data[idx[0]][k] for k in data[0]]
+    
+    
+    
+    
+@app.callback(
+    [Output('__' + k, 'children') for k in data_with_metrics[0]], [Input('datatable-advanced-filtering-2', 'selected_rows'), Input('datatable-advanced-filtering-2', 'data')]
+)
+def show_item(idx, data):
+    if len(idx) == 0:
+        raise PreventUpdate
+    return [data[idx[0]][k] for k in data_with_metrics[0]]
 
 
 @app.callback(Output('_diff', 'srcDoc'), [Input('datatable', 'selected_rows'), Input('datatable', 'data'),])
@@ -1475,6 +1516,34 @@ def show_diff(
     diff_html = diff.diff_prettyHtml(diffs_post)
 
     return diff_html
+
+@app.callback(Output('__diff', 'srcDoc'), [Input('datatable-advanced-filtering-2', 'selected_rows'), Input('datatable-advanced-filtering-2', 'data'),])
+def show_diff(
+    idx, data,
+):
+    if len(idx) == 0:
+        raise PreventUpdate
+    orig_words = data[idx[0]]['text']
+    orig_words = '\n'.join(orig_words.split()) + '\n'
+
+    pred_words = data[idx[0]][fld_nm]
+    pred_words = '\n'.join(pred_words.split()) + '\n'
+
+    diff = diff_match_patch.diff_match_patch()
+    diff.Diff_Timeout = 0
+    orig_enc, pred_enc, enc = diff.diff_linesToChars(orig_words, pred_words)
+    diffs = diff.diff_main(orig_enc, pred_enc, False)
+    diff.diff_charsToLines(diffs, enc)
+    diffs_post = []
+    for d in diffs:
+        diffs_post.append((d[0], d[1].replace('\n', ' ')))
+
+    diff_html = diff.diff_prettyHtml(diffs_post)
+
+    return diff_html
+
+
+
 
 
 @app.callback(Output('signal-graph', 'figure'), [Input('datatable', 'selected_rows'), Input('datatable', 'data')])
@@ -1530,7 +1599,88 @@ def plot_signal(idx, data):
     return figs
 
 
+@app.callback(Output('signal-graph-1', 'figure'), [Input('datatable-advanced-filtering-2', 'selected_rows'), Input('datatable-advanced-filtering-2', 'data')])
+def plot_signal(idx, data):
+    if len(idx) == 0:
+        raise PreventUpdate
+    figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
+    try:
+        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.audio_base_path)
+        audio, fs = librosa.load(path=filename, sr=None)
+        if 'offset' in data[idx[0]]:
+            audio = audio[
+                int(data[idx[0]]['offset'] * fs) : int((data[idx[0]]['offset'] + data[idx[0]]['duration']) * fs)
+            ]
+        time_stride = 0.01
+        hop_length = int(fs * time_stride)
+        n_fft = 512
+        # linear scale spectrogram
+        s = librosa.stft(y=audio, n_fft=n_fft, hop_length=hop_length)
+        s_db = librosa.power_to_db(S=np.abs(s) ** 2, ref=np.max, top_db=100)
+        figs.add_trace(
+            go.Scatter(
+                x=np.arange(audio.shape[0]) / fs,
+                y=audio,
+                line={'color': 'green'},
+                name='Waveform',
+                hovertemplate='Time: %{x:.2f} s<br>Amplitude: %{y:.2f}<br><extra></extra>',
+            ),
+            row=1,
+            col=1,
+        )
+        figs.add_trace(
+            go.Heatmap(
+                z=s_db,
+                colorscale=[[0, 'rgb(30,62,62)'], [0.5, 'rgb(30,128,128)'], [1, 'rgb(30,255,30)'],],
+                colorbar=dict(yanchor='middle', lenmode='fraction', y=0.2, len=0.5, ticksuffix=' dB'),
+                dx=time_stride,
+                dy=fs / n_fft / 1000,
+                name='Spectrogram',
+                hovertemplate='Time: %{x:.2f} s<br>Frequency: %{y:.2f} kHz<br>Magnitude: %{z:.2f} dB<extra></extra>',
+            ),
+            row=2,
+            col=1,
+        )
+        figs.update_layout({'margin': dict(l=0, r=0, t=20, b=0, pad=0), 'height': 500})
+        figs.update_xaxes(title_text='Time, s', row=1, col=1)
+        figs.update_yaxes(title_text='Amplitude', row=1, col=1)
+        figs.update_xaxes(title_text='Time, s', row=2, col=1)
+        figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
+    except Exception as ex:
+        app.logger.error(f'ERROR in plot signal: {ex}')
+
+    return figs
+
+
+
+
+
+
+
 @app.callback(Output('player', 'src'), [Input('datatable', 'selected_rows'), Input('datatable', 'data')])
+def update_player(idx, data):
+    if len(idx) == 0:
+        raise PreventUpdate
+    try:
+        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.audio_base_path)
+        signal, sr = librosa.load(path=filename, sr=None)
+        if 'offset' in data[idx[0]]:
+            signal = signal[
+                int(data[idx[0]]['offset'] * sr) : int((data[idx[0]]['offset'] + data[idx[0]]['duration']) * sr)
+            ]
+        with io.BytesIO() as buf:
+            # convert to PCM .wav
+            sf.write(buf, signal, sr, format='WAV')
+            buf.seek(0)
+            encoded = base64.b64encode(buf.read())
+        return 'data:audio/wav;base64,{}'.format(encoded.decode())
+    except Exception as ex:
+        app.logger.error(f'ERROR in audio player: {ex}')
+        return ''
+        
+        
+        
+@app.callback(Output('player-1', 'src'), [Input('datatable-advanced-filtering-2', 'selected_rows'), Input('datatable-advanced-filtering-2', 'data')])
 def update_player(idx, data):
     if len(idx) == 0:
         raise PreventUpdate
