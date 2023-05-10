@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.tts.models.aligner import AlignerModel
+from nemo.collections.tts.models.encodec import EnCodecModel
 from nemo.collections.tts.models.fastpitch import FastPitchModel
 from nemo.collections.tts.models.fastpitch_ssl import FastPitchModel_SSL
 from nemo.collections.tts.models.hifigan import HifiGanModel
@@ -42,4 +43,5 @@ __all__ = [
     "VitsModel",
     "WaveGlowModel",
     "SpectrogramEnhancerModel",
+    "EnCodecModel",
 ]
