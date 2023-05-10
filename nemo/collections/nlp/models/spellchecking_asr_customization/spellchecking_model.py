@@ -309,7 +309,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     # Functions for inference
 
     @torch.no_grad()
-    def infer(self, dataloader_cfg: DictConfig, input_name: str, output_name: str) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
+    def infer(
+        self, dataloader_cfg: DictConfig, input_name: str, output_name: str
+    ) -> List[Tuple[str, List[Tuple[int, int, str]]]]:
         """ Main function for Inference
 
         Args:
@@ -336,8 +338,12 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             logging.set_verbosity(logging.WARNING)
             infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, input_name)
 
-            all_tag_preds = []  # list(size=number of sentences) of lists(size=number of letters) of tag predictions (best candidate_id for each letter)
-            all_possible_replacements = []  # list(size=number of sentences) of lists(size=number of potential replacements) of tuples(start, pos, candidate_id, prob)
+            all_tag_preds = (
+                []
+            )  # list(size=number of sentences) of lists(size=number of letters) of tag predictions (best candidate_id for each letter)
+            all_possible_replacements = (
+                []
+            )  # list(size=number of sentences) of lists(size=number of potential replacements) of tuples(start, pos, candidate_id, prob)
             for batch in iter(infer_datalayer):
                 (
                     input_ids,
@@ -363,15 +369,19 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
                 # fragment_indices.shape=[batsh_size, num_fragments, 3], where last dimension is [start, end, label], where label is candidate id from 1 to 10
                 # Next we want to convert predictions for separate letters to probabilities for each whole fragment from fragment_indices.
-                # To achieve this we first sum the letter logits in each fragment and divide by its length. 
+                # To achieve this we first sum the letter logits in each fragment and divide by its length.
                 # (We use .cumsum and then difference between end and start to get sum per fragment).
                 # Then we convert logits to probs with softmax and for each fragment extract only the prob for given label.
                 # Finally we get a list of tuples (start, end, label, prob)
                 indices_len = fragment_indices.shape[1]
                 # this padding adds a row of zeros (size=num_labels) as first element of sequence in second dimension. This is needed for cumsum operations.
                 padded_logits = torch.nn.functional.pad(tag_logits, pad=(0, 0, 1, 0))
-                batch_size, seq_len, num_labels = padded_logits.shape  # seq_len is +1 compared to that of tag_logits, because of padding
-                #cumsum.shape=[batch_size, seq_len, num_labels] 
+                (
+                    batch_size,
+                    seq_len,
+                    num_labels,
+                ) = padded_logits.shape  # seq_len is +1 compared to that of tag_logits, because of padding
+                # cumsum.shape=[batch_size, seq_len, num_labels]
                 cumsum = padded_logits.cumsum(dim=1)
                 # the size -1 is inferred from other dimensions. We get rid of batch dimension.
                 cumsum_view = cumsum.view(-1, num_labels)
@@ -395,12 +405,18 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 for i in range(batch_size):
                     possible_replacements = []
                     for j in range(indices_len):
-                        start, end, candidate_id = int(fragment_indices[i][j][0]), int(fragment_indices[i][j][1]), int(fragment_indices[i][j][2])
+                        start, end, candidate_id = (
+                            int(fragment_indices[i][j][0]),
+                            int(fragment_indices[i][j][1]),
+                            int(fragment_indices[i][j][2]),
+                        )
                         prob = round(float(candidate_probs[i][j]), 5)
                         if prob < 0.01:
                             continue
                         # -1 because in the output file we will not have a [CLS] token
-                        possible_replacements.append(str(start - 1) + " " + str(end - 1) + " " + str(candidate_id) + " " + str(prob))
+                        possible_replacements.append(
+                            str(start - 1) + " " + str(end - 1) + " " + str(candidate_id) + " " + str(prob)
+                        )
                     all_possible_replacements.append(possible_replacements)
 
                 # torch.argmax(tag_logits, dim=-1) gives a tensor of best predicted labels with shape [batch_size, char_seq_len], .dtype = int64
@@ -408,16 +424,18 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 character_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
                 all_tag_preds.extend(character_preds)
 
-            if len(all_possible_replacements) != len(all_tag_preds) or len(all_possible_replacements) != len(infer_datalayer.dataset.examples):
+            if len(all_possible_replacements) != len(all_tag_preds) or len(all_possible_replacements) != len(
+                infer_datalayer.dataset.examples
+            ):
                 raise IndexError(
                     "number of sentences mismatch: len(all_possible_replacements)="
                     + str(len(all_possible_replacements))
                     + "; len(all_tag_preds)="
                     + str(len(all_tag_preds))
                     + "; len(infer_datalayer.dataset.examples)="
-                    + str(len(infer_datalayer.dataset.examples)) 
+                    + str(len(infer_datalayer.dataset.examples))
                 )
-            # save results to file            
+            # save results to file
             with open(output_name, "w", encoding="utf-8") as out:
                 for i in range(len(infer_datalayer.dataset.examples)):
                     hyp, ref = infer_datalayer.dataset.hyps_refs[i]
@@ -433,7 +451,6 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             # set mode back to its original value
             self.train(mode=mode)
             logging.set_verbosity(logging_level)
-
 
     @torch.no_grad()
     def infer_reproduce_paper(self, dataloader_cfg: DictConfig, input_name: str) -> List[str]:
@@ -472,7 +489,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     input_mask_for_subwords,
                     segment_ids_for_subwords,
                     character_pos_to_subword_pos,
-                    _
+                    _,
                 ) = batch
 
                 tag_logits = self.forward(
@@ -482,7 +499,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     input_ids_for_subwords=input_ids_for_subwords.to(self.device),
                     input_mask_for_subwords=input_mask_for_subwords.to(self.device),
                     segment_ids_for_subwords=segment_ids_for_subwords.to(self.device),
-                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device)
+                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device),
                 )
                 tag_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
                 all_tag_preds.extend(tag_preds)

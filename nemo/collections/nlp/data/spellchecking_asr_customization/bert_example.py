@@ -179,15 +179,9 @@ class BertExampleBuilder(object):
                 tags[start:end] = [t for i in range(end - start)]
 
         # get input features for characters
-        (
-            input_ids,
-            input_mask,
-            segment_ids,
-            labels_mask,
-            labels,
-            _,
-            _,
-        ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags)
+        (input_ids, input_mask, segment_ids, labels_mask, labels, _, _,) = self._get_input_features(
+            hyp=hyp, ref=ref, tags=tags
+        )
 
         # get input features for words
         hyp_with_words = hyp.replace(" ", "").replace("_", " ")
@@ -217,7 +211,16 @@ class BertExampleBuilder(object):
             spans = self._get_spans(span_info_parts)
 
         if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
-            print("Max len exceeded: len(input_ids)=", len(input_ids), "; _max_seq_length=", self._max_seq_length, "; len(spans)=", len(spans), "; _max_spans_length=", self._max_spans_length)
+            print(
+                "Max len exceeded: len(input_ids)=",
+                len(input_ids),
+                "; _max_seq_length=",
+                self._max_seq_length,
+                "; len(spans)=",
+                len(spans),
+                "; _max_spans_length=",
+                self._max_spans_length,
+            )
             return None
 
         example = BertExample(
@@ -286,7 +289,9 @@ class BertExampleBuilder(object):
         fragment_indices.append((begin, end, -1))  # add last word
         return fragment_indices
 
-    def _get_fragment_indices(self, hyp: str, targets: List[int], span_info_parts: List[str]) -> Tuple[List[int], List[Tuple[int, int, int]]]:
+    def _get_fragment_indices(
+        self, hyp: str, targets: List[int], span_info_parts: List[str]
+    ) -> Tuple[List[int], List[Tuple[int, int, int]]]:
         """ Maps each single character to the position of its corresponding word.
 
             Args:
@@ -312,13 +317,13 @@ class BertExampleBuilder(object):
 
             # Adjust start by finding the nearest left space or beginning of text. If start is already some word beginning, it won't change.
             k = start
-            while(k > 0 and letters[k] != '_'):
+            while k > 0 and letters[k] != '_':
                 k -= 1
             adjusted_start = k if k == 0 else k + 1
 
             # Adjust end by finding the nearest right space. If end is already space or sentence end, it won't change.
             k = end
-            while(k < len(letters) and letters[k] != '_'):
+            while k < len(letters) and letters[k] != '_':
                 k += 1
             adjusted_end = k
 
