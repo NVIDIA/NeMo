@@ -37,6 +37,7 @@ def dtype_from_precision(precision: Union[int, str]) -> torch.dtype:
     else:
         raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")
 
+
 def list2str(l: List[int]) -> str:
     """ Converts list to a string"""
     return ' '.join([str(x) for x in l])
