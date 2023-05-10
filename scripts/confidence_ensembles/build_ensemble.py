@@ -14,25 +14,27 @@
 #
 # Run ``python build_ensemble.py --help`` for usage examples.
 
+import atexit
 
+# using default logging to be able to silence unnecessary messages from nemo
+import logging
 import os
+import random
+import sys
 import tempfile
 from dataclasses import dataclass, is_dataclass
+from pathlib import Path
 from typing import List, Optional
 
-# TODO: need fix for import
 import joblib
 import numpy as np
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
-from transcribe_speech import TranscriptionConfig, transcribe_speech
 
 from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
@@ -42,7 +44,22 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import (
 )
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
+
+LOG = logging.getLogger(__file__)
+
+# adding Python path. If not found, asking user to get the file
+try:
+    sys.path.append(str(Path(__file__).parents[2] / "examples" / "asr"))
+    import transcribe_speech
+except ImportError:
+    # if users run script normally from nemo repo, this shouldn't be triggered as
+    # we modify the path above. But if they downloaded the build_ensemble.py as
+    # an isolated script, we'd ask them to also download corresponding version
+    # of the transcribe_speech.py
+    print(
+        "Current script depends on 'examples/asr/transcribe_speech.py', but can't find it. "
+        "If it's not present, download it from the NeMo github manually and put inside this folder."
+    )
 
 
 @dataclass
@@ -77,7 +94,8 @@ class BuildEnsembleConfig:
         method_cfg=ConfidenceMethodConfig(
             name="entropy",
             entropy_type="renui",
-            temperature=0.25,  # this is not really temperature, but alpha TODO: should ideally rename + add real temp
+            # alpha=,
+            temperature=0.25,  # this is not really temperature, but alpha TODO: should ideally rename + add real temp (good to try)
             entropy_norm="lin",
         ),
     )
@@ -85,7 +103,7 @@ class BuildEnsembleConfig:
     # this is optional, but can be used to change any aspect of the transcription
     # config, such as batch size or amp usage. Note that model, data and confidence
     # will be overriden by this script
-    transcription: TranscriptionConfig = TranscriptionConfig()
+    transcription: transcribe_speech.TranscriptionConfig = transcribe_speech.TranscriptionConfig()
 
 
 def calculate_score(features, labels, pipe):
@@ -115,24 +133,45 @@ def train_model_selection(
 
     accuracy, confusion = calculate_score(training_features, training_labels, pipe)
 
-    logging.info("Training fit accuracy: %.4f", accuracy * 100.0)
-    logging.info("Training confusion matrix:\n%s", str(confusion))
+    LOG.info("Training fit accuracy: %.4f", accuracy * 100.0)
+    LOG.info("Training confusion matrix:\n%s", str(confusion))
     return pipe
 
 
-# TODO: maybe use parallel transcribe instead?
+def subsample_manifest(manifest_file, max_samples):
+    """Will save a subsampled version of the manifest to the same folder.
+
+    Have to save to the same folder to support relative paths.
+    """
+    with open(manifest_file, "rt", encoding="utf-8") as fin:
+        lines = fin.readlines()
+    if max_samples < len(lines):
+        lines = random.sample(lines, max_samples)
+    output_file = manifest_file + "-subsampled"
+    with open(output_file, "wt", encoding="utf-8") as fout:
+        fout.write("".join(lines))
+    return output_file
+
+
+def cleanup_subsampled_manifests(subsampled_manifests):
+    for manifest in subsampled_manifests:
+        os.remove(manifest)
 
 
 # TODO: change name?
 @hydra_runner(config_name="ensemble_config.yaml", schema=BuildEnsembleConfig)
 def main(cfg: BuildEnsembleConfig):
-    logging.info(f'Build ensemble config: {OmegaConf.to_yaml(cfg)}')
+    # silencing all messages from nemo/ptl to avoid dumping tons of configs to the stdout
+    logging.getLogger('pytorch_lightning').setLevel(logging.CRITICAL)
+    logging.getLogger('nemo_logger').setLevel(logging.CRITICAL)
+    LOG.info(f'Build ensemble config:\n{OmegaConf.to_yaml(cfg)}')
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
     pl.seed_everything(cfg.random_seed)
     cfg.transcription.random_seed = None  # seed is already applied
+    cfg.transcription.return_transcriptions = True
     cfg.transcription.ctc_decoding.confidence_cfg = cfg.confidence
     cfg.transcription.rnnt_decoding.confidence_cfg = cfg.confidence
 
@@ -141,22 +180,35 @@ def main(cfg: BuildEnsembleConfig):
 
     confidences = []
     labels = []
-    # note that we loop over the same config. This is intentional, as we need
-    # to run all models on all datasets
+
+    # registering clean up function that will hold on to this list and
+    # should clean up even if there is partial error in some of the transcribe
+    # calls
+    subsampled_manifests = []
+    atexit.register(cleanup_subsampled_manifests, subsampled_manifests)
+
+    # note that we loop over the same config.
+    # This is intentional, as we need to run all models on all datasets
     for model_idx, model_cfg in enumerate(cfg.ensemble):
         model_confidences = []
         for data_idx, data_cfg in enumerate(cfg.ensemble):
-            cfg.transcription.max_samples = model_cfg.max_training_samples
+            if model_idx == 0:  # generating subsampled manifests only one time
+                subsampled_manifests.append(
+                    subsample_manifest(data_cfg.training_manifest, data_cfg.max_training_samples)
+                )
+            subsampled_manifest = subsampled_manifests[data_idx]
+
             if model_cfg.model.endswith(".nemo"):
                 cfg.transcription.model_path = model_cfg.model
             else:  # assuming pretrained model
                 cfg.transcription.pretrained_name = model_cfg.model
 
-            cfg.transcription.dataset_manifest = data_cfg.training_manifest
+            cfg.transcription.dataset_manifest = subsampled_manifest
 
             with tempfile.NamedTemporaryFile() as output_file:
                 cfg.transcription.output_filename = output_file.name
-                transcriptions = transcribe_speech(cfg.transcription)
+                LOG.info("Transcribing dataset %d with model %d", data_idx, model_idx)
+                transcriptions = transcribe_speech.main(cfg.transcription)
 
                 for transcription in transcriptions:
                     if isinstance(transcription.frame_confidence[0], list):
@@ -185,26 +237,6 @@ def main(cfg: BuildEnsembleConfig):
             models=[model_cfg.model for model_cfg in cfg.ensemble],
         )
         ensemble_model.save_to(cfg.output_path)
-
-    # ensemble_cfg = {'models': []}
-    # ensemble_state = {}
-    # for model_idx, model_cfg in enumerate(cfg.ensemble):
-    #     model_dict = {}
-    #     if model_cfg.model.endswith(".nemo"):
-    #         model_dict['model_path'] = model_cfg.model
-    #     else:  # assuming pretrained model
-    #         model_dict['pretrained_name'] = model_cfg.model
-    #     model, _ = setup_model(DictConfig(model_dict), "cpu")
-    #     ensemble_cfg['models'].append(model.cfg)
-    #     # TODO: can this be done automatically somehow?
-    #     for key, value in model.state_dict().items():
-    #         ensemble_state[f'models.{model_idx}.{key}'] = value
-
-    # import yaml
-    # with open("model_config.yaml", "wt", encoding="utf-8") as fout:
-    #     yaml.dump(ensemble_cfg, fout)
-
-    # torch.save(ensemble_state, "model_weights.ckpt")
 
 
 if __name__ == '__main__':

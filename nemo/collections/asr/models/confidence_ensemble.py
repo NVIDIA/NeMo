@@ -46,6 +46,7 @@ class ConfidenceEnsembleModel(ModelPT):
     def __init__(
         self, cfg: DictConfig, trainer: 'Trainer' = None, models: Optional[List[str]] = None,
     ):
+        # TODO: put models inside the config
         super().__init__(cfg=cfg, trainer=trainer)
 
         # either we load all models from ``models`` init parameter
@@ -74,6 +75,7 @@ class ConfidenceEnsembleModel(ModelPT):
             OmegaConf.set_struct(self.cfg, True)
             for idx, model in enumerate(models):
                 cfg_field = f"model{idx}"
+                # TODO: map location cpu
                 if model.endswith(".nemo"):
                     self.register_nemo_submodule(
                         name=cfg_field, config_field=cfg_field, model=ASRModel.restore_from(model, trainer=trainer),
@@ -94,6 +96,8 @@ class ConfidenceEnsembleModel(ModelPT):
             decoding_cfg.confidence_cfg = self.confidence
             # TODO: is there a way to handle hybrid model change flexibly here?
             model.change_decoding_strategy(decoding_cfg)
+
+    # TODO: hybrid later (no switch from ctc to rnnt)
 
     def list_available_models(self):
         pass
@@ -119,10 +123,13 @@ class ConfidenceEnsembleModel(ModelPT):
         for model_idx in range(self.num_models):
             getattr(self, f"model{model_idx}").change_decoding_strategy(decoding_cfg, **kwargs)
 
+    # TODO: keep a single class, use common arguments explicitly, any optional model-specific go to kwargs and inspect later
+    # TODO: assume only common arguments for now
+    # TODO: return_hypotheses always True
     @torch.no_grad()
     def transcribe(  # TODO: rnnt takes different parameters?
         self,
-        *args,
+        *args,  # TODO: remove args
         **kwargs,
         # paths2audio_files: List[str],
         # batch_size: int = 4,
