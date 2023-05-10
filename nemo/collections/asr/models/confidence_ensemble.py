@@ -44,13 +44,12 @@ __all__ = ['ConfidenceEnsembleModel']
 
 class ConfidenceEnsembleModel(ModelPT):
     def __init__(
-        self, cfg: DictConfig, trainer: 'Trainer' = None, models: Optional[List[str]] = None,
+        self, cfg: DictConfig, trainer: 'Trainer' = None,
     ):
-        # TODO: put models inside the config
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # either we load all models from ``models`` init parameter
-        # or all of them are specified in the config alongside the num_models key
+        # either we load all models from ``load_models`` cfg parameter
+        # or all of them are specified in the config as modelX alongside the num_models key
         #
         # ideally, we'd like to directly store all models in a list, but that
         # is not currently supported by the submodule logic
@@ -69,11 +68,11 @@ class ConfidenceEnsembleModel(ModelPT):
                     name=cfg_field, config_field=cfg_field, model=model_class(model_cfg, trainer=trainer),
                 )
         else:
-            self.num_models = len(models)
+            self.num_models = len(cfg.load_models)
             OmegaConf.set_struct(self.cfg, False)
             self.cfg.num_models = self.num_models
             OmegaConf.set_struct(self.cfg, True)
-            for idx, model in enumerate(models):
+            for idx, model in enumerate(cfg.load_models):
                 cfg_field = f"model{idx}"
                 # TODO: map location cpu
                 if model.endswith(".nemo"):

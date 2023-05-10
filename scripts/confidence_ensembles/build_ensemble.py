@@ -34,7 +34,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
 
 from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
@@ -42,7 +41,6 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     ConfidenceMethodConfig,
     get_confidence_aggregation_bank,
 )
-from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
 
 LOG = logging.getLogger(__file__)
@@ -72,7 +70,7 @@ class EnsembleConfig:
     # 100 is most likely enough, but setting higher default just in case
     max_training_samples: int = 1000
     # specify to provide dev data manifest for HP tuning
-    dev_manifest: Optional[str] = None
+    # dev_manifest: Optional[str] = None
 
 
 @dataclass
@@ -232,9 +230,14 @@ def main(cfg: BuildEnsembleConfig):
 
         # creating ensemble checkpoint
         ensemble_model = ConfidenceEnsembleModel(
-            cfg=DictConfig({'model_selection_block': model_selection_block_path, 'confidence': cfg.confidence,}),
+            cfg=DictConfig(
+                {
+                    'model_selection_block': model_selection_block_path,
+                    'confidence': cfg.confidence,
+                    'load_models': [model_cfg.model for model_cfg in cfg.ensemble],
+                }
+            ),
             trainer=None,
-            models=[model_cfg.model for model_cfg in cfg.ensemble],
         )
         ensemble_model.save_to(cfg.output_path)
 
