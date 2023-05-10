@@ -211,7 +211,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
-        if self.durations is not None:
+        if self.durations is not None:  # this means it's a TDT model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None:
@@ -219,7 +219,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
                 raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
 
-        if self.big_blank_durations is not None:
+        if self.big_blank_durations is not None:  # this means it's a multi-blank model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
