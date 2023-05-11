@@ -445,10 +445,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
 
-            # TODO: remove
-            # collapse leading spaces before . , ? for PC models
-            hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
-
             # If computing timestamps
             if self.compute_timestamps is True:
                 timestamp_type = self.cfg.get('rnnt_timestamp_type', 'all')
@@ -503,6 +499,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hypothesis = (prediction, alignments, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(prediction)
+
+                # TODO: remove
+                # collapse leading spaces before . , ? for PC models
+                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
                 if self.compute_hypothesis_token_set:
                     hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
