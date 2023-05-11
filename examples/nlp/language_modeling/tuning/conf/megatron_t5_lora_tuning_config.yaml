@@ -101,7 +101,9 @@ model:
     answer_field: "target"
 
   lora_tuning:
-      adapter_dim: 32
+      kqv_adapter_dim: 24
+      kv_adapter_dim: 16
+      q_adapter_dim: 8
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal

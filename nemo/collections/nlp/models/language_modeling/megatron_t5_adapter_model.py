@@ -499,7 +499,7 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
             adapter_cfg = LoraKQVAdapterConfig(
                 in_features=component_cfg.hidden_size,
                 out_features=3 * projection_size,
-                dim=component_cfg.lora_tuning.adapter_dim,
+                dim=component_cfg.lora_tuning.kqv_adapter_dim,
                 norm_position="none",
                 norm_type="none",
                 activation="identity",
@@ -512,7 +512,7 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
             adapter_cfg = LoraKVAdapterConfig(
                 in_features=component_cfg.hidden_size,
                 out_features=2 * projection_size,
-                dim=component_cfg.lora_tuning.adapter_dim,
+                dim=component_cfg.lora_tuning.kv_adapter_dim,
                 norm_position="none",
                 norm_type="none",
                 activation="identity",
@@ -525,7 +525,7 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
             adapter_cfg = LoraQAdapterConfig(
                 in_features=component_cfg.hidden_size,
                 out_features=1 * projection_size,
-                dim=component_cfg.lora_tuning.adapter_dim,
+                dim=component_cfg.lora_tuning.q_adapter_dim,
                 norm_position="none",
                 norm_type="none",
                 activation="identity",
