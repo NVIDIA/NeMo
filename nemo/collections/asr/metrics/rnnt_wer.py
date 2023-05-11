@@ -266,12 +266,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None:
-                if self.durations is not None:
-                    self.decoding = greedy_decode.GreedyTDTInfer(
+                if self.durations is None:
+                    self.decoding = greedy_decode.GreedyRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
-                        durations=self.durations,
                         max_symbols_per_step=(
                             self.cfg.greedy.get('max_symbols', None)
                             or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -281,10 +280,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         confidence_method_cfg=self.confidence_method_cfg,
                     )
                 else:
-                    self.decoding = greedy_decode.GreedyRNNTInfer(
+                    self.decoding = greedy_decode.GreedyTDTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
+                        durations=self.durations,
                         max_symbols_per_step=(
                             self.cfg.greedy.get('max_symbols', None)
                             or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -309,12 +309,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         elif self.cfg.strategy == 'greedy_batch':
             if self.big_blank_durations is None:
-                if self.durations is not None:
-                    self.decoding = greedy_decode.GreedyBatchedTDTInfer(
+                if self.durations is None:
+                    self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
-                        durations=self.durations,
                         max_symbols_per_step=(
                             self.cfg.greedy.get('max_symbols', None)
                             or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -324,10 +323,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         confidence_method_cfg=self.confidence_method_cfg,
                     )
                 else:
-                    self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                    self.decoding = greedy_decode.GreedyBatchedTDTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
+                        durations=self.durations,
                         max_symbols_per_step=(
                             self.cfg.greedy.get('max_symbols', None)
                             or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -1102,7 +1102,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
         blank_id = len(vocabulary) + joint.num_extra_outputs
 
-        if 'durations' in decoding_cfg:  # this means it's a TDT model.
+        if 'durations' in decoding_cfg and decoding_cfg['durations'] is not None:  # this means it's a TDT model.
             blank_id = len(vocabulary)
 
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])

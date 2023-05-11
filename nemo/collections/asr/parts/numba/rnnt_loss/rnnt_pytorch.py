@@ -93,7 +93,7 @@ class _RNNTNumba(Function):
 
 class _TDTNumba(Function):
     """
-    Numba class for TDT loss (https://arxiv.org/abs/2304.06795)
+    Numba class for Token-and-Duration Transducer (TDT) loss (https://arxiv.org/abs/2304.06795)
     """
 
     @staticmethod
@@ -113,14 +113,20 @@ class _TDTNumba(Function):
         omega,
     ):
         """
+        log_probs: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
+        labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
+        act_lens: Tensor of size (batch) containing size of each output sequence from the network
+        label_lens: Tensor of (batch) containing label length of each example
+        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
+            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+
         durations: list of durations for TDT model, must include 0 and 1, e.g.
             [0, 1, 2, 3, 4].
         sigma: hyper-parameter for logit under-normalization method for training
             TDT models. Recommended value 0.05.
-        omega: weight for standard RNN-T loss
+        omega: probability for sampling the standard RNN-T loss
         Refer to https://arxiv.org/abs/2304.06795 for detailed explanations for
             the above parameters;
-        For other parameters for this class, refer to comment for class _RNNTNumba
         """
         is_cuda = label_acts.is_cuda
 
@@ -523,7 +529,7 @@ class TDTLossNumba(Module):
     def __init__(
         self,
         blank,
-        durations=[],
+        durations=None,
         reduction='mean',
         fastemit_lambda: float = 0.0,
         clamp: float = -1,
@@ -532,7 +538,7 @@ class TDTLossNumba(Module):
     ):
         super(TDTLossNumba, self).__init__()
         self.blank = blank
-        self.durations = durations
+        self.durations = durations if durations is not None else []
         self.fastemit_lambda = fastemit_lambda
         self.clamp = float(clamp) if clamp > 0 else 0.0
         self.reduction = reduction
@@ -549,9 +555,10 @@ class TDTLossNumba(Module):
         """
 
         # TODO(hainan): in the future, we could further optimize this so that we don't need to
-        # make copies of the acts tensor.
-        label_acts = acts[:, :, :, : -len(self.durations)].contiguous()
-        duration_acts = torch.nn.functional.log_softmax(acts[:, :, :, -len(self.durations) :], dim=-1).contiguous()
+        # make contiguous copies of the acts tensor.
+        label_acts, duration_acts = torch.split(acts, [acts.shape[-1] - len(self.durations), len(self.durations)], dim=-1)
+        label_acts = label_acts.contiguous()
+        duration_acts = torch.nn.functional.log_softmax(duration_acts, dim=-1).contiguous()
 
         return self.loss(
             label_acts,

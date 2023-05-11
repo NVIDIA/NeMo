@@ -2,6 +2,47 @@
 
 # You can find detailed info about TDT models at https://arxiv.org/abs/2304.06795. 
 
+# Architecture and training config:
+# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
+# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# Here are the recommended configs for different variants of Conformer-Transducer, other parameters are the same as in this config file.
+#
+#  +--------------+---------+---------+----------+------------------+--------------+--------------------------+-----------------+
+#  | Model        | d_model | n_heads | n_layers | conv_kernel_size | weight_decay | pred_hidden/joint_hidden | pred_rnn_layers |
+#  +==============+=========+========+===========+==================+==============+==========================+=================+
+#  | Small   (14M)|   176   |    4   |    16     |       31         |     0.0      |           320            |        1        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
+#  | Medium  (32M)|   256   |    4   |    16     |       31         |     1e-3     |           640            |        1        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
+#  | Large  (120M)|   512   |    8   |    17     |       31         |     1e-3     |           640            |        1        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
+#  | XLarge (644M)|  1024   |    8   |    24     |        5         |     1e-3     |           640            |        2        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+  
+
+# Default learning parameters in this config are set for global batch size of 2K while you may use lower values.
+# To increase the global batch size with limited number of GPUs, you may use higher accumulate_grad_batches.
+# However accumulate_grad_batches is better to be avoided as long as the global batch size is large enough and training is stable.
+
+# You may find more info about Conformer-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-transducer
+# Pre-trained models of Conformer-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+# The checkpoint of the large model trained on NeMo ASRSET with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large
+
+# We suggest to use trainer.precision=bf16 for GPUs which support it otherwise trainer.precision=16 is recommended.
+# Using bf16 or 16 would make it possible to double the batch size and speedup training/inference. If fp16 is not stable and model diverges after some epochs, you may use fp32.
+# Here are the suggested batch size per GPU for each precision and memory sizes:
+#  +-----------+------------+------------+
+#  | Precision | GPU Memory | Batch Size |
+#  +===========+============+============+
+#  | 32        |    16GB    |     8      |
+#  |           |    32GB    |     16     |
+#  |           |    80GB    |     32     |
+#  +-----------+------------+------------+
+#  | 16 or     |    16GB    |     16     |
+#  | bf16      |    32GB    |     32     |
+#  |           |    80GB    |     64     |
+#  +-----------+------------+------------+
+# Note:  They are based on the assumption of max_duration of 20. If you have longer or shorter max_duration, then batch sizes may need to get updated accordingly.
+
 name: "Conformer-TDT-BPE"
 
 model:
@@ -14,6 +55,11 @@ model:
     enc_hidden: ${model.encoder.d_model}
     pred_hidden: 640
     joint_hidden: 640
+
+    # variables for TDT configs.
+    tdt_durations: [0, 1, 2, 3, 4]
+    num_tdt_durations: 5
+    
 
   train_ds:
     manifest_filepath: ???
@@ -147,13 +193,13 @@ model:
       joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
       dropout: 0.2
-    num_extra_outputs: 5
+      num_extra_outputs: ${model.model_defaults.num_tdt_durations}
 
   decoding:
     strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
 
     # this must not be None in order to use the TDT specific decoding method.
-    durations: [0, 1, 2, 3, 4]
+    durations: ${model.model_defaults.tdt_durations}
 
     # greedy strategy config
     greedy:
@@ -178,7 +224,7 @@ model:
       clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
       # refer to https://arxiv.org/abs/2304.06795 for the meaning of the following three configs.
-      durations: [0, 1, 2, 3, 4]
+      durations: ${model.model_defaults.tdt_durations}
       sigma: 0.05 # hyper-param for under-normalization.
       omega: 0.1 # weight for regular RNN-T loss.
 

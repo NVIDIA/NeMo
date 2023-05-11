@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import torch
+from typing import List
 
 from nemo.core.classes import Loss
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
@@ -113,6 +114,9 @@ class RNNTLossPytorch(Loss):
 
 
 class TDTLossPytorch(Loss):
+    """
+    Pure Python implementation of TDT loss (https://arxiv.org/pdf/2304.06795.pdf)
+    """
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -132,7 +136,7 @@ class TDTLossPytorch(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, blank, durations, reduction, sigma):
+    def __init__(self, blank: int, durations: List[int]=[], reduction: str='sum', sigma: float=0.0):
         super().__init__()
         self.blank = blank
         self.durations = durations
@@ -144,6 +148,7 @@ class TDTLossPytorch(Loss):
         label_acts = acts[:, :, :, : -self.n_durations]
         duration_acts = acts[:, :, :, -self.n_durations :]
 
+        # the - self.sigma here is for logit-undernormalization. Check the paper for details.
         label_acts = torch.log_softmax(label_acts, -1) - self.sigma
 
         duration_acts = torch.log_softmax(duration_acts, -1)
@@ -166,6 +171,9 @@ class TDTLossPytorch(Loss):
         return ret
 
     def compute_forward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
+        """This function implements Equation 7 in the TDT paper https://arxiv.org/pdf/2304.06795.pdf,
+        Simply put, for each alpha(t, u), it sums over the contribution from all incoming blank arcs and non-blank arcs.
+        """
         B, T, U, _ = acts.shape
 
         log_alpha = torch.zeros(B, T, U)
@@ -175,11 +183,13 @@ class TDTLossPytorch(Loss):
                 for u in range(U):
                     if u == 0:
                         if t == 0:
+                            # both t and u are 0, this is the base case for alphas.
                             log_alpha[b, t, u] = 0.0
                         else:
+                            # u = 0 and t != 0: only considers blank emissions.
                             log_alpha[b, t, u] = -1000.0
                             for n, l in enumerate(self.durations):
-                                if t - l >= 0 and l > 0:  # blank emission, l has to be at least 1
+                                if t - l >= 0 and l > 0:  # checking conditions for blank emission, l has to be at least 1
                                     tmp = (
                                         log_alpha[b, t - l, u]
                                         + acts[b, t - l, u, self.blank]
@@ -188,10 +198,11 @@ class TDTLossPytorch(Loss):
                                     log_alpha[b, t, u] = self.logsumexp(tmp, 1.0 * log_alpha[b, t, u])
 
                     else:
+                        # u != 0 here, need to consider both blanks and non-blanks.
                         log_alpha[b, t, u] = -1000.0
                         for n, l in enumerate(self.durations):
                             if t - l >= 0:
-                                if l > 0:
+                                if l > 0:  # for blank emissions. Need to ensure index is not out-of-bound.
                                     tmp = (
                                         log_alpha[b, t - l, u]
                                         + acts[b, t - l, u, self.blank]
@@ -199,6 +210,7 @@ class TDTLossPytorch(Loss):
                                     )
                                     log_alpha[b, t, u] = self.logsumexp(tmp, 1.0 * log_alpha[b, t, u])
 
+                                # non-blank emissions.
                                 tmp = (
                                     log_alpha[b, t - l, u - 1]
                                     + acts[b, t - l, u - 1, labels[b, u - 1]]
@@ -209,6 +221,8 @@ class TDTLossPytorch(Loss):
         log_probs = []
         for b in range(B):
             tt = torch.Tensor([-1000.0]).cuda()[0]
+
+            # need to loop over all possible ways that blank with different durations contributes to the final loss.
             for n, l in enumerate(self.durations):
                 if act_lens[b] - l >= 0 and l > 0:
                     bb = (

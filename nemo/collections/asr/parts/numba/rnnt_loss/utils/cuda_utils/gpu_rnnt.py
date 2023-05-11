@@ -500,23 +500,7 @@ class MultiblankGPURNNT(GPURNNT):
             An int, representing the offset of the used workspace (practically, the slice of the workspace consumed)
             A tuple of tensors representing the shared workspace.
         """
-        used_offset = 0
-
-        # // denom
-        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-
-        # // alphas & betas
-        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-
-        # // logllh
-        llForward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
-        used_offset += self.minibatch_
-        llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
-        used_offset += self.minibatch_
+        used_offset, (denom, alphas, betas, llForward, llBackward) = super()._prepare_workspace()
 
         bigblank_durations = self.big_blank_workspace[: self.num_big_blanks]
 
@@ -814,23 +798,7 @@ class GPUTDT(GPURNNT):
             An int, representing the offset of the used workspace (practically, the slice of the workspace consumed)
             A tuple of tensors representing the shared workspace.
         """
-        used_offset = 0
-
-        # // denom
-        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-
-        # // alphas & betas
-        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-
-        # // logllh
-        llForward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
-        used_offset += self.minibatch_
-        llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
-        used_offset += self.minibatch_
+        used_offset, (denom, alphas, betas, llForward, llBackward) = super()._prepare_workspace()
 
         durations = self.tdt_workspace[: self.num_durations]
 
