@@ -12,6 +12,7 @@ inflect
 jieba
 matplotlib>=3.3.2
 megatron_core==0.1.0
+megatron_core==0.1.0
 nltk>=3.6.5
 numpy
 opencc
@@ -20,4 +21,3 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
-megatron_core==0.1.0
