@@ -32,6 +32,11 @@ END_NAME_SIGNAL = "\n"
 SYSTEM_TOKEN = "<extra_id_0>System\n"
 TURN_TOKEN = "<extra_id_1>"
 
+GUARD_RAIL_INSTRUCTION = {
+    "TEXT_TO_CANONICAL_FORM": "Given a dialogue, for each turn you need to generate a short summary called a canonical form. Generate the canonical form for the last turn in the dialogue.",
+    "CANONICAL_FORM_TO_TEXT": "Given a dialogue, for each turn we also have a short summary called a canonical form. Generate the canonical form given the last turn message and canonical form. Then generate the message.",
+}
+
 
 def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role):
     cur_idx = header_len
@@ -62,19 +67,42 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
         cur_idx += tokenized_len
 
 
-def _add_speaker_and_signal(header, source, mask_role):
+def cannonical_form_formater(cannoical_form):
+    return f'<extra_id_2>{cannoical_form}\n'
+
+
+def _add_speaker_and_signal(header, source, mask_role, gtype):
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
     conversation = header
     for i, sentence in enumerate(source):
         sentence_from = sentence["from"]
         role_token = TURN_TOKEN
-        sentence["value"] = (
-            BEGIN_SIGNAL
-            + role_token + sentence_from + END_NAME_SIGNAL
-            + sentence["value"]
-            + END_SIGNAL
-        )
+        if gtype is None:
+            sentence["value"] = (
+                BEGIN_SIGNAL
+                + role_token + sentence_from + END_NAME_SIGNAL
+                + sentence["value"]
+                + END_SIGNAL
+            )
+        elif gtype == "TEXT_TO_CANONICAL_FORM":
+            sentence["value"] = (
+                BEGIN_SIGNAL
+                + role_token + sentence_from + END_NAME_SIGNAL
+                + sentence["value"]
+                + END_SIGNAL
+                + cannonical_form_formater(sentence['canonical_form'])
+            )
+        elif gtype == "CANONICAL_FORM_TO_TEXT":
+            sentence["value"] = (
+                BEGIN_SIGNAL
+                + role_token + sentence_from + END_NAME_SIGNAL
+                + cannonical_form_formater(sentence['canonical_form'])
+                + sentence["value"]
+                + END_SIGNAL
+            )
+        else:
+            raise ValueError(f"source type {gtype} not supported")
         conversation += sentence["value"]
         # if the last turn is not masked, add next token start token to the end, which will be included for loss calculation
         if sentence_from != mask_role and i == len(source) - 1:
@@ -93,10 +121,17 @@ def preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
+    canonical_type = None
+    if 'type' in source:
+        canonical_type = source['type']
+        assert canonical_type in GUARD_RAIL_INSTRUCTION, f"source type {canonical_type} not supported"
     # add end signal and concatenate together
+    conversation = source['system']
+    if canonical_type is not None:
+        conversation = conversation + '\n' + GUARD_RAIL_INSTRUCTION[canonical_type]
     mask_role = source.get('mask', 'User')
-    header = f"{SYSTEM_TOKEN}{source['system']}\n\n"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role)
+    header = f"{SYSTEM_TOKEN}{conversation}\n\n"
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, canonical_type)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
