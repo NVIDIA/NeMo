@@ -176,6 +176,7 @@ def main(cfg: BuildEnsembleConfig):
     cfg.transcription.ctc_decoding.confidence_cfg = cfg.confidence
     cfg.transcription.rnnt_decoding.confidence_cfg = cfg.confidence
     cfg.transcription.ctc_decoding.temperature = cfg.temperature
+    cfg.transcription.rnnt_decoding.temperature = cfg.temperature
 
     aggregations = get_confidence_aggregation_bank()
     aggr_func = aggregations[cfg.confidence.aggregation]
@@ -210,7 +211,7 @@ def main(cfg: BuildEnsembleConfig):
             with tempfile.NamedTemporaryFile() as output_file:
                 cfg.transcription.output_filename = output_file.name
                 LOG.info("Transcribing dataset %d with model %d", data_idx, model_idx)
-                transcriptions = transcribe_speech.main(cfg.transcription)
+                transcriptions = transcribe_speech.main(cfg.transcription.copy())
 
                 for transcription in transcriptions:
                     if isinstance(transcription.frame_confidence[0], list):

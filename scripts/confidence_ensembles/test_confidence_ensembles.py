@@ -26,7 +26,29 @@ sys.path.append(str(Path(__file__).parents[2] / 'examples' / 'asr'))
 import speech_to_text_eval
 
 
-@pytest.mark.parametrize('build_args', [""])
+@pytest.mark.parametrize(
+    'build_args',
+    [
+        "ensemble.0.model=stt_es_conformer_ctc_large ensemble.1.model=stt_it_conformer_ctc_large",
+        "ensemble.0.model=stt_es_conformer_transducer_large ensemble.1.model=stt_it_conformer_transducer_large",
+        "ensemble.0.model=stt_es_fastconformer_hybrid_large_pc ensemble.1.model=stt_it_fastconformer_hybrid_large_pc",
+        (
+            "ensemble.0.model=stt_es_fastconformer_hybrid_large_pc "
+            "ensemble.1.model=stt_it_fastconformer_hybrid_large_pc "
+            "transcription.decoder_type=ctc"
+        ),
+        "ensemble.0.model=stt_es_conformer_ctc_large ensemble.1.model=stt_it_conformer_transducer_large",
+    ],
+    ids=(
+        [
+            "CTC models",
+            "Transducer models",
+            "Hybrid models (Transducer mode)",
+            "Hybrid models (CTC mode)",
+            "CTC + Transducer",
+        ]
+    ),
+)
 def test_confidence_ensemble(tmp_path, build_args):
     """Integration tests for confidence-ensembles.
 

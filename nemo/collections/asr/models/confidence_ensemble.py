@@ -80,15 +80,24 @@ class ConfidenceEnsembleModel(ModelPT):
         # making sure each model has correct confidence settings in the decoder strategy
         for model_idx in range(self.num_models):
             model = getattr(self, f"model{model_idx}")
-            decoding_cfg = model.cfg.decoding
-            decoding_cfg.confidence_cfg = self.confidence
-            decoding_cfg.temperature = self.cfg.temperature
             # for now we assume users are direclty responsible for matching
             # decoder type when building ensemlbe with inference type
             # TODO: add automatic checks for errors
             if isinstance(model, EncDecHybridRNNTCTCModel):
-                model.change_decoding_strategy(decoding_cfg, decoder_type="ctc")
-                model.change_decoding_strategy(decoding_cfg, decoder_type="rnnt")
+                self.update_decoding_parameters(model.cfg.decoding)
+                model.change_decoding_strategy(model.cfg.decoding, decoder_type="rnnt")
+                self.update_decoding_parameters(model.cfg.aux_ctc.decoding)
+                model.change_decoding_strategy(model.cfg.aux_ctc.decoding, decoder_type="ctc")
+            else:
+                self.update_decoding_parameters(model.cfg.decoding)
+                model.change_decoding_strategy(model.cfg.decoding)
+
+    def update_decoding_parameters(self, decoding_cfg):
+        """Updating confidence/temperature parameters of the config."""
+        OmegaConf.set_struct(decoding_cfg, False)
+        decoding_cfg.confidence_cfg = self.confidence
+        decoding_cfg.temperature = self.cfg.temperature
+        OmegaConf.set_struct(decoding_cfg, True)
 
     def list_available_models(self):
         return []
@@ -158,6 +167,8 @@ class ConfidenceEnsembleModel(ModelPT):
                 verbose=verbose,
                 **kwargs,
             )
+            if isinstance(transcriptions, tuple):  # transducers return a tuple
+                transcriptions = transcriptions[0]
 
             model_confidences = []
             for transcription in transcriptions:
