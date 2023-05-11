@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -19,7 +20,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import editdistance
 import jiwer
 import numpy as np
-import re
 import torch
 from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
@@ -540,9 +540,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 hypothesis = (decoded_prediction, token_lengths, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(decoded_prediction)
-                # TODO: remove 
+                # TODO: remove
                 # collapse leading spaces before . , ? for PC models
-                hypothesis = re.sub(r'(\s+)([\.\,\?])',r'\2', hypothesis)
+                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
             # Preserve this wrapped hypothesis or decoded text tokens.
             hypotheses_list[ind].text = hypothesis
