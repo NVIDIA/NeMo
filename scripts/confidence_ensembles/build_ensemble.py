@@ -24,7 +24,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, is_dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import joblib
 import numpy as np
@@ -92,11 +92,11 @@ class BuildEnsembleConfig:
         method_cfg=ConfidenceMethodConfig(
             name="entropy",
             entropy_type="renui",
-            # alpha=,
-            temperature=0.25,  # this is not really temperature, but alpha TODO: should ideally rename + add real temp (good to try)
+            temperature=0.25,  # this is not really temperature, but alpha, see https://arxiv.org/abs/2212.08703
             entropy_norm="lin",
         ),
     )
+    temperature: float = 1.0  # this is a real temperature that will be applied to logits
 
     # this is optional, but can be used to change any aspect of the transcription
     # config, such as batch size or amp usage. Note that model, data and confidence

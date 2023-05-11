@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
@@ -63,14 +62,15 @@ class ConfidenceEnsembleModel(ModelPT):
             OmegaConf.set_struct(self.cfg, True)
             for idx, model in enumerate(cfg.load_models):
                 cfg_field = f"model{idx}"
-                # TODO: map location cpu
                 if model.endswith(".nemo"):
                     self.register_nemo_submodule(
-                        name=cfg_field, config_field=cfg_field, model=ASRModel.restore_from(model, trainer=trainer),
+                        name=cfg_field,
+                        config_field=cfg_field,
+                        model=ASRModel.restore_from(model, trainer=trainer, map_location="cpu"),
                     )
                 else:
                     self.register_nemo_submodule(
-                        cfg_field, config_field=cfg_field, model=ASRModel.from_pretrained(model),
+                        cfg_field, config_field=cfg_field, model=ASRModel.from_pretrained(model, map_location="cpu"),
                     )
 
         model_selection_block_path = self.register_artifact("model_selection_block", cfg.model_selection_block)
