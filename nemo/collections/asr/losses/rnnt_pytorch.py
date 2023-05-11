@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from typing import List
+
+import torch
 
 from nemo.core.classes import Loss
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
@@ -117,6 +118,7 @@ class TDTLossPytorch(Loss):
     """
     Pure Python implementation of TDT loss (https://arxiv.org/pdf/2304.06795.pdf)
     """
+
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -136,7 +138,7 @@ class TDTLossPytorch(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, blank: int, durations: List[int]=[], reduction: str='sum', sigma: float=0.0):
+    def __init__(self, blank: int, durations: List[int] = [], reduction: str = 'sum', sigma: float = 0.0):
         super().__init__()
         self.blank = blank
         self.durations = durations
@@ -189,7 +191,9 @@ class TDTLossPytorch(Loss):
                             # u = 0 and t != 0: only considers blank emissions.
                             log_alpha[b, t, u] = -1000.0
                             for n, l in enumerate(self.durations):
-                                if t - l >= 0 and l > 0:  # checking conditions for blank emission, l has to be at least 1
+                                if (
+                                    t - l >= 0 and l > 0
+                                ):  # checking conditions for blank emission, l has to be at least 1
                                     tmp = (
                                         log_alpha[b, t - l, u]
                                         + acts[b, t - l, u, self.blank]
