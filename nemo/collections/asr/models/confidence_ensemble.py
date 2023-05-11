@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 import joblib
 import numpy as np
@@ -102,16 +102,27 @@ class ConfidenceEnsembleModel(ModelPT):
     def list_available_models(self):
         return []
 
-    def setup_training_data(self):
-        pass
+    def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
+        """Pass-through to the ensemble models.
 
-    def setup_validation_data(self):
-        pass
+        Note that training is not actually supported for this class!
+        """
+        for model_idx in range(self.num_models):
+            getattr(self, f"model{model_idx}").setup_training_data(train_data_config)
 
-    def change_attention_model(self, *args, **kwargs):
+    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """Pass-through to the ensemble models."""
         for model_idx in range(self.num_models):
-            getattr(self, f"model{model_idx}").change_attention_model(*args, **kwargs)
+            getattr(self, f"model{model_idx}").setup_validation_data(val_data_config)
+
+    def change_attention_model(
+        self, self_attention_model: str = None, att_context_size: List[int] = None, update_config: bool = True
+    ):
+        """Pass-through to the ensemble models."""
+        for model_idx in range(self.num_models):
+            getattr(self, f"model{model_idx}").change_attention_model(
+                self_attention_model, att_context_size, update_config
+            )
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
         """Pass-through to the ensemble models.

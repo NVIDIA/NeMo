@@ -156,8 +156,7 @@ def cleanup_subsampled_manifests(subsampled_manifests):
         os.remove(manifest)
 
 
-# TODO: change name?
-@hydra_runner(config_name="ensemble_config.yaml", schema=BuildEnsembleConfig)
+@hydra_runner(schema=BuildEnsembleConfig)
 def main(cfg: BuildEnsembleConfig):
     # silencing all messages from nemo/ptl to avoid dumping tons of configs to the stdout
     logging.getLogger('pytorch_lightning').setLevel(logging.CRITICAL)
@@ -184,7 +183,7 @@ def main(cfg: BuildEnsembleConfig):
     confidences = []
     labels = []
 
-    # registering clean up function that will hold on to this list and
+    # registering clean-up function that will hold on to this list and
     # should clean up even if there is partial error in some of the transcribe
     # calls
     subsampled_manifests = []
