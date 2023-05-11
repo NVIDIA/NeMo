@@ -124,6 +124,7 @@ Key Features
     * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization/intro.html>`_
     * `CTC-Segmentation tool <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_
     * `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html>`_: a dash-based tool for interactive exploration of ASR/TTS datasets
+    * `Speech Data Processor <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/speech_data_processor.html>`_
 
 
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
@@ -253,7 +254,7 @@ To install Megatron-core, run
 
     git clone https://github.com/NVIDIA/Megatron-LM.git
     cd Megatron-LM
-    git checkout 3db2063b1ff992a971ba18f7101eecc9c4e90f03
+    git checkout 9f8bdeb4814ed61fbc9c7d5b39c7710e77b99754
     pip install -e .
 
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.

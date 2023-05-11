@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -113,6 +114,8 @@ def word_error_rate_detail(
             if len(h_list) != 0:
                 errors = len(h_list)
                 ops_count['insertions'] += errors
+            else:
+                errors = 0
         else:
             if use_cer:
                 measures = jiwer.cer(r, h, return_dict=True)
@@ -539,6 +542,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 hypothesis = (decoded_prediction, token_lengths, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(decoded_prediction)
+
+                # TODO: remove
+                # collapse leading spaces before . , ? for PC models
+                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
             # Preserve this wrapped hypothesis or decoded text tokens.
             hypotheses_list[ind].text = hypothesis
