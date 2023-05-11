@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import re
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -443,6 +444,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
+
+            # TODO: remove
+            # collapse leading spaces before . , ? for PC models
+            hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
             # If computing timestamps
             if self.compute_timestamps is True:
