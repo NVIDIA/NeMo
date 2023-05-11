@@ -71,7 +71,6 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     assert cfg.model.restore_from_path is not None
-    # assert cfg.model.peft.restore_from_path is not None
     megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
     with_distributed_adam = False
 
