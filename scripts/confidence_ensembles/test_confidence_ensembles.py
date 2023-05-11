@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from nemo.collections.asr.parts.utils.transcribe_utils import TextProcessingConfig
+
 sys.path.append(str(Path(__file__).parents[2] / 'examples' / 'asr'))
 import speech_to_text_eval
 
@@ -90,6 +92,7 @@ def test_confidence_ensemble(tmp_path, build_args):
         dataset_manifest=str(test_data_path / 'test_manifest.json'),
         output_filename=str(tmp_path / 'output.json'),
         model_path=str(tmp_path / 'ensemble.nemo'),
+        text_processing=TextProcessingConfig(punctuation_marks=".,?", do_lowercase=True, rm_punctuation=True),
     )
 
     results = speech_to_text_eval.main(eval_cfg)
