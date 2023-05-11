@@ -30,6 +30,7 @@ from nemo.utils import AppState, logging
 try:
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
+        get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
     )
@@ -260,16 +261,33 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def _reconfigure_and_process_inference_batch(self, batch, ds_config):
         global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size():
+        if (
+            global_batch_size_per_gpu
+            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+        ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
+            if (
+                global_batch_size_per_gpu
+                != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
+            ):
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                    micro_batch_size=global_batch_size_per_gpu,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+            # NOTE: need to explicitly handle resetting for multi-validation
+            else:
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=ds_config.global_batch_size,
+                    micro_batch_size=ds_config.micro_batch_size,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
@@ -298,9 +316,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             tensor_shape=tensor_shape,
             decoder_seq_length=dec_seq_length,
             dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses

@@ -15,6 +15,10 @@
 """Transformer based language model."""
 import torch
 
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
@@ -22,13 +26,16 @@ from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTra
 from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
     ALiBiRelativePositionEmbedding,
 )
-from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import get_kerple_log_params
+from nemo.collections.nlp.modules.common.megatron.kerple_relative_position_embedding import (
+    KERPLERelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
 )
+from nemo.core import adapter_mixins
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -414,7 +421,7 @@ class Embedding(MegatronModule):
                 )
 
 
-class TransformerLanguageModel(MegatronModule):
+class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """Transformer language model.
 
     Arguments:
@@ -550,9 +557,15 @@ class TransformerLanguageModel(MegatronModule):
             )
 
         elif position_embedding_type == 'kerple':
-            self.encoder_relative_position_embedding = get_kerple_log_params(
+            # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
+            # addition for decoder. Currently it is only used for decoder model only. 
+            # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
+            self.decoder_relative_position_embedding = KERPLERelativePositionEmbedding(
+                bidirectional=False,
                 num_attention_heads=num_attention_heads,
-                precision=precision
+                layer_type=LayerType.decoder,
+                num_attention_heads_kerple=None,
+                max_seq_len=max_position_embeddings,
             )
 
         # Transformer.
@@ -663,6 +676,7 @@ class TransformerLanguageModel(MegatronModule):
                     init_method=self.init_method,
                 )
                 self._output_layer_key = 'output_layer'
+        self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -695,7 +709,21 @@ class TransformerLanguageModel(MegatronModule):
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
+
             encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+            if self.is_adapter_available():
+                _sq, _bs, _hs = encoder_input.size()
+                ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
+                v = ptuning_adapter.virtual_tokens
+                if ptuning_adapter and _sq >= v:  # The sequence should be longer the v to insert virtual embeddings.
+                    strategy = ptuning_adapter.adapter_strategy
+                    virtual_embeddings = self.forward_single_enabled_adapter_(
+                        _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
+                    )
+                    encoder_input = encoder_input[
+                        v:, :, :
+                    ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
+                    encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
         else:
             pass
 
@@ -728,6 +756,7 @@ class TransformerLanguageModel(MegatronModule):
         elif self.position_embedding_type == 'kerple':
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding
             
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
