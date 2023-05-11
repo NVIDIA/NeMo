@@ -83,7 +83,7 @@ def test_confidence_ensemble(tmp_path, build_args):
 
     build_ensemble_cmd = f"""
         python {Path(__file__).parent / 'build_ensemble.py'} \
-            --config-name=ensemble_config.yaml
+            --config-name=ensemble_config.yaml \
             output_path={tmp_path / 'ensemble.nemo'} \
             {build_args}
     """
