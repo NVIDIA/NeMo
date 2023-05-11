@@ -454,6 +454,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self.joint.temperature = decoding_cfg.temperature
+
         # Update config
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg

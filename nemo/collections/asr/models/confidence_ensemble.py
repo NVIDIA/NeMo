@@ -82,6 +82,7 @@ class ConfidenceEnsembleModel(ModelPT):
             model = getattr(self, f"model{model_idx}")
             decoding_cfg = model.cfg.decoding
             decoding_cfg.confidence_cfg = self.confidence
+            decoding_cfg.temperature = self.cfg.temperature
             # for now we assume users are direclty responsible for matching
             # decoder type when building ensemlbe with inference type
             # TODO: add automatic checks for errors

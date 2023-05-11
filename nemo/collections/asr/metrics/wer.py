@@ -1222,5 +1222,8 @@ class CTCDecodingConfig:
     # beam decoding config
     beam: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=4)
 
-    #  confidence config
+    # confidence config
     confidence_cfg: ConfidenceConfig = ConfidenceConfig()
+
+    # can be used to change temperature for decoding
+    temperature: float = 1.0

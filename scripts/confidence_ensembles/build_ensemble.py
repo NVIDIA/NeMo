@@ -167,11 +167,15 @@ def main(cfg: BuildEnsembleConfig):
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
+    # no matter what's in the config, frame confidence is required
+    cfg.confidence.preserve_frame_confidence = True
+
     pl.seed_everything(cfg.random_seed)
     cfg.transcription.random_seed = None  # seed is already applied
     cfg.transcription.return_transcriptions = True
     cfg.transcription.ctc_decoding.confidence_cfg = cfg.confidence
     cfg.transcription.rnnt_decoding.confidence_cfg = cfg.confidence
+    cfg.transcription.ctc_decoding.temperature = cfg.temperature
 
     aggregations = get_confidence_aggregation_bank()
     aggr_func = aggregations[cfg.confidence.aggregation]
@@ -234,6 +238,7 @@ def main(cfg: BuildEnsembleConfig):
                 {
                     'model_selection_block': model_selection_block_path,
                     'confidence': cfg.confidence,
+                    'temperature': cfg.temperature,
                     'load_models': [model_cfg.model for model_cfg in cfg.ensemble],
                 }
             ),
