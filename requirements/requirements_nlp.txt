@@ -20,3 +20,4 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
+megatron_core==0.1.0
