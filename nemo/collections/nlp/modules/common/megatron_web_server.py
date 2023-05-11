@@ -149,7 +149,7 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 clear = gr.Button("Clear")
 
                 def user(user_message, history):
-                    conversation_history.append(user_message + '\n')
+                    conversation_history.append(user_message)
                     user_message = user_message.replace('\n', '<br>')
                     return "", history + [[user_message, None]]
 
@@ -158,17 +158,17 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                     names = [human_name, assistant_name]
                     for i, meg in enumerate(conversation_history):
                         name = names[i % 2]
-                        prompt_text += TURN_TOKEN + name + '\n' + meg
+                        prompt_text += TURN_TOKEN + name + '\n' + meg + '\n'
                     prompt_text += TURN_TOKEN + assistant_name + '\n'
                     bot_message = create_gen_function(server_port, chat=True)(
                         prompt_text, preamble, greedy_flag, add_BOS,
                         token_to_gen, min_token_to_gen,
                         temperature, top_p, top_k,
                         repetition_penality, end_strings)
-                    if bot_message.endswith(human_name):
-                        bot_message = bot_message[:-len(human_name)]
+                    if bot_message.endswith(TURN_TOKEN):
+                        bot_message = bot_message[:-len(TURN_TOKEN)]
                     history[-1][1] = bot_message
-                    conversation_history.append(bot_message)
+                    conversation_history.append(bot_message.strip())
                     return history
 
                 msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
