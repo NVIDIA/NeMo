@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
@@ -49,8 +50,6 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -63,10 +62,10 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.models.gpt.gpt_model import GPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.models.gpt.gpt_model import GPTModel
 
     HAVE_MEGATRON_CORE = True
 
