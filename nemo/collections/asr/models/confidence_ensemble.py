@@ -12,32 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import json
-import os
-from math import ceil
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 import joblib
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
-from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
-from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
+from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, get_confidence_aggregation_bank
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
-from nemo.utils import logging, model_utils
+from nemo.utils import model_utils
 
 __all__ = ['ConfidenceEnsembleModel']
 
@@ -93,13 +82,15 @@ class ConfidenceEnsembleModel(ModelPT):
             model = getattr(self, f"model{model_idx}")
             decoding_cfg = model.cfg.decoding
             decoding_cfg.confidence_cfg = self.confidence
-            # TODO: is there a way to handle hybrid model change flexibly here?
-            model.change_decoding_strategy(decoding_cfg)
-
-    # TODO: hybrid later (no switch from ctc to rnnt)
+            # for now we assume users are direclty responsible for matching
+            # decoder type when building ensemlbe with inference type
+            # TODO: add automatic checks for errors
+            if isinstance(model, EncDecHybridRNNTCTCModel):
+                model.change_decoding_strategy(decoding_cfg, decoder_type="ctc")
+                model.change_decoding_strategy(decoding_cfg, decoder_type="rnnt")
 
     def list_available_models(self):
-        pass
+        return []
 
     def setup_training_data(self):
         pass
@@ -112,32 +103,31 @@ class ConfidenceEnsembleModel(ModelPT):
         for model_idx in range(self.num_models):
             getattr(self, f"model{model_idx}").change_attention_model(*args, **kwargs)
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, **kwargs):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
         """Pass-through to the ensemble models.
 
-        The only change here is that we always require frame-confidence
-        to be returned.
+        The only change here is that we always require frame-confidence to
+        be returned.
         """
         decoding_cfg.confidence_cfg = self.confidence
         for model_idx in range(self.num_models):
-            getattr(self, f"model{model_idx}").change_decoding_strategy(decoding_cfg, **kwargs)
+            model = getattr(self, f"model{model_idx}")
+            if isinstance(model, EncDecHybridRNNTCTCModel):
+                model.change_decoding_strategy(decoding_cfg, decoder_type=decoder_type)
+            else:
+                model.change_decoding_strategy(decoding_cfg)
 
-    # TODO: keep a single class, use common arguments explicitly, any optional model-specific go to kwargs and inspect later
-    # TODO: assume only common arguments for now
-    # TODO: return_hypotheses always True
     @torch.no_grad()
-    def transcribe(  # TODO: rnnt takes different parameters?
+    def transcribe(
         self,
-        *args,  # TODO: remove args
-        **kwargs,
-        # paths2audio_files: List[str],
-        # batch_size: int = 4,
-        # logprobs: bool = False,
-        # return_hypotheses: bool = False,
-        # num_workers: int = 0,
-        # channel_selector: Optional[ChannelSelectorType] = None,
-        # augmentor: DictConfig = None,
-        # verbose: bool = True,
+        paths2audio_files: List[str],
+        batch_size: int = 4,
+        return_hypotheses: bool = False,
+        num_workers: int = 0,
+        channel_selector: Optional[ChannelSelectorType] = None,
+        augmentor: DictConfig = None,
+        verbose: bool = True,
+        **kwargs,  # any other model specific parameters are passed directly
     ) -> List[str]:
         """Confidence-ensemble transcribe method.
 
@@ -152,9 +142,21 @@ class ConfidenceEnsembleModel(ModelPT):
         aggr_func = get_confidence_aggregation_bank()[self.confidence.aggregation]
         confidences = []
         all_transcriptions = []
+        # always requiring to return hypothesis
+        # TODO: make sure to return text only if was False originally
+        return_hypotheses = True
         for model_idx in range(self.num_models):
             model = getattr(self, f"model{model_idx}")
-            transcriptions = model.transcribe(*args, **kwargs)
+            transcriptions = model.transcribe(
+                paths2audio_files=paths2audio_files,
+                batch_size=batch_size,
+                return_hypotheses=return_hypotheses,
+                num_workers=num_workers,
+                channel_selector=channel_selector,
+                augmentor=augmentor,
+                verbose=verbose,
+                **kwargs,
+            )
 
             model_confidences = []
             for transcription in transcriptions:
