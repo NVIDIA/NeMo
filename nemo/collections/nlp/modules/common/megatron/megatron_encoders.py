@@ -205,7 +205,7 @@ def get_encoder_model(
             pre_process=pre_process,
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_02=megatron_amp_O2,
+            megatron_amp_O2=megatron_amp_O2,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,

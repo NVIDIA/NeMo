@@ -57,7 +57,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         post_process=True,
         use_cpu_initialization=False,
         megatron_amp_O2=False,
-        megatron_amp_02=False,
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
