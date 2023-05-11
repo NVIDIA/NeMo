@@ -298,7 +298,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if isinstance(module, Float16Module):
                         module = module.module
                     stage_bucket = []
-                    for layer in module.language_model.encoder.layers:
+                    for layer in module.decoder.layers:
                         stage_bucket.extend(
                             p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
                         )
@@ -309,7 +309,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 for module in modules:
                     if isinstance(module, Float16Module):
                         module = module.module
-                    for layer in module.language_model.encoder.layers:
+                    for layer in module.decoder.layers:
                         buckets.append(
                             [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
                         )
@@ -349,7 +349,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for module in modules:
                 if isinstance(module, Float16Module):
                     module = module.module
-                module = module.language_model
+
                 if hasattr(module, 'embedding'):
                     for param in module.embedding.parameters():
                         param.data_ptr()
@@ -977,11 +977,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             logging.info(f'Setting up transformer engine modules for tensor parallelism.')
             if self.cfg.get('megatron_amp_O2', 'False'):
                 # when using O2 additional module key is added that casts the weights
-                for layer in module.module.language_model.encoder.layers:
+                for layer in module.module.decoder.layers:
                     layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
             else:
-                for layer in module.language_model.encoder.layers:
+                for layer in module.decoder.layers:
                     layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
     def setup_transformer_engine_tp_groups(self):
