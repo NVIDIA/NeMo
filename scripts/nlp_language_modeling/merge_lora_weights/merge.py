@@ -28,6 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
@@ -35,7 +36,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
+
 try:
     from megatron.core import parallel_state
 
@@ -182,9 +183,9 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     lora_model_cfg = MegatronGPTLoRAModel.restore_from(
-            restore_path=cfg.lora_model_path, trainer=trainer, return_config=True,
-        )
-    
+        restore_path=cfg.lora_model_path, trainer=trainer, return_config=True,
+    )
+
     # load the lora weights on cpu for all ranks of the lora model
     lora_weights = load_lora(cfg.lora_model_path, model.cfg.tensor_model_parallel_size)
 
