@@ -842,17 +842,12 @@ class CoreAttention(MegatronModule):
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
             
         if self.position_embedding_type.lower() == 'xpos':
-            sq, bs, np, hn = query_layer.shape
-            query_layer = rearrange(query_layer, 's b h d -> (b h) s d')
-            key_layer = rearrange(key_layer, 's b h d -> (b h) s d')
+            query_layer = rearrange(query_layer, 'sq b np hn -> (b np) sq hn')
+            key_layer = rearrange(key_layer, 'sk b np hn -> (b np) sk hn')
             query_layer = self.xpos(query_layer, offset=0, downscale=False)
             key_layer = self.xpos(key_layer, offset=0, downscale=True)
-            
-            # permute back to the expected shape below
-            query_layer = query_layer.permute(1, 0, 2)
-            key_layer = key_layer.permute(1, 0, 2)
-            query_layer = query_layer.reshape(sq, bs, np, hn)
-            key_layer = key_layer.reshape(key_layer.shape[0], bs, -1, hn)
+            query_layer = rearrange(query_layer, '(b np) sq hn -> sq b np hn', b=b)
+            key_layer = rearrange(key_layer, '(b np) sk hn -> sk b np hn', b=b)
             
         if self.use_flash_attention:
             query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
