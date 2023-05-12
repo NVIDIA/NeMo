@@ -164,7 +164,10 @@ def main(cfg) -> None:
                     batch_logprob = [s.tolist() for s in batch['logprob']]
                     for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
                         if cfg.inference.get("verbose", False):
-                            d = {'sentence': s, 'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)])}
+                            d = {
+                                'sentence': s,
+                                'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)]),
+                            }
                             f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
                         else:
                             d = {'sentence': s}
