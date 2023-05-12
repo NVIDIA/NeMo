@@ -13,8 +13,9 @@
 # limitations under the License.
 
 
-import os
 import json
+import os
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -144,7 +145,7 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
-    
+
     if model.global_rank == 0:
         print("***************************")
         if cfg.inference.outfile_path is not None:
