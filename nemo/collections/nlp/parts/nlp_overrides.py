@@ -40,6 +40,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
+# from nemo.collections.nlp.parts import parallel_state
 
 try:
     from apex.transformer.enums import ModelType
@@ -55,6 +56,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    # import megatron.core
 
     HAVE_MEGATRON_CORE = True
 
@@ -147,6 +149,7 @@ class NLPDDPStrategy(DDPStrategy):
                 super().configure_ddp()
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
+        # TODO TODO TODO(crankshaw): Update this
         """ Initializes Megatron-LM model parallel if using model parallelism.
 
         Args:

@@ -133,7 +133,6 @@ def initialize_model_parallel_for_nemo(
                 )
             else:
                 raise Exception("Microbatch calculator already initialized.")
-
     app_state._is_megatron_initialized = True
 
     set_logging_level(apex_transformer_log_level)
@@ -175,6 +174,7 @@ def fake_initialize_model_parallel(
     pipeline_model_parallel_split_rank_=None,
     virtual_pipeline_model_parallel_size_=None,
 ):
+    # TODO TODO TODO(crankshaw): Update this
     """
     Fake initialize model data parallel groups so that we can instantiate model parallel models before DDP is initialized.
     This is needed because PTL execution flow is init model, init trainer -> call trainer.fit(model). DDP is initialized during .fit.

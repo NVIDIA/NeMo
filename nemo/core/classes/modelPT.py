@@ -1623,6 +1623,8 @@ class ModelPT(LightningModule, Model):
                 else:
                     raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
+                logging.info(f"Nsys profiling on ranks: {self._nsys_profile_ranks}")
+
     def on_train_start(self):
         """ PyTorch Lightning hook:
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-start
@@ -1652,11 +1654,15 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
-                    if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
-                        logging.info("====== Start nsys profiling ======")
-                        torch.cuda.cudart().cudaProfilerStart()
-                        if self._nsys_profile_gen_shape:
-                            torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+                    if batch_idx == self._nsys_profile_start_step:
+                        if get_rank() in self._nsys_profile_ranks:
+                            logging.info(f"====== Start nsys profiling for rank {get_rank()} ======")
+                            torch.cuda.cudart().cudaProfilerStart()
+                            if self._nsys_profile_gen_shape:
+                                torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+                        else:
+                            logging.info(f"xxxxxxxxxxxxx NO Nsys profiling for rank {get_rank()} xxxxxxxxxx")
+
 
         # dynamic freezing
         if hasattr(self, '_freeze_cfg') and self._freeze_cfg is not None:

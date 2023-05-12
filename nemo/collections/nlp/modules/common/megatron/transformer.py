@@ -1142,6 +1142,7 @@ class ParallelTransformer(MegatronModule):
             else:
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
+        # TODO TODO TODO(crankshaw): This is where the layers for a specific device get built
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
         if self.post_process and self.transformer_block_type != 'post_ln':

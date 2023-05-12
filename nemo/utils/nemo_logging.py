@@ -22,9 +22,9 @@ from contextlib import contextmanager
 from logging.handlers import MemoryHandler
 
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, NEMO_ENV_VARNAME_TESTING
-from nemo.utils.env_var_parsing import get_envbool
+from nemo.utils.env_var_parsing import get_envbool, get_envint
 from nemo.utils.formatters.base import BaseNeMoFormatter, DebugNeMoFormatter
-from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.get_rank import is_global_rank_zero, get_rank
 from nemo.utils.metaclasses import Singleton
 
 __all__ = ["Logger", "LogMode"]
@@ -73,7 +73,8 @@ class Logger(metaclass=Singleton):
         self.old_warnings_showwarning = None
         self._define_logger(capture_warnings)
         self.once_logged = set()
-        self.rank = 0 if is_global_rank_zero() else "UNK"
+        # self.rank = 0 if is_global_rank_zero() else "UNK"
+        self.rank = 0 if is_global_rank_zero() else get_envint("RANK", "UNK")
 
     def _define_logger(self, capture_warnings=True):
         """ Creates the logger if not already created. Called in init"""

@@ -72,6 +72,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    # TODO TODO TODO(crankshaw): Need to look at this megatron module
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     # TODO @tmoon: Use once available in Megatron-LM
