@@ -61,5 +61,5 @@ class XPOS(nn.Module):
         if downscale:
             scale = 1 / scale
 
-        x = apply_rotary_pos_emb(x, sin, cos, scale)
+        x = apply_rotary_pos_emb(x, sin.to(x.dtype), cos.to(x.dtype), scale.to(x.dtype))
         return x
