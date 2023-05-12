@@ -162,8 +162,12 @@ def main(cfg) -> None:
                     batch_tokens = [s for s in batch['tokens']]
                     batch_logprob = [s.tolist() for s in batch['logprob']]
                     for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
-                        d = {'sentences': s, 'tokens': t, 'logpobs': ', '.join('{:0.2f}'.format(i) for i in l)}
-                        f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
+                        if cfg.inference.get("verbose", False):
+                            d = {'sentence': s, 'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)])}
+                            f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
+                        else:
+                            d = {'sentence': s}
+                            f.write(json.dumps(d) + '\n')
             print("predictions saved to {}".format(cfg.inference.outfile_path))
         else:
             print(response)
