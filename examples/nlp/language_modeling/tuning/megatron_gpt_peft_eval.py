@@ -63,7 +63,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     assert cfg.model.restore_from_path is not None
-    assert cfg.model.peft.restore_from_path is not None
+    #assert cfg.model.peft.restore_from_path is not None
     megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
     with_distributed_adam = False
 
@@ -114,7 +114,7 @@ def main(cfg) -> None:
     save_restore_connector = PEFTSaveRestoreConnector(
         peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
     )
-    if os.path.isdir(peft_model_cfg.restore_from_path):
+    if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
     model = NLPModel.restore_from(
         restore_path=cfg.model.restore_from_path,
