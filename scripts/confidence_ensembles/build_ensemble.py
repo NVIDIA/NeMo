@@ -255,6 +255,8 @@ def main(cfg: BuildEnsembleConfig):
     pl.seed_everything(cfg.random_seed)
     cfg.transcription.random_seed = None  # seed is already applied
     cfg.transcription.return_transcriptions = True
+    # that sets preserve_alignment to True
+    cfg.transcription.compute_timestamps = True
     cfg.transcription.ctc_decoding.temperature = cfg.temperature
     cfg.transcription.rnnt_decoding.temperature = cfg.temperature
 

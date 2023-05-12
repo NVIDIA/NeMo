@@ -35,14 +35,29 @@ __all__ = ['ConfidenceEnsembleModel']
 
 
 def compute_confidence(transcription, confidence_cfg: ConfidenceConfig):
-    if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
-        logprobs = transcription.y_sequence.cuda()
-    vocab_size = logprobs.shape[1]
-    if confidence_cfg.exclude_blank:  # filtering blanks
-        labels = logprobs.argmax(dim=-1)
-        filtered_logprobs = logprobs[labels != vocab_size - 1]
-    else:
-        filtered_logprobs = logprobs
+    if isinstance(transcription.alignments, list):  # Transducer
+        filtered_logprobs = []
+        for alignment in transcription.alignments:
+            for align_elem in alignment:
+                if confidence_cfg.exclude_blank and align_elem[1].item() != align_elem[0].shape[-1] - 1:
+                    filtered_logprobs.append(align_elem[0])
+                filtered_logprobs.append(align_elem[0])
+        if not filtered_logprobs:  # for the edge-case of all blanks
+            filtered_logprobs.append(align_elem[0])
+        filtered_logprobs = torch.stack(filtered_logprobs)
+        if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
+            filtered_logprobs = filtered_logprobs.cuda()
+    else:  # CTC
+        logprobs = transcription.alignments
+        if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
+            logprobs = logprobs.cuda()
+        if confidence_cfg.exclude_blank:  # filtering blanks
+            labels = logprobs.argmax(dim=-1)
+            filtered_logprobs = logprobs[labels != logprobs.shape[1] - 1]
+        else:
+            filtered_logprobs = logprobs
+
+    vocab_size = filtered_logprobs.shape[1]
     aggr_func = get_confidence_aggregation_bank()[confidence_cfg.aggregation]
     if confidence_cfg.method_cfg.name == "max_prob":
         conf_type = "max_prob"
@@ -121,9 +136,10 @@ class ConfidenceEnsembleModel(ModelPT):
                 model.change_decoding_strategy(model.cfg.decoding)
 
     def update_decoding_parameters(self, decoding_cfg):
-        """Updating temperature parameter of the config."""
+        """Updating temperature/preserve_alignment parameters of the config."""
         with open_dict(decoding_cfg):
             decoding_cfg.temperature = self.cfg.temperature
+            decoding_cfg.preserve_alignments = True
 
     def list_available_models(self):
         return []
@@ -154,10 +170,12 @@ class ConfidenceEnsembleModel(ModelPT):
         """Pass-through to the ensemble models.
 
         The only change here is that we always require expected temperature
-        to be set.
+        to be set as well as ``decoding_cfg.preserve_alignments = True``
         """
         with open_dict(decoding_cfg):
             decoding_cfg.temperature = self.cfg.temperature
+            decoding_cfg.preserve_alignments = True
+
         for model_idx in range(self.num_models):
             model = getattr(self, f"model{model_idx}")
             if isinstance(model, EncDecHybridRNNTCTCModel):
