@@ -147,6 +147,11 @@ def convert(local_rank, rank, world_size, args):
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         )
+        # we force the target for the loaded model to have the correct target 
+        # because the hparams.yaml sometimes contains MegatronGPTModel as the target.
+        with open_dict(model.cfg):
+            model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+
     elif args.model_type == 'bert':
         model = MegatronBertModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
