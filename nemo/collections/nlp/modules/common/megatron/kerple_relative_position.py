@@ -56,16 +56,12 @@ def get_kerple_log_params(
     
 
 def kerple_log_forward(
-    x, relative_position_bias
+    seq_len_q, seq_len_k, relative_position_bias
 ):
     bias_p, bias_a = torch.split(
         relative_position_bias, relative_position_bias.size(0)//2, dim=0)
 
     eps = 1e-2
-
-    # [b, np, sq, sk]
-    seq_len_q = x.shape[-2]
-    seq_len_k = x.shape[-1]
     
     # We may be able to save this and avoid recomputing this every time like in the 
     # reference implementation.
@@ -95,4 +91,4 @@ def kerple_log_forward(
             # seq_len_k - 1 points to the last token index in the current inference batch.
             bias = bias[:, seq_len_k - 1, :].view(bias.shape[0], 1, bias.shape[2])
 
-    return x + bias
+    return bias
