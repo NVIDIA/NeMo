@@ -24,22 +24,24 @@ import sys
 import tempfile
 from dataclasses import dataclass, is_dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Tuple
 
 import joblib
 import numpy as np
 import pytorch_lightning as pl
+import torch
 from omegaconf import DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel
+from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel, compute_confidence
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     ConfidenceConfig,
     ConfidenceMethodConfig,
     get_confidence_aggregation_bank,
+    get_confidence_measure_bank,
 )
 from nemo.core.config import hydra_runner
 
@@ -70,7 +72,51 @@ class EnsembleConfig:
     # 100 is most likely enough, but setting higher default just in case
     max_training_samples: int = 1000
     # specify to provide dev data manifest for HP tuning
-    # dev_manifest: Optional[str] = None
+    dev_manifest: Optional[str] = None
+
+
+@dataclass
+class TuneConfidenceConfig:
+    # important parameter, so should always be tuned
+    exclude_blank: Tuple[bool] = (True, False)
+    # prod is pretty much always worse, so not including by default
+    aggregation: Tuple[str] = ("mean", "min", "max")
+    # not including max prob, as there is always an entropy-based metric
+    # that's better but otherwise including everything
+    confidence_type: Tuple[str] = (
+        "entropy_renui_exp",
+        "entropy_renui_lin",
+        "entropy_tsallis_exp",
+        "entropy_tsallis_lin",
+        "entropy_gibbs_lin",
+        "entropy_gibbs_exp",
+    )
+
+    # TODO: currently it's not possible to efficiently tune temperature, as we always
+    #    apply log-softmax in the decoder, so to try different values it will be required
+    #    to rerun the decoding, which is way too slow. To support this for one-off experiments
+    #    it's possible to modify the code of CTC decoder / Transducer joint to
+    #    remove log-softmax and then apply it directly in this script with the temperature
+
+    # very important to tune for max prob, but for entropy metrics 1.0 is almost always best
+    # temperature: Tuple[float] = (1.0,)
+
+    # not that important, but can sometimes make a small difference
+    alpha: Tuple[float] = (0.25, 0.33, 0.5, 1.0)
+
+
+@dataclass
+class TuneLogisticRegressionConfig:
+    # will have log-uniform grid over this range with that many points
+    # note that a value of 10000.0 (not regularization) is always added
+    C_num_points: int = 10
+    C_range: Tuple[float] = (0.0001, 10.0)
+
+    # not too important
+    multi_class: Tuple[str] = ("ovr", "multinomial")
+
+    # should try to include weights directly if the data is too imbalanced
+    class_weight: Tuple = (None, "balanced")
 
 
 @dataclass
@@ -102,6 +148,18 @@ class BuildEnsembleConfig:
     # config, such as batch size or amp usage. Note that model, data and confidence
     # will be overriden by this script
     transcription: transcribe_speech.TranscriptionConfig = transcribe_speech.TranscriptionConfig()
+
+    # set to True to tune the confidence.
+    # requires dev manifests to be specified for each model
+    tune_confidence: bool = False
+    # used to specify what to tune over. By default runs tuning over some
+    # reasonalbe grid, so that it does not take forever.
+    # Can be changed as needed
+    tune_confidence_config: TuneConfidenceConfig = TuneConfidenceConfig()
+
+    # very fast to tune and can be important in case of imbalanced datasets
+    tune_logistic_regression: bool = True
+    tune_logistic_regression_config: TuneLogisticRegressionConfig = TuneLogisticRegressionConfig()
 
 
 def calculate_score(features, labels, pipe):
@@ -156,6 +214,31 @@ def cleanup_subsampled_manifests(subsampled_manifests):
         os.remove(manifest)
 
 
+def compute_all_confidences(transcription, tune_confidence_cfg: TuneConfidenceConfig):
+    if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
+        logprobs = transcription.y_sequence.cuda()
+    vocab_size = logprobs.shape[1]
+    conf_values = {}
+    for exclude_blank in tune_confidence_cfg.exclude_blank:
+        if exclude_blank:  # filtering blanks
+            labels = logprobs.argmax(dim=-1)
+            filtered_logprobs = logprobs[labels != vocab_size - 1]
+        else:
+            filtered_logprobs = logprobs
+        for aggregation in tune_confidence_cfg.aggregation:
+            aggr_func = get_confidence_aggregation_bank()[aggregation]
+            for conf_type in tune_confidence_cfg.confidence_type:
+                conf_func = get_confidence_measure_bank()[conf_type]
+                if conf_type == "max_prob":  # skipping alpha in this case
+                    conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=1.0))
+                    conf_values[(exclude_blank, aggregation, conf_type, 1.0)] = conf_value.cpu().item()
+                else:
+                    for alpha in tune_confidence_cfg.alpha:
+                        conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha))
+                        conf_values[(exclude_blank, aggregation, conf_type, alpha)] = conf_value.cpu().item()
+    return conf_values
+
+
 @hydra_runner(schema=BuildEnsembleConfig)
 def main(cfg: BuildEnsembleConfig):
     # silencing all messages from nemo/ptl to avoid dumping tons of configs to the stdout
@@ -172,13 +255,8 @@ def main(cfg: BuildEnsembleConfig):
     pl.seed_everything(cfg.random_seed)
     cfg.transcription.random_seed = None  # seed is already applied
     cfg.transcription.return_transcriptions = True
-    cfg.transcription.ctc_decoding.confidence_cfg = cfg.confidence
-    cfg.transcription.rnnt_decoding.confidence_cfg = cfg.confidence
     cfg.transcription.ctc_decoding.temperature = cfg.temperature
     cfg.transcription.rnnt_decoding.temperature = cfg.temperature
-
-    aggregations = get_confidence_aggregation_bank()
-    aggr_func = aggregations[cfg.confidence.aggregation]
 
     confidences = []
     labels = []
@@ -213,12 +291,7 @@ def main(cfg: BuildEnsembleConfig):
                 transcriptions = transcribe_speech.main(cfg.transcription.copy())
 
                 for transcription in transcriptions:
-                    if isinstance(transcription.frame_confidence[0], list):
-                        # NeMo Transducer API returns list of lists for confidences
-                        conf_values = [conf_value for confs in transcription.frame_confidence for conf_value in confs]
-                    else:
-                        conf_values = transcription.frame_confidence
-                    model_confidences.append(aggr_func(conf_values))
+                    model_confidences.append(compute_confidence(transcription, cfg.confidence))
                     if model_idx == 0:  # labels are the same for all models
                         labels.append(data_idx)
 

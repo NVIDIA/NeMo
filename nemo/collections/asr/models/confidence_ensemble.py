@@ -22,12 +22,38 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, get_confidence_aggregation_bank
+from nemo.collections.asr.parts.utils.asr_confidence_utils import (
+    ConfidenceConfig,
+    get_confidence_aggregation_bank,
+    get_confidence_measure_bank,
+)
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes import ModelPT
 from nemo.utils import model_utils
 
 __all__ = ['ConfidenceEnsembleModel']
+
+
+def compute_confidence(transcription, confidence_cfg: ConfidenceConfig):
+    if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
+        logprobs = transcription.y_sequence.cuda()
+    vocab_size = logprobs.shape[1]
+    if confidence_cfg.exclude_blank:  # filtering blanks
+        labels = logprobs.argmax(dim=-1)
+        filtered_logprobs = logprobs[labels != vocab_size - 1]
+    else:
+        filtered_logprobs = logprobs
+    aggr_func = get_confidence_aggregation_bank()[confidence_cfg.aggregation]
+    if confidence_cfg.method_cfg.name == "max_prob":
+        conf_type = "max_prob"
+        alpha = 1.0
+    else:
+        conf_type = f"entropy_{confidence_cfg.method_cfg.entropy_type}_{confidence_cfg.method_cfg.entropy_norm}"
+        alpha = confidence_cfg.method_cfg.temperature
+    conf_func = get_confidence_measure_bank()[conf_type]
+
+    conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
+    return conf_value
 
 
 class ConfidenceEnsembleModel(ModelPT):
@@ -79,7 +105,7 @@ class ConfidenceEnsembleModel(ModelPT):
         self.model_selection_block = joblib.load(model_selection_block_path)
         self.confidence_cfg = ConfidenceConfig(**self.cfg.confidence)
 
-        # making sure each model has correct confidence settings in the decoder strategy
+        # making sure each model has correct temperature setting in the decoder strategy
         for model_idx in range(self.num_models):
             model = getattr(self, f"model{model_idx}")
             # for now we assume users are direclty responsible for matching
@@ -95,10 +121,12 @@ class ConfidenceEnsembleModel(ModelPT):
                 model.change_decoding_strategy(model.cfg.decoding)
 
     def update_decoding_parameters(self, decoding_cfg):
-        """Updating confidence/temperature parameters of the config."""
+        """Updating temperature parameter of the config."""
         with open_dict(decoding_cfg):
-            decoding_cfg.confidence_cfg = self.confidence_cfg
             decoding_cfg.temperature = self.cfg.temperature
+
+    def list_available_models(self):
+        return []
 
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """Pass-through to the ensemble models.
@@ -125,10 +153,11 @@ class ConfidenceEnsembleModel(ModelPT):
     def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
         """Pass-through to the ensemble models.
 
-        The only change here is that we always require frame-confidence to
-        be returned.
+        The only change here is that we always require expected temperature
+        to be set.
         """
-        decoding_cfg.confidence_cfg = self.confidence_cfg
+        with open_dict(decoding_cfg):
+            decoding_cfg.temperature = self.cfg.temperature
         for model_idx in range(self.num_models):
             model = getattr(self, f"model{model_idx}")
             if isinstance(model, EncDecHybridRNNTCTCModel):
@@ -158,7 +187,6 @@ class ConfidenceEnsembleModel(ModelPT):
             4. Return the output of that model
         """
         # TODO: lots of duplicate code with building ensemble script
-        aggr_func = get_confidence_aggregation_bank()[self.confidence_cfg.aggregation]
         confidences = []
         all_transcriptions = []
         # always requiring to return hypothesis
@@ -181,12 +209,7 @@ class ConfidenceEnsembleModel(ModelPT):
 
             model_confidences = []
             for transcription in transcriptions:
-                if isinstance(transcription.frame_confidence[0], list):
-                    # NeMo Transducer API returns list of lists for confidences
-                    conf_values = [conf_value for confs in transcription.frame_confidence for conf_value in confs]
-                else:
-                    conf_values = transcription.frame_confidence
-                model_confidences.append(aggr_func(conf_values))
+                model_confidences.append(compute_confidence(transcription, self.confidence_cfg))
             confidences.append(model_confidences)
             all_transcriptions.append(transcriptions)
 
