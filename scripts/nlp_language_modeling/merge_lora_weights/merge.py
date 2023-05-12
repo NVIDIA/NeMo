@@ -19,8 +19,9 @@ Merge lora weights into a base GPT LM. Only PP=1 supported so far.
 
 
 import os
-from typing import Any, Dict
 import tempfile
+from typing import Any, Dict
+
 import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -60,16 +61,14 @@ def load_lora(lora_nemo, tp):
     lora_state_dict = {}
     with tempfile.TemporaryDirectory() as tmpdir:
         NLPSaveRestoreConnector._unpack_nemo_file(lora_nemo, tmpdir)
-        #assert os.path.isdir(lora_extracted_dir), "requires the untar'ed the lora .nemo file"
+        # assert os.path.isdir(lora_extracted_dir), "requires the untar'ed the lora .nemo file"
         for i in range(tp):
             if tp == 1:
                 ckpt_file = f"{tmpdir}/model_weights.ckpt"
             else:
                 ckpt_file = f"{tmpdir}/mp_rank_0{i}/model_weights.ckpt"
 
-            l = torch.load(
-                ckpt_file, map_location=torch.device('cpu')
-            )
+            l = torch.load(ckpt_file, map_location=torch.device('cpu'))
             lora_state_dict[i] = l
         return lora_state_dict
 
