@@ -31,6 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.sandwich_relative_position imp
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
 from nemo.core import adapter_mixins
 from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import kerple_log_forward
+from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType, AttnType
