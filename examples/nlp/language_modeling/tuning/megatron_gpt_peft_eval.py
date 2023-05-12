@@ -14,7 +14,7 @@
 
 
 import os
-
+import json
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -144,14 +144,18 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
+    
     if model.global_rank == 0:
         print("***************************")
         if cfg.inference.outfile_path is not None:
             with open(cfg.inference.outfile_path, "w", encoding="utf-8") as f:
                 for batch in response:
-                    for sentence in batch["sentences"]:
-                        s = " ".join(sentence.split("\n"))
-                        f.write(s + "\n")
+                    batch_sentences = [s for s in batch['sentences']]
+                    batch_tokens = [s for s in batch['tokens']]
+                    batch_logprob = [s.tolist() for s in batch['logprob']]
+                    for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
+                        d = {'sentences': s, 'tokens': t, 'logpobs': ', '.join('{:0.2f}'.format(i) for i in l)}
+                        f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
             print("predictions saved to {}".format(cfg.inference.outfile_path))
         else:
             print(response)
