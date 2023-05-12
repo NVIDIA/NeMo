@@ -33,10 +33,11 @@ from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
-from nemo.utils.import_guards import optional_import_guard
 
-with optional_import_guard():
+try:
     from nemo_text_processing.text_normalization.normalize import Normalizer
+except Exception as e:
+    pass  # Normalizer imported only for annotation purposes, error can be ignored
 
 AnyPath = Union[Path, str]
 
