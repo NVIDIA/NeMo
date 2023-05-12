@@ -38,29 +38,36 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 mp.set_start_method("spawn", force=True)
+"""
+This is the script to run inference with a PEFT model or an SFT Model.
+
+If you want to evaluate an SFT .nemo file:
+
+python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+	model.restore_from_path=<path_to_sft_nemo_file> \
+	model.peft.restore_from_path=null \
+	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
+	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
+	model.data.test_ds.global_batch_size=4 \  # or some other value
+	model.data.test_ds.micro_batch_size=4 \
+	model.data.test_ds.tokens_to_generate=30 \
+	inference.greedy=True \
+	inference.outfile_path=\'<path_to_jsonl_output_file>'  
+
+If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
+
+python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+	model.restore_from_path=<path_to_sft_nemo_file> \
+	model.peft.restore_from_path=<path_to_peft_nemo_file> \ # this will be created if you use `megatron_gpt_peft_tuning.py`
+	trainer.devices=1 model.data.test_ds.file_names=\[<path_to_test_jsonl_file1>, <path_to_test_jsonl_file2>] \
+	model.data.test_ds.names=\['name_for_test_file1', 'name_for_test_file2'] \  # this is not the filename just some identifier
+	model.data.test_ds.global_batch_size=4 \  # or some other value
+	model.data.test_ds.micro_batch_size=4 \
+	model.data.test_ds.tokens_to_generate=30 \
+	inference.greedy=True \
+	inference.outfile_path=\'<path_to_jsonl_output_file>'  
 
 """
-This is the script to train an Adapter infused GPT Model for text generation.
-A base GPT Model is required as a starting point. This script will then insert
-Adapters into each Transformer layer and will train/update only these adapters
-during training. The base GPT Model weights will remain frozen.
-
-During training this script will only save the newly trained Adapter weights
-in checkpoints. At the end of training a .nemo file of Adapter weights will 
-be saved.
-
-Usage:
-    Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
-    a. run a training run for a base gpt nemo file:
-        python megatron_gpt_adapter_tuning.py \
-            "model.data.train_ds=[PATH TO TRAINING JSONL FILE]",
-            "model.data.validation_ds=[PATH TO VALIDATION JSONL FILE]",
-            model.language_model_path="PATH TO BASE GPT MODEL .nemo FILE"
-            name="NAME OF TRAINING RUN"
-            exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
-            trainer.max_epochs=2
-"""
-
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
