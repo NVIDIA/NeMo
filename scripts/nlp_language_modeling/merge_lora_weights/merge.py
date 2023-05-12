@@ -205,6 +205,9 @@ def main(cfg) -> None:
     response = trainer.predict(model, request_dl)
     print(response)
 
+    with open_dict(model.cfg):
+        model.cfg.restore_from_path = cfg.merged_model_path
+        
     model.save_to(cfg.merged_model_path)
     logging.info(f"saved merged model to {cfg.merged_model_path}")
 
