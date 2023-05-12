@@ -18,7 +18,6 @@ from argparse import ArgumentParser
 import einops
 import open_clip
 import torch
-from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
@@ -28,6 +27,15 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def get_args():
@@ -156,9 +164,9 @@ def convert(local_rank, rank, world_size, args):
     app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
 
     parallel_state.initialize_model_parallel(
-        tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-        pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
-        pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
+        tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+        pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+        pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
     )
 
     app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
