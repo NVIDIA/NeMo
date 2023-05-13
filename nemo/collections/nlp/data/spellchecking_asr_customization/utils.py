@@ -474,7 +474,13 @@ def read_spellmapper_predictions(filename: str) -> List[Tuple[str, List[str], Li
     return results
 
 
-def apply_replacements_to_text(text: str, candidates: List[str], replacements: List[Tuple[int, int, int, float]], min_prob: float=0.5, replace_hyphen_to_space=False):
+def apply_replacements_to_text(
+    text: str,
+    candidates: List[str],
+    replacements: List[Tuple[int, int, int, float]],
+    min_prob: float=0.5,
+    replace_hyphen_to_space=False
+):
     corrected_text = text
     # filter replacements (note that they are already sorted by positions)
     filtered_replacements = []
@@ -509,6 +515,7 @@ def update_json_with_spellmapper_corrections(
     input_name: str,
     output_name: str,
     spellmapper_results: List[Tuple[str, List[str], List[Tuple[int, int, int, float]],List[int]]],
+    min_prob: float=0.5,
     replace_hyphen_to_space=True
 ) -> None:
     out = open(output_name, "w", encoding="utf-8")
@@ -524,6 +531,6 @@ def update_json_with_spellmapper_corrections(
             raise IndexError("Line mismatch: text=", text, "data[\"pred_text\"]", data["pred_text"])
         # store old predicted text in another field 
         data["pred_text_before_correction"] = data["pred_text"]
-        data["pred_text"] = apply_replacements_to_text(text, candidates, replacements, replace_hyphen_to_space)
+        data["pred_text"] = apply_replacements_to_text(text, candidates, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space)
         out.write(json.dumps(data) + "\n")         
     out.close()
