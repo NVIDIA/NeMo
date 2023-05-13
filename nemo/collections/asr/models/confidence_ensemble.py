@@ -34,7 +34,7 @@ from nemo.core.classes import ModelPT
 from nemo.utils import model_utils
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConfidenceSpec:
     exclude_blank: bool
     aggregation: str

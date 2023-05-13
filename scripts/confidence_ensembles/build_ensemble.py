@@ -36,6 +36,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from tqdm import tqdm
 
 from nemo.collections.asr.models.confidence_ensemble import (
     ConfidenceEnsembleModel,
@@ -115,6 +116,16 @@ class TuneConfidenceConfig:
 
     # not that important, but can sometimes make a small difference
     alpha: Tuple[float] = (0.25, 0.33, 0.5, 1.0)
+
+    def get_grid_size(self) -> int:
+        total_size = 0
+        if "max_prob" in self.confidence_type:
+            return (
+                len(self.exclude_blank)
+                * len(self.aggregation)
+                * ((len(self.confidence_type) - 1) * len(self.alpha) + 1)
+            )
+        return len(self.exclude_blank) * len(self.aggregation) * len(self.confidence_type) * len(self.alpha)
 
 
 @dataclass
@@ -221,6 +232,7 @@ def train_model_selection(
     dev_labels=None,
     tune_lr: bool = True,
     tune_lr_cfg: Optional[TuneLogisticRegressionConfig] = None,
+    verbose: bool = False,
 ):
     if not tune_lr:
         # default parameters: C=10000.0 disables regularization
@@ -246,16 +258,17 @@ def train_model_selection(
                         ),
                     )
                     pipe.fit(training_features, training_labels)
-                    score, confusion = calculate_score(dev_features, dev_labels, best_pipe)
+                    score, confusion = calculate_score(dev_features, dev_labels, pipe)
                     if score > max_score:
                         max_score = score
                         best_pipe = pipe
 
     best_pipe.fit(training_features, training_labels)
-    accuracy, confusion = calculate_score(training_features, training_labels, best_pipe)
-    LOG.info("Training fit accuracy: %.4f", accuracy * 100.0)
-    LOG.info("Training confusion matrix:\n%s", str(confusion))
-    if dev_features is not None:
+    if verbose:
+        accuracy, confusion = calculate_score(training_features, training_labels, best_pipe)
+        LOG.info("Training fit accuracy: %.4f", accuracy * 100.0)
+        LOG.info("Training confusion matrix:\n%s", str(confusion))
+    if dev_features is not None and verbose:
         accuracy, confusion = calculate_score(dev_features, dev_labels, best_pipe)
         LOG.info("Dev fit accuracy: %.4f", accuracy * 100.0)
         LOG.info("Dev confusion matrix:\n%s", str(confusion))
@@ -285,6 +298,7 @@ def cleanup_subsampled_manifests(subsampled_manifests):
 
 def compute_all_confidences(transcription, tune_confidence_cfg: TuneConfidenceConfig) -> Dict[ConfidenceSpec, float]:
     conf_values = {}
+
     for exclude_blank in tune_confidence_cfg.exclude_blank:
         filtered_logprobs = get_filtered_logprobs(transcription, exclude_blank)
         vocab_size = filtered_logprobs.shape[1]
@@ -298,7 +312,8 @@ def compute_all_confidences(transcription, tune_confidence_cfg: TuneConfidenceCo
                 else:
                     for alpha in tune_confidence_cfg.alpha:
                         conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
-                        conf_values[ConfidenceSpec(exclude_blank, aggregation, conf_type, 1.0)] = conf_value
+                        conf_values[ConfidenceSpec(exclude_blank, aggregation, conf_type, alpha)] = conf_value
+
     return conf_values
 
 
@@ -306,11 +321,18 @@ def find_best_confidence(train_confidences, train_labels, dev_confidences, dev_l
     max_score = 0
     best_pipe = None
     best_conf_spec = None
-    for conf_spec in train_confidences[0][0].keys():
-        cur_train_confidences = [
-            model_conf[conf_spec] for model_confs in train_confidences for model_conf in model_confs
-        ]
-        cur_dev_confidences = [model_conf[conf_spec] for model_confs in dev_confidences for model_conf in model_confs]
+    LOG.info("Evaluation all confidences. Total grid size: %d", len(train_confidences[0][0].keys()))
+    for conf_spec in tqdm(train_confidences[0][0].keys()):
+        cur_train_confidences = []
+        for model_confs in train_confidences:
+            cur_train_confidences.append([])
+            for model_conf in model_confs:
+                cur_train_confidences[-1].append(model_conf[conf_spec])
+        cur_dev_confidences = []
+        for model_confs in train_confidences:
+            cur_dev_confidences.append([])
+            for model_conf in model_confs:
+                cur_dev_confidences[-1].append(model_conf[conf_spec])
         # transposing with zip(*list)
         training_features = np.array(list(zip(*cur_train_confidences)))
         training_labels = np.array(train_labels)
@@ -323,6 +345,7 @@ def find_best_confidence(train_confidences, train_labels, dev_confidences, dev_l
             max_score = score
             best_pipe = pipe
             best_conf_spec = conf_spec
+            LOG.info("Found better parameters: %s. New score: %.4f", str(conf_spec), max_score)
 
     return best_conf_spec.to_confidence_config(), best_pipe
 
@@ -336,7 +359,6 @@ def main(cfg: BuildEnsembleConfig):
 
     # to ensure post init is called
     cfg = BuildEnsembleConfig(**cfg)
-    cfg = OmegaConf.structured(cfg)
 
     pl.seed_everything(cfg.random_seed)
     cfg.transcription.random_seed = None  # seed is already applied
@@ -383,7 +405,9 @@ def main(cfg: BuildEnsembleConfig):
                 cfg.transcription.output_filename = output_file.name
                 LOG.info("Transcribing training dataset %d with model %d", data_idx, model_idx)
                 transcriptions = transcribe_speech.main(cfg.transcription.copy())
-                for transcription in transcriptions:
+                LOG.info("Generating confidence scores")
+                # TODO: parallelize this loop?
+                for transcription in tqdm(transcriptions):
                     if cfg.tune_confidence:
                         train_model_confidences.append(
                             compute_all_confidences(transcription, cfg.tune_confidence_config)
@@ -400,8 +424,8 @@ def main(cfg: BuildEnsembleConfig):
                     cfg.transcription.output_filename = output_file.name
                     LOG.info("Transcribing dev dataset %d with model %d", data_idx, model_idx)
                     transcriptions = transcribe_speech.main(cfg.transcription.copy())
-
-                    for transcription in transcriptions:
+                    LOG.info("Generating confidence scores")
+                    for transcription in tqdm(transcriptions):
                         if cfg.tune_confidence:
                             dev_model_confidences.append(
                                 compute_all_confidences(transcription, cfg.tune_confidence_config)
@@ -442,6 +466,7 @@ def main(cfg: BuildEnsembleConfig):
             dev_labels,
             cfg.tune_logistic_regression,
             cfg.tune_logistic_regression_config,
+            verbose=True,
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
