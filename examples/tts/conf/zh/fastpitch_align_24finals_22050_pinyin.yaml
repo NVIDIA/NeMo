@@ -1,5 +1,5 @@
-# This config contains the default values for training FastPitch model with aligner using 22KHz sampling 
-# rate. If you want to train model on other dataset, you can change config values according to your dataset. 
+# This config contains the default values for training FastPitch model with aligner using 22KHz sampling
+# rate. If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
 name: FastPitch
@@ -28,7 +28,7 @@ lowfreq: 0
 highfreq: null
 window: hann
 
-phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict_nv_22.10.txt"
+phoneme_dict_path: "scripts/tts_dataset_files/zh/24finals/pinyin_dict_nv_22.10.txt"
 
 model:
   learn_alignment: true
@@ -73,6 +73,11 @@ model:
       _target_: nemo.collections.tts.g2p.models.zh_cn_pinyin.ChineseG2p
       phoneme_dict: ${phoneme_dict_path}
       word_segmenter: jieba # Only jieba is supported now.
+      phoneme_prefix: ""
+      phoneme_case: lower
+      tone_prefix: "#"
+      ascii_letter_prefix: ""
+      ascii_letter_case: upper
 
   train_ds:
     dataset:
