@@ -825,8 +825,6 @@ class CoreAttention(MegatronModule):
             elif self.position_embedding_type.lower() == 'kerple':
                 attention_bias += kerple_log_forward(sq, sk, relative_position_bias)            
                 
-        import pdb
-        pdb.set_trace()
         # ==================================================
         # Update query_layer, key_layer, value_layer
         # ==================================================         
