@@ -28,7 +28,6 @@ import os
 from argparse import ArgumentParser
 
 import torch
-from omegaconf import open_dict
 from megatron.core import parallel_state
 from omegaconf import open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
