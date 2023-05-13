@@ -322,7 +322,7 @@ def search_in_index(
         position2ngrams: positions in ASR-hypothesis mapped to sets of ngrams starting from that position.
             It is used later to check how well each found candidate is covered by n-grams (to avoid cases where some repeating n-gram gives many hits to a phrase, but the phrase itself is not well covered).
     """
-   
+
     if " " in letters:
         raise ValueError("letters should not contain space: " + str(letters))
 
@@ -379,11 +379,11 @@ def get_all_candidates_coverage(phrases, phrases2positions):
 
 
 def get_candidates(
-        ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]],
-        phrases: List[str],
-        letters: Union[str, List[str]],
-        pool_for_random_candidates: List[str],
-        min_phrase_coverage: float=0.8
+    ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]],
+    phrases: List[str],
+    letters: Union[str, List[str]],
+    pool_for_random_candidates: List[str],
+    min_phrase_coverage: float = 0.8,
 ) -> List[Tuple[str, int, int, float, float]]:
     """Given an index of custom vocabulary and an ASR-hypothesis retrieve 10 candidates.
     Args:
@@ -445,11 +445,13 @@ def get_candidates(
     return candidates
 
 
-def read_spellmapper_predictions(filename: str) -> List[Tuple[str, List[str], List[Tuple[int, int, int, float]], List[int]]]:
+def read_spellmapper_predictions(
+    filename: str,
+) -> List[Tuple[str, List[str], List[Tuple[int, int, int, float]], List[int]]]:
     # results is a list of (sent, list of candidates, list of fragment predictions, list of letter predictions)
     # fragment prediction is (begin, end, candidate_id, prob)
     results = []
-    with open (filename, "r", encoding="utf-8") as f:
+    with open(filename, "r", encoding="utf-8") as f:
         for line in f:
             text, candidate_str, fragment_predictions_str, letter_predictions_str = line.strip().split("\t")
             text = text.replace(" ", "").replace("_", " ")
@@ -478,7 +480,7 @@ def apply_replacements_to_text(
     text: str,
     candidates: List[str],
     replacements: List[Tuple[int, int, int, float]],
-    min_prob: float=0.5,
+    min_prob: float = 0.5,
     replace_hyphen_to_space=False
 ):
     corrected_text = text
@@ -515,7 +517,7 @@ def update_json_with_spellmapper_corrections(
     input_name: str,
     output_name: str,
     spellmapper_results: List[Tuple[str, List[str], List[Tuple[int, int, int, float]],List[int]]],
-    min_prob: float=0.5,
+    min_prob: float = 0.5,
     replace_hyphen_to_space=True
 ) -> None:
     out = open(output_name, "w", encoding="utf-8")
@@ -523,13 +525,15 @@ def update_json_with_spellmapper_corrections(
     with open(input_name, "r", encoding="utf-8") as f:
         input_lines = f.readlines()
     if len(input_lines) != len(spellmapper_results):
-        raise IndexError("len(input_lines)=", len(input_lines), "; len(spellmapper_results)=", len(spellmapper_results))
+        raise IndexError(
+            "len(input_lines)=", len(input_lines), "; len(spellmapper_results)=", len(spellmapper_results)
+        )
     for i in range(len(input_lines)):
         text, candidates, replacements, _ = spellmapper_results[i]
         data = json.loads(input_lines[i].strip())
         if text != data["pred_text"]:
             raise IndexError("Line mismatch: text=", text, "data[\"pred_text\"]", data["pred_text"])
-        # store old predicted text in another field 
+        # store old predicted text in another field
         data["pred_text_before_correction"] = data["pred_text"]
         data["pred_text"] = apply_replacements_to_text(text, candidates, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space)
         out.write(json.dumps(data) + "\n")         
