@@ -42,6 +42,22 @@ RUN apt-get update && \
   libavdevice-dev && \
   rm -rf /var/lib/apt/lists/*
 
+# GCSfuse components
+RUN apt-get update && apt-get install --yes --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+  && echo "deb http://packages.cloud.google.com/apt gcsfuse-focal main" \
+    | tee /etc/apt/sources.list.d/gcsfuse.list \
+  && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+  && apt-get update \
+  && apt-get install --yes gcsfuse \
+  && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+  && mkdir -p /gcs/training-data && mkdir -p /gcs/checkpoints
+
+# NFS components (needed if using PD-SSD for shared file-system)
+RUN apt-get -y update && apt-get install -y nfs-common
+
 WORKDIR /workspace/
 
 WORKDIR /tmp/
@@ -50,7 +66,11 @@ WORKDIR /tmp/
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout 57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2 && \
-  pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+  pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" \
+    --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" \
+    --global-option="--deprecated_fused_adam" --global-option="--bnp" --global-option="--fast_multihead_attn" \
+    --global-option="--xentropy" ./ 
+  # pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
@@ -71,6 +91,18 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+
+# Networking tools in order to record tx and rx across NICs
+RUN apt-get update && apt-get install -y net-tools gawk bc
+
+# NVIDIA DLProf components
+RUN pip install nvidia-pyindex &&\
+  pip install nvidia-dlprof[pytorch] &&\
+  pip install nvtx
+
+RUN git clone https://github.com/crankshaw-google/Megatron-LM.git \
+  && cd Megatron-LM \
+  && pip install -e .
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
@@ -126,3 +158,4 @@ RUN if [ "${REQUIRE_AIS_CLI}" = true ]; then \
   exit ${INSTALL_CODE}; \
   else echo "AIS CLI installed successfully"; fi \
   else echo "Skipping AIS CLI installation"; fi
+
