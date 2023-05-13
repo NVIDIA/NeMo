@@ -22,7 +22,6 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -164,7 +163,10 @@ def main(cfg) -> None:
                     batch_logprob = [s.tolist() for s in batch['logprob']]
                     for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
                         if cfg.inference.get("verbose", False):
-                            d = {'sentence': s, 'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)])}
+                            d = {
+                                'sentence': s,
+                                'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)]),
+                            }
                             f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
                         else:
                             d = {'sentence': s}
