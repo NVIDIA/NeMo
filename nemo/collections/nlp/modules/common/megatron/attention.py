@@ -120,7 +120,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         use_flash_attention=False,
     ):
         super(ParallelAttention, self).__init__()
-
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
@@ -780,7 +779,6 @@ class CoreAttention(MegatronModule):
         relative_position_bias=None,
         headscale_tensor=None,
     ):
-
         b, np, sq, sk, hn = (
             query_layer.size(1),
             query_layer.size(2),
@@ -821,12 +819,14 @@ class CoreAttention(MegatronModule):
                     :,
                     self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
                     + self.num_attention_heads_per_partition,
-                    : attention_scores.size(2),
-                    : attention_scores.size(3),
+                    : sq,
+                    : sk,
                 ]
             elif self.position_embedding_type.lower() == 'kerple':
                 attention_bias += kerple_log_forward(sq, sk, relative_position_bias)            
-
+                
+        import pdb
+        pdb.set_trace()
         # ==================================================
         # Update query_layer, key_layer, value_layer
         # ==================================================         
@@ -942,15 +942,19 @@ class CoreAttention(MegatronModule):
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask):
         batch_size, seqlen, nheads, _ = query_layer.shape
         
-        # [b, 1, sq, sk] -> [b, sq] / [b, sk]
-        # True: not attend / False: attend -> True: attend / False: not attend
-        attention_mask_q  = torch.any(torch.eq(attention_mask, False), dim=3).squeeze(1)
-        attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
-
+        if attention_mask is not None:
+            # [b, 1, sq, sk] -> [b, sq] / [b, sk]
+            # True: not attend / False: attend -> True: attend / False: not attend
+            attention_mask_q  = torch.any(torch.eq(attention_mask, False), dim=3).squeeze(1)
+            attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
+        else:
+            attention_mask_q = torch.ones(batch_size, query_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device())
+            attention_mask_kv = torch.ones(batch_size, key_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device())
+    
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-        
+            
         context_layer = flash_attn_unpadded_func(
             q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
             dropout_p=self.attention_dropout_p if self.training else 0.0,
@@ -968,13 +972,13 @@ class CoreAttention(MegatronModule):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
             
-        # [b, 1, sq, sk] -> [b, 1, 1, sk]
-        attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
-            
-        attention_bias = attention_bias.masked_fill(
-            ~attention_mask_kv,
-            torch.finfo(query_layer.dtype).min
-        )
+        if attention_mask is not None:
+            # [b, 1, sq, sk] -> [b, 1, 1, sk]
+            attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
+            attention_bias = attention_bias.masked_fill(
+                ~attention_mask_kv,
+                torch.finfo(query_layer.dtype).min
+            )
         
         context_layer = flash_attn_func(
             query_layer, key_layer, value_layer, attention_bias, 
