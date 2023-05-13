@@ -15,10 +15,10 @@
 
 import json
 import math
+import random
 import re
 from collections import defaultdict, namedtuple
-from heapq import heappush, heapreplace
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Union
 
 import numpy as np
 from numba import jit
@@ -214,6 +214,17 @@ def get_index(
     """Given a restricted vocabulary of replacements,
     loops through custom phrases,
     generates all possible conversions and creates index.
+
+    Args:
+        custom_phrases: list of all custom phrases, characters should be split by space,  real space replaced to underscore.
+        vocab: n-gram mappings vocabulary,
+        ban_ngram_global: set of banned n-grams,
+        min_log_prob: minimum log probability, after which we stop growing this n-gram.
+        max_phrases_per_ngram: maximum phrases that we allow to store per one n-gram. N-grams exceeding that quantity get banned.
+
+    Returns:
+        phrases - list of phrases. Position in this list is used as phrase_id.
+        ngram2phrases - resulting index, i.e. dict where key=ngram, value=list of tuples (phrase_id, begin_pos, size, logprob)
     """
 
     ban_ngram_local = set()  # these ngrams are banned only for given custom_phrases
@@ -276,9 +287,11 @@ def get_index(
 
 
 def load_index(input_name: str) -> Tuple[List[str], Dict[str, List[Tuple[int, int, int, float]]]]:
+    """ Load index from file
+    """
     phrases = []  # id to phrase
     phrase2id = {}  # phrase to id
-    ngram2phrases = defaultdict(list)  # ngram to list of phrase ids
+    ngram2phrases = defaultdict(list)  # ngram to list of tuples (phrase_id, begin_pos, size, logprob)
     with open(input_name, "r", encoding="utf-8") as f:
         for line in f:
             ngram, phrase, b, size, lp = line.split("\t")
@@ -293,8 +306,23 @@ def load_index(input_name: str) -> Tuple[List[str], Dict[str, List[Tuple[int, in
 
 
 def search_in_index(
-    ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]], phrases: List[str], letters: List[str]
-):
+    ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]], phrases: List[str], letters: Union[str, List[str]]
+) -> Tuple[np.ndarray, List[Set[str]]]:
+    """ Function used to search in index
+
+    Args:
+        ngram2phrases: dict where key=ngram, value=list of tuples (phrase_id, begin_pos, size, logprob)
+        phrases: List of all phrases in custom vocabulary. Position corresponds to phrase_id.
+        letters: list of letters of ASR-hypothesis. Should not contain spaces - real spaces should be replaced with underscores.
+
+    Returns:
+        phrases2positions: a matrix of size (len(phrases), len(letters)).
+            It is filled with 1.0 (hits) on intersection of letter n-grams and phrases that are indexed by these n-grams, 0.0 - elsewhere.
+            It is used later to find phrases with many hits within a contiguous window - potential matching candidates.
+        position2ngrams: positions in ASR-hypothesis mapped to sets of ngrams starting from that position.
+            It is used later to check how well each found candidate is covered by n-grams (to avoid cases where some repeating n-gram gives many hits to a phrase, but the phrase itself is not well covered).
+    """
+   
     if " " in letters:
         raise ValueError("letters should not contain space: " + str(letters))
 
@@ -316,12 +344,22 @@ def search_in_index(
 
 @jit(nopython=True)  # Set "nopython" mode for best performance, equivalent to @njit
 def get_all_candidates_coverage(phrases, phrases2positions):
+    """Get maximum hit coverage for each phrase - within a moving window of length of the phrase.
+    Args:
+        phrases: List of all phrases in custom vocabulary. Position corresponds to phrase_id.
+        phrases2positions: a matrix of size (len(phrases), len(ASR-hypothesis)).
+            It is filled with 1.0 (hits) on intersection of letter n-grams and phrases that are indexed by these n-grams, 0.0 - elsewhere.
+    Returns:
+        candidate2coverage: list of size len(phrases) containing coverage (0.0 to 1.0) in best window.
+        candidate2position: list of size len(phrases) containing starting position of best window.
+    """
     candidate2coverage = [0.0] * len(phrases)
     candidate2position = [-1] * len(phrases)
 
     for i in range(len(phrases)):
         phrase_length = phrases[i].count(" ") + 1
         all_coverage = np.sum(phrases2positions[i]) / phrase_length
+        # if total coverage on whole ASR-hypothesis is too small, there is no sense in using moving window
         if all_coverage < 0.4:
             continue
         moving_sum = np.sum(phrases2positions[i, 0:phrase_length])
@@ -338,3 +376,154 @@ def get_all_candidates_coverage(phrases, phrases2positions):
         candidate2coverage[i] = coverage
         candidate2position[i] = best_pos
     return candidate2coverage, candidate2position
+
+
+def get_candidates(
+        ngram2phrases: Dict[str, List[Tuple[int, int, int, float]]],
+        phrases: List[str],
+        letters: Union[str, List[str]],
+        pool_for_random_candidates: List[str],
+        min_phrase_coverage: float=0.8
+) -> List[Tuple[str, int, int, float, float]]:
+    """Given an index of custom vocabulary and an ASR-hypothesis retrieve 10 candidates.
+    Args:
+        ngram2phrases: dict where key=ngram, value=list of tuples (phrase_id, begin_pos, size, logprob)
+        phrases: List of all phrases in custom vocabulary. Position corresponds to phrase_id.
+        letters: list of letters of ASR-hypothesis. Should not contain spaces - real spaces should be replaced with underscores.
+        pool_for_random_candidates: large list of strings, from which to sample random candidates in case when there are less than 10 real candidates
+        min_phrase_coverage: We discard candidates which are not covered by n-grams to at least to this extent
+          (to avoid cases where some repeating n-gram gives many hits to a phrase, but the phrase itself is not well covered).
+     Returns:
+        candidates: list of tuples (candidate_text, approximate_begin_position, length, coverage of window in ASR-hypothesis, coverage of phrase itself).
+    """
+    phrases2positions, position2ngrams = search_in_index(ngram2phrases, phrases, letters)
+    candidate2coverage, candidate2position = get_all_candidates_coverage(phrases, phrases2positions)
+
+    # mask for each custom phrase, how many which symbols are covered by input ngrams
+    phrases2coveredsymbols = [[0 for x in phrases[i].split(" ")] for i in range(len(phrases))]
+    candidates = []
+    k = 0
+    for idx, coverage in sorted(enumerate(candidate2coverage), key=lambda item: item[1], reverse=True):
+        begin = candidate2position[idx]  # this is most likely beginning of this candidate
+        phrase_length = phrases[idx].count(" ") + 1
+        for pos in range(begin, begin + phrase_length):
+            # we do not know exact end of custom phrase in text, it can be different from phrase length
+            if pos >= len(position2ngrams):
+                break
+            for ngram in position2ngrams[pos]:
+                for phrase_id, b, size, lp in ngram2phrases[ngram]:
+                    if phrase_id != idx:
+                        continue
+                    for ppos in range(b, b + size):
+                        if ppos >= phrase_length:
+                            break
+                        phrases2coveredsymbols[phrase_id][ppos] = 1
+        k += 1
+        if k > 100:
+            break
+        real_coverage = sum(phrases2coveredsymbols[idx]) / len(phrases2coveredsymbols[idx])
+        if real_coverage < min_phrase_coverage:
+            continue
+        candidates.append((phrases[idx], begin, phrase_length, coverage, real_coverage))
+
+    # no need to process this sentence further if it does not contain any real candidates
+    if len(candidates) == 0:
+        print("WARNING: no real candidates", candidates)
+        return None
+
+    while len(candidates) < 10:
+        dummy = random.choice(pool_for_random_candidates)
+        dummy = " ".join(list(dummy.replace(" ", "_")))
+        candidates.append((dummy, -1, dummy.count(" ") + 1, 0.0, 0.0))
+
+    candidates = candidates[:10]
+    random.shuffle(candidates)
+    if len(candidates) != 10:
+        print("WARNING: cannot get 10 candidates", candidates)
+        return None
+
+    return candidates
+
+
+def read_spellmapper_predictions(filename: str) -> List[Tuple[str, List[str], List[Tuple[int, int, int, float]], List[int]]]:
+    # results is a list of (sent, list of candidates, list of fragment predictions, list of letter predictions)
+    # fragment prediction is (begin, end, candidate_id, prob)
+    results = []
+    with open (filename, "r", encoding="utf-8") as f:
+        for line in f:
+            text, candidate_str, fragment_predictions_str, letter_predictions_str = line.strip().split("\t")
+            text = text.replace(" ", "").replace("_", " ")
+            candidate_str = candidate_str.replace(" ", "").replace("_", " ")
+            candidates = candidate_str.split(";")
+            letter_predictions = list(map(int, letter_predictions_str.split()))
+            if len(candidates) != 10:
+                raise IndexError("expect 10 candidates, got: ", len(candidates))
+            if len(text) != len(letter_predictions):
+                raise IndexError("len(text)=", len(text), "; len(letter_predictions)=", len(letter_predictions))
+            replacements = []
+            if fragment_predictions_str != "":
+                for prediction in fragment_predictions_str.split(";"):
+                    begin, end, candidate_id, prob = prediction.split(" ")
+                    begin = int(begin)
+                    end = int(end)
+                    candidate_id = int(candidate_id)
+                    prob = float(prob)
+                    replacements.append((begin, end, candidate_id, prob))
+                    replacements.sort()  # it will sort by begin, then by end
+            results.append((text, candidates, replacements, letter_predictions))
+    return results
+
+
+def apply_replacements_to_text(text: str, candidates: List[str], replacements: List[Tuple[int, int, int, float]], min_prob: float=0.5, replace_hyphen_to_space=False):
+    corrected_text = text
+    # filter replacements (note that they are already sorted by positions)
+    filtered_replacements = []
+    for j in range(len(replacements)):
+        replacement = replacements[j]
+        begin, end, candidate_id, prob = replacement
+        # skip replacement to the same text
+        if candidates[candidate_id - 1] == text[begin:end]:
+            continue
+        # skip replacement with low probability
+        if prob < min_prob:
+            continue
+        # skip replacement if it intersects with previous replacement and has lower probability, otherwise remove previous replacement
+        if len(filtered_replacements) > 0 and filtered_replacements[-1][1] > begin:
+            if filtered_replacements[-1][3] > prob:
+                continue
+            else:
+                filtered_replacements.pop()
+        filtered_replacements.append(replacement)
+    # Apply replacements to the input text, iterating from end to beginning, so that indexing does not change.
+    # Note that we already filtered out intersecting replacements.
+    for begin, end, candidate_id, prob in reversed(filtered_replacements):
+        candidate = candidates[candidate_id - 1]
+        if replace_hyphen_to_space:
+            candidate = candidate.replace("-", " ")
+        corrected_text = corrected_text[:begin] + candidate + text[end:]
+
+    return corrected_text
+
+
+def update_json_with_spellmapper_corrections(
+    input_name: str,
+    output_name: str,
+    spellmapper_results: List[Tuple[str, List[str], List[Tuple[int, int, int, float]],List[int]]],
+    replace_hyphen_to_space=True
+) -> None:
+    out = open(output_name, "w", encoding="utf-8")
+    input_lines = []
+    with open(input_name, "r", encoding="utf-8") as f:
+        input_lines = f.readlines()
+    if len(input_lines) != len(spellmapper_results):
+        raise IndexError("len(input_lines)=", len(input_lines), "; len(spellmapper_results)=", len(spellmapper_results))
+    for i in range(len(input_lines)):
+        text, candidates, replacements, _ = spellmapper_results[i]
+        data = json.loads(input_lines[i].strip())
+        if text != data["pred_text"]:
+            raise IndexError("Line mismatch: text=", text, "data[\"pred_text\"]", data["pred_text"])
+        # store old predicted text in another field 
+        data["pred_text_before_correction"] = data["pred_text"]
+        data["pred_text"] = apply_replacements_to_text(text, candidates, replacements, replace_hyphen_to_space)
+        out.write(json.dumps(data) + "\n")         
+    out.close()
