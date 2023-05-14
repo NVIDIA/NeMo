@@ -19,7 +19,7 @@ import sys
 
 import torch
 
-__all__ = ["MegatronBaseHiddenLoss", "MegatronMIMHiddenLoss"]
+__all__ = ["MegatronBaseHiddenLoss", "MegatronAMIMHiddenLoss", "MegatronVAEHiddenLoss"]
 
 
 class MegatronBaseHiddenLoss(torch.nn.Module):
@@ -66,7 +66,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         return loss_dict
 
 
-class MegatronMIMHiddenLoss(MegatronBaseHiddenLoss):
+class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
     """
     Based on <https://arxiv.org/abs/2003.02645>
     Implements A-MIM loss with a unit Normal anchor.

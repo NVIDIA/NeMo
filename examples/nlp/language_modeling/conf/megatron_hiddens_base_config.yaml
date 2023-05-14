@@ -1,24 +1,27 @@
 # this file main purpose is documentation, and it should not be used directly 
 enabled: True # set to True to enable hiddens transformations and loss
 enc_output_name: z # name of key in hidden transforms output to pass to decoder (e.g., z for VAE/MIM)
-transform: # a dictionary of transforms to apply to hiddens
-  # <transform_name>: # name of transform
-  #   cls_name: <transform_class_path_name> # class path name
-  #   <transform_param>: <transform_value> # transform parameters
-  #   ...
-  q_z_given_x: # Gaussian posterior with reparameterization
-    cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform # class path name
-    hidden_size: 512 # hidden size of the encoder
-    min_logvar: -7.0 # minimum log variance
-loss: # a a dictionary of loss terms to add to reconstruction loss
-  # <loss_name>: # name of loss
-  #   cls_name: <loss_class_path_name> # class path name
-  #   <loss_param>: <loss_value> # loss parameters
-  #   ...
-    mim: # A-MIM example
-      cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronMIMHiddenLoss
-      loss_weight: 1.0 # weight of the MIM latent loss
-    vae: # VAE example
-      cls_name: nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronVAEHiddenLoss
-      loss_weight: 1e-2 # weight of KL term in loss
-      min_kl_value: null # minimum KL value if a float is provided
+# the lists below are useful for adding multiple transforms and losses according to order
+# if order is not important, you can use a single dictionary in the list with multiple keys
+transform: # a list of dictionaries of transforms to apply to hiddens according to list order
+  # - <transform_name>: # name of transform
+  #     cls_name: <transform_class_path_name> # class path name
+  #     <transform_param>: <transform_value> # transform parameters
+  #     ...
+  - q_z_given_x: # Gaussian posterior with reparameterization
+      cls_name: cond_gaussian # class path name
+      hidden_size: 512 # hidden size of the encoder
+      min_logvar: -7.0 # minimum log variance
+loss: # a list of dictionaries of loss terms to add to reconstruction loss according to list order
+  # - <loss_name>: # name of loss
+  #     cls_name: <loss_class_path_name> # class path name
+  #     <loss_param>: <loss_value> # loss parameters
+  #     ...
+  # below is example where order of losses does not matter so a single item in list is enough
+    - mim: # A-MIM example
+        cls_name: a_mim
+        loss_weight: 1.0 # weight of the MIM latent loss
+      vae: # VAE example
+        cls_name: vae
+        loss_weight: 1e-2 # weight of KL term in loss
+        min_kl_value: null # minimum KL value if a float is provided

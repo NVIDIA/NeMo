@@ -46,14 +46,42 @@ from nemo.utils.model_utils import import_class_by_path
 
 __all__ = ["MegatronHiddensModule"]
 
-# a registry of all hidden transforms and losses (maps name to class path)
-_LOSS_CLASS_REGISTRY = {}
+# a registry of all hidden transforms (maps name to class path)
+_LOSS_CLASS_REGISTRY = {
+    "a_mim": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronMIMHiddenLoss",
+    "vae": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronVAEHiddenLoss",
+}
 
-_TRANSFORM_CLASS_REGISTRY = {}
+# a registry of all hidden losses (maps name to class path)
+_TRANSFORM_CLASS_REGISTRY = {
+    "cond_gaussian": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform",
+}
 
+def get_registered_hiddens():
+    """
+    Return:
+        A dictionary with all registered hidden transforms and losses.
+
+    Example:
+        {
+            "loss": ["a-mim", "vae"],
+            "transform": ["cond_gaussian"],
+        }
+    """
+    return {
+        "loss": list(_LOSS_CLASS_REGISTRY.keys()),
+        "transform": list(_TRANSFORM_CLASS_REGISTRY.keys()),
+    }
 
 def register_hidden_loss(cls_name: str, class_path: str):
-    """Register a hidden loss"""
+    """
+    Register a hidden loss.
+
+    
+    Args:
+        cls_name: name of the class
+        class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform")
+    """
     if cls_name in _LOSS_CLASS_REGISTRY:
         raise ValueError(f"Cannot register duplicate hidden loss ({cls_name})")
     _LOSS_CLASS_REGISTRY[cls_name] = class_path
@@ -61,7 +89,13 @@ def register_hidden_loss(cls_name: str, class_path: str):
 
 
 def register_hidden_transform(cls_name: str, class_path: str):
-    """Register a hidden transform"""
+    """
+    Register a hidden transform.
+    
+    Args:
+        cls_name: name of the class
+        class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform")
+    """
     if cls_name in _TRANSFORM_CLASS_REGISTRY:
         raise ValueError(f"Cannot register duplicate hidden transform ({cls_name})")
     _TRANSFORM_CLASS_REGISTRY[cls_name] = class_path
@@ -75,28 +109,36 @@ def get_hiddens_module(cfg=None):
         return None
 
     # build all hidden transforms
-    transforms_cfg = cfg.get("transform", {})
+    transform_cfg = cfg.get("transform", [])
     hidden_transforms = []
-    for name, cur_cfg in transforms_cfg.items():
-        cls_kwargs = OmegaConf.to_container(cur_cfg)
-        if not "cls_name" in cls_kwargs:
-            raise KeyError(f"Missing 'cls_name' in hidden transform {name}")
+    # we expect transform_cfg to be a list of dictionaries
+    for cur_list_cfg in transform_cfg.items():
+        for name, cur_cfg in cur_list_cfg.items():
+            cls_kwargs = OmegaConf.to_container(cur_cfg)
+            if not "cls_name" in cls_kwargs:
+                raise KeyError(f"Missing 'cls_name' in hidden transform {name}")
 
-        cls_name = cls_kwargs.pop("cls_name")
-        cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
-        hidden_transforms.append(cur_transform)
+            cls_name = cls_kwargs.pop("cls_name")
+            if cls_name not in _TRANSFORM_CLASS_REGISTRY:
+                raise KeyError(f"Unknown hidden transform {cls_name}, available: {_TRANSFORM_CLASS_REGISTRY.keys()}")
+            cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+            hidden_transforms.append(cur_transform)
 
     # build all hidden losses
-    loss_cfg = transforms_cfg.get("loss", {})
+    loss_cfg = cfg.get("loss", {})
     hidden_loss_transforms = []
-    for name, cur_cfg in loss_cfg.items():
-        cls_kwargs = OmegaConf.to_container(cur_cfg)
-        if not "cls_name" in cls_kwargs:
-            raise KeyError(f"Missing 'cls_name' in hidden loss {name}")
+    # we expect loss_cfg to be a list of dictionaries
+    for cur_list_cfg in loss_cfg.items():
+        for name, cur_cfg in cur_list_cfg.items():
+            cls_kwargs = OmegaConf.to_container(cur_cfg)
+            if not "cls_name" in cls_kwargs:
+                raise KeyError(f"Missing 'cls_name' in hidden loss {name}")
 
-        cls_name = cls_kwargs.pop("cls_name")
-        cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
-        hidden_loss_transforms.append(cur_loss)
+            cls_name = cls_kwargs.pop("cls_name")
+            if cls_name not in _LOSS_CLASS_REGISTRY:
+                raise KeyError(f"Unknown hidden loss {cls_name}, available: {_LOSS_CLASS_REGISTRY.keys()}")
+            cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+            hidden_loss_transforms.append(cur_loss)
 
     enc_output_name = cfg.get("enc_output_name", "hiddens")
 
