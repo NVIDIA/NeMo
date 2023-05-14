@@ -57,6 +57,7 @@ _TRANSFORM_CLASS_REGISTRY = {
     "cond_gaussian": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform.MegatronGaussianHiddenTransform",
 }
 
+
 def get_registered_hiddens():
     """
     Return:
@@ -72,6 +73,7 @@ def get_registered_hiddens():
         "loss": list(_LOSS_CLASS_REGISTRY.keys()),
         "transform": list(_TRANSFORM_CLASS_REGISTRY.keys()),
     }
+
 
 def register_hidden_loss(cls_name: str, class_path: str):
     """
