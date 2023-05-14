@@ -79,7 +79,7 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
         # project hiddens to mean and log variance (support tensor parallelism)
         self.hiddens_to_mean_logvar = tensor_parallel.ColumnParallelLinear(
                     hidden_size,
-                    hidden_size * 2
+                    hidden_size * 2,
                     gather_output=True,
                     init_method=init_method_normal(init_method_std),                    
                     skip_bias_add=False,
