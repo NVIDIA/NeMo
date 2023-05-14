@@ -445,14 +445,14 @@ class CodeSwitchedDataset(IterableDataset):
                 lang_id = np.random.choice(list(self.langs_set - set(created_sample_langs)), p=p)
 
             audio, audio_len, labels, labels_len, *_ = self.get_sample_from_language(lang_id)
-            
+
             if audio.count_nonzero().item() == 0:
                 continue
-            
+
             sample_duration = len(audio) / self.sample_rate
             if (created_sample_duration_sec + sample_duration) > self.max_duration:
                 continue
-            
+
             if comp_text.device != labels.device:
                 comp_text = comp_text.to(labels.device)
 
