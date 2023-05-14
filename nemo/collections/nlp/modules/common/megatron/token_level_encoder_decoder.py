@@ -614,7 +614,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
-                    
+
                     # if enc_output is a dict than  hidden transforms is used
                     if isinstance(enc_output, dict):
                         enc_output["tokens_loss"] = tokens_loss
