@@ -36,6 +36,7 @@ from nemo.utils import logging
 try:
     from apex.transformer.enums import AttnMaskType, AttnType
     from apex.transformer.utils import divide as safe_divide
+    from apex._autocast_utils import _cast_if_autocast_enabled
 
     HAVE_APEX = True
 
@@ -866,6 +867,21 @@ class CoreAttention(MegatronModule):
         # Get context_layer [b, np, sq, hn]
         # ==================================================  
         if self.use_flash_attention:
+            # Use to ensure dtype cast to fp16 or bf16
+            (
+                query_layer, 
+                key_layer, 
+                value_layer, 
+                attention_mask, 
+                attention_bias
+            ) = _cast_if_autocast_enabled(
+                    query_layer, 
+                    key_layer, 
+                    value_layer, 
+                    attention_mask, 
+                    attention_bias,
+            )
+            
             if has_attention_bias:
                 context_layer = self.flash_attention_triton(
                     query_layer, 
