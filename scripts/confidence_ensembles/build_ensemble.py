@@ -491,6 +491,16 @@ def main(cfg: BuildEnsembleConfig):
 
     # note that we loop over the same config.
     # This is intentional, as we need to run all models on all datasets
+    # this loop will do the following things:
+    # 1. Goes through each model X each training dataset
+    # 2. Computes predictions by directly calling transcribe_speech.main
+    # 3. Converts transcription to the confidence score(s) as specified in the config
+    # 4. If dev sets are provided, computes the same for them
+    # 5. Creates a list of ground-truth model indices by mapping each model
+    #    to its own training dataset as specified in the config.
+    # 6. After the loop, we either run tuning over all confidence scores or
+    #    directly use a single score to fit logistic regression and save the
+    #    final ensemble model.
     for model_idx, model_cfg in enumerate(cfg.ensemble):
         train_model_confidences = []
         dev_model_confidences = []
