@@ -983,6 +983,6 @@ class CoreAttention(MegatronModule):
             self.attn_mask_type == AttnMaskType.causal
         )
         
-        # [b, sq, np, hn] -> [sq, b, np, hn]
+        # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
         return context_layer
