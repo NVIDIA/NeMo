@@ -74,6 +74,7 @@ from nemo.collections.asr.parts.submodules import ctc_beam_decoding
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 
 # fmt: off
 
@@ -113,7 +114,7 @@ class EvalBeamSearchNGramConfig:
     
     text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
         punctuation_marks = ".,?",
-        separate_punctuation = True,
+        separate_punctuation = False,
         do_lowercase = False,
         rm_punctuation = False,
     )
@@ -151,7 +152,11 @@ def beam_search_eval(
     model.cfg.decoding.beam = cfg.decoding
 
     # Update model's decoding strategy
-    model.change_decoding_strategy(model.cfg.decoding)
+    if isinstance(model, EncDecHybridRNNTCTCModel):
+        model.change_decoding_strategy(model.cfg.decoding, decoder_type = 'ctc')
+        model.decoding = model.ctc_decoding
+    else:
+        model.change_decoding_strategy(model.cfg.decoding)
     logging.setLevel(level)
 
     wer_dist_first = cer_dist_first = 0
@@ -199,6 +204,8 @@ def beam_search_eval(
                     pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
                 if cfg.text_processing.rm_punctuation:
                     pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
+                if cfg.text_processing.separate_punctuation:
+                    pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -279,12 +286,12 @@ def main(cfg: EvalBeamSearchNGramConfig):
             audio_file_paths.append(str(audio_file.absolute()))
 
     punctuation_capitalization = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
-    if cfg.text_processing.separate_punctuation:
-        target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
     if cfg.text_processing.do_lowercase:
         target_transcripts = punctuation_capitalization.do_lowercase(target_transcripts)
     if cfg.text_processing.rm_punctuation:
         target_transcripts = punctuation_capitalization.rm_punctuation(target_transcripts)
+    if cfg.text_processing.separate_punctuation:
+        target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
 
     if cfg.probs_cache_file and os.path.exists(cfg.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'.")
@@ -316,8 +323,10 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
         with autocast():
             with torch.no_grad():
+                if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+                    asr_model.cur_decoder = 'ctc'
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
-
+                
         all_probs = all_logits
         if cfg.probs_cache_file:
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
@@ -331,11 +340,17 @@ def main(cfg: EvalBeamSearchNGramConfig):
     for batch_idx, probs in enumerate(all_probs):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
-        pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+        if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+        else:
+            pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+
         if cfg.text_processing.do_lowercase:
             pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
         if cfg.text_processing.rm_punctuation:
             pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
+        if cfg.text_processing.separate_punctuation:
+            pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
 
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
