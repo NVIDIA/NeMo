@@ -152,10 +152,11 @@ def get_chatbot_demo(share, username, password, server_port=5555, web_port=9889,
                 end_strings = gr.Textbox(
                     label="End strings (comma separated)", value=f"<|endoftext|>,<extra_id_1>,", lines=1,
                 )
-            with gr.Column(scale=1, min_width=800):
+                gr.HTML("<hr/>")
                 human_name = gr.Textbox(label="Human Name", value="User", line=1,)
                 assistant_name = gr.Textbox(label="Assistant Name", value="Assistant", line=1,)
                 preamble = gr.Textbox(label="System", value=DEFAULT_SYSTEM, lines=2,)
+            with gr.Column(scale=1, min_width=800):
                 chatbot = Chatbot(elem_id="chatbot").style(height=800)
                 msg = gr.Textbox(label="User", value="", lines=1,)
                 clear = gr.Button("Clear")
