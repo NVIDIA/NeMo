@@ -14,15 +14,16 @@
 
 from nemo.collections.asr.models.configs.asr_models_config import (
     ASRDatasetConfig,
+    CacheAwareStreamingConfig,
     EncDecCTCConfig,
     EncDecCTCModelConfig,
-    FramewiseStreamingConfig,
 )
 from nemo.collections.asr.models.configs.classification_models_config import (
     EncDecClassificationConfig,
     EncDecClassificationDatasetConfig,
     EncDecClassificationModelConfig,
 )
+from nemo.collections.asr.models.configs.diarizer_config import NeuralDiarizerInferenceConfig
 from nemo.collections.asr.models.configs.matchboxnet_config import (
     EncDecClassificationModelConfigBuilder,
     MatchboxNetModelConfig,

@@ -11,33 +11,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# ##########################################################################
-
+import contextlib
 
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
-from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer
+from nemo.collections.tts.parts.utils.helpers import (
+    batch_from_ragged,
+    plot_alignment_to_numpy,
+    regulate_len,
+    sample_tts_input,
+)
 from nemo.core.classes import Exportable
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
     Index,
-    LengthsType,
     MelSpectrogramType,
-    ProbsType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
-    TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -47,8 +48,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
 
-        self._setup_tokenizer(cfg.validation_ds.dataset)
+        self.tokenizer = None
+        self._setup_tokenizer(cfg)
 
         assert self.tokenizer is not None
 
@@ -79,11 +85,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
-
-        self.normalizer = None
-        self.text_normalizer_call = None
-        self.text_normalizer_call_kwargs = {}
-        self._setup_normalizer(cfg)
+        self.export_config = {
+            "emb_range": (0, self.model.embedding.num_embeddings),
+            "enable_volume": True,
+            "enable_ragged_batches": False,
+            "num_speakers": self.model_config.n_speakers,
+        }
+        # print("intial self normalizer", self.normalizer)
 
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
@@ -122,7 +130,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         attn_prior = batch['align_prior_matrix']
         f0 = batch['pitch']
         voiced_mask = batch['voiced_mask']
-        p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
 
         if (
@@ -146,7 +153,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             f0=f0,
             energy_avg=energy_avg,
             voiced_mask=voiced_mask,
-            p_voiced=p_voiced,
         )
         loss_outputs = self.criterion(outputs, in_lens, out_lens)
 
@@ -163,7 +169,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         loss_outputs['binarization_loss'] = (binarization_loss, 1.0)
 
         for k, (v, w) in loss_outputs.items():
-            self.log("train/" + k, loss_outputs[k][0])
+            self.log("train/" + k, loss_outputs[k][0], on_step=True)
 
         return {'loss': loss}
 
@@ -177,7 +183,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         attn_prior = batch['align_prior_matrix']
         f0 = batch['pitch']
         voiced_mask = batch['voiced_mask']
-        p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
         mel = batch['log_mel']
         if (
@@ -200,7 +205,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             f0=f0,
             energy_avg=energy_avg,
             voiced_mask=voiced_mask,
-            p_voiced=p_voiced,
         )
         loss_outputs = self.criterion(outputs, in_lens, out_lens)
 
@@ -233,7 +237,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
         for k, v in loss_outputs.items():
             if k != "binarization_loss":
-                self.log("val/" + k, loss_outputs[k][0])
+                self.log("val/" + k, loss_outputs[k][0], sync_dist=True, on_epoch=True)
 
         attn = outputs[0]["attn"]
         attn_soft = outputs[0]["attn_soft"]
@@ -267,24 +271,26 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
         elif self.optim.name == 'RAdam':  # False for inference riva
-            optimizer = torch.optim.RAdam(
-                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
-            )
+            optimizer = RAdam(self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay)
         else:
             logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
             exit(1)
 
         return optimizer
 
-    @staticmethod
-    def _loader(cfg):
+    def _loader(self, cfg):
         try:
             _ = cfg.dataset.manifest_filepath
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
-
-        dataset = instantiate(cfg.dataset)
+        # print("inside loader self normalizer", self.normalizer)
+        dataset = instantiate(
+            cfg.dataset,
+            text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer,
+        )
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
@@ -326,6 +332,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
@@ -363,7 +376,16 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                     'text_normalizer.whitelist', cfg.text_normalizer.whitelist
                 )
 
-            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            try:
+                import nemo_text_processing
+
+                self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+                self.text_normalizer_call = self.normalizer.normalize
+            except Exception as e:
+                logging.error(e)
+                raise ImportError(
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
+                )
             self.text_normalizer_call = self.normalizer.normalize
             if "text_normalizer_call_kwargs" in cfg:
                 self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
@@ -373,7 +395,17 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-        return torch.tensor(self.tokenizer(text)).long().unsqueeze(0).cuda().to(self.device)
+
+        eval_phon_mode = contextlib.nullcontext()
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            eval_phon_mode = self.tokenizer.set_phone_prob(prob=1)
+            print("changed to one")
+
+        with eval_phon_mode:
+            tokens = self.tokenizer.encode(text)
+        print("text to token phone_prob")
+
+        return torch.tensor(tokens).long().unsqueeze(0).cuda().to(self.device)
 
     @property
     def tb_logger(self):
@@ -381,24 +413,117 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             if self.logger is None and self.logger.experiment is None:
                 return None
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
-                for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
             self._tb_logger = tb_logger
         return self._tb_logger
 
+    def load_state_dict(self, state_dict, strict=True):
+        # Override load_state_dict to be backward-compatible with old checkpoints
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            k = k.replace("projection_fn.weight", "projection_fn.conv.weight")
+            k = k.replace("projection_fn.bias", "projection_fn.conv.bias")
+            new_state_dict[k] = v
+        super().load_state_dict(new_state_dict, strict=strict)
+
+    # Methods for model exportability
     @property
-    def input_module(self):
-        return self.model
+    def input_types(self):
+        return self._input_types
 
     @property
-    def output_module(self):
-        return self.model
+    def output_types(self):
+        return self._output_types
 
-    def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
-        return self.model.forward_for_export(text, lens, speaker_id, speaker_id_text, speaker_id_attributes)
+    def _prepare_for_export(self, **kwargs):
+        self.model.remove_norms()
+        super()._prepare_for_export(**kwargs)
 
-    def get_export_subnet(self, subnet=None):
-        return self.model.get_export_subnet(subnet)
+        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
+
+        # Define input_types and output_types as required by export()
+        self._input_types = {
+            "text": NeuralType(tensor_shape, TokenIndex()),
+            "batch_lengths": NeuralType(('B')),
+            "speaker_id": NeuralType(('B'), Index()),
+            "speaker_id_text": NeuralType(('B'), Index()),
+            "speaker_id_attributes": NeuralType(('B'), Index()),
+            "pitch": NeuralType(tensor_shape, RegressionValuesType()),
+            "pace": NeuralType(tensor_shape),
+        }
+        self._output_types = {
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+        }
+        if self.export_config["enable_volume"]:
+            self._input_types["volume"] = NeuralType(tensor_shape, optional=True)
+            self._output_types["volume_aligned"] = NeuralType(('B', 'T_spec'), RegressionValuesType())
+
+    def input_example(self, max_batch=1, max_dim=400):
+        par = next(self.model.parameters())
+        inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
+        speaker = inputs.pop("speaker")
+        inp = inputs['text']
+        pad_id = self.tokenizer.pad
+        inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
+
+        inputs.update(
+            {'speaker_id': speaker, 'speaker_id_text': speaker, 'speaker_id_attributes': speaker,}
+        )
+        new_inputs = {
+            'text': inp,
+            'batch_lengths': inputs['batch_lengths'],
+            'speaker_id': speaker,
+            'speaker_id_text': speaker,
+            'speaker_id_attributes': speaker,
+            'pitch': inputs['pitch'],
+            'pace': inputs['pace'],
+            'volume': inputs['volume'],
+        }
+
+        return (new_inputs,)
+
+    def forward_for_export(
+        self, text, batch_lengths, speaker_id, speaker_id_text, speaker_id_attributes, pitch, pace, volume,
+    ):
+        if self.export_config["enable_ragged_batches"]:
+            text, pitch, pace, volume_tensor, lens = batch_from_ragged(
+                text, pitch, pace, batch_lengths=batch_lengths, padding_idx=self.tokenizer_pad, volume=volume,
+            )
+            if volume is not None:
+                volume = volume_tensor
+        else:
+            lens = batch_lengths.to(dtype=torch.int64)
+
+        (mel, n_frames, dur, _, _) = self.model.infer(
+            speaker_id,
+            text,
+            speaker_id_text=speaker_id_text,
+            speaker_id_attributes=speaker_id_attributes,
+            sigma=0.7,
+            f0_mean=0.0,
+            f0_std=0.0,
+            in_lens=lens,
+            pitch_shift=pitch,
+            pace=pace,
+        ).values()
+        ret_values = (mel.float(), n_frames, dur.float())
+
+        if volume is not None:
+            # Need to reshape as in infer patch
+            durs_predicted = dur.float()
+            truncated_length = torch.max(lens)
+            volume_extended, _ = regulate_len(
+                durs_predicted,
+                volume[:, :truncated_length].unsqueeze(-1),
+                pace[:, :truncated_length],
+                group_size=self.model.n_group_size,
+                dur_lens=lens,
+            )
+            volume_extended = volume_extended.squeeze(2).float()
+            ret_values = ret_values + (volume_extended,)
+        return ret_values

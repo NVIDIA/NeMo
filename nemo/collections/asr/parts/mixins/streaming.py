@@ -23,13 +23,13 @@ class StreamingEncoder(ABC):
         self, max_look_ahead: int = 10000,
     ):
         """
-        This function sets the needed values and parameters to perform streaming. The configuration (FramewiseStreamingConfig) need to be stored in self.streaming_cfg.
+        This function sets the needed values and parameters to perform streaming. The configuration (CacheAwareStreamingConfig) need to be stored in self.streaming_cfg.
         The streaming configuration is needed to simulate streaming inference. It would set the following
         """
         pass
 
     @abstractmethod
-    def get_initial_cache_state(self, batch_size, dtype, device):
+    def get_initial_cache_state(self, batch_size, dtype, device, max_dim):
         pass
 
     @staticmethod
@@ -44,6 +44,7 @@ class StreamingEncoder(ABC):
         processed_signal_length=None,
         cache_last_channel=None,
         cache_last_time=None,
+        cache_last_channel_len=None,
         keep_all_outputs=True,
         drop_extra_pre_encoded=None,
     ):
@@ -63,21 +64,12 @@ class StreamingEncoder(ABC):
             length=processed_signal_length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
+            cache_last_channel_len=cache_last_channel_len,
         )
 
-        if len(encoder_output) == 2:
-            encoded, encoded_len = encoder_output
-            cache_last_channel_next = cache_last_time_next = None
-        else:
-            encoded, encoded_len, cache_last_channel_next, cache_last_time_next = encoder_output
-
-        if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
-            cache_last_channel_next = cache_last_channel_next[:, :, -self.streaming_cfg.last_channel_cache_size :, :]
-        if not keep_all_outputs:
-            encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
-            encoded_len = torch.clamp(encoded_len, max=self.streaming_cfg.valid_out_len)
+        encoder_output = self.streaming_post_process(encoder_output, keep_all_outputs=keep_all_outputs)
 
         if prev_drop_extra_pre_encoded is not None:
             self.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded
 
-        return encoded, encoded_len, cache_last_channel_next, cache_last_time_next
+        return encoder_output

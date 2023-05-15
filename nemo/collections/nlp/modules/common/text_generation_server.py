@@ -20,6 +20,10 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
+from nemo.collections.nlp.modules.common.retro_inference_strategies import (
+    RetroModelTextGenerationStrategy,
+    RetroQAModelTextGenerationStrategy,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.utils import logging
 
@@ -37,15 +41,18 @@ API_ALLOWED_KEYS = set(
         "greedy",
         "top_k",
         "top_p",
+        "neighbors",
         "repetition_penalty",
         "min_tokens_to_generate",
+        "end_strings",
     ]
 )
 
 
 class MegatronGenerate(Resource):
-    def __init__(self, model):
+    def __init__(self, model, inference_strategy=None):
         self.model = model
+        self.inference_strategy = inference_strategy
 
     @staticmethod
     def send_do_generate():
@@ -142,12 +149,39 @@ class MegatronGenerate(Resource):
             if min_tokens_to_generate < 0:
                 return "min_tokens_to_generate must be an integer no less than 0"
 
+        neighbors = None
+        if "neighbors" in request.get_json():
+            neighbors = request.get_json()["neighbors"]
+            if not isinstance(neighbors, int):
+                return "num of neighbors must be an integer no less than 0"
+            if neighbors < 0:
+                return "num of neighbors must be an integer no less than 0"
+
+        end_strings = ['<|endoftext|>']
+        if 'end_strings' in request.get_json():
+            end_strings = request.get_json()['end_strings']
+            if not isinstance(end_strings, list):
+                return "expect end_strings to be a list of strings"
+            if not all([isinstance(s, str) for s in end_strings]):
+                return "expect end_strings to be a list of strings"
+
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
+            extra = {}
+            if task_ids is not None:
+                extra['task_ids'] = task_ids
+            if self.inference_strategy is not None:
+                extra['strategy'] = self.inference_strategy
+                # RETRO specific arguments
+                if isinstance(
+                    self.inference_strategy, (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
+                ):
+                    if neighbors is not None:
+                        self.inference_strategy.update_neighbors(neighbors)
+
             output = generate(
                 self.model,
                 sentences,
-                task_ids,
                 tokens_to_generate,
                 all_probs,
                 temperature,
@@ -157,20 +191,29 @@ class MegatronGenerate(Resource):
                 greedy,
                 repetition_penalty,
                 min_tokens_to_generate,
+                end_strings=end_strings,
+                **extra,
             )
             for k in output:
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
         if not all_probs:
             del output['full_logprob']
+
+        if self.inference_strategy is not None:
+            if isinstance(
+                self.inference_strategy, (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
+            ):
+                retrieved_doc = self.inference_strategy.retrieved_text
+                output['retrieved'] = retrieved_doc
         return jsonify(output)
 
 
 class MegatronServer(object):
-    def __init__(self, model):
+    def __init__(self, model, inference_strategy=None):
         self.app = Flask(__name__, static_url_path='')
         api = Api(self.app)
-        api.add_resource(MegatronGenerate, '/generate', resource_class_args=[model])
+        api.add_resource(MegatronGenerate, '/generate', resource_class_args=[model, inference_strategy])
 
     def run(self, url, port=5000):
         self.app.run(url, threaded=True, port=port, debug=False)

@@ -12,29 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
+import threading
 
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 """
 This is the script to run GPT text generation.
@@ -48,8 +53,8 @@ Usage:
             inference.add_BOS=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
+            tensor_model_parallel_size=-1 \
+            pipeline_model_parallel_size=-1 \
             prompts=[prompt1,prompt2]
 
     b. run greedy inference from a PTL checkpoint file:
@@ -61,8 +66,8 @@ Usage:
             inference.add_BOS=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
+            tensor_model_parallel_size=-1 \
+            pipeline_model_parallel_size=-1 \
             prompts=[prompt1,prompt2]
 
     c. run top_p inference from a nemo file:
@@ -75,8 +80,8 @@ Usage:
             inference.add_BOS=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
+            tensor_model_parallel_size=-1 \
+            pipeline_model_parallel_size=-1 \
             prompts=[prompt1,prompt2]
 
     d. If you don't need to generate tokens and need model to compute logprobs:
@@ -85,8 +90,8 @@ Usage:
             inference.compute_logprob=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
+            tensor_model_parallel_size=-1 \
+            pipeline_model_parallel_size=-1 \
             prompts=[text to get logprob]
 
     e. Launch the inference server
@@ -94,8 +99,8 @@ Usage:
             gpt_model_file=PATH_TO_MODEL \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
+            tensor_model_parallel_size=-1 \
+            pipeline_model_parallel_size=-1 \
             server=True
         
         To send a request to the server, here is one example code:
@@ -153,24 +158,65 @@ class RequestDataSet(Dataset):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+
+    if (
+        cfg.tensor_model_parallel_size < 0
+        or cfg.pipeline_model_parallel_size < 0
+        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+    ):
+        model_config = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+        )
+
+        with open_dict(cfg):
+            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
-        model = MegatronGPTModel.restore_from(restore_path=cfg.gpt_model_file, trainer=trainer)
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.gpt_model_file):
+            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+
+        pretrained_cfg = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
+        )
+        OmegaConf.set_struct(pretrained_cfg, True)
+        with open_dict(pretrained_cfg):
+            pretrained_cfg.sequence_parallel = False
+            pretrained_cfg.activations_checkpoint_granularity = None
+            pretrained_cfg.activations_checkpoint_method = None
+            pretrained_cfg.precision = trainer.precision
+            if trainer.precision == "16":
+                pretrained_cfg.megatron_amp_O2 = False
+        model = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            override_config_path=pretrained_cfg,
+            save_restore_connector=save_restore_connector,
+        )
     elif cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
             app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+            app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
                 app_state.pipeline_model_parallel_split_rank,
+                app_state.virtual_pipeline_model_parallel_rank,
             ) = fake_initialize_model_parallel(
                 world_size=app_state.model_parallel_size,
                 rank=trainer.global_rank,
@@ -230,6 +276,14 @@ def main(cfg) -> None:
     # Third method of running text generation, use inference server
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+            if cfg.web_server:
+                loop = asyncio.new_event_loop()
+                thread = threading.Thread(
+                    target=get_demo,
+                    daemon=True,
+                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                )
+                thread.start()
             server = MegatronServer(model.cuda())
             server.run("0.0.0.0", port=cfg.port)
 

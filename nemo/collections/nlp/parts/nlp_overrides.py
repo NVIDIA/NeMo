@@ -18,22 +18,20 @@ import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.loops.fit_loop import FitLoop
+from omegaconf import OmegaConf
 from pytorch_lightning.overrides import LightningDistributedModule
-from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
+from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
-from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -44,8 +42,10 @@ from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer import parallel_state
+    from apex.transformer.enums import ModelType
+    from apex.transformer.pipeline_parallel.schedules.common import _calc_number_of_params
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 
@@ -53,8 +53,20 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+try:
+    from megatron.core import parallel_state
 
-class NLPDDPPlugin(DDPPlugin):
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
+
+NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
+
+
+class NLPDDPStrategy(DDPStrategy):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
 
     Args:
@@ -74,6 +86,11 @@ class NLPDDPPlugin(DDPPlugin):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
@@ -83,7 +100,7 @@ class NLPDDPPlugin(DDPPlugin):
         super().setup_distributed()
 
         # init model parallel if needed
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
@@ -94,8 +111,10 @@ class NLPDDPPlugin(DDPPlugin):
             Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
-        if hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2:
-            # do not use DDP if using megatron amp O2
+        if (hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2) or (
+            hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
+        ):
+            # do not use DDP if using megatron amp O2 or distributed optimizer
             self._model = LightningDistributedModule(self.model)
         else:
             app_state = AppState()
@@ -145,9 +164,10 @@ class NLPDDPPlugin(DDPPlugin):
             parallel_state.destroy_model_parallel()
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
+                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
@@ -161,7 +181,7 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], filepath: _PATH, storage_options: Optional[Any] = None
+        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
@@ -191,14 +211,14 @@ class NLPDDPPlugin(DDPPlugin):
 
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
-    def load_checkpoint(self, checkpoint_path: _PATH) -> Dict[str, Any]:
+    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """ PTL override to accomodate model parallel checkpoints """
         # TODO: move to CheckpointIO
         torch.cuda.empty_cache()
         checkpoint_path = inject_model_parallel_rank(checkpoint_path)
         return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
-    def remove_checkpoint(self, filepath: _PATH) -> None:
+    def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
@@ -219,7 +239,7 @@ class NLPDDPPlugin(DDPPlugin):
             return distributed_sampler_kwargs
 
         else:
-            return super(NLPDDPPlugin, self).distributed_sampler_kwargs
+            return super(NLPDDPStrategy, self).distributed_sampler_kwargs
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
@@ -232,6 +252,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # raise ImportError(
             #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             # )
+        if not HAVE_MEGATRON_CORE:
+            logging.warning(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__()
 
     def save_to(self, model, save_path: str):
@@ -364,7 +388,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         loaded_params = super().load_config_and_state_dict(
             calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
         )
-        if not isinstance(loaded_params, tuple):
+        if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
         state_dict = self.modify_state_dict(conf, state_dict)
@@ -373,19 +397,121 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
+class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
+    """
+    PEFT models require the ability to load/save a small subset of the full model (once PEFT params have been infused into the base model.)
+    The PEFTSaveRestoreConnector is used to allow loading and saving only the PEFT params while not saving the entire model.
+
+    Args:
+        peft_model_nemo_path: Used to provide the .nemo file corresponding to a PEFT model (which will only contain a small set of params)
+        peft_model_ckpt_path: Used to provide the path to .ckpt files of a PEFt model. This is required when no .nemo is available (yet) such as during resumed training.
+    If both are provided the peft_model_ckpt_path takes precedence. 
+    If neither are provided, PEFT params are initialized at random (not loaded from any external source).
+    """
+
+    def __init__(self, peft_model_nemo_path: Optional[str] = None, peft_model_ckpt_path: Optional[str] = None) -> None:
+        super().__init__()
+        self.peft_model_ckpt_name = "model_weights.ckpt"
+        if peft_model_ckpt_path:
+            # First we will try to load a adapter ckpt path
+            # this is given priority over loading from nemo path to make resumption of training possible
+            ckpt_name = os.path.basename(peft_model_ckpt_path)
+            if not ckpt_name.strip() == '':
+                # update the weights file name inside the ckpt path rank folders
+                self.peft_model_ckpt_name = ckpt_name
+            self.peft_model_ckpt_dir = os.path.dirname(peft_model_ckpt_path)
+            assert os.path.isdir(self.peft_model_ckpt_dir)
+            self.peft_model_nemo_path = None
+        elif peft_model_nemo_path:
+            # If resumption is not possible we will try to load a adapter nemo path
+            self.peft_model_nemo_path = peft_model_nemo_path
+            assert os.path.exists(self.peft_model_nemo_path)
+            self.peft_model_ckpt_dir = None
+        else:
+            # We are not resuming training from a nemo file or a ckpt
+            # We are training the adapter from randomly initialization
+            self.peft_model_nemo_path = None
+            self.peft_model_ckpt_dir = None
+
+    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+        """
+        Infuse the state_dict of the base model with PEFT params from either a peft_model_nemo_path or peft_model_ckpt_path
+        """
+        # first load based model weights
+        base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)
+        # Next, We want to load PEFT model's weights
+        if self.peft_model_nemo_path:
+            # if the PEFT weights are provided in a .nemo file
+            # we need to untar the .nemo if its still tarred
+            with tempfile.TemporaryDirectory() as tmpdir:
+                self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
+                peft_state_dict = torch.load(model_weights_path, map_location)
+        elif self.peft_model_ckpt_dir:
+            # if the PEFT weights are provided in a ckpt path file
+            # we don't need to untar
+            model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+            )
+            peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+        else:
+            peft_state_dict = {}
+        base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
+        return base_model_state_dict
+
+    def restore_from(
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
+    ):
+        """
+        Extends the restore_from method of the `NLPSaveRestoreConnector` so that PEFT params are inserted into the state_dict which is required when training a PEFT model from scratch.
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        loaded_params = super().load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple) or return_config is True:
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+        state_dict = self.modify_state_dict(conf, state_dict)
+
+        if (
+            self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
+        ):  # we have this check only for training PEFT from scratch
+            peft_state_dict = instance.get_peft_state_dict()
+            state_dict.update(peft_state_dict)
+        self.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        return instance
+
+
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
-        We do this because we have the Apex fwd/bwd functions in training_step.
+        We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
         step wrapped in autocast.
 
-        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+        We instead wrap the fwd_output_and_loss_func that is passed to the megatron-core fwd/bwd functions.
     """
 
     def __init__(
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -419,6 +545,12 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
         self._hysteresis_tracker = self.hysteresis
+
+    def _unscale_grads_(self, optimizer, *args):
+        if getattr(optimizer, "_custom_amp_unscale_grads", False):
+            return optimizer.unscale_grads(*args)
+        else:
+            return super()._unscale_grads_(optimizer, *args)
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
@@ -580,11 +712,18 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     def optimizer_step(
         self,
-        model: Union["pl.LightningModule", torch.nn.Module],
         optimizer: torch.optim.Optimizer,
+        model: Union["pl.LightningModule", torch.nn.Module],
         optimizer_idx: int,
         closure: Callable[[], Any],
         **kwargs: Any,
@@ -637,6 +776,8 @@ class GlobalBatchDataFetcher(DataFetcher):
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not HAVE_MEGATRON_CORE:
+            logging.warning("Megatron-core was not found. Using model parallel or megatron models will error out..")
 
         super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
 

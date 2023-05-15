@@ -131,12 +131,12 @@ model:
 trainer:
   devices: 1 # number of gpus
   num_nodes: 1
-  max_steps: null # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   accelerator: gpu
   strategy: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
-  precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
+  precision: 32 # 16, 32, or bf16
   log_every_n_steps: 100 # Interval of logging.
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it

@@ -13,9 +13,10 @@ sup_data_types: [ "align_prior_matrix", "pitch" ]
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
 
-# LJSpeech stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
-pitch_mean: 212.35873413085938
-pitch_std: 68.52806091308594
+# these frame-wise values depend on pitch_fmin and pitch_fmax, you can get values
+# by running `scripts/dataset_processing/tts/extract_sup_data.py`
+pitch_mean: ???  # e.g. 212.35873413085938 for LJSpeech
+pitch_std:  ???  # e.g.  68.52806091308594 for LJSpeech
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 22050
@@ -27,9 +28,8 @@ lowfreq: 0
 highfreq: 8000
 window: hann
 
-phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt"
+phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
 model:
   learn_alignment: true
@@ -59,7 +59,6 @@ model:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: en
     input_case: cased
-    whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
     verbose: false
@@ -67,22 +66,22 @@ model:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.IPATokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
     punct: true
-    chars: true
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: nemo.collections.tts.torch.g2ps.IPAG2P
+      _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
       phoneme_probability: 0.8
       # Relies on the heteronyms list for anything that needs to be disambiguated
       ignore_ambiguous_words: false
+      use_chars: true
       use_stresses: true
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.TTSDataset
+      _target_: nemo.collections.tts.data.dataset.TTSDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -113,7 +112,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.TTSDataset
+      _target_: nemo.collections.tts.data.dataset.TTSDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -243,6 +242,6 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
-    monitor: v_loss
+    monitor: val_loss
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

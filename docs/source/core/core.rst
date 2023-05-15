@@ -43,8 +43,8 @@ To see all available pretrained models for a specific NeMo model, use the ``list
 For detailed information on the available pretrained models, refer to the collections documentation: 
 
 - :ref:`Automatic Speech Recognition (ASR)`
-- :ref:`Natural Language Processing (NLP)`
-- :ref:`Speech Synthesis (TTS)`
+- :doc:`Natural Language Processing (NLP) <../nlp/models>`
+- :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 Training
 --------
@@ -174,9 +174,9 @@ via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable
 
 For more domain-specific information, see:
 
-- :ref:`Automatic Speech Recognition (ASR)`
-- :ref:`Natural Language Processing (NLP)`
-- :ref:`Speech Synthesis (TTS)`
+- :ref:`Automatic Speech Recognition (ASR) <../asr/intro>`
+- :ref:`Natural Language Processing (NLP) <../nlp/models>`
+- :ref:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -399,7 +399,7 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
             name: CosineAnnealing
     
             # Optional arguments
-            max_steps: null # computed at runtime or explicitly set here
+            max_steps: -1 # computed at runtime or explicitly set here
             monitor: val_loss
             reduce_on_plateau: false
     
@@ -408,8 +408,7 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
             warmup_ratio: null
             min_lr: 1e-9:
 
-.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ has optimizer and scheduler configurations for
-every NeMo model. 
+.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ has optimizer and scheduler configurations for every NeMo model.
 
 Optimizers can be configured from the CLI as well:
 
@@ -636,7 +635,64 @@ The resulting .nemo file will then have the following file:
     4978b28103264263a03439aaa6560e5e_tokenizer.model
 
 If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
-if the ``src`` cannot be found. 
+if the ``src`` cannot be found.
+
+Nested NeMo Models
+------------------
+
+In some cases, it may be helpful to use NeMo models inside other NeMo models. For example, we can incorporate language models into ASR models to use in a decoding process to improve accuracy or use hybrid ASR-TTS models to generate audio from the text on the fly to train or finetune the ASR model.
+
+There are 3 ways to instantiate child models inside parent models:
+
+- use subconfig directly
+- use the ``.nemo`` checkpoint path to load the child model
+- use a pretrained NeMo model
+
+To register a child model, use the ``register_nemo_submodule`` method of the parent model. This method will add the child model to a provided model attribute and, in the serialization process, will handle child artifacts correctly and store the child model config in the parent model config in ``config_field``.
+
+.. code-block:: python
+
+    from nemo.core.classes import ModelPT
+
+    class ChildModel(ModelPT):
+        ...  # implement necessary methods
+
+    class ParentModel(ModelPT):
+        def __init__(self, cfg, trainer=None):
+            super().__init__(cfg=cfg, trainer=trainer)
+
+            # optionally annotate type for IDE autocompletion and type checking
+            self.child_model: Optional[ChildModel]
+            if cfg.get("child_model") is not None:
+                # load directly from config
+                # either if config provided initially, or automatically
+                # after model restoration
+                self.register_nemo_submodule(
+                    name="child_model",
+                    config_field="child_model",
+                    model=ChildModel(self.cfg.child_model, trainer=trainer),
+                )
+            elif cfg.get('child_model_path') is not None:
+                # load from .nemo model checkpoint
+                # while saving, config will be automatically assigned/updated
+                # in cfg.child_model
+                self.register_nemo_submodule(
+                    name="child_model",
+                    config_field="child_model",
+                    model=ChildModel.restore_from(self.cfg.child_model_path, trainer=trainer),
+                )
+            elif cfg.get('child_model_name') is not None:
+                # load from pretrained model
+                # while saving, config will be automatically assigned/updated
+                # in cfg.child_model
+                self.register_nemo_submodule(
+                    name="child_model",
+                    config_field="child_model",
+                    model=ChildModel.from_pretrained(self.cfg.child_model_name, trainer=trainer),
+                )
+            else:
+                self.child_model = None
+
 
 Neural Modules
 ==============
@@ -696,9 +752,34 @@ It also means that ``.forward(...)`` and ``__call__(...)`` methods each produce 
 
 .. tip:: It is a good practice to define types and add ``@typecheck()`` decorator to your ``.forward()`` method after your module is ready for use by others.
 
-.. note:: The outputs of ``.forward(...)`` method will always be of type ``torch.Tensor`` or container of tensors and will work with any other Pytorch code. The type information is attached to every output tensor.
-If tensors without types is passed to your module, it will not fail, however the types will not be checked. Thus, it is recommended to define input/output types for all your modules, starting with
-data layers and add ``@typecheck()`` decorator to them.
+.. note:: The outputs of ``.forward(...)`` method will always be of type ``torch.Tensor`` or container of tensors and will work with any other Pytorch code. The type information is attached to every output tensor. If tensors without types is passed to your module, it will not fail, however the types will not be checked. Thus, it is recommended to define input/output types for all your modules, starting with data layers and add ``@typecheck()`` decorator to them.
 
 .. note:: To temporarily disable typechecking, you can enclose your code in ```with typecheck.disable_checks():``` statement.
+
+
+Dynamic Layer Freezing
+----------------------
+
+You can selectively freeze any modules inside a Nemo model by specifying a freezing schedule in the config yaml. Freezing stops any gradient updates
+to that module, so that its weights are not changed for that step. This can be useful for combatting catastrophic forgetting, for example
+when finetuning a large pretrained model on a small dataset.
+
+The default approach is to freeze a module for the first N training steps, but you can also enable freezing for a specific range of steps,
+for example, from step 20 - 100, or even activate freezing from some N until the end of training. You can also freeze a module for the entire training run.
+Dynamic freezing is specified in training steps, not epochs.
+
+To enable freezing, add the following to your config:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    freeze_updates:
+      enabled: true  # set to false if you want to disable freezing
+      
+      modules:   # list all of the modules you want to have freezing logic for
+        encoder: 200       # module will be frozen for the first 200 training steps
+        decoder: [50, -1]  # module will be frozen at step 50 and will remain frozen until training ends
+        joint: [10, 100]   # module will be frozen between step 10 and step 100 (step >= 10 and step <= 100)
+        transcoder: -1     # module will be frozen for the entire training run
 

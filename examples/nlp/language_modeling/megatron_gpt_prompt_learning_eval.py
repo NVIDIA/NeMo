@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import torch
+import torch.multiprocessing as mp
+from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -21,9 +23,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
+mp.set_start_method("spawn", force=True)
 
 """
 This is the script to run GPT text generation.
@@ -37,6 +40,7 @@ This is the script to run GPT text generation.
             trainer.num_nodes=1 \
             tensor_model_parallel_size=1 \
             pipeline_model_parallel_size=1 \
+            pred_file_path=PATH_WHERE_PRED_TEXT_FILE_WILL_BE_SAVED \
             data_paths=[path/to/dataset1.jsonl, path/to/dataset2.jsonl]
 
         virtual_prompt_model_file should be a path to a .nemo file saved after p-tuning/prompt tuning and model file
@@ -75,25 +79,44 @@ def main(cfg) -> None:
         raise EnvironmentError("GPU is needed for the inference")
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+
+    if (
+        cfg.tensor_model_parallel_size < 0
+        or cfg.pipeline_model_parallel_size < 0
+        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+    ):
+        model_config = MegatronGPTPromptLearningModel.restore_from(
+            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+        )
+
+        with open_dict(cfg):
+            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    # Load prompt tuned model, virtual_prompt_model_file must be provided in config
-    # Update frozen GPT model path in case it has changed
+    # Update frozen GPT model path if it is given in case it has changed
     prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
-        cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
+        cfg.virtual_prompt_model_file, trainer=trainer, return_config=True,
     )
-    with open_dict(prompt_learning_cfg):
-        prompt_learning_cfg.language_model_path = cfg.gpt_model_file
+    if cfg.get("gpt_model_file"):
+        with open_dict(prompt_learning_cfg):
+            prompt_learning_cfg.language_model_path = cfg.gpt_model_file
+            prompt_learning_cfg.sequence_parallel = False
+            prompt_learning_cfg.activations_checkpoint_method = None
+            prompt_learning_cfg.activations_checkpoint_granularity = None
+            prompt_learning_cfg.activations_checkpoint_num_layers = None
 
+    # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base
     model = MegatronGPTPromptLearningModel.restore_from(
-        restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
+        restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
     )
-
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
@@ -101,6 +124,16 @@ def main(cfg) -> None:
         model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
+
+    # Check whether the DDP is initialized
+    if parallel_state.is_unitialized():
+
+        def placeholder():
+            return
+
+        if model.trainer.strategy.launcher is not None:
+            model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
+        model.trainer.strategy.setup_environment()
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -118,25 +151,13 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    # First method of running text generation, call model.generate method
-    # Input into generate method should be either list of string prompts or list of dicts
-    datapaths_dict = [{"data_path": path} for path in cfg.data_paths]
-
-    # Use for inference on a few examples
-    response = model.generate(inputs=datapaths_dict, length_params=length_params, sampling_params=sampling_params)
-
-    print("***************************")
-    print(response)
-    print("***************************")
-
-    # Second method of running text generation, call trainer.predict
-    # Use for batched inference on larger test sets
-    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_seq_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_seq_length = min(max_seq_length, cfg.get("max_seq_length", 8192))
 
     _, dataloader = model.build_virtual_prompt_dataset(
-        dataset_paths=cfg.data_paths,
-        batch_size=64,
-        max_seq_length=max_input_length,
+        data=cfg.data_paths,
+        batch_size=cfg.inference.get('batch_size', 1),
+        max_seq_length=max_seq_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
         add_eos=False,
@@ -144,6 +165,7 @@ def main(cfg) -> None:
         tokens_to_generate=length_params["max_length"],
         drop_last=False,
         shuffle=False,
+        num_workers=cfg.get("num_workers", 1),
     )
 
     config = OmegaConf.to_container(cfg.inference)
@@ -151,7 +173,13 @@ def main(cfg) -> None:
     response = trainer.predict(model, dataloader)
 
     print("***************************")
-    print(response)
+    with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
+        for i in range(len(response)):
+            for sent in response[i]["sentences"]:
+                sent = sent.strip()
+                sent = sent.replace("\n", " ")
+                pred_file.write(sent + "\n")
+    print(f"Inference Complete, prediction file saved at {cfg.pred_file_path}")
     print("***************************")
 
 

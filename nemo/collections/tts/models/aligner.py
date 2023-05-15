@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import numpy as np
 import omegaconf
 import torch
@@ -21,9 +23,10 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
-from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
+from nemo.collections.tts.parts.utils.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
@@ -79,11 +82,13 @@ class AlignerModel(ModelPT):
                 )
 
             try:
+                import nemo_text_processing
+
                 self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             except Exception as e:
                 logging.error(e)
                 raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
                 )
 
             self.text_normalizer_call = self.normalizer.normalize
@@ -93,6 +98,13 @@ class AlignerModel(ModelPT):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
@@ -114,7 +126,7 @@ class AlignerModel(ModelPT):
             attn_soft, attn_logprob = self.alignment_encoder(
                 queries=spec,
                 keys=self.embed(text).transpose(1, 2),
-                mask=get_mask_from_lengths(text_len).unsqueeze(-1) == 0,
+                mask=get_mask_from_lengths(text_len).unsqueeze(-1),
                 attn_prior=attn_prior,
             )
 
@@ -230,6 +242,30 @@ class AlignerModel(ModelPT):
         pass
 
     @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+
+        # en-US, ARPABET-based
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_radtts_aligner",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_radtts_aligner/versions/ARPABET_1.11.0/files/Aligner.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to align text and audio.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # en-US, IPA-based
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_radtts_aligner_ipa",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_radtts_aligner/versions/IPA_1.13.0/files/Aligner.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to align text and audio.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        return list_of_models

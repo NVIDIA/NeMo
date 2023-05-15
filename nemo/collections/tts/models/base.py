@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,17 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import json
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
+from typing import List, Optional
 
 import torch
+from omegaconf import DictConfig
+from tqdm import tqdm
 
-from nemo.collections.tts.helpers.helpers import OperationMode
-from nemo.collections.tts.models import *  # Avoid circular imports
+from nemo.collections.tts.parts.utils.helpers import OperationMode
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging, model_utils
 
 
 class SpectrogramGenerator(ModelPT, ABC):
@@ -65,15 +70,18 @@ class SpectrogramGenerator(ModelPT, ABC):
 
 
 class Vocoder(ModelPT, ABC):
-    """ Base class for all TTS models that generate audio conditioned a on spectrogram """
+    """
+    A base class for models that convert spectrograms to audios. Note that this class takes as input either linear
+    or mel spectrograms.
+    """
 
     @abstractmethod
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor', **kwargs) -> 'torch.tensor':
         """
-        Accepts a batch of spectrograms and returns a batch of audio
+        Accepts a batch of spectrograms and returns a batch of audio.
 
         Args:
-            spec: A torch tensor representing the spectrograms to be vocoded
+            spec:  ['B', 'n_freqs', 'T'], A torch tensor representing the spectrograms to be vocoded.
 
         Returns:
             audio
@@ -143,9 +151,15 @@ class GlowVocoder(Vocoder):
                 ) from e
 
             def yet_another_patch(audio, n_fft, hop_length, win_length, window):
-                spec = torch.stft(audio, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window)
-                if spec.dtype in [torch.cfloat, torch.cdouble]:
-                    spec = torch.view_as_real(spec)
+                spec = torch.stft(
+                    audio,
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    win_length=win_length,
+                    window=window,
+                    return_complex=True,
+                )
+                spec = torch.view_as_real(spec)
                 return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
 
             self.stft = lambda x: yet_another_patch(
@@ -194,39 +208,6 @@ class GlowVocoder(Vocoder):
         return audio_denoised
 
 
-class LinVocoder(ModelPT, ABC):
-    """
-    A base class for models that convert from the linear (magnitude) spectrogram to audio. Note: The `Vocoder` class
-    differs from this class as the `Vocoder` class takes as input mel spectrograms.
-    """
-
-    @abstractmethod
-    def convert_linear_spectrogram_to_audio(self, spec: 'torch.tensor', **kwargs) -> 'torch.tensor':
-        """
-        Accepts a batch of linear spectrograms and returns a batch of audio
-
-        Args:
-            spec: A torch tensor representing the linear spectrograms to be vocoded ['B', 'n_freqs', 'T']
-
-        Returns:
-            audio
-        """
-
-    @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-        Returns:
-            List of available pre-trained models.
-        """
-        list_of_models = []
-        for subclass in cls.__subclasses__():
-            subclass_models = subclass.list_available_models()
-            if subclass_models is not None and len(subclass_models) > 0:
-                list_of_models.extend(subclass_models)
-        return list_of_models
-
-
 class MelToSpec(ModelPT, ABC):
     """
     A base class for models that convert mel spectrograms to linear (magnitude) spectrograms
@@ -265,7 +246,7 @@ class TextToWaveform(ModelPT, ABC):
     @abstractmethod
     def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
         """
-        A helper function that accepts raw python strings and turns them into a tensor. The tensor should have 2
+       A helper function that accepts a raw python string and turns it into a tensor. The tensor should have 2
         dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
         should represent either tokenized or embedded text, depending on the model.
         """
@@ -274,10 +255,8 @@ class TextToWaveform(ModelPT, ABC):
     def convert_text_to_waveform(self, *, tokens: 'torch.tensor', **kwargs) -> 'List[torch.tensor]':
         """
         Accepts a batch of text and returns a list containing a batch of audio
-
         Args:
             tokens: A torch tensor representing the text to be converted to speech
-
         Returns:
             audio: A list of length batch_size containing torch tensors representing the waveform output
         """
@@ -294,4 +273,60 @@ class TextToWaveform(ModelPT, ABC):
             subclass_models = subclass.list_available_models()
             if subclass_models is not None and len(subclass_models) > 0:
                 list_of_models.extend(subclass_models)
+        return list_of_models
+
+
+class G2PModel(ModelPT, ABC):
+    @torch.no_grad()
+    def convert_graphemes_to_phonemes(
+        self,
+        manifest_filepath: str,
+        output_manifest_filepath: str,
+        grapheme_field: str = "text_graphemes",
+        batch_size: int = 32,
+        num_workers: int = 0,
+        pred_field: Optional[str] = "pred_text",
+    ) -> List[str]:
+
+        """
+        Main function for Inference. Converts grapheme entries from the manifest "graheme_field" to phonemes
+        Args:
+            manifest_filepath: Path to .json manifest file
+            output_manifest_filepath: Path to .json manifest file to save predictions, will be saved in "target_field"
+            grapheme_field: name of the field in manifest_filepath for input grapheme text
+            pred_field:  name of the field in the output_file to save predictions
+            batch_size: int = 32 # Batch size to use for inference
+            num_workers: int = 0 # Number of workers to use for DataLoader during inference
+
+        Returns: Predictions generated by the model
+        """
+        config = {
+            "manifest_filepath": manifest_filepath,
+            "grapheme_field": grapheme_field,
+            "drop_last": False,
+            "shuffle": False,
+            "batch_size": batch_size,
+            "num_workers": num_workers,
+        }
+
+        all_preds = self._infer(DictConfig(config))
+        with open(manifest_filepath, "r") as f_in:
+            with open(output_manifest_filepath, 'w', encoding="utf-8") as f_out:
+                for i, line in tqdm(enumerate(f_in)):
+                    line = json.loads(line)
+                    line[pred_field] = all_preds[i]
+                    f_out.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+        logging.info(f"Predictions saved to {output_manifest_filepath}.")
+        return all_preds
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        # recursively walk the subclasses to generate pretrained model info
+        list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models

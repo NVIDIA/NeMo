@@ -24,7 +24,7 @@ Adapter Networks
 ----------------
 
 
-.. autoclass:: nemo.collections.common.parts.adapter_modules.AbstractAdapterModule
+.. autoclass:: nemo.collections.common.parts.adapter_modules.AdapterModuleUtil
     :show-inheritance:
     :members:
     :member-order: bysource
@@ -50,7 +50,7 @@ Adapter Strategies
 
 -----
 
-.. autoclass:: nemo.core.classes.mixins.adapter_mixin_strategies.ResidualAddAdapterStrategy
+.. autoclass:: nemo.core.classes.mixins.adapter_mixin_strategies.ReturnResultAdapterStrategy
     :show-inheritance:
     :members:
     :member-order: bysource
@@ -58,3 +58,8 @@ Adapter Strategies
 
 -----
 
+.. autoclass:: nemo.core.classes.mixins.adapter_mixin_strategies.ResidualAddAdapterStrategy
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+    :undoc-members: adapter_module_names

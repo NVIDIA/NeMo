@@ -19,7 +19,6 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.distributed import rank_zero_only
 
 from nemo.core import ModelPT
 from nemo.utils import logging
@@ -47,15 +46,15 @@ class ExampleModel(ModelPT):
 
     def train_dataloader(self):
         dataset = OnesDataset(10000)
-        return torch.utils.data.DataLoader(dataset, batch_size=2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=4)
 
     def val_dataloader(self):
         dataset = OnesDataset(10)
-        return torch.utils.data.DataLoader(dataset, batch_size=2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=4)
 
     def predict_dataloader(self):
         dataset = OnesDataset(10)
-        return torch.utils.data.DataLoader(dataset, batch_size=2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=4)
 
     def forward(self, batch):
         return (self.l1(batch) - batch.mean(dim=1)).mean()
@@ -78,7 +77,7 @@ class ExampleModel(ModelPT):
     def validation_epoch_end(self, loss):
         if not loss:
             return
-        self.log("val_loss", torch.stack(loss).mean())
+        self.log("val_loss", torch.stack(loss).mean(), sync_dist=True)
 
 
 class TestStatelessTimer:
@@ -96,8 +95,7 @@ class TestStatelessTimer:
             accelerator='gpu',
             strategy='ddp',
             logger=None,
-            callbacks=[StatelessTimer('00:00:00:03')],
-            checkpoint_callback=False,
+            enable_checkpointing=False,
         )
         exp_manager_cfg = ExpManagerConfig(
             explicit_log_dir='./ptl_stateless_timer_check/',
@@ -107,6 +105,7 @@ class TestStatelessTimer:
             create_checkpoint_callback=True,
             checkpoint_callback_params=callback_params,
             resume_if_exists=True,
+            max_time_per_run="00:00:00:03",
         )
         exp_manager(trainer, cfg=OmegaConf.structured(exp_manager_cfg))
         model = ExampleModel(trainer=trainer)

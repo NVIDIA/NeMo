@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from math import ceil
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -44,7 +44,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
     """Base class for encoder-decoder models used for self-supervised encoder pre-training"""
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
@@ -188,8 +188,12 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
-        else:
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,

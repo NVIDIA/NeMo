@@ -9,11 +9,8 @@ validation_datasets: ???
 sup_data_path: null
 sup_data_types: null
 
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
-
-
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 
 model:
   pitch_fmin: 65.40639132514966
@@ -29,12 +26,10 @@ model:
   window: hann
   pad_value: -11.52
 
-
   text_normalizer:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: en
     input_case: cased
-    whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
     verbose: false
@@ -42,20 +37,20 @@ model:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
     punct: true
     stresses: true
     chars: true
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      _target_: nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.torch.data.TTSDataset"
+      _target_: "nemo.collections.tts.data.dataset.TTSDataset"
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -79,10 +74,10 @@ model:
       batch_size: 48
       num_workers: 4
       pin_memory: true
-  
+
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.torch.data.TTSDataset"
+      _target_: "nemo.collections.tts.data.dataset.TTSDataset"
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -176,7 +171,6 @@ model:
       name: CosineAnnealing
       min_lr: 1e-5
 
-
 trainer:
   devices: 1 # number of gpus
   max_epochs: ???
@@ -190,7 +184,6 @@ trainer:
   log_every_n_steps: 60
   check_val_every_n_epoch: 2
   benchmark: false
-
 
 exp_manager:
   exp_dir: null

@@ -5,18 +5,18 @@ Prompt Learning
 
 Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoids catastrophic forgetting issues often encountered when fine-tuning models. 
 
-Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt embeddings that can be optimized via gradient decent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
+Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt embeddings that can be optimized via gradient descent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
 
 - Our prompt tuning implementation is based off Lester et. al’s EMNLP 2021 paper "`The Power of Scale for Parameter-Efficient Prompt Tuning <https://arxiv.org/abs/2104.08691>`_"
 - Our p-tuning implementation is based off Liu et al's paper "`GPT Understands, Too <https://arxiv.org/abs/2103.10385>`_"
 
 Our continuous learning capability for combined p-tuning and prompt tuning with GPT style models is a NeMo specific extension of the author's original work.
 
-Please also checkout our `prompt learning tutorial notebook. <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
+Please also checkout our `prompt learning tutorial notebook. <https://github.com/NVIDIA/NeMo/tree/stable/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
 
 
 Terminology
-^^^^^^^^^^
+^^^^^^^^^^^
 We will be using the terms ``continuous``, ``soft``, and ``virtual`` token interchangeably to refer to embeddings inserted into the model prompt that have no concrete mapping to strings or characters within the model’s vocabulary. These virtual token embeddings exist in contrast to the ``discrete``, ``hard``, or ``real`` tokens that do make up the model’s vocabulary. Virtual tokens are purely 1D vectors with dimensionality equal to that of each real token embedding, matching the ``hidden_size`` hyperparameter. In training and inference, continuous token embeddings are inserted among discrete token embeddings according to a template you provide in the model's config. We will demonstrate how to do this below.
 
 When referring to p-tuning and prompt tuning together, we will be using the phrase prompt learning for simplicity.
@@ -141,7 +141,7 @@ the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home.
       - specifies which field in the data json to truncate if the length of the input exceeds the maximum sequence length of the model. If ``truncate_field`` is set to ``None``, examples that are too long are simply dropped from the dataset.
 
 Prompt Learning Specific Config Values
-^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. list-table::
    :widths: 15 15 25
    :header-rows: 1
@@ -198,7 +198,7 @@ Prompt Learning Specific Config Values
      - bool
      - Whether to add an EOS token at the end of each training example (recommended). 
 
-An example config file can be found at https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml
+An example config file can be found at https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml
 
 Setting New Tasks
 ^^^^^^^^^^^^^^^^^
@@ -206,8 +206,8 @@ Setting New Tasks
 After you p-tune or prompt-tune your model, you can always go back and p-tune or prompt-tune your model on more tasks without over writing the virtual prompts who've trained already. You can also use a different number of ``total_virtual_tokens`` between each training session as long as tasks ptuned or prompt tuned at the same time have the same number of ``total_virtual_tokens``. For this reason, when you ptune on a new task, you need to tell your model which of your tasks are new and which ones already exist (and thus you don't want to tune them). You do this by setting the ``new_tasks`` and ``existing_tasks`` values in the config file.
 
 Example Multi-Task Prompt Tuning Config and Command
-^^^^^^^^^^
-First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` you set. 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_nemo_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` you set.
 
 .. code::
   
@@ -217,13 +217,12 @@ First define a config called ``multitask-prompt-learning.yaml`` demonstrated bel
   model:
     seed: 1234
     nemo_path: ${name}.nemo 
-    lm_finetune: False 
-    pseudo_token_base: "PROMPT_" 
     virtual_prompt_style: "prompt-tuning" 
     encoder_seq_length: 2048 
     tensor_model_parallel_size: 1 
     pipeline_model_parallel_size: 1 
-    batch_size: 8
+    global_batch_size: 16
+    micro_batch_size: 4
 
     restore_path: null 
     language_model_path: models/megatron_125M_gpt.nemo
@@ -260,7 +259,7 @@ First define a config called ``multitask-prompt-learning.yaml`` demonstrated bel
 
     optim: ...
 
-(See https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml for what should go in the ``trainer``, ``exp_manager``, and ``optim`` sections.)
+(See https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml for what should go in the ``trainer``, ``exp_manager``, and ``optim`` sections.)
 
 Then run the command
 
@@ -270,7 +269,7 @@ Then run the command
          
 
 Example Multi-Task P-Tuning Config and Command After Prompt-Tuning
-^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt learning runs and to use the ``.nemo`` file saved at the end of your last prompt learning session. Values different from the config above have stars commented next to them. 
 
 In this example, the SQuAD task includes the question context as part of the prompt. Because the context is long, we recommend setting ``answer_only_loss`` to ``True`` for this task, and any task where a significant portion of the prompt is not a part of the answer. ``answer_only_loss`` tells the model to only calculate the cross-entropy loss on the answer portion of the training example. Though we recommend placing all virtual tokens at the beginning of the prompt, we place them throughout the prompt in this example to demonstrate how to do so.
@@ -281,58 +280,57 @@ In this example, the SQuAD task includes the question context as part of the pro
   trainer: ...
   exp_manager: ...
   model:
-  seed: 1234
-  nemo_path: ${name}.nemo 
-  lm_finetune: False 
-  pseudo_token_base: "PROMPT_" 
-  virtual_prompt_style: "p-tuning" # ***
-  encoder_seq_length: 2048 
-  tensor_model_parallel_size: 1 
-  pipeline_model_parallel_size: 1 
-  batch_size: 8
+    seed: 1234
+    nemo_path: ${name}.nemo 
+    virtual_prompt_style: "p-tuning" # ***
+    encoder_seq_length: 2048 
+    tensor_model_parallel_size: 1 
+    pipeline_model_parallel_size: 1 
+    global_batch_size: 16
+    micro_batch_size: 4
 
-  restore_path: multitask_prompt_tuning.nemo # ***
-  language_model_path: models/megatron_125M_gpt.nemo
-  existing_tasks: ["sentiment", "intent_and_slot"] # ***
-  new_tasks: ["squad"] 
+    restore_path: multitask_prompt_tuning.nemo # ***
+    language_model_path: models/megatron_125M_gpt.nemo
+    existing_tasks: ["sentiment", "intent_and_slot"] # ***
+    new_tasks: ["squad"] 
 
-  task_templates: 
-  - taskname: "sentiment" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
-    total_virtual_tokens: 100 
-    virtual_token_splits: [100] 
-    truncate_field: null
-    answer_only_loss: False
+    task_templates: 
+    - taskname: "sentiment" 
+      prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
+      total_virtual_tokens: 100 
+      virtual_token_splits: [100] 
+      truncate_field: null
+      answer_only_loss: False
 
-  - taskname: "intent_and_slot"
-    prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
-    total_virtual_tokens: 100 
-    virtual_token_splits: [80, 20]
-    truncate_field: null
-    answer_only_loss: True
-    answer_field: "label"
+    - taskname: "intent_and_slot"
+      prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
+      total_virtual_tokens: 100 
+      virtual_token_splits: [80, 20]
+      truncate_field: null
+      answer_only_loss: True
+      answer_field: "label"
 
-  - taskname: "squad" # ***
-    prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context {question} {context} Answer: {answer}" # *** 
-    total_virtual_tokens: 9 # ***
-    virtual_token_splits: [9] # ***
-    truncate_field: context # ***
-    answer_only_loss: True # ***
-    answer_field: "answer" # ***
+    - taskname: "squad" # ***
+      prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context {question} {context} Answer: {answer}" # *** 
+      total_virtual_tokens: 9 # ***
+      virtual_token_splits: [9] # ***
+      truncate_field: context # ***
+      answer_only_loss: True # ***
+      answer_field: "answer" # ***
 
-  p_tuning: # ***
-      dropout: 0.0 # ***
-      num_layers: 2 # ***
-      
-  data:
-    train_ds: ["data/squad_train.jsonl"] # ***
-    validation_ds: ["data/squad_val.jsonl"] # ***
-    add_eos: True
-    shuffle: True
-    num_workers: 1
-    pin_memory: True
+    p_tuning: # ***
+        dropout: 0.0 # ***
+        num_layers: 2 # ***
+        
+    data:
+      train_ds: ["data/squad_train.jsonl"] # ***
+      validation_ds: ["data/squad_val.jsonl"] # ***
+      add_eos: True
+      shuffle: True
+      num_workers: 1
+      pin_memory: True
 
-  optim: ...
+    optim: ...
 
 Then run the command again:
 
@@ -342,7 +340,7 @@ Then run the command again:
 
 
 Example Multi-Task Inference 
-^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The inference file can contain a mix of prompts from all the tasks the model has been prompt tuned on. 
 
 .. code::
@@ -356,7 +354,7 @@ The inference file can contain a mix of prompts from all the tasks the model has
             trainer.num_nodes=1 \
             tensor_model_parallel_size=1 \
             pipeline_model_parallel_size=1 \
-            data_paths=[path/to/dataset1.jsonl, path/to/dataset2.jsonl]
+            prompts=[prompt1,prompt2]
             
 ``virtual_prompt_model_file`` should be a path to a .nemo file saved after p-tuning/prompt tuning and ``model_file`` is still the path to the gpt model's .nemo file.   
 
@@ -384,7 +382,9 @@ And the dataset class will automatically format your input to have the form:
       '<|VIRTUAL_PROMPT_0|> Context: some paragraph Question: question related to paragraph Answer: ',
       '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer: '
   ]
+        
+Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE`` to your command if you're using a p-tuned/prompt-tuned model. 
 
-Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
+Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
 
-Example prompt tuned inference script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py>`__.
+Example prompt tuned inference script: `NeMo/examples/nlp/language_modeling/megatron_gpt_eval.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/megatron_gpt_eval.py>`__.

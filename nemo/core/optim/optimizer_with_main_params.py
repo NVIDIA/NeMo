@@ -19,16 +19,24 @@ import torch
 from nemo.utils import logging
 
 try:
-    from apex.multi_tensor_apply import multi_tensor_applier
-    from apex.transformer.parallel_state import get_data_parallel_world_size, get_data_parallel_group
-    from apex.transformer.tensor_parallel import copy_tensor_model_parallel_attributes
     import amp_C
+    from apex.multi_tensor_apply import multi_tensor_applier
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    from megatron.core.parallel_state import get_data_parallel_group, get_data_parallel_world_size
+    from megatron.core.tensor_parallel import copy_tensor_model_parallel_attributes
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def _zero_grad_group_helper(group, set_to_none):
@@ -69,6 +77,11 @@ class GradBucket(object):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         self.numel = numel
@@ -169,6 +182,11 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         self.optimizer = optimizer
         assert self.optimizer, 'no optimizer is provided.'
         if contiguous_grad_bucket:
@@ -187,7 +205,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
-        self._async_grad_allreduce = async_grad_allreduce
+        self._async_grad_allreduce = async_grad_allreduce and get_data_parallel_world_size() > 1
         self._grad_divisor = 1 / get_data_parallel_world_size()
 
         if self._async_grad_allreduce:
@@ -217,7 +235,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
 
                 # Allocate gradient memory buffers for each data type
-                self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
+                if any(param.requires_grad for param in param_group['params']):
+                    self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
 
         # Three groups of parameters:
         self.float16_groups = []  # original float16 parameters
@@ -278,8 +297,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
-                if self._fp32_grad_accum:
-                    # Expand so we get access to grad_fn.
+                if self._fp32_grad_accum and param.requires_grad:
+                    # Expand so we get access to grad_fn
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
@@ -320,7 +339,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                                 allreduce_tensor,
                                 group=get_data_parallel_group(),
                                 async_op=True,
-                                op=torch.distributed.make_nccl_premul_sum(self._grad_divisor),
+                                op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                             )
                         else:
                             allreduce_tensor.div_(get_data_parallel_world_size())
@@ -333,7 +352,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                             main_param.grad,
                             group=get_data_parallel_group(),
                             async_op=True,
-                            op=torch.distributed.make_nccl_premul_sum(self._grad_divisor),
+                            op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                         )
                     else:
                         main_param.grad.div_(get_data_parallel_world_size())
@@ -473,7 +492,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         params = []
         for param_group in self.optimizer.param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if param.requires_grad:  # (@adithyare) added to enable pp>1 training for adapters
+                    params.append(param)
         return params
 
     # Promote state so it can be retrieved or set via

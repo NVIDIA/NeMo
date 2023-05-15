@@ -22,6 +22,7 @@ import shutil
 import struct
 from functools import lru_cache
 from itertools import accumulate
+from typing import List
 
 import numpy as np
 import torch
@@ -31,7 +32,7 @@ from nemo.utils import logging
 __all__ = ["KNNIndex", "MMapRetrievalIndexedDataset", "MMapRetrievalIndexedDatasetBuilder"]
 
 
-dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16}
+dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float64, 7: np.double, 8: np.uint16}
 
 
 def code(dtype):
@@ -62,13 +63,20 @@ class KNNIndex(object):
     It contains a big matrix of shape (chunk_id, K neighbors)
     where `chunk_id` are all the chunk ids in the RETRO training data.
     E.g. the KNN neighbor chunk ids in the retrieval data for ith chunk id in the training data
-    is self.knn_map[i]
+    is self.knn_map[i].
+    This index can hold partial maps used for building sharding index.
     """
 
     _HDR_MAGIC = b'KNNRETM\x00\x00'
 
     @classmethod
-    def writer(cls, path, K):
+    def writer(cls, path, K, offset=0):
+        """
+        path: file path of the index
+        K: number of neighbors for a chunk
+        offset: start chunk_id for shard index
+        """
+
         class _Writer(object):
             def __enter__(self):
                 self._file = open(path, 'wb')
@@ -77,6 +85,8 @@ class KNNIndex(object):
                 self._file.write(struct.pack('<Q', K))
                 # reserve the space for total number of chunks
                 self._file.write(struct.pack('<Q', 0))
+                # chunk start
+                self._file.write(struct.pack('<Q', offset))
                 self.K = K
                 self.count_chunks = 0
                 self.path = path
@@ -100,7 +110,7 @@ class KNNIndex(object):
 
         return _Writer()
 
-    def __init__(self, path, skip_warmup=False):
+    def __init__(self, path, skip_warmup=True):
         with open(path, 'rb') as stream:
             magic_test = stream.read(9)
             assert self._HDR_MAGIC == magic_test, 'Index file doesn\'t match expected format. '
@@ -109,6 +119,8 @@ class KNNIndex(object):
 
             self.K = struct.unpack('<Q', stream.read(8))[0]
             self.len = struct.unpack('<Q', stream.read(8))[0]
+            self.chunk_start_id = struct.unpack('<Q', stream.read(8))[0]
+            self.chunk_end_id = self.chunk_start_id + self.len
             offset = stream.tell()
 
         if not skip_warmup:
@@ -125,7 +137,9 @@ class KNNIndex(object):
     def get_KNN_chunk_ids(self, chunk_id):
         """ get the chunk address (in bytes) from chunk id
         """
-        return self.knn_map[chunk_id]
+        if not (self.chunk_start_id <= chunk_id < self.chunk_end_id):
+            raise ValueError(f'chunk {chunk_id} is out side the range [{self.chunk_start_id}, {self.chunk_end_id})')
+        return self.knn_map[chunk_id - self.chunk_start_id]
 
     def __del__(self):
         self._bin_buffer_mmap._mmap.close()
@@ -136,6 +150,30 @@ class KNNIndex(object):
         total number of chunks in the data
         """
         return self.len
+
+
+def merge_knn_files(knn_files: List[KNNIndex], output_file: str):
+    """
+    Merge a list of knn sharding index files into one.
+    """
+    files = [KNNIndex(f) for f in knn_files]
+    sorted_files = sorted(files, key=lambda x: x.chunk_start_id)
+    # consistence check
+    start_id = sorted_files[0].chunk_start_id
+    previous_end = sorted_files[0].chunk_end_id
+    K = sorted_files[0].K
+    for i in sorted_files[1:]:
+        assert previous_end == i.chunk_start_id
+        assert K == i.K
+        previous_end = i.chunk_end_id
+    with KNNIndex.writer(output_file, K, offset=start_id) as w:
+        for i in sorted_files:
+            w.write(i.knn_map)
+    f = KNNIndex(output_file)
+    logging.info(f'{output_file} index starts at {f.chunk_start_id}')
+    logging.info(f'{output_file} index ends at {f.chunk_end_id}')
+    logging.info(f'total len {f.len}')
+    assert f.len == (f.chunk_end_id - f.chunk_start_id)
 
 
 class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
@@ -160,9 +198,8 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     self._file = open(path, 'wb')
 
                     self._file.write(cls._HDR_MAGIC)
-                    self._file.write(struct.pack('<Q', 1))
-                    self._file.write(struct.pack('<B', code(dtype)))
-
+                    # write index file version
+                    self._file.write(struct.pack('<L', 1))
                     return self
 
                 @staticmethod
@@ -180,7 +217,9 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     return pointers
 
                 @staticmethod
-                def _get_chunk_id_and_address(sizes, chunk_size):
+                def _get_chunk_id_and_address(sizes, chunk_size, stride):
+                    if chunk_size % stride != 0:
+                        raise ValueError(f"the chunk size {chunk_size} should be the multiple of {stride}")
                     dtype_size = dtype().itemsize
                     chunk_ids = []
                     last_id = 0
@@ -188,21 +227,27 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     pointers = []
                     for size in sizes:
                         chunk_ids.append(last_id)
-                        num_of_chunks = size // chunk_size
+                        num_of_chunks = len(range(0, size - chunk_size + 1, stride))
                         if size % chunk_size != 0:
                             raise ValueError(f"the document size {size} should be the multiple of {chunk_size}")
-                        for _ in range(num_of_chunks):
+                        for i in range(0, size - chunk_size + 1, stride):
                             pointers.append(address)
-                            address += chunk_size * dtype_size
+                            if i == size - chunk_size:
+                                address += chunk_size * dtype_size
+                            else:
+                                address += stride * dtype_size
                         if retrieval_db:
                             # if it is retrieval db, the the last chunk is reserved for padding
                             address += chunk_size * dtype_size
                         last_id += num_of_chunks
                     return chunk_ids, pointers
 
-                def write(self, sizes, chunk_size):
+                def write(self, sizes, chunk_size, stride=64):
                     pointers = self._get_pointers(sizes, chunk_size)
-                    chunk_ids, chunk_address = self._get_chunk_id_and_address(sizes, chunk_size)
+                    chunk_ids, chunk_address = self._get_chunk_id_and_address(sizes, chunk_size, stride)
+                    # write index chunk stride step
+                    self._file.write(struct.pack('<L', stride))
+                    self._file.write(struct.pack('<B', code(dtype)))
 
                     self._file.write(struct.pack('<Q', len(sizes)))
                     self._file.write(struct.pack('<Q', chunk_size))
@@ -229,15 +274,20 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
             return _Writer()
 
-        def __init__(self, path, skip_warmup=False):
+        def __init__(self, path, skip_warmup=True):
             with open(path, 'rb') as stream:
                 magic_test = stream.read(9)
                 assert self._HDR_MAGIC == magic_test, (
                     'Index file doesn\'t match expected format. '
                     'Make sure that --dataset-impl is configured properly.'
                 )
-                version = struct.unpack('<Q', stream.read(8))
+                version = struct.unpack('<L', stream.read(4))
                 assert (1,) == version
+                # load the stride size
+                (self.stride,) = struct.unpack('<L', stream.read(4))
+                # for legacy compatibility
+                if self.stride == 0:
+                    self.stride = 64
 
                 (dtype_code,) = struct.unpack('<B', stream.read(1))
                 self._dtype = dtypes[dtype_code]
@@ -286,9 +336,9 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         def get_chunk_id(self, sentence_id, position):
             """ get the chunk id from sentence idx and offset position.
             """
-            chunk_offset = position // self.chunk_size
+            chunk_offset = position // self.stride
             size = self._sizes[sentence_id]
-            if chunk_offset * self.chunk_size >= size:
+            if chunk_offset * self.stride >= size:
                 raise ValueError('offset is too large')
             return (self._chunk_id_start[sentence_id] + chunk_offset).item()
 
@@ -328,7 +378,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, skip_warmup=False):
+    def __init__(self, path, skip_warmup=True):
         super().__init__()
 
         self._path = None
@@ -484,13 +534,14 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
 
 class MMapRetrievalIndexedDatasetBuilder(object):
-    def __init__(self, out_file, chunk_size, pad_id, retrieval_db=False, dtype=np.int64):
+    def __init__(self, out_file, chunk_size, pad_id, retrieval_db=False, dtype=np.int64, stride=64):
         self._data_file = open(out_file, 'wb')
         self._dtype = dtype
         self.chunk_size = chunk_size
         self._sizes = []
         self.retrieval_db = retrieval_db
         self.pad_id = pad_id
+        self.stride = stride
 
     def add_item(self, tensor):
         """
@@ -535,4 +586,4 @@ class MMapRetrievalIndexedDatasetBuilder(object):
         self._data_file.close()
 
         with MMapRetrievalIndexedDataset.Index.writer(index_file, self._dtype, self.retrieval_db) as index:
-            index.write(self._sizes, self.chunk_size)
+            index.write(self._sizes, self.chunk_size, stride=self.stride)

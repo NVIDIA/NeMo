@@ -21,16 +21,16 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
     MegatronT5PromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 if not torch.cuda.is_available():
@@ -41,7 +41,22 @@ if not torch.cuda.is_available():
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+
+    if (
+        cfg.tensor_model_parallel_size < 0
+        or cfg.pipeline_model_parallel_size < 0
+        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+    ):
+        model_config = MegatronT5PromptLearningModel.restore_from(
+            restore_path=cfg.language_model_path, trainer=trainer, return_config=True,
+        )
+
+        with open_dict(cfg):
+            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -56,6 +71,7 @@ def main(cfg) -> None:
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
+            app_state.virtual_pipeline_model_parallel_rank,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -64,18 +80,20 @@ def main(cfg) -> None:
             pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
         )
 
-    # Load prompt tuned model, virtual_prompt_model_file and pretrained_language_model_file must be provided in config
-    if (
-        cfg.get('virtual_prompt_model_file', None) is not None
-        and cfg.get('pretrained_language_model_file', None) is not None
-    ):
+    # Load prompt tuned model, virtual_prompt_model_file and language_model_path must be provided in config
+    if cfg.get('virtual_prompt_model_file', None) is not None and cfg.get('language_model_path', None) is not None:
 
         # Update frozen T5 model path in case it has changed
         prompt_learning_cfg = MegatronT5PromptLearningModel.restore_from(
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
+            if cfg.get("language_model_path"):
+                # This is for backward compatibility with old checkpoints that used `pretrained_language_model_path` instead of `language_model_path`.
+                if hasattr(prompt_learning_cfg, 'pretrained_language_model_path'):
+                    prompt_learning_cfg.pretrained_language_model_path = cfg.language_model_path
+                else:
+                    prompt_learning_cfg.language_model_path = cfg.language_model_path
             prompt_learning_cfg.micro_batch_size = cfg.data.get('micro_batch_size', 4)
             prompt_learning_cfg.global_batch_size = cfg.data.get('global_batch_size', 4)
 
@@ -99,7 +117,7 @@ def main(cfg) -> None:
 
     model.freeze()
 
-    test_ds, test_dl = model.build_virtual_prompt_dataset(
+    _, test_dl = model.build_virtual_prompt_dataset(
         dataset_paths=cfg.data.test_ds,
         batch_size=cfg.data.global_batch_size,
         for_train=False,
@@ -109,8 +127,13 @@ def main(cfg) -> None:
         pin_memory=True,
     )
 
-    trainer.predict(model, test_dl)
-
+    outputs = trainer.predict(model, test_dl)
+    with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
+        for batch in outputs:
+            preds = batch["preds_text"]
+            for pred in preds:
+                pred = pred.strip().replace("\n", " ")
+                pred_file.write(pred + "\n")
     print('test finish---------------------------------')
 
 

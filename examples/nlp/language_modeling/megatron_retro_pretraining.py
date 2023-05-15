@@ -12,18 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.timer import Timer
-from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+    NLPSaveRestoreConnector,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_config")
@@ -32,13 +39,12 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    plugins = [
-        NLPDDPPlugin(
-            no_ddp_communication_hook=True if megatron_amp_o2 else False,
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
-    ]
+    plugins = []
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True if megatron_amp_o2 else False,
+        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        find_unused_parameters=False,
+    )
 
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
@@ -56,7 +62,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -66,16 +72,24 @@ def main(cfg) -> None:
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-    # Override timer callback to a stateless one
-    for idx, callback in enumerate(trainer.callbacks):
-        if isinstance(callback, Timer):
-            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
-
-    model = MegatronRetrievalModel(cfg.model, trainer)
+    # load existing nemo retro model
+    if cfg.get("restore_from_path", None) is not None:
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.restore_from_path
+        model = MegatronRetrievalModel.restore_from(
+            restore_path=cfg.restore_from_path,
+            trainer=trainer,
+            override_config_path=cfg.model,
+            save_restore_connector=save_restore_connector,
+            strict=False,
+        )
+    else:
+        model = MegatronRetrievalModel(cfg.model, trainer)
 
     trainer.fit(model)
 

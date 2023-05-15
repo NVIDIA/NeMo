@@ -1,6 +1,5 @@
 # It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and char-based vocabulary.
-# Char-based encoding may give lower accuracy than sub-word encoding (conformer_ctc_bpe.yaml).
-
+# Char-based encoding may give lower accuracy than sub-word encoding for some languages (conformer_ctc_bpe.yaml).
 # You may find more detail on Conformer-CTC at `examples/asr/conf/conformer/conformer_ctc_bpe.yaml`
 
 name: "Conformer-CTC-Char"
@@ -38,6 +37,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: false
+    use_start_end_token: false
     num_workers: 8
     pin_memory: true
 
@@ -47,6 +47,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: false
+    use_start_end_token: false
     num_workers: 8
     pin_memory: true
 
@@ -108,14 +109,29 @@ model:
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
+    dropout_pre_encoder: 0.1 # The dropout used before the encoder
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
+
+    # set to non-zero to enable stochastic depth
+    stochastic_depth_drop_prob: 0.0
+    stochastic_depth_mode: linear  # linear or uniform
+    stochastic_depth_start_layer: 1
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: null
     num_classes: -1
     vocabulary: ${model.labels}
+
+  # config for InterCTC loss: https://arxiv.org/abs/2102.03216
+  # specify loss weights and which layers to use for InterCTC
+  # e.g., to reproduce the paper results, set loss_weights: [0.3]
+  # and apply_at_layers: [8] (assuming 18 layers). Note that final
+  # layer loss coefficient is automatically adjusted (to 0.7 in above example)
+  interctc:
+    loss_weights: []
+    apply_at_layers: []
 
   optim:
     name: adamw
@@ -140,15 +156,15 @@ trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
-  max_steps: null # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
   strategy: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
-  precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
+  precision: 32 # 16, 32, or bf16
   log_every_n_steps: 10  # Interval of logging.
-  progress_bar_refresh_rate: 10
+  enable_progress_bar: True
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs

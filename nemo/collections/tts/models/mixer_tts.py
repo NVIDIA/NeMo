@@ -27,16 +27,19 @@ from torch import nn
 from torch.nn import functional as F
 from transformers import AlbertTokenizer
 
-from nemo.collections.tts.helpers.helpers import (
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
+    EnglishCharsTokenizer,
+    EnglishPhonemesTokenizer,
+)
+from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
+from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.modules.fastpitch import average_features, regulate_len
+from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel,
     get_mask_from_lengths,
     plot_pitch_to_numpy,
     plot_spectrogram_to_numpy,
 )
-from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
-from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -129,11 +132,13 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 )
 
             try:
+                import nemo_text_processing
+
                 self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             except Exception as e:
                 logging.error(e)
                 raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
                 )
 
             self.text_normalizer_call = self.normalizer.normalize
@@ -143,6 +148,13 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
@@ -239,7 +251,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         if self.add_bin_loss:
             bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft)
             loss = loss + self.bin_loss_scale * bin_loss
-        true_avg_pitch = average_pitch(true_pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+        true_avg_pitch = average_features(true_pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
 
         # Pitch loss
         pitch_loss = F.mse_loss(pred_pitch, true_avg_pitch, reduction='none')  # noqa
@@ -312,12 +324,12 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         # Avg pitch, add pitch_emb
         if not self.training:
             if pitch is not None:
-                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+                pitch = average_features(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
                 pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
             else:
                 pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         else:
-            pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+            pitch = average_features(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
 
         enc_out = enc_out + pitch_emb.transpose(1, 2)
@@ -378,7 +390,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         # Avg pitch, pitch predictor
         if use_gt_durs and pitch is not None:
-            pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+            pitch = average_features(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
@@ -562,7 +574,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 pitches += [
                     wandb.Image(
                         plot_pitch_to_numpy(
-                            average_pitch(pitch.unsqueeze(1), attn_hard_dur)
+                            average_features(pitch.unsqueeze(1), attn_hard_dur)
                             .squeeze(1)[i, : text_len[i]]
                             .data.cpu()
                             .numpy(),

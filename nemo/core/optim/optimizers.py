@@ -14,7 +14,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import hydra
 import torch
@@ -43,8 +43,7 @@ AVAILABLE_OPTIMIZERS = {
 }
 
 try:
-    from apex.optimizers import FusedLAMB
-    from apex.optimizers import FusedAdam
+    from apex.optimizers import FusedAdam, FusedLAMB
 
     HAVE_APEX = True
 
@@ -53,6 +52,18 @@ try:
 except ModuleNotFoundError:
     HAVE_APEX = False
     logging.warning("Apex was not found. Using the lamb or fused_adam optimizer will error out.")
+
+HAVE_APEX_DISTRIBUTED_ADAM = False
+if HAVE_APEX:
+    try:
+        # Try importing wrapper for Apex distributed Adam optimizer
+        from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
+
+        HAVE_APEX_DISTRIBUTED_ADAM = True
+
+        AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("Could not import distributed_fused_adam optimizer from Apex")
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 

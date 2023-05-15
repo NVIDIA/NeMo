@@ -20,17 +20,17 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch import nn
 
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import (
+from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
+from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.parts.utils.helpers import (
     get_mask_from_lengths,
     tacotron2_log_to_tb_func,
     tacotron2_log_to_wandb_func,
 )
-from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
-from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -133,8 +133,6 @@ class Tacotron2Model(SpectrogramGenerator):
                 abbreviation_version="fastpitch",
                 make_table=False,
             )
-        elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-            self.parser = self.vocab.encode
         else:
             raise ValueError("Wanted to setup parser, but model does not have necessary paramaters")
 
@@ -200,8 +198,15 @@ class Tacotron2Model(SpectrogramGenerator):
     def forward(self, *, tokens, token_len, audio=None, audio_len=None):
         if audio is not None and audio_len is not None:
             spec_target, spec_target_len = self.audio_to_melspec_precessor(audio, audio_len)
+        else:
+            if self.training or self.calculate_loss:
+                raise ValueError(
+                    f"'audio' and 'audio_len' can not be None when either 'self.training' or 'self.calculate_loss' is True."
+                )
+
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding=token_embedding, token_len=token_len)
+
         if self.training:
             spec_pred_dec, gate_pred, alignments = self.decoder(
                 memory=encoder_embedding, decoder_inputs=spec_target, memory_lengths=token_len
@@ -210,10 +215,12 @@ class Tacotron2Model(SpectrogramGenerator):
             spec_pred_dec, gate_pred, alignments, pred_length = self.decoder(
                 memory=encoder_embedding, memory_lengths=token_len
             )
+
         spec_pred_postnet = self.postnet(mel_spec=spec_pred_dec)
 
-        if not self.calculate_loss:
+        if not self.calculate_loss and not self.training:
             return spec_pred_dec, spec_pred_postnet, gate_pred, alignments, pred_length
+
         return spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, alignments
 
     @typecheck(
@@ -284,11 +291,10 @@ class Tacotron2Model(SpectrogramGenerator):
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
             logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
-                for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        logger = logger.experiment
-                        break
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    logger = logger.experiment
+                    break
             if isinstance(logger, TensorBoardLogger):
                 tacotron2_log_to_tb_func(
                     logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
@@ -310,11 +316,13 @@ class Tacotron2Model(SpectrogramGenerator):
                 )
 
             try:
+                import nemo_text_processing
+
                 self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             except Exception as e:
                 logging.error(e)
                 raise ImportError(
-                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
+                    "`nemo_text_processing` not installed, see https://github.com/NVIDIA/NeMo-text-processing for more details"
                 )
 
             self.text_normalizer_call = self.normalizer.normalize
@@ -324,6 +332,13 @@ class Tacotron2Model(SpectrogramGenerator):
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer and cfg.text_tokenizer.g2p is not None:
+            # for backward compatibility
+            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
+                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
+                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+                )
+                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
@@ -383,7 +398,7 @@ class Tacotron2Model(SpectrogramGenerator):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_tacotron2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_tacotron2/versions/1.0.0/files/tts_en_tacotron2.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_tacotron2/versions/1.10.0/files/tts_en_tacotron2.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
             class_=cls,
             aliases=["Tacotron2-22050Hz"],

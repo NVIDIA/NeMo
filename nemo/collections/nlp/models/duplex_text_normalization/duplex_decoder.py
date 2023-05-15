@@ -111,7 +111,9 @@ class DuplexDecoderModel(NLPModel):
             self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
         else:
             self.cg_normalizer = None
-            logging.warning("`pynini` not installed, please install via nemo_text_processing/pynini_install.sh")
+            logging.warning(
+                "`nemo_text_processing` is not installed, see https://github.com/NVIDIA/NeMo-text-processing for details"
+            )
 
     @typecheck()
     def forward(self, input_ids, decoder_input_ids, attention_mask, labels):
@@ -565,6 +567,13 @@ class DuplexDecoderModel(NLPModel):
                 pretrained_model_name="neural_text_normalization_t5",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_decoder.nemo",
                 description="Text Normalization model's decoder model.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="itn_en_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/itn_en_t5/versions/1.11.0/files/itn_en_t5_decoder.nemo",
+                description="English Inverse Text Normalization model's decoder model.",
             )
         )
         return result

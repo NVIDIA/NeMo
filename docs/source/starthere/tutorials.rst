@@ -103,6 +103,9 @@ To run a tutorial:
    * - ASR
      - Self-supervised pre-training for ASR
      - `Self-supervised Pre-training for ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Self_Supervised_Pre_Training.ipynb>`_
+   * - ASR
+     - Multi-lingual ASR
+     - `Multi-lingual ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Multilang_ASR.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
@@ -113,8 +116,8 @@ To run a tutorial:
      - Text Classification (Sentiment Analysis) with BERT
      - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
    * - NLP
-     - Question Answering with SQuAD
-     - `Question Answering Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Question_Answering_Squad.ipynb>`_
+     - Question Answering
+     - `Question Answering <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Question_Answering.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
      - `Token Classification: Named Entity Recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
@@ -139,30 +142,48 @@ To run a tutorial:
    * - NLP
      - P-Tuning/Prompt-Tuning
      - `P-Tuning/Prompt-Tuning <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
+   * - NLP
+     - Synthetic Tabular Data Generation 
+     - `Synthetic Tabular Data Generation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Megatron_Synthetic_Tabular_Data_Generation.ipynb>`_
    * - TTS
-     - Speech Synthesis
-     - `TTS Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_ModelSelect.ipynb>`_
+     - NeMo TTS Primer
+     - `NeMo TTS Primer <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/NeMo_TTS_Primer.ipynb>`_
    * - TTS
-     - Speech Synthesis
-     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
+     - TTS Speech/Text Aligner Inference
+     - `TTS Speech/Text Aligner Inference <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Aligner_Inference_Examples.ipynb>`_
    * - TTS
-     - Speech Synthesis
-     - `Tacotron2 Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Tacotron2_Training.ipynb>`_
+     - FastPitch and MixerTTS Model Training
+     - `FastPitch and MixerTTS Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_MixerTTS_Training.ipynb>`_
    * - TTS
-     - Speech Synthesis
-     - `TalkNet Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/TalkNet_Training.ipynb>`_
+     - FastPitch Finetuning
+     - `FastPitch Finetuning <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_Finetuning.ipynb>`_
    * - TTS
-     - Speech Synthesis
-     - `FastPitch Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_Finetuning.ipynb>`_
+     - FastPitch and HiFiGAN Model Training for German
+     - `FastPitch and HiFiGAN Model Training for German <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_GermanTTS_Training.ipynb>`_
+   * - TTS
+     - Tacotron2 Model Training
+     - `Tacotron2 Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Tacotron2_Training.ipynb>`_
+   * - TTS
+     - FastPitch Duration and Pitch Control
+     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
+   * - TTS
+     - FastPitch Speaker Interpolation
+     - `FastPitch Speaker Interpolation <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/FastPitch_Speaker_Interpolation.ipynb>`_
+   * - TTS
+     - Inference and Model Selection
+     - `TTS Inference and Model Selection <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Inference_ModelSelect.ipynb>`_
+   * - TTS
+     - Pronunciation_customization
+     - `TTS Pronunciation_customization <https://colab.research.google.com/github/NVIDIA/NeMo/tree/stable/tutorials/tts/Pronunciation_customization.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
-   * - Text Processing
+   * - Text Processing (TN/ITN)
      - Text Normalization and Inverse Normalization for ASR and TTS
      - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_
-   * - Text Processing
+   * - Text Processing (TN/ITN)
      - Inverse Text Normalization for ASR - Thutmose Tagger
-     - `Inverse Text Normalization with Thutmose Tagger <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/ITN_with_Thutmose_Tagger.ipynb>`_
-   * - Text Processing
+     - `Inverse Text Normalization with Thutmose Tagger <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/ITN_with_Thutmose_Tagger.ipynb>`_
+   * - Text Processing (TN/ITN)
      - Constructing Normalization Grammars with WFSTs
      - `WFST Tutorial <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`_

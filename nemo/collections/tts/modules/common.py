@@ -14,58 +14,22 @@
 
 ###############################################################################
 
-import ast
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.cuda import amp
 from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.splines import (
+from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm, MaskedInstanceNorm1d
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, sort_tensor, unsort_tensor
+from nemo.collections.tts.parts.utils.splines import (
     piecewise_linear_inverse_transform,
     piecewise_linear_transform,
     unbounded_piecewise_quadratic_transform,
 )
-from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm
-
-
-def update_params(config, params):
-    for param in params:
-        print(param)
-        k, v = param.split("=")
-        try:
-            v = ast.literal_eval(v)
-        except:
-            pass
-
-        k_split = k.split('.')
-        if len(k_split) > 1:
-            parent_k = k_split[0]
-            cur_param = ['.'.join(k_split[1:]) + "=" + str(v)]
-            update_params(config[parent_k], cur_param)
-        elif k in config and len(k_split) == 1:
-            print(f"overriding {k} with {v}")
-            config[k] = v
-        else:
-            print("{}, {} params not updated".format(k, v))
-
-
-@torch.jit.script
-def get_mask_from_lengths(lengths):
-    """Constructs binary mask from a 1D torch tensor of input lengths
-
-    Args:
-        lengths (torch.tensor): 1D tensor
-    Returns:
-        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
-    """
-    max_len = torch.max(lengths)
-    ids = torch.arange(0, max_len, device=lengths.device)
-    mask = ids < lengths.unsqueeze(1)
-    return mask
 
 
 @torch.jit.script
@@ -98,13 +62,79 @@ class DenseLayer(nn.Module):
         return x
 
 
-class ConvLSTMLinear(nn.Module):
-    def __init__(self, in_dim, out_dim, n_layers=2, n_channels=256, kernel_size=3, p_dropout=0.1):
-        super(ConvLSTMLinear, self).__init__()
-        self.out_dim = out_dim
-        self.dropout = nn.Dropout(p=p_dropout)
+class BiLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral", max_batch_size=64):
+        super().__init__()
+        self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
+        if lstm_norm_fn is not None:
+            if 'spectral' in lstm_norm_fn:
+                print("Applying spectral norm to LSTM")
+                lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
+            elif 'weight' in lstm_norm_fn:
+                print("Applying weight norm to LSTM")
+                lstm_norm_fn_pntr = torch.nn.utils.weight_norm
 
-        convolutions = []
+        lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
+        lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
+
+        self.real_hidden_size: int = self.bilstm.proj_size if self.bilstm.proj_size > 0 else self.bilstm.hidden_size
+
+        self.bilstm.flatten_parameters()
+
+    def lstm_sorted(self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None) -> Tensor:
+        seq = nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=True)
+        ret, _ = self.bilstm(seq, hx)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)[0]
+
+    def lstm(self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None) -> Tensor:
+        # To be ONNX-exportable, we need to sort here rather that while packing
+        context, lens, unsort_ids = sort_tensor(context, lens)
+        ret = self.lstm_sorted(context, lens, hx=hx)
+        return unsort_tensor(ret, unsort_ids)
+
+    def lstm_nocast(self, context: Tensor, lens: Tensor) -> Tensor:
+        dtype = context.dtype
+        # autocast guard is only needed for Torchscript to run in Triton
+        # (https://github.com/pytorch/pytorch/issues/89241)
+        with torch.cuda.amp.autocast(enabled=False):
+            # Calculate sizes and prepare views to our zero buffer to pass as hx
+            max_batch_size = context.shape[0]
+            context = context.to(dtype=torch.float32)
+            common_shape = (self.bilstm.num_layers * 2, max_batch_size)
+            hx = (
+                context.new_zeros(*common_shape, self.real_hidden_size),
+                context.new_zeros(*common_shape, self.bilstm.hidden_size),
+            )
+            return self.lstm(context, lens, hx=hx).to(dtype=dtype)
+
+    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+        self.bilstm.flatten_parameters()
+        if torch.jit.is_tracing():
+            return self.lstm_nocast(context, lens)
+        return self.lstm(context, lens)
+
+
+class ConvLSTMLinear(nn.Module):
+    def __init__(
+        self,
+        in_dim=None,
+        out_dim=None,
+        n_layers=2,
+        n_channels=256,
+        kernel_size=3,
+        p_dropout=0.1,
+        use_partial_padding=False,
+        norm_fn=None,
+    ):
+        super(ConvLSTMLinear, self).__init__()
+        self.bilstm = BiLSTM(n_channels, int(n_channels // 2), 1)
+        self.convolutions = nn.ModuleList()
+
+        if n_layers > 0:
+            self.dropout = nn.Dropout(p=p_dropout)
+
+        use_weight_norm = norm_fn is None
+
         for i in range(n_layers):
             conv_layer = ConvNorm(
                 in_dim if i == 0 else n_channels,
@@ -114,165 +144,51 @@ class ConvLSTMLinear(nn.Module):
                 padding=int((kernel_size - 1) / 2),
                 dilation=1,
                 w_init_gain='relu',
+                use_weight_norm=use_weight_norm,
+                use_partial_padding=use_partial_padding,
+                norm_fn=norm_fn,
             )
-            conv_layer = torch.nn.utils.weight_norm(conv_layer.conv, name='weight')
-            convolutions.append(conv_layer)
+            if norm_fn is not None:
+                print("Applying {} norm to {}".format(norm_fn, conv_layer))
+            else:
+                print("Applying weight norm to {}".format(conv_layer))
+            self.convolutions.append(conv_layer)
 
-        self.convolutions = nn.ModuleList(convolutions)
+        self.dense = None
+        if out_dim is not None:
+            self.dense = nn.Linear(n_channels, out_dim)
 
-        self.bilstm = nn.LSTM(n_channels, int(n_channels // 2), 1, batch_first=True, bidirectional=True)
-        lstm_norm_fn_pntr = nn.utils.spectral_norm
-        self.bilstm = lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
-        self.bilstm = lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
-        self.dense = nn.Linear(n_channels, out_dim)
-
-    def run_padded_sequence(self, context, lens):
-        context_embedded = []
-        for b_ind in range(context.size()[0]):  # TODO: speed up
-            curr_context = context[b_ind : b_ind + 1, :, : lens[b_ind]].clone()
-            for conv in self.convolutions:
-                curr_context = self.dropout(F.relu(conv(curr_context)))
-            context_embedded.append(curr_context[0].transpose(0, 1))
-        context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
-        return context
-
-    def run_unsorted_inputs(self, fn, context, lens):
-        lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-        unsort_ids = [0] * lens.size(0)
-        for i in range(ids_sorted.shape[0]):
-            unsort_ids[ids_sorted[i]] = i
-        lens_sorted = lens_sorted.long().cpu()
-
-        context = context[ids_sorted]
-        context = nn.utils.rnn.pack_padded_sequence(context, lens_sorted, batch_first=True)
-        context = fn(context)[0]
-        context = nn.utils.rnn.pad_packed_sequence(context, batch_first=True)[0]
-
-        # map back to original indices
-        context = context[unsort_ids]
-        return context
-
-    def forward(self, context, lens):
-        if context.shape[0] > 1:
-            context = self.run_padded_sequence(context, lens)
-        else:
-            for conv in self.convolutions:
-                context = self.dropout(F.relu(conv(context)))
-            context = context.transpose(1, 2)
-
-        self.bilstm.flatten_parameters()
-        if lens is not None:
-            context = self.run_unsorted_inputs(self.bilstm, context, lens)
-        else:
-            context = self.bilstm(context)[0]
-
-        x_hat = self.dense(context).permute(0, 2, 1)
-
-        return x_hat
-
-    def infer(self, z, txt_enc, spk_emb):
-        x_hat = self.forward(txt_enc, spk_emb)['x_hat']
-        x_hat = self.feature_processing.denormalize(x_hat)
-        return x_hat
-
-
-class RadTTSEncoder(nn.Module):
-    """RadTTSEncoder module:
-        - Three 1-d convolution banks
-        - Bidirectional LSTM
-    """
-
-    def __init__(
-        self,
-        encoder_n_convolutions=3,
-        encoder_embedding_dim=512,
-        encoder_kernel_size=5,
-        norm_fn=nn.BatchNorm1d,
-        lstm_norm_fn=None,
-    ):
-        super(RadTTSEncoder, self).__init__()
-
-        convolutions = []
-        for _ in range(encoder_n_convolutions):
-            conv_layer = nn.Sequential(
-                ConvNorm(
-                    encoder_embedding_dim,
-                    encoder_embedding_dim,
-                    kernel_size=encoder_kernel_size,
-                    stride=1,
-                    padding=int((encoder_kernel_size - 1) / 2),
-                    dilation=1,
-                    w_init_gain='relu',
-                    use_partial_padding=True,
-                ),
-                norm_fn(encoder_embedding_dim, affine=True),
-            )
-            convolutions.append(conv_layer)
-        self.convolutions = nn.ModuleList(convolutions)
-
-        self.lstm = nn.LSTM(
-            encoder_embedding_dim, int(encoder_embedding_dim / 2), 1, batch_first=True, bidirectional=True
-        )
-        if lstm_norm_fn is not None:
-            if 'spectral' in lstm_norm_fn:
-                print("Applying spectral norm to text encoder LSTM")
-                lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
-            elif 'weight' in lstm_norm_fn:
-                print("Applying weight norm to text encoder LSTM")
-                lstm_norm_fn_pntr = torch.nn.utils.weight_norm
-            self.lstm = lstm_norm_fn_pntr(self.lstm, 'weight_hh_l0')
-            self.lstm = lstm_norm_fn_pntr(self.lstm, 'weight_hh_l0_reverse')
-
-    @amp.autocast(False)
-    def forward(self, x, in_lens):
-        """
-        Args:
-            x (torch.tensor): N x C x L padded input of text embeddings
-            in_lens (torch.tensor): 1D tensor of sequence lengths
-        """
-        if x.size()[0] > 1:
-            x_embedded = []
-            for b_ind in range(x.size()[0]):  # TODO: improve speed
-                curr_x = x[b_ind : b_ind + 1, :, : in_lens[b_ind]].clone()
-                for conv in self.convolutions:
-                    curr_x = F.dropout(F.relu(conv(curr_x)), 0.5, self.training)
-                x_embedded.append(curr_x[0].transpose(0, 1))
-            x = torch.nn.utils.rnn.pad_sequence(x_embedded, batch_first=True)
-        else:
-            for conv in self.convolutions:
-                x = F.dropout(F.relu(conv(x)), 0.5, self.training)
-            x = x.transpose(1, 2)
-
-        # recent amp change -- change in_lens to int
-        in_lens = in_lens.int().cpu()
-        # mikyas added this for RuntimeError: `lengths` array must be sorted in decreasing order when `enforce_sorted` is True. You can pass `enforce_sorted=False` to pack_padded_sequence and/or pack_sequence to sidestep this requirement if you do not need ONNX exportability.
-        in_lens = sorted(in_lens, reverse=True)
-        x = nn.utils.rnn.pack_padded_sequence(x, in_lens, batch_first=True)
-
-        self.lstm.flatten_parameters()
-        outputs, _ = self.lstm(x)
-
-        outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
-
-        return outputs
-
-    @amp.autocast(False)
-    def infer(self, x):
+    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+        mask = get_mask_from_lengths(lens, context)
+        mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
-            x = F.dropout(F.relu(conv(x)), 0.5, self.training)
+            context = self.dropout(F.relu(conv(context, mask)))
+        # Apply Bidirectional LSTM
+        context = self.bilstm(context.transpose(1, 2), lens=lens)
+        if self.dense is not None:
+            context = self.dense(context).permute(0, 2, 1)
+        return context
 
-        x = x.transpose(1, 2)
-        self.lstm.flatten_parameters()
-        outputs, _ = self.lstm(x)
 
-        return outputs
+def get_radtts_encoder(
+    encoder_n_convolutions=3, encoder_embedding_dim=512, encoder_kernel_size=5, norm_fn=MaskedInstanceNorm1d,
+):
+    return ConvLSTMLinear(
+        in_dim=encoder_embedding_dim,
+        n_layers=encoder_n_convolutions,
+        n_channels=encoder_embedding_dim,
+        kernel_size=encoder_kernel_size,
+        p_dropout=0.5,
+        use_partial_padding=True,
+        norm_fn=norm_fn,
+    )
 
 
 class Invertible1x1ConvLUS(torch.nn.Module):
     def __init__(self, c):
         super(Invertible1x1ConvLUS, self).__init__()
         # Sample a random orthonormal matrix to initialize weights
-        W = torch.qr(torch.FloatTensor(c, c).normal_())[0]
+        W, _ = torch.linalg.qr(torch.FloatTensor(c, c).normal_())
         # Ensure determinant is 1.0 not -1.0
         if torch.det(W) < 0:
             W[:, 0] = -1 * W[:, 0]
@@ -295,12 +211,9 @@ class Invertible1x1ConvLUS(torch.nn.Module):
         if inverse:
             if not hasattr(self, 'W_inverse'):
                 # inverse computation
-                W_inverse = W.float().inverse()
-                if z.type() == 'torch.cuda.HalfTensor':
-                    W_inverse = W_inverse.half()
-
+                W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
-            z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
+            z = F.conv1d(z, self.W_inverse.to(dtype=z.dtype), bias=None, stride=1, padding=0)
             return z
         else:
             W = W[..., None]
@@ -336,10 +249,7 @@ class Invertible1x1Conv(torch.nn.Module):
         if inverse:
             if not hasattr(self, 'W_inverse'):
                 # Inverse computation
-                W_inverse = W.float().inverse()
-                if z.type() == 'torch.cuda.HalfTensor':
-                    W_inverse = W_inverse.half()
-
+                W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
             z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
             return z
@@ -394,12 +304,11 @@ class SimpleConvNet(torch.nn.Module):
             self.last_layer.weight.data *= 0
             self.last_layer.bias.data *= 0
 
-    def forward(self, z_w_context, seq_lens: torch.Tensor = None):
+    def forward(self, z_w_context, seq_lens: Optional[Tensor] = None):
         # seq_lens: tensor array of sequence sequence lengths
         # output should be b x n_mel_channels x z_w_context.shape(2)
-        mask = None
-        if self.use_partial_padding:
-            mask = get_mask_from_lengths(seq_lens).unsqueeze(1).float()
+
+        mask = get_mask_from_lengths(seq_lens, z_w_context).unsqueeze(1).to(dtype=z_w_context.dtype)
 
         for i in range(self.n_layers):
             z_w_context = self.layers[i](z_w_context, mask)
@@ -456,15 +365,12 @@ class WN(torch.nn.Module):
                 use_partial_padding=use_partial_padding,
                 use_weight_norm=True,
             )
-            # in_layer = nn.Conv1d(n_channels, n_channels, kernel_size,
-            #                      dilation=dilation, padding=padding)
-            # in_layer = nn.utils.weight_norm(in_layer)
             self.in_layers.append(in_layer)
             res_skip_layer = nn.Conv1d(n_channels, n_channels, 1)
             res_skip_layer = nn.utils.weight_norm(res_skip_layer)
             self.res_skip_layers.append(res_skip_layer)
 
-    def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor], seq_lens: torch.Tensor = None):
+    def forward(self, forward_input: Tuple[Tensor, Tensor], seq_lens: Tensor = None):
         z, context = forward_input
         z = torch.cat((z, context), 1)  # append context to z as well
         z = self.start(z)
@@ -722,6 +628,12 @@ class AffineTransformationLayer(torch.nn.Module):
                 kernel_size=kernel_size,
                 use_partial_padding=use_partial_padding,
             )
+        else:
+            raise ValueError(
+                f"Affine model is not supported: {affine_model}. Please choose either 'wavenet' or"
+                f"'simple_conv' instead."
+            )
+
         self.n_mel_channels = n_mel_channels
 
     def get_scaling_and_logs(self, scale_unconstrained):
@@ -758,6 +670,11 @@ class AffineTransformationLayer(torch.nn.Module):
                 log_s_list.append(log_s_i[:, None])
             s = torch.cat(s_list, dim=1)
             log_s = torch.cat(log_s_list, dim=1)
+        else:
+            raise ValueError(
+                f"Scaling function is not supported: {self.scaling_fn}. Please choose either 'translate', "
+                f"'exp', 'tanh', or 'sigmoid' instead."
+            )
         return s, log_s
 
     def forward(self, z, context, inverse=False, seq_lens=None):
@@ -768,6 +685,11 @@ class AffineTransformationLayer(torch.nn.Module):
         elif self.affine_model == 'simple_conv':
             z_w_context = torch.cat((z_0, context), 1)
             affine_params = self.affine_param_predictor(z_w_context, seq_lens=seq_lens)
+        else:
+            raise ValueError(
+                f"Affine model is not supported: {self.affine_model}. Please choose either 'wavenet' or "
+                f"'simple_conv' instead."
+            )
 
         scale_unconstrained = affine_params[:, :n_half, :]
         b = affine_params[:, n_half:, :]
@@ -804,31 +726,6 @@ class ConvAttention(torch.nn.Module):
             torch.nn.ReLU(),
             ConvNorm(n_mel_channels, n_att_channels, kernel_size=1, bias=True),
         )
-
-    def run_padded_sequence(self, sorted_idx, unsort_idx, lens, padded_data, recurrent_model):
-        """Sorts input data by previded ordering (and un-ordering) and runs the
-        packed data through the recurrent model
-
-        Args:
-            sorted_idx (torch.tensor): 1D sorting index
-            unsort_idx (torch.tensor): 1D unsorting index (inverse of sorted_idx)
-            lens: lengths of input data (sorted in descending order)
-            padded_data (torch.tensor): input sequences (padded)
-            recurrent_model (nn.Module): recurrent model to run data through
-        Returns:
-            hidden_vectors (torch.tensor): outputs of the RNN, in the original,
-            unsorted, ordering
-        """
-
-        # sort the data by decreasing length using provided index
-        # we assume batch index is in dim=1
-        padded_data = padded_data[:, sorted_idx]
-        padded_data = nn.utils.rnn.pack_padded_sequence(padded_data, lens)
-        hidden_vectors = recurrent_model(padded_data)[0]
-        hidden_vectors, _ = nn.utils.rnn.pad_packed_sequence(hidden_vectors)
-        # unsort the results at dim=1 and return
-        hidden_vectors = hidden_vectors[:, unsort_idx]
-        return hidden_vectors
 
     def forward(self, queries, keys, query_lens, mask=None, key_lens=None, attn_prior=None):
         """Attention mechanism for radtts. Unlike in Flowtron, we have no

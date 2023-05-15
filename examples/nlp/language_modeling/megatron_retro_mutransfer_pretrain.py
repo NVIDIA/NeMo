@@ -12,25 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.timer import Timer
-from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.modules.common.megatron.mup.init import normal_
 from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam, MuAdamW
-from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shapes
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.core.config.optimizers import AdamParams, AdamWParams
 from nemo.core.optim.optimizers import register_optimizer
 from nemo.utils import logging
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_mutransfer")
@@ -41,13 +36,12 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    plugins = [
-        NLPDDPPlugin(
-            no_ddp_communication_hook=True if megatron_amp_o2 else False,
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
-    ]
+    plugins = []
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True if megatron_amp_o2 else False,
+        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        find_unused_parameters=False,
+    )
 
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
@@ -65,7 +59,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -75,50 +69,12 @@ def main(cfg) -> None:
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
-    # Override timer callback to a stateless one
-    for idx, callback in enumerate(trainer.callbacks):
-        if isinstance(callback, Timer):
-            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronRetrievalModel(cfg.model, trainer)
-    set_base_shapes(model, cfg.model.shape_file, rescale_params=False)
-    # add shape file
-    model.register_artifact("model.shape_file", cfg.model.shape_file),
-
-    for name, tensor in model.named_parameters():
-        if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
-            std = cfg.model.init_method_std / math.sqrt(2.0 * 12.0)
-            normal_(tensor, 0, std)
-        elif name.endswith('layernorm.weight'):
-            if tensor.std() != 0 and tensor.mean() != 1:
-                raise ValueError(f'need to check {name} init')
-            normal_(tensor, 1, 0)
-        elif name.endswith('.weight'):
-            normal_(tensor, 0, cfg.model.init_method_std)
-        else:
-            if tensor.std() != 0 and tensor.mean() != 0:
-                raise ValueError(f'need to check {name} init')
-
-    for name, layer in model.named_modules():
-        if (
-            name.endswith('.self_attention')
-            or name.endswith('.inter_attention')
-            or name.endswith('.cross_attention')
-            or name.endswith('.core_attention')
-        ):
-            if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
-                layer.norm_factor = (
-                    layer.hidden_size_per_attention_head / 8.0
-                )  # divide 8 to make it consist with ADLR setting
-        else:
-            if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
-                logging.error(
-                    f'module {name} has norm factor but its name is not ending with attention, need to double check'
-                )
 
     trainer.fit(model)
 

@@ -18,7 +18,8 @@ import multiprocessing
 import os
 import shutil
 from itertools import repeat
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import IPython.display as ipd
 import librosa
@@ -57,7 +58,8 @@ def prepare_manifest(config: dict) -> str:
     if 'prepared_manifest_vad_input' in config and config['prepared_manifest_vad_input']:
         manifest_vad_input = config['prepared_manifest_vad_input']
     else:
-        manifest_vad_input = "manifest_vad_input.json"
+        default_path = "manifest_vad_input.json"
+        manifest_vad_input = os.path.join(config["out_dir"], default_path) if "out_dir" in config else default_path
 
     # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
     if type(config['input']) == str:
@@ -81,9 +83,19 @@ def prepare_manifest(config: dict) -> str:
     if config.get('num_workers') is not None and config['num_workers'] > 1:
         with multiprocessing.Pool(processes=config['num_workers']) as p:
             inputs = zip(input_list, repeat(args_func))
-            results = list(tqdm(p.imap(write_vad_infer_manifest_star, inputs), total=len(input_list)))
+            results = list(
+                tqdm(
+                    p.imap(write_vad_infer_manifest_star, inputs),
+                    total=len(input_list),
+                    desc='splitting manifest',
+                    leave=True,
+                )
+            )
     else:
-        results = [write_vad_infer_manifest(input_el, args_func) for input_el in tqdm(input_list)]
+        results = [
+            write_vad_infer_manifest(input_el, args_func)
+            for input_el in tqdm(input_list, desc='splitting manifest', leave=True)
+        ]
 
     if os.path.exists(manifest_vad_input):
         logging.info("The prepared manifest file exists. Overwriting!")
@@ -218,7 +230,7 @@ def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
         for line in f.readlines():
             frame.append(float(line))
 
-    name = filepath.split("/")[-1].rsplit(".", 1)[0]
+    name = Path(filepath).stem
     return torch.tensor(frame), name
 
 
@@ -266,10 +278,17 @@ def generate_overlap_vad_seq(
     if num_workers is not None and num_workers > 1:
         with multiprocessing.Pool(processes=num_workers) as p:
             inputs = zip(frame_filepathlist, repeat(per_args))
-            results = list(tqdm(p.imap(generate_overlap_vad_seq_per_file_star, inputs), total=len(frame_filepathlist)))
+            results = list(
+                tqdm(
+                    p.imap(generate_overlap_vad_seq_per_file_star, inputs),
+                    total=len(frame_filepathlist),
+                    desc='generating preds',
+                    leave=True,
+                )
+            )
 
     else:
-        for frame_filepath in tqdm(frame_filepathlist):
+        for frame_filepath in tqdm(frame_filepathlist, desc='generating preds', leave=False):
             generate_overlap_vad_seq_per_file(frame_filepath, per_args)
 
     return overlap_out_dir
@@ -651,17 +670,23 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     out_dir, per_args_float = prepare_gen_segment_table(sequence, per_args)
 
     preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
-    save_name = name + ".txt"
+    ext = ".rttm" if per_args.get("use_rttm", False) else ".txt"
+    save_name = name + ext
     save_path = os.path.join(out_dir, save_name)
 
-    if preds.shape == torch.Size([0]):
+    if preds.shape[0] == 0:
         with open(save_path, "w", encoding='utf-8') as fp:
-            fp.write(f"0 0 speech\n")
-
+            if per_args.get("use_rttm", False):
+                fp.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
+            else:
+                fp.write(f"0 0 speech\n")
     else:
         with open(save_path, "w", encoding='utf-8') as fp:
             for i in preds:
-                fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
+                if per_args.get("use_rttm", False):
+                    fp.write(f"SPEAKER {name} 1 {i[0]:.4f} {i[2]:.4f} <NA> <NA> speech <NA> <NA>\n")
+                else:
+                    fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
 
     return save_path
 
@@ -704,14 +729,21 @@ def generate_vad_segment_table(
         "out_dir": table_out_dir,
     }
     per_args = {**per_args, **postprocessing_params}
-
+    num_workers = None
     if num_workers is not None and num_workers > 1:
         with multiprocessing.Pool(num_workers) as p:
             inputs = zip(vad_pred_filepath_list, repeat(per_args))
-            list(tqdm(p.imap(generate_vad_segment_table_per_file_star, inputs), total=len(vad_pred_filepath_list)))
+            list(
+                tqdm(
+                    p.imap(generate_vad_segment_table_per_file_star, inputs),
+                    total=len(vad_pred_filepath_list),
+                    desc='creating speech segments',
+                    leave=True,
+                )
+            )
 
     else:
-        for vad_pred_filepath in tqdm(vad_pred_filepath_list):
+        for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=True):
             generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
     return table_out_dir
@@ -1023,7 +1055,12 @@ def extract_labels(path2ground_truth_label: str, time: list) -> list:
 
 
 def generate_vad_frame_pred(
-    vad_model, window_length_in_sec: float, shift_length_in_sec: float, manifest_vad_input: str, out_dir: str
+    vad_model,
+    window_length_in_sec: float,
+    shift_length_in_sec: float,
+    manifest_vad_input: str,
+    out_dir: str,
+    use_feat: bool = False,
 ) -> str:
     """
     Generate VAD frame level prediction and write to out_dir
@@ -1034,16 +1071,20 @@ def generate_vad_frame_pred(
     all_len = 0
 
     data = []
-    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
-        file = json.loads(line)['audio_filepath'].split("/")[-1]
-        data.append(file.split(".wav")[0])
+    with open(manifest_vad_input, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)['audio_filepath'].split("/")[-1]
+            data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_vad_stream_status(data)
-    for i, test_batch in enumerate(vad_model.test_dataloader()):
+    for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
         test_batch = [x.to(vad_model.device) for x in test_batch]
         with autocast():
-            log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+            if use_feat:
+                log_probs = vad_model(processed_signal=test_batch[0], processed_signal_length=test_batch[1])
+            else:
+                log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
             probs = torch.softmax(log_probs, dim=-1)
             pred = probs[:, 1]
 
@@ -1096,9 +1137,10 @@ def stitch_segmented_asr_output(
         os.mkdir(speech_segments_tensor_dir)
 
     segmented_output = []
-    for line in open(segmented_output_manifest, 'r', encoding='utf-8'):
-        file = json.loads(line)
-        segmented_output.append(file)
+    with open(segmented_output_manifest, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)
+            segmented_output.append(file)
 
     with open(stitched_output_manifest, 'w', encoding='utf-8') as fout:
         speech_segments = torch.Tensor()
@@ -1168,22 +1210,24 @@ def construct_manifest_eval(
     Because some pure noise samples might not appear in stitched_output_manifest.
     """
     stitched_output = dict()
-    for line in open(stitched_output_manifest, 'r', encoding='utf-8'):
-        file = json.loads(line)
-        stitched_output[file["audio_filepath"]] = file
+    with open(stitched_output_manifest, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)
+            stitched_output[file["audio_filepath"]] = file
 
     out = []
-    for line in open(input_manifest, 'r', encoding='utf-8'):
-        file = json.loads(line)
-        sample = file["audio_filepath"]
-        if sample in stitched_output:
-            file["pred_text"] = stitched_output[sample]["pred_text"]
-            file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
-        else:
-            file["pred_text"] = ""
-            file["speech_segments_filepath"] = ""
+    with open(input_manifest, 'r', encoding='utf-8') as f:
+        for line in f:
+            file = json.loads(line)
+            sample = file["audio_filepath"]
+            if sample in stitched_output:
+                file["pred_text"] = stitched_output[sample]["pred_text"]
+                file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
+            else:
+                file["pred_text"] = ""
+                file["speech_segments_filepath"] = ""
 
-        out.append(file)
+            out.append(file)
 
     with open(aligned_vad_asr_output_manifest, 'w', encoding='utf-8') as fout:
         for i in out:
@@ -1192,3 +1236,192 @@ def construct_manifest_eval(
             fout.flush()
 
     return aligned_vad_asr_output_manifest
+
+
+def extract_audio_features(vad_model: EncDecClassificationModel, manifest_vad_input: str, out_dir: str) -> str:
+    """
+    Extract audio features and write to out_dir
+    """
+
+    file_list = []
+    with open(manifest_vad_input, 'r', encoding='utf-8') as fin:
+        for line in fin.readlines():
+            file_list.append(Path(json.loads(line)['audio_filepath']).stem)
+
+    logging.info(f"Extracting features on {len(file_list)} audio files/json lines!")
+
+    for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
+        test_batch = [x.to(vad_model.device) for x in test_batch]
+        with autocast():
+            processed_signal, processed_signal_length = vad_model.preprocessor(
+                input_signal=test_batch[0], length=test_batch[1],
+            )
+            processed_signal = processed_signal.squeeze(0)[:, :processed_signal_length]
+            processed_signal = processed_signal.cpu()
+            outpath = os.path.join(out_dir, file_list[i] + ".pt")
+            torch.save(processed_signal, outpath)
+        del test_batch
+    return out_dir
+
+
+def load_rttm_file(filepath: str) -> pd.DataFrame:
+    """
+    Load rttm file and extract speech segments
+    """
+    if not Path(filepath).exists():
+        raise ValueError(f"File not found: {filepath}")
+    data = pd.read_csv(filepath, sep="\s+", delimiter=None, header=None)
+    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+
+    data['start'] = data['start'].astype(float)
+    data['dur'] = data['dur'].astype(float)
+    data['end'] = data['start'] + data['dur']
+
+    data = data.sort_values(by=['start'])
+    data['segment'] = list(zip(data['start'], data['end']))
+
+    return data
+
+
+def merge_intervals(intervals: List[List[float]]) -> List[List[float]]:
+    """
+    Merge speech segments into non-overlapping segments
+    """
+    intervals.sort(key=lambda x: x[0])
+    merged = []
+    for interval in intervals:
+        # if the list of merged intervals is empty or if the current
+        # interval does not overlap with the previous, simply append it.
+        if not merged or merged[-1][1] < interval[0]:
+            merged.append(interval)
+        else:
+            # otherwise, there is overlap, so we merge the current and previous
+            # intervals.
+            merged[-1][1] = max(merged[-1][1], interval[1])
+    return merged
+
+
+def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
+    """
+    load speech segments from rttm file, where each segment is represented
+    as [start, end] interval
+    """
+    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = [list(x) for x in speech_segments]
+    speech_segments = merge_intervals(speech_segments)
+    return speech_segments
+
+
+def load_speech_overlap_segments_from_rttm(rttm_file: str) -> Tuple[List[List[float]], List[List[float]]]:
+    """
+    Load speech segments from RTTM file, merge and extract possible overlaps
+
+    Args:
+        rttm_file (str): Path to RTTM file
+
+    Returns:
+        merged (List[List[float]]): merged speech intervals without overlaps
+        overlaps (List[List[float]]): intervals without overlap speech
+    """
+    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = [list(x) for x in speech_segments]
+    speech_segments.sort(key=lambda x: x[0])  # sort by start time
+    merged = []
+    overlaps = []
+    for interval in speech_segments:
+        # if the list of merged intervals is empty or if the current
+        # interval does not overlap with the previous, simply append it.
+        if not merged or merged[-1][1] < interval[0]:
+            merged.append(interval)
+        else:
+            # otherwise, there is overlap, so we merge the current and previous
+            # intervals.
+            overlaps.append([interval[0], min(merged[-1][1], interval[1])])
+            merged[-1][1] = max(merged[-1][1], interval[1])
+    return merged, overlaps
+
+
+def get_nonspeech_segments(
+    speech_segments: List[List[float]], max_duration: Optional[float] = None
+) -> List[List[float]]:
+    """
+    Get non-speech segments from given speech segments and maximum duration
+
+    Args:
+        speech_segments (List[List[float]]): speech segment intervals loaded by load_speech_segments()
+        max_duration (Optional[float]): maximum duration of the audio, used to calculate the last silence segment
+    
+    Returns:
+        nonspeech_segments (List[List[float]]): intervals of non-speech segments
+    """
+    nonspeech_segments = []
+    start = 0.0
+    for sp_seg in speech_segments:
+        end = sp_seg[0]
+        nonspeech_segments.append([start, end])
+        start = sp_seg[1]
+
+    if max_duration is not None and start < max_duration:
+        nonspeech_segments.append([start, max_duration])
+
+    return nonspeech_segments
+
+
+def get_frame_labels(segments: List[List[float]], frame_length: float, offset: float, duration: float) -> str:
+    """
+    Generate frame-level binary labels for audio, '0' for non-speech and '1' for speech
+
+    Args:
+        segments (List[List[float]]): speech segments loaded by load_speech_segments_from_rttm
+        frame_length (float): frame length in seconds, e.g. 0.01 for 10ms frames
+        offset (float): Offset of the audio clip
+        duration (float): duration of the audio clip
+    """
+    labels = []
+    n_frames = int(np.ceil(duration / frame_length))
+
+    sid = 0
+    for i in range(n_frames):
+        t = offset + i * frame_length
+        while sid < len(segments) - 1 and segments[sid][1] < t:
+            sid += 1
+        if segments[sid][0] <= t <= segments[sid][1]:
+            labels.append('1')
+        else:
+            labels.append('0')
+    return ' '.join(labels)
+
+
+def plot_sample_from_rttm(
+    audio_file: str, rttm_file: str, max_duration: Optional[float] = None, save_path: str = "", show: bool = True
+):
+    plt.figure(figsize=[20, 2])
+    UNIT_FRAME_LEN = 0.01
+
+    audio, sample_rate = librosa.load(path=audio_file, sr=16000, mono=True, offset=0, duration=max_duration)
+    dur = librosa.get_duration(y=audio, sr=sample_rate)
+
+    segments = load_speech_segments_from_rttm(rttm_file)
+    labels = get_frame_labels(segments, UNIT_FRAME_LEN, 0.0, dur)
+    labels = [float(x) for x in labels.split()]
+
+    length = len(labels)
+    ax1 = plt.subplot()
+    ax1.set_title(audio_file)
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.set_xlim([0, int(dur) + 1])
+    ax1.tick_params(axis='y', labelcolor='b')
+    ax1.set_ylabel('Signal')
+    ax1.set_ylim([-1, 1])
+    ax2 = ax1.twinx()
+
+    ax2.plot(np.arange(length) * UNIT_FRAME_LEN, labels, 'r', label='label')
+    ax2.tick_params(axis='y', labelcolor='r')
+    ax2.legend(loc='lower right', shadow=True)
+    ax2.set_ylabel('Labels')
+    ax2.set_ylim([-0.1, 1.1])
+    if show:
+        plt.show()
+    if save_path:
+        plt.savefig(save_path)
+    return ipd.Audio(audio, rate=16000)

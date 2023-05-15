@@ -19,7 +19,6 @@ import torch.nn as nn
 from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
-from nemo.collections.common.parts.training_utils import avoid_bfloat16_autocast_context
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -126,25 +125,53 @@ class ConvSubsampling(torch.nn.Module):
             self._kernel_size = 3
             self._ceil_mode = False
 
-            self._left_padding = (self._kernel_size - 1) // 2
-            self._right_padding = (self._kernel_size - 1) // 2
+            if self.is_causal:
+                self._left_padding = self._kernel_size - 1
+                self._right_padding = self._stride - 1
+                self._max_cache_len = subsampling_factor + 1
+            else:
+                self._left_padding = (self._kernel_size - 1) // 2
+                self._right_padding = (self._kernel_size - 1) // 2
+                self._max_cache_len = 0
 
             # Layer 1
-            layers.append(
-                torch.nn.Conv2d(
-                    in_channels=in_channels,
-                    out_channels=conv_channels,
-                    kernel_size=self._kernel_size,
-                    stride=self._stride,
-                    padding=self._left_padding,
+            if self.is_causal:
+                layers.append(
+                    CausalConv2D(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=None,
+                    )
                 )
-            )
+            else:
+                layers.append(
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=self._left_padding,
+                    )
+                )
             in_channels = conv_channels
             layers.append(activation)
 
             for i in range(self._sampling_num - 1):
-                layers.extend(
-                    [
+                if self.is_causal:
+                    layers.append(
+                        CausalConv2D(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=None,
+                            groups=in_channels,
+                        )
+                    )
+                else:
+                    layers.append(
                         torch.nn.Conv2d(
                             in_channels=in_channels,
                             out_channels=in_channels,
@@ -152,16 +179,18 @@ class ConvSubsampling(torch.nn.Module):
                             stride=self._stride,
                             padding=self._left_padding,
                             groups=in_channels,
-                        ),
-                        torch.nn.Conv2d(
-                            in_channels=in_channels,
-                            out_channels=conv_channels,
-                            kernel_size=1,
-                            stride=1,
-                            padding=0,
-                            groups=1,
-                        ),
-                    ]
+                        )
+                    )
+
+                layers.append(
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                        groups=1,
+                    )
                 )
                 layers.append(activation)
                 in_channels = conv_channels
@@ -235,13 +264,7 @@ class ConvSubsampling(torch.nn.Module):
         )
         x = x.unsqueeze(1)
 
-        if self._subsampling in ['striding', 'dw_striding']:
-            # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
-            # to be removed once the above is fixed in cudnn
-            with avoid_bfloat16_autocast_context():
-                x = self.conv(x)
-        else:
-            x = self.conv(x)
+        x = self.conv(x)
 
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
@@ -347,3 +370,55 @@ class TimeReductionModule(nn.Module):
             torch.nn.init.uniform_(self.dw_conv.bias, -dw_max, dw_max)
             torch.nn.init.uniform_(self.pw_conv.weight, -pw_max, pw_max)
             torch.nn.init.uniform_(self.pw_conv.bias, -pw_max, pw_max)
+
+
+class SubsamplingReductionModule(nn.Module):
+    """Downsamples the audio signal in time dimension."""
+
+    def __init__(self, reduction: str, d_model: int, reduction_factor: int = 2):
+        super().__init__()
+
+        assert reduction in ['pooling', 'striding']
+
+        self.reduction = reduction
+        self.d_model = d_model
+        self._sampling_num = int(math.log(reduction_factor, 2))
+
+        if reduction == 'pooling':
+            self.reduction_enc = nn.MaxPool1d(kernel_size=reduction_factor)
+            self.padding = 0
+            self.kernel_size = self.reduction_enc.kernel_size
+            self.stride = self.reduction_enc.stride
+        elif reduction == 'striding':
+            self.reduction_enc = ConvSubsampling(
+                subsampling='striding',
+                subsampling_factor=reduction_factor,
+                feat_in=d_model,
+                feat_out=d_model,
+                conv_channels=d_model,
+                activation=nn.ReLU(),
+                is_causal=False,
+            )
+
+    def forward(self, x, lengths):
+        """Shapes:
+            - x: [B, T, C]
+            - lengths: [B]
+        """
+
+        if self.reduction == 'striding':
+            x, lengths = self.reduction_enc(x=x, lengths=lengths)
+        else:
+            x = torch.transpose(x, 1, 2)  # [B, C, T]
+            lengths = calc_length(
+                lengths=lengths,
+                all_paddings=self.padding,
+                kernel_size=self.kernel_size,
+                stride=self.stride,
+                ceil_mode=False,
+                repeat_num=self._sampling_num,
+            )
+            x = self.reduction_enc(x)
+            x = torch.transpose(x, 1, 2)  # [B, T, C]
+
+        return x, lengths

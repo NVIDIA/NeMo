@@ -15,11 +15,9 @@
 # limitations under the License.
 
 import math
-from dataclasses import dataclass
 
 import numpy as np
 import torch
-from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 
@@ -100,18 +98,19 @@ class TransformerEmbedding(nn.Module):
 
     def __init__(
         self,
-        vocab_size,
-        hidden_size,
-        max_sequence_length=512,
-        num_token_types=2,
-        embedding_dropout=0.0,
-        learn_positional_encodings=False,
+        vocab_size: int,
+        hidden_size: int,
+        max_sequence_length: int = 512,
+        num_token_types: int = 2,
+        embedding_dropout: float = 0.0,
+        learn_positional_encodings: bool = False,
+        padding_idx: int = 0,
     ):
         super().__init__()
 
         self.max_sequence_length = max_sequence_length
         self.learn_positional_encodings = learn_positional_encodings
-        self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
+        self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=padding_idx)
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
         else:

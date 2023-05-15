@@ -20,6 +20,7 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import torch.optim
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import config, optim
 from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
@@ -85,7 +86,7 @@ class ExampleModel(pl.LightningModule):
 
 
 class Callback(pl.callbacks.Callback):
-    @pl.utilities.distributed.rank_zero_only
+    @rank_zero_only
     def on_train_end(self, trainer, module):
         count = module.my_opt.param_groups[0]['count']
         if trainer.global_step != count or trainer.global_step != module.max_steps:
@@ -110,13 +111,13 @@ class SchedulerNoOpCallback(Callback):
     def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx):
         # pl_module.max_steps is "original" max steps without trainer extra steps.
         if (trainer.global_step + 1) % 3 == 0 and (trainer.global_step + 1) < pl_module.max_steps:
-            schedulers = trainer.lr_schedulers
+            schedulers = trainer.lr_scheduler_configs
 
             for scheduler in schedulers:
                 # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
                 # as well as update the optimizer lr in all param groups
-                scheduler['scheduler'].last_epoch -= 2
-                scheduler['scheduler'].step()
+                scheduler.scheduler.last_epoch -= 2
+                scheduler.scheduler.step()
 
             # Increase the max step count by 1
             trainer.fit_loop.max_steps = trainer.fit_loop.max_steps + 1
@@ -134,15 +135,26 @@ class TestOptimizersSchedulers:
     MAX_STEPS = 10
     D_MODEL = 16
 
-    # fused_adam is looking for CUDA and this test is being run on CPU only tests
+    # Apex optimizers require CUDA and this test is being run on CPU only tests
     @pytest.mark.unit
     def test_get_optimizer(self):
         model = TempModel()
+        if torch.cuda.is_available():
+            model.cuda()
 
         for opt_name in AVAILABLE_OPTIMIZERS.keys():
             if opt_name == 'fused_adam':
                 if not torch.cuda.is_available():
                     continue
+            if opt_name == 'distributed_fused_adam':
+                # TODO: this test fails when run with all other tests, we need to move this test to nightly or CI
+                continue
+                # if not torch.cuda.is_available() or not torch.distributed.is_nccl_available():
+                #     continue
+                # if not torch.distributed.is_initialized():
+                #     torch.distributed.init_process_group(
+                #         'nccl', world_size=1, rank=0, store=torch.distributed.HashStore(),
+                #     )
             opt_cls = optim.get_optimizer(opt_name)
             if opt_name == 'adafactor':
                 # Adafactor's default mode uses relative_step without any lr.
@@ -297,6 +309,51 @@ class TestOptimizersSchedulers:
         dict_config = omegaconf.OmegaConf.create(basic_sched_config)
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], optim.lr_scheduler.CosineAnnealing)
+
+    @pytest.mark.unit
+    def test_sched_config_parse_reduce_on_plateau(self):
+        model = TempModel()
+        opt_cls = optim.get_optimizer('novograd')
+        opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+        reduce_on_plateau_parameters = {
+            'mode': 'min',
+            'factor': 0.5,
+            'patience': 1,
+            'threshold': 1e-4,
+            'threshold_mode': 'rel',
+            'min_lr': 1e-6,
+            'eps': 1e-7,
+            'verbose': True,
+            'cooldown': 1,
+        }
+        basic_sched_config = {
+            'name': 'ReduceLROnPlateau',
+            'monitor': 'val_loss',
+            'reduce_on_plateau': True,
+            'max_steps': self.MAX_STEPS,
+        }
+        basic_sched_config.update(reduce_on_plateau_parameters)
+        scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, basic_sched_config)
+        assert isinstance(scheduler_setup['scheduler'], torch.optim.lr_scheduler.ReduceLROnPlateau)
+        for k, v in reduce_on_plateau_parameters.items():
+            if k == 'min_lr':
+                k += 's'
+                v = [v]
+            found_v = getattr(scheduler_setup['scheduler'], k)
+            assert (
+                found_v == v
+            ), f"Wrong value `{repr(found_v)}` for `ReduceLROnPlateau` parameter `{k}`. Expected `{repr(v)}`."
+        dict_config = omegaconf.OmegaConf.create(basic_sched_config)
+        scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
+        assert isinstance(scheduler_setup['scheduler'], torch.optim.lr_scheduler.ReduceLROnPlateau)
+        for k, v in reduce_on_plateau_parameters.items():
+            if k == 'min_lr':
+                k += 's'
+                v = [v]
+            found_v = getattr(scheduler_setup['scheduler'], k)
+            assert (
+                found_v == v
+            ), f"Wrong value `{repr(found_v)}` for `ReduceLROnPlateau` parameter `{k}`. Expected `{repr(v)}`."
 
     @pytest.mark.unit
     def test_WarmupPolicy(self):
@@ -876,8 +933,7 @@ class TestOptimizersSchedulers:
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
-                progress_bar_refresh_rate=0,
-                weights_summary=None,
+                enable_progress_bar=False,
             )
             max_steps = optim.lr_scheduler.compute_max_steps(
                 max_epochs, accumulate_grad_batches, limit_train_batches, devices, dataset_len, batch_size, drop_last,
@@ -952,8 +1008,7 @@ class TestOptimizersSchedulers:
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
-                progress_bar_refresh_rate=0,
-                weights_summary=None,
+                enable_progress_bar=False,
             )
             model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
             trainer.callbacks.append(SchedulerNoOpCallback())
