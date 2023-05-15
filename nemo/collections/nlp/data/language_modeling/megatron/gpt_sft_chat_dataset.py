@@ -14,14 +14,10 @@
 
 import copy
 
-import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
-from nemo.core.classes import Dataset
 from nemo.utils import logging
 
 __all__ = ['GPTSFTChatDataset']
@@ -59,7 +55,7 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
         elif speaker == mask_role:
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker != mask_role:
+        else:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
             target[cur_idx : cur_idx + skip_name_len - 1] = IGNORE_INDEX
         cur_idx += tokenized_len
@@ -156,6 +152,11 @@ def preprocess(
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
+    def _build_samples_mapping(self):
+        super()._build_samples_mapping()
+        assert '<extra_id_0>' in self.tokenizer.vocab, "<extra_id_0> not in the tokenizer vocab. not supported"
+        assert '<extra_id_1>' in self.tokenizer.vocab, "<extra_id_1> not in the tokenizer vocab. not supported"
+
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
