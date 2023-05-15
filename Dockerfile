@@ -104,16 +104,16 @@ RUN git clone https://github.com/crankshaw-google/Megatron-LM.git \
   && cd Megatron-LM \
   && pip install -e .
 
-# install k2, skip if installation fails
-COPY scripts /tmp/nemo/scripts/
-RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh); INSTALL_CODE=$?; \
-  echo ${INSTALL_MSG}; \
-  if [ ${INSTALL_CODE} -ne 0 ]; then \
-  echo "k2 installation failed";  \
-  if [ "${REQUIRE_K2}" = true ]; then \
-  exit ${INSTALL_CODE};  \
-  else echo "Skipping failed k2 installation"; fi \
-  else echo "k2 installed successfully"; fi
+# # install k2, skip if installation fails
+# COPY scripts /tmp/nemo/scripts/
+# RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh); INSTALL_CODE=$?; \
+#   echo ${INSTALL_MSG}; \
+#   if [ ${INSTALL_CODE} -ne 0 ]; then \
+#   echo "k2 installation failed";  \
+#   if [ "${REQUIRE_K2}" = true ]; then \
+#   exit ${INSTALL_CODE};  \
+#   else echo "Skipping failed k2 installation"; fi \
+#   else echo "k2 installed successfully"; fi
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -138,8 +138,12 @@ RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
   python -c "import nemo_text_processing.text_normalization as text_normalization"
 
 
+
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
+RUN wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json \
+  && wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
+
 COPY scripts /workspace/nemo/scripts
 COPY examples /workspace/nemo/examples
 COPY tests /workspace/nemo/tests
@@ -159,3 +163,4 @@ RUN if [ "${REQUIRE_AIS_CLI}" = true ]; then \
   else echo "AIS CLI installed successfully"; fi \
   else echo "Skipping AIS CLI installation"; fi
 
+ENTRYPOINT ["/bin/bash", "/workspace/nemo/scripts/gce/container_entrypoint.sh"]
