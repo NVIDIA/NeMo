@@ -242,6 +242,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+
         # We will store transcriptions here
         hypotheses = []
         all_hypotheses = []
@@ -285,7 +286,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=True):
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )

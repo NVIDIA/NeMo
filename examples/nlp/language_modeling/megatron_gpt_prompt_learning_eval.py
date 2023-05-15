@@ -14,7 +14,7 @@
 
 import torch
 import torch.multiprocessing as mp
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -151,12 +151,13 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_seq_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_seq_length = min(max_seq_length, cfg.get("max_seq_length", 8192))
 
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
         batch_size=cfg.inference.get('batch_size', 1),
-        max_seq_length=max_input_length,
+        max_seq_length=max_seq_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
         add_eos=False,

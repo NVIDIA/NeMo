@@ -1,24 +1,32 @@
-# It contains the default values for training a Fast Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
-# This version uses Longformer-style attention in order to handle longer audio
+# It contains the default values for training a Conformer-HAT (Hybrid Autoregressive Transducer - https://arxiv.org/abs/2003.07705) ASR model,
+# large size (~120M) with Transducer loss and sub-word encoding.
+# The only difference from the standard Conformer-Transducer model (RNNT) is the use of "HATJiont" class (instead of "RNNTJoint") for joint module. 
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
 # batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# Here are the recommended configs for different variants of Conformer-HAT, other parameters are the same as in this config file.
+#
+#  +--------------+---------+---------+----------+------------------+--------------+--------------------------+-----------------+
+#  | Model        | d_model | n_heads | n_layers | conv_kernel_size | weight_decay | pred_hidden/joint_hidden | pred_rnn_layers |
+#  +==============+=========+========+===========+==================+==============+==========================+=================+
+#  | Small   (14M)|   176   |    4   |    16     |       31         |     0.0      |           320            |        1        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
+#  | Medium  (32M)|   256   |    4   |    16     |       31         |     1e-3     |           640            |        1        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
+#  | Large  (120M)|   512   |    8   |    17     |       31         |     1e-3     |           640            |        1        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
+#  | XLarge (644M)|  1024   |    8   |    24     |        5         |     1e-3     |           640            |        2        |
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+  
+#
+# You may find more info about Conformer-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-hat-hybrid-autoregressive-transducer
 
-# You may find more info about Fast Conformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
-
-# Differences from baseline config are in
-# model.encoder.global_tokens
-# model.encoder.global_tokens_spacing
-# model.encoder.global_attn_separate
-
-name: "FastConformer-Long-Transducer-BPE"
+name: "Conformer-HAT-BPE"
 
 model:
   sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
   log_prediction: true # enables logging sample predictions in the output during training
-  rnnt_reduction: 'mean_volume'
   skip_nan_grad: false
 
   model_defaults:
@@ -42,7 +50,7 @@ model:
     tarred_audio_filepaths: null
     shuffle_n: 2048
     # bucketing params
-    bucketing_strategy: "fuly_randomized"
+    bucketing_strategy: "synced_randomized"
     bucketing_batch_size: null
 
   validation_ds:
@@ -96,9 +104,9 @@ model:
     d_model: 512
 
     # Sub-sampling parameters
-    subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
-    subsampling_factor: 8 # must be power of 2 for striding and vggnet
-    subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
+    subsampling: striding # vggnet, striding, stacking or stacking_norm, dw_striding
+    subsampling_factor: 4 # must be power of 2 for striding and vggnet
+    subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
     causal_downsampling: false
 
     # Reduction parameters: Can be used to add another subsampling layer at a given position.
@@ -112,19 +120,17 @@ model:
     ff_expansion_factor: 4
 
     # Multi-headed Attention Module's params
-    self_attention_model: rel_pos_local_attn # longformer-style attention (sliding window + global tokens)
-    global_tokens: 1 # number of tokens that attend and are attended to by all tokens (put 0 to disable)
-    global_tokens_spacing: 1 # how far apart the global tokens are
-    global_attn_separate: false # whether global tokens should use separate q,k,v layers
+    self_attention_model: rel_pos # rel_pos or abs_pos
     n_heads: 8 # may need to be lower for smaller d_models
     # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
-    att_context_size: [128,128] # -1 means unlimited context
+    att_context_size: [-1, -1] # -1 means unlimited context
     att_context_style: regular # regular or chunked_limited
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     untie_biases: true # unties the biases of the TransformerXL layers
+    pos_emb_max_len: 5000
 
     # Convolution module's params
-    conv_kernel_size: 9
+    conv_kernel_size: 31
     conv_norm_type: 'batch_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
     # conv_context_size can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
     # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
@@ -153,13 +159,8 @@ model:
       t_max: null
       dropout: 0.2
 
-  # if a large vocabulary size is desired, you may wish to use SampleRNNTJoint module
-  # _target_: nemo.collections.asr.modules.SampledRNNTJoint
-  # n_samples: 500 # Specifies the minimum number of tokens to sample from the vocabulary space, excluding
-  # the RNNT blank token. If a given value is larger than the entire vocabulary size, then the full
-  # vocabulary will be used
   joint:
-    _target_: nemo.collections.asr.modules.RNNTJoint
+    _target_: nemo.collections.asr.modules.HATJoint # the only difference from the standard RNNT model
     log_softmax: null  # 'null' would set it automatically according to CPU/GPU device
     preserve_memory: false  # dramatically slows down training, but might preserve some memory
 
@@ -210,16 +211,17 @@ model:
 
   optim:
     name: adamw
-    lr: 2.5e-3
+    lr: 5.0
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
 
     # scheduler setup
     sched:
-      name: CosineAnnealing
+      name: NoamAnnealing
+      d_model: ${model.encoder.d_model}
       # scheduler config override
-      warmup_steps: 15000
+      warmup_steps: 10000
       warmup_ratio: null
       min_lr: 1e-6
 
