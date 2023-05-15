@@ -15,10 +15,12 @@
 
 """
 # This script would evaluate an N-gram language model trained with KenLM library (https://github.com/kpu/kenlm) in
-# fusion with beam search decoders on top of a trained ASR model. NeMo's beam search decoders are capable of using the
-# KenLM's N-gram models to find the best candidates. This script supports both character level and BPE level
+# fusion with beam search decoders on top of a trained ASR model with CTC decoder. To evaluate a model with 
+# Transducer (RNN-T) decoder use another script 'scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py'. 
+# NeMo's beam search decoders are capable of using the KenLM's N-gram models
+# to find the best candidates. This script supports both character level and BPE level
 # encodings and models which is detected automatically from the type of the model.
-# You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
+# You may train the LM model with 'scripts/asr_language_modeling/ngram_lm/train_kenlm.py'.
 
 # Config Help
 
@@ -29,7 +31,7 @@ python eval_beamsearch_ngram.py --cfg job
 # USAGE
 
 python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-           input_manifest=<path to the evaluation JSON manifest file \
+           input_manifest=<path to the evaluation JSON manifest file> \
            kenlm_model_file=<path to the binary KenLM model> \
            beam_width=[<list of the beam widths, separated with commas>] \
            beam_alpha=[<list of the beam alphas, separated with commas>] \
@@ -154,7 +156,6 @@ def beam_search_eval(
     # Update model's decoding strategy
     if isinstance(model, EncDecHybridRNNTCTCModel):
         model.change_decoding_strategy(model.cfg.decoding, decoder_type='ctc')
-        model.decoding = model.ctc_decoding
     else:
         model.change_decoding_strategy(model.cfg.decoding)
     logging.setLevel(level)
@@ -254,6 +255,7 @@ def beam_search_eval(
 
 @hydra_runner(config_path=None, config_name='EvalBeamSearchNGramConfig', schema=EvalBeamSearchNGramConfig)
 def main(cfg: EvalBeamSearchNGramConfig):
+    logging.warning("This file will be renamed to eval_beamsearch_ngram_ctc.py in the future NeMo (1.21) release.")
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
 
@@ -325,7 +327,9 @@ def main(cfg: EvalBeamSearchNGramConfig):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
-                all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
+                    all_logits, _ = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
+                else:
+                    all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
 
         all_probs = all_logits
         if cfg.probs_cache_file:
