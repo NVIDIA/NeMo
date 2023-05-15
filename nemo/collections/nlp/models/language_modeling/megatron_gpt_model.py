@@ -143,7 +143,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
+                self.model = converted_model
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
 
