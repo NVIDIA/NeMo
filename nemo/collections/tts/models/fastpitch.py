@@ -101,6 +101,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             if not self.ds_class in [
                 "nemo.collections.tts.data.dataset.TTSDataset",
                 "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
+                "nemo.collections.tts.torch.data.TTSDataset",
             ]:
                 raise ValueError(f"Unknown dataset class: {self.ds_class}.")
 
@@ -383,10 +384,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             None,
         )
         if self.learn_alignment:
-            if self.ds_class == "nemo.collections.tts.data.dataset.TTSDataset":
-                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
-            else:
+            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
                 batch_dict = batch
+            else:
+                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
             text = batch_dict.get("text")
@@ -496,10 +497,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             None,
         )
         if self.learn_alignment:
-            if self.ds_class == "nemo.collections.tts.data.dataset.TTSDataset":
-                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
-            else:
+            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
                 batch_dict = batch
+            else:
+                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
             text = batch_dict.get("text")
