@@ -220,19 +220,12 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                         module = self.model[0]  # only the first virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_O2
-                        param._disable_overlap_grad_sync = True
+
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     if isinstance(self.model, list):
                         module = self.model[-1]  # only the last virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_O2
-                        param._disable_overlap_grad_sync = True
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
