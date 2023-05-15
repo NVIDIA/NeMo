@@ -24,8 +24,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import LengthParam, SamplingParam, megatron_gpt_generate
 from nemo.utils import AppState, logging

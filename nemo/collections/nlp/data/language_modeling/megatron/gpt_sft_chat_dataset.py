@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+
 import numpy as np
 import torch
 
@@ -21,7 +23,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-import copy
 
 __all__ = ['GPTSFTChatDataset']
 
@@ -43,27 +44,24 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. s_id has that extra token too
-        skip_name_len = len(
-            tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
+        skip_name_len = len(tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
             # Check whether the mask is applied to the correct position, the first token is turn token: <extra_id_1>
             # s_id[2:] skips the artifact empty token and the turn token
             # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
-            if not torch.equal(target[cur_idx + 1:cur_idx + tokenized_len],
-                               s_id[2:]):
-                logging.warning("a sentence mismatches the corresponding piece "
-                                "in the conversation")
+            if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[2:]):
+                logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
         if i == 0:
             # mask the first turn completely to provide at least one turn as context
-            target[cur_idx:cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker == mask_role:
             # leave the first human tag unmasked
-            target[cur_idx + 1: cur_idx  + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
         elif speaker != mask_role:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
-            target[cur_idx:cur_idx + skip_name_len - 1] = IGNORE_INDEX
+            target[cur_idx : cur_idx + skip_name_len - 1] = IGNORE_INDEX
         cur_idx += tokenized_len
 
 
@@ -80,15 +78,14 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
         role_token = TURN_TOKEN
         if gtype is None:
             sentence["value"] = (
-                BEGIN_SIGNAL
-                + role_token + sentence_from + END_NAME_SIGNAL
-                + sentence["value"]
-                + END_SIGNAL
+                BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
             )
         elif gtype == "TEXT_TO_CANONICAL_FORM":
             sentence["value"] = (
                 BEGIN_SIGNAL
-                + role_token + sentence_from + END_NAME_SIGNAL
+                + role_token
+                + sentence_from
+                + END_NAME_SIGNAL
                 + sentence["value"]
                 + END_SIGNAL
                 + cannonical_form_formater(sentence['canonical_form'])
@@ -96,7 +93,9 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
         elif gtype == "CANONICAL_FORM_TO_TEXT":
             sentence["value"] = (
                 BEGIN_SIGNAL
-                + role_token + sentence_from + END_NAME_SIGNAL
+                + role_token
+                + sentence_from
+                + END_NAME_SIGNAL
                 + cannonical_form_formater(sentence['canonical_form'])
                 + sentence["value"]
                 + END_SIGNAL
@@ -111,8 +110,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
 
 
 def preprocess(
-    source: dict,
-    tokenizer: TokenizerSpec,
+    source: dict, tokenizer: TokenizerSpec,
 ):
     """
     Given a conversation list. This transform:
@@ -158,7 +156,6 @@ def preprocess(
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
-
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
@@ -177,9 +174,9 @@ class GPTSFTChatDataset(GPTSFTDataset):
         max_length = max([len(x) for x in input_ids])
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
-            input_ids = [x[:self.max_seq_length] for x in input_ids]
-            labels = [x[:self.max_seq_length] for x in labels]
-            loss_mask = [x[:self.max_seq_length] for x in loss_mask]
+            input_ids = [x[: self.max_seq_length] for x in input_ids]
+            labels = [x[: self.max_seq_length] for x in labels]
+            loss_mask = [x[: self.max_seq_length] for x in loss_mask]
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
