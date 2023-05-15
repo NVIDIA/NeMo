@@ -23,14 +23,13 @@ import os
 import random
 import sys
 import tempfile
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import joblib
 import numpy as np
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix

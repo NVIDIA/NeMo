@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Union
 import joblib
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.models.asr_model import ASRModel
