@@ -38,7 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-from nemo.collections.nlp.parts import utils_funcs as utils
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -145,7 +145,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
-        self.dtype = utils.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         encoder, decoder = None, None
         if add_encoder:

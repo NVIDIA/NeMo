@@ -38,7 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-from nemo.collections.nlp.parts import utils_funcs as utils
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 
@@ -178,7 +178,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
-        self.param_dtype = utils.dtype_from_precision(precision, megatron_amp_O2)
+        self.param_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
@@ -714,7 +714,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         )
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils.dtype_from_precision(precision, megatron_amp_O2=None)
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -828,7 +828,7 @@ class AutocastTransformerLayer(TransformerLayer):
         # use_emha=use_emha,
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils.dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
+        self.dtype = utils_funcs.dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
 
     def forward(
         self,

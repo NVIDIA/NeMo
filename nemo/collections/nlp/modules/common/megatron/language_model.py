@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts import utils_funcs as utils
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
@@ -517,7 +517,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
-        self.dtype = utils.dtype_from_precision(precision, megatron_amp_O2)
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
 
