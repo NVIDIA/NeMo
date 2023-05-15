@@ -30,10 +30,13 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     get_confidence_measure_bank,
 )
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.core.classes import ModelPT
 from nemo.utils import model_utils
 
 
+# frozen is required to allow hashing of this class and use it
+# as a dictionary key when running confidence tuning
 @dataclass(frozen=True)
 class ConfidenceSpec:
     exclude_blank: bool
@@ -42,6 +45,13 @@ class ConfidenceSpec:
     alpha: float
 
     def to_confidence_config(self) -> ConfidenceConfig:
+        """Converts confidence spec to the confidence config.
+
+        Internally, the tuning procedure uses this "spec" objects as they
+        are more aligned with how things are implemented. But when it's time
+        to save the models or call transcribe, we need to use the proper
+        object of type ``ConfidenceConfig``.
+        """
         if self.confidence_type == 'max_prob':
             name = 'max_prob'
             entropy_type = 'tsallis'  # can be any
@@ -57,10 +67,24 @@ class ConfidenceSpec:
         )
 
 
-def get_filtered_logprobs(transcription, exclude_blank):
-    if isinstance(transcription.alignments, list):  # Transducer
+def get_filtered_logprobs(hypothesis: Hypothesis, exclude_blank: bool) -> torch.Tensor:
+    """Returns logprobs from the hypothesis object with optional blanks filter.
+
+    This function supports both CTC and Transducer hypotheses. Will place the
+    logprobs on GPU if it's available.
+
+    Args:
+        hypothesis: generated hypothesis as returned from the transcribe
+            method of the ASR model.
+        exclude_blank: whether to filter out all ``<blank>`` tokens.
+
+    Returns:
+        torch.Tensor: of shape [S, V], where S is (filtered) sequence length and
+        V is the vocabulary size.
+    """
+    if isinstance(hypothesis.alignments, list):  # Transducer
         filtered_logprobs = []
-        for alignment in transcription.alignments:
+        for alignment in hypothesis.alignments:
             for align_elem in alignment:
                 if exclude_blank and align_elem[1].item() != align_elem[0].shape[-1] - 1:
                     filtered_logprobs.append(align_elem[0])
@@ -71,7 +95,7 @@ def get_filtered_logprobs(transcription, exclude_blank):
         if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
             filtered_logprobs = filtered_logprobs.cuda()
     else:  # CTC
-        logprobs = transcription.y_sequence
+        logprobs = hypothesis.y_sequence
         if torch.cuda.is_available():  # by default logprobs are placed on cpu in nemo
             logprobs = logprobs.cuda()
         if exclude_blank:  # filtering blanks
@@ -82,8 +106,25 @@ def get_filtered_logprobs(transcription, exclude_blank):
     return filtered_logprobs
 
 
-def compute_confidence(transcription, confidence_cfg: ConfidenceConfig):
-    filtered_logprobs = get_filtered_logprobs(transcription, confidence_cfg.exclude_blank)
+def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig) -> float:
+    """Computes confidence score of the full utterance from a given hypothesis.
+
+    This is essentially a re-implementation of the built-in confidence
+    computation in NeMo. The difference is that we aggregate full-utterance
+    scores, while core functionality only supports word and token level
+    aggregations.
+
+    Args:
+        hypothesis: generated hypothesis as returned from the transcribe
+            method of the ASR model.
+        confidence_cfg: confidence config specifying what kind of
+            measure/aggregation should be used.
+
+    Returns:
+        float: confidence score.
+
+    """
+    filtered_logprobs = get_filtered_logprobs(hypothesis, confidence_cfg.exclude_blank)
     vocab_size = filtered_logprobs.shape[1]
     aggr_func = get_confidence_aggregation_bank()[confidence_cfg.aggregation]
     if confidence_cfg.method_cfg.name == "max_prob":
@@ -99,6 +140,11 @@ def compute_confidence(transcription, confidence_cfg: ConfidenceConfig):
 
 
 class ConfidenceEnsembleModel(ModelPT):
+    """Implementation of the confidence ensemble model.
+
+    See <PAPER TBD> for details.
+    """
+
     def __init__(
         self, cfg: DictConfig, trainer: 'Trainer' = None,
     ):
@@ -162,7 +208,7 @@ class ConfidenceEnsembleModel(ModelPT):
                 self.update_decoding_parameters(model.cfg.decoding)
                 model.change_decoding_strategy(model.cfg.decoding)
 
-    def update_decoding_parameters(self, decoding_cfg):
+    def update_decoding_parameters(self, decoding_cfg: DictConfig):
         """Updating temperature/preserve_alignment/preserve_frame_confidence parameters of the config."""
         with open_dict(decoding_cfg):
             decoding_cfg.temperature = self.cfg.temperature
@@ -171,9 +217,6 @@ class ConfidenceEnsembleModel(ModelPT):
                 decoding_cfg.confidence_cfg.preserve_frame_confidence = True
             else:
                 decoding_cfg.confidence_cfg = ConfidenceConfig(preserve_frame_confidence=True)
-
-    def list_available_models(self):
-        return []
 
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """Pass-through to the ensemble models.
@@ -197,7 +240,7 @@ class ConfidenceEnsembleModel(ModelPT):
                 self_attention_model, att_context_size, update_config
             )
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
+    def change_decoding_strategy(self, decoding_cfg: Optional[DictConfig] = None, decoder_type: str = None):
         """Pass-through to the ensemble models.
 
         The only change here is that we always require expected temperature
@@ -232,7 +275,6 @@ class ConfidenceEnsembleModel(ModelPT):
             3. Use logistic regression to pick the "most confident" model
             4. Return the output of that model
         """
-        # TODO: lots of duplicate code with building ensemble script
         confidences = []
         all_transcriptions = []
         # always requiring to return hypothesis

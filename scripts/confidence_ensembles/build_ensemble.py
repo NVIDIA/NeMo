@@ -23,6 +23,7 @@ import os
 import random
 import sys
 import tempfile
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -33,7 +34,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
@@ -49,6 +50,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     get_confidence_aggregation_bank,
     get_confidence_measure_bank,
 )
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.core.config import hydra_runner
 
 LOG = logging.getLogger(__file__)
@@ -117,7 +119,7 @@ class TuneConfidenceConfig:
     alpha: Tuple[float] = (0.25, 0.33, 0.5, 1.0)
 
     def get_grid_size(self) -> int:
-        total_size = 0
+        """Returns the total number of points in the search space."""
         if "max_prob" in self.confidence_type:
             return (
                 len(self.exclude_blank)
@@ -213,10 +215,22 @@ class BuildEnsembleConfig:
             )
 
 
-def calculate_score(features, labels, pipe):
+def calculate_score(features: np.ndarray, labels: np.ndarray, pipe: Pipeline) -> Tuple[float, np.ndarray]:
     """Score is always calculated as mean of the per-class scores.
 
     This is done to account for possible class imbalances.
+
+    Args:
+        features: numpy array of features of shape [N x D], where N is the
+            number of objects (typically a total number of utterances in
+            all datasets) and D is the total number of confidence scores
+            used to train the model (typically = number of models).
+        labels: numpy array of shape [N] contatining ground-truth model indices.
+        pipe: classification pipeline (currently, standardization + logistic
+            regression).
+
+    Returns:
+        tuple: score value in [0, 1] and full classification confusion matrix.
     """
     predictions = pipe.predict(features)
     conf_m = confusion_matrix(labels, predictions)
@@ -225,14 +239,51 @@ def calculate_score(features, labels, pipe):
 
 
 def train_model_selection(
-    training_features,
-    training_labels,
-    dev_features=None,
-    dev_labels=None,
-    tune_lr: bool = True,
+    training_features: np.ndarray,
+    training_labels: np.ndarray,
+    dev_features: Optional[np.ndarray] = None,
+    dev_labels: Optional[np.ndarray] = None,
+    tune_lr: bool = False,
     tune_lr_cfg: Optional[TuneLogisticRegressionConfig] = None,
     verbose: bool = False,
-):
+) -> Tuple[Pipeline, float]:
+    """Trains model selection block with an (optional) tuning of the parameters.
+
+    Returns a pipeline consisting of feature standardization and logistic
+    regression. If tune_lr is set to True, dev features/labels will be used
+    to tune the hyperparameters of the logistic regression with the grid
+    search that's defined via ``tune_lr_cfg``.
+
+    If no tuning is requested, uses the following parameters::
+
+        best_pipe = make_pipeline(
+            StandardScaler(),
+            LogisticRegression(
+                multi_class="multinomial",
+                C=10000.0,
+                max_iter=1000,
+                class_weight="balanced",
+            ),
+        )
+
+    Args:
+        training_features: numpy array of features of shape [N x D], where N is
+            the number of objects (typically a total number of utterances in
+            all training datasets) and D is the total number of confidence
+            scores used to train the model (typically = number of models).
+        training_labels: numpy array of shape [N] contatining ground-truth
+            model indices.
+        dev_features: same as training, but for the validation subset.
+        dev_labels: same as training, but for the validation subset.
+        tune_lr: controls whether tuning of LR hyperparameters is performed.
+            If set to True, it's required to also provide dev features/labels.
+        tune_lr_cfg: specifies what values of LR hyperparameters to try.
+        verbose: if True, will output final training/dev scores.
+
+    Returns:
+        tuple: trained model selection pipeline, best score (or -1 if no tuning
+        was done).
+    """
     if not tune_lr:
         # default parameters: C=10000.0 disables regularization
         best_pipe = make_pipeline(
@@ -275,10 +326,18 @@ def train_model_selection(
     return best_pipe, max_score
 
 
-def subsample_manifest(manifest_file, max_samples):
+def subsample_manifest(manifest_file: str, max_samples: int) -> str:
     """Will save a subsampled version of the manifest to the same folder.
 
     Have to save to the same folder to support relative paths.
+
+    Args:
+        manifest_file: path to the manifest file that needs subsampling.
+        max_samples: how many samples to retain. Will randomly select that
+            many lines from the manifest.
+
+    Returns:
+        str: the path to the subsampled manifest file.
     """
     with open(manifest_file, "rt", encoding="utf-8") as fin:
         lines = fin.readlines()
@@ -290,16 +349,32 @@ def subsample_manifest(manifest_file, max_samples):
     return output_file
 
 
-def cleanup_subsampled_manifests(subsampled_manifests):
+def cleanup_subsampled_manifests(subsampled_manifests: List[str]):
+    """Removes all generated subsamples manifests."""
     for manifest in subsampled_manifests:
         os.remove(manifest)
 
 
-def compute_all_confidences(transcription, tune_confidence_cfg: TuneConfidenceConfig) -> Dict[ConfidenceSpec, float]:
+def compute_all_confidences(
+    hypothesis: Hypothesis, tune_confidence_cfg: TuneConfidenceConfig
+) -> Dict[ConfidenceSpec, float]:
+    """Computes a set of confidence scores from a given hypothesis.
+
+    Works with the output of both CTC and Transducer decoding.
+
+    Args:
+        hypothesis: generated hypothesis as returned from the transcribe
+            method of the ASR model.
+        tune_confidence_cfg: config specifying what confidence scores to
+            compute.
+
+    Returns:
+        dict: dictionary with confidenct spec -> confidence score mapping.
+    """
     conf_values = {}
 
     for exclude_blank in tune_confidence_cfg.exclude_blank:
-        filtered_logprobs = get_filtered_logprobs(transcription, exclude_blank)
+        filtered_logprobs = get_filtered_logprobs(hypothesis, exclude_blank)
         vocab_size = filtered_logprobs.shape[1]
         for aggregation in tune_confidence_cfg.aggregation:
             aggr_func = get_confidence_aggregation_bank()[aggregation]
@@ -316,7 +391,41 @@ def compute_all_confidences(transcription, tune_confidence_cfg: TuneConfidenceCo
     return conf_values
 
 
-def find_best_confidence(train_confidences, train_labels, dev_confidences, dev_labels, tune_lr, tune_lr_config):
+def find_best_confidence(
+    train_confidences: List[List[Dict[ConfidenceSpec, float]]],
+    train_labels: List[int],
+    dev_confidences: List[List[Dict[ConfidenceSpec, float]]],
+    dev_labels: List[int],
+    tune_lr: bool,
+    tune_lr_config: TuneConfidenceConfig,
+) -> Tuple[ConfidenceConfig, Pipeline]:
+    """Finds the best confidence configuration for model selection.
+
+    Will loop over all values in the confidence dictionary and fit the LR
+    model (optionally tuning its HPs). The best performing confidence (on the
+    dev set) will be used for the final LR model.
+
+    Args:
+        train_confidences: this is an object of type
+            ``List[List[Dict[ConfidenceSpec, float]]]``. The shape of this
+            object is [M, N, S], where
+                M: number of models
+                N: number of utterances in all training sets
+                S: number of confidence scores to try
+
+            This argument will be used to construct np.array objects for each
+            of the confidence scores with the shape [M, N]
+
+        train_labels: ground-truth labels of the correct model for each data
+            points. This is a list of size [N]
+        dev_confidences: same as training, but for the validation subset.
+        dev_labels: same as training, but for the validation subset.
+        tune_lr: controls whether tuning of LR hyperparameters is performed.
+        tune_lr_cfg: specifies what values of LR hyperparameters to try.
+
+    Returns:
+        tuple: best confidence config, best model selection pipeline
+    """
     max_score = 0
     best_pipe = None
     best_conf_spec = None
@@ -328,7 +437,7 @@ def find_best_confidence(train_confidences, train_labels, dev_confidences, dev_l
             for model_conf in model_confs:
                 cur_train_confidences[-1].append(model_conf[conf_spec])
         cur_dev_confidences = []
-        for model_confs in train_confidences:
+        for model_confs in dev_confidences:
             cur_dev_confidences.append([])
             for model_conf in model_confs:
                 cur_dev_confidences[-1].append(model_conf[conf_spec])
@@ -403,7 +512,7 @@ def main(cfg: BuildEnsembleConfig):
             with tempfile.NamedTemporaryFile() as output_file:
                 cfg.transcription.output_filename = output_file.name
                 LOG.info("Transcribing training dataset %d with model %d", data_idx, model_idx)
-                transcriptions = transcribe_speech.main(cfg.transcription.copy())
+                transcriptions = transcribe_speech.main(deepcopy(cfg.transcription))
                 LOG.info("Generating confidence scores")
                 # TODO: parallelize this loop?
                 for transcription in tqdm(transcriptions):
@@ -422,7 +531,7 @@ def main(cfg: BuildEnsembleConfig):
                 with tempfile.NamedTemporaryFile() as output_file:
                     cfg.transcription.output_filename = output_file.name
                     LOG.info("Transcribing dev dataset %d with model %d", data_idx, model_idx)
-                    transcriptions = transcribe_speech.main(cfg.transcription.copy())
+                    transcriptions = transcribe_speech.main(deepcopy(cfg.transcription))
                     LOG.info("Generating confidence scores")
                     for transcription in tqdm(transcriptions):
                         if cfg.tune_confidence:
