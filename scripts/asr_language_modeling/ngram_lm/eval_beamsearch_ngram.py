@@ -70,11 +70,11 @@ from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 
 # fmt: off
 
@@ -153,7 +153,7 @@ def beam_search_eval(
 
     # Update model's decoding strategy
     if isinstance(model, EncDecHybridRNNTCTCModel):
-        model.change_decoding_strategy(model.cfg.decoding, decoder_type = 'ctc')
+        model.change_decoding_strategy(model.cfg.decoding, decoder_type='ctc')
         model.decoding = model.ctc_decoding
     else:
         model.change_decoding_strategy(model.cfg.decoding)
@@ -326,7 +326,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
-                
+
         all_probs = all_logits
         if cfg.probs_cache_file:
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
