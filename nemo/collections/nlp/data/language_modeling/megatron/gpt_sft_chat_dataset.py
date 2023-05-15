@@ -154,6 +154,7 @@ def preprocess(
 class GPTSFTChatDataset(GPTSFTDataset):
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
+        assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
         assert '<extra_id_0>' in self.tokenizer.vocab, "<extra_id_0> not in the tokenizer vocab. not supported"
         assert '<extra_id_1>' in self.tokenizer.vocab, "<extra_id_1> not in the tokenizer vocab. not supported"
 
