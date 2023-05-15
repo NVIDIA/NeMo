@@ -1433,10 +1433,16 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         # If log_softmax is automatic
         if self.log_softmax is None:
             if not res.is_cuda:  # Use log softmax only if on CPU
-                res = (res / self.temperature).log_softmax(dim=-1)
+                if self.temperature != 1.0:
+                    res = (res / self.temperature).log_softmax(dim=-1)
+                else:
+                    res = res.log_softmax(dim=-1)
         else:
             if self.log_softmax:
-                res = (res / self.temperature).log_softmax(dim=-1)
+                if self.temperature != 1.0:
+                    res = (res / self.temperature).log_softmax(dim=-1)
+                else:
+                    res = res.log_softmax(dim=-1)
 
         return res
 

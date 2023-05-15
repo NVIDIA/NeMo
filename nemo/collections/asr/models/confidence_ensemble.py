@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Union
 import joblib
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -57,9 +57,8 @@ class ConfidenceEnsembleModel(ModelPT):
                 )
         else:
             self.num_models = len(cfg.load_models)
-            OmegaConf.set_struct(self.cfg, False)
-            self.cfg.num_models = self.num_models
-            OmegaConf.set_struct(self.cfg, True)
+            with open_dict(self.cfg):
+                self.cfg.num_models = self.num_models
             for idx, model in enumerate(cfg.load_models):
                 cfg_field = f"model{idx}"
                 if model.endswith(".nemo"):
@@ -73,9 +72,12 @@ class ConfidenceEnsembleModel(ModelPT):
                         cfg_field, config_field=cfg_field, model=ASRModel.from_pretrained(model, map_location="cpu"),
                     )
 
+        # registering model selection block - this is expected to be a joblib-saved
+        # pretrained sklearn pipeline containing standardization + logistic regression
+        # trained to predict "most-confident" model index from the confidence scores of all models
         model_selection_block_path = self.register_artifact("model_selection_block", cfg.model_selection_block)
         self.model_selection_block = joblib.load(model_selection_block_path)
-        self.confidence = ConfidenceConfig(**self.cfg.confidence)
+        self.confidence_cfg = ConfidenceConfig(**self.cfg.confidence)
 
         # making sure each model has correct confidence settings in the decoder strategy
         for model_idx in range(self.num_models):
@@ -94,13 +96,9 @@ class ConfidenceEnsembleModel(ModelPT):
 
     def update_decoding_parameters(self, decoding_cfg):
         """Updating confidence/temperature parameters of the config."""
-        OmegaConf.set_struct(decoding_cfg, False)
-        decoding_cfg.confidence_cfg = self.confidence
-        decoding_cfg.temperature = self.cfg.temperature
-        OmegaConf.set_struct(decoding_cfg, True)
-
-    def list_available_models(self):
-        return []
+        with open_dict(decoding_cfg):
+            decoding_cfg.confidence_cfg = self.confidence_cfg
+            decoding_cfg.temperature = self.cfg.temperature
 
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """Pass-through to the ensemble models.
@@ -130,7 +128,7 @@ class ConfidenceEnsembleModel(ModelPT):
         The only change here is that we always require frame-confidence to
         be returned.
         """
-        decoding_cfg.confidence_cfg = self.confidence
+        decoding_cfg.confidence_cfg = self.confidence_cfg
         for model_idx in range(self.num_models):
             model = getattr(self, f"model{model_idx}")
             if isinstance(model, EncDecHybridRNNTCTCModel):
@@ -160,7 +158,7 @@ class ConfidenceEnsembleModel(ModelPT):
             4. Return the output of that model
         """
         # TODO: lots of duplicate code with building ensemble script
-        aggr_func = get_confidence_aggregation_bank()[self.confidence.aggregation]
+        aggr_func = get_confidence_aggregation_bank()[self.confidence_cfg.aggregation]
         confidences = []
         all_transcriptions = []
         # always requiring to return hypothesis
@@ -200,3 +198,6 @@ class ConfidenceEnsembleModel(ModelPT):
             final_transcriptions.append(all_transcriptions[model_indices[transcrption_idx]][transcrption_idx])
 
         return final_transcriptions
+
+    def list_available_models(self):
+        return []

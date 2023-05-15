@@ -415,7 +415,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
 
-            self.joint.temperature = decoding_cfg.temperature
+            self.joint.temperature = decoding_cfg.get('temperature', 1.0)
 
             # Update config
             with open_dict(self.cfg.decoding):
@@ -444,7 +444,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 dist_sync_on_step=True,
             )
 
-            self.ctc_decoder.temperature = decoding_cfg.temperature
+            self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
 
             # Update config
             with open_dict(self.cfg.aux_ctc.decoding):

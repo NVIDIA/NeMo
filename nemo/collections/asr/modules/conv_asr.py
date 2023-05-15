@@ -456,9 +456,11 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
             encoder_output = self.forward_enabled_adapters(encoder_output)
             encoder_output = encoder_output.transpose(1, 2)  # [B, C, T]
 
-        return torch.nn.functional.log_softmax(
-            self.decoder_layers(encoder_output).transpose(1, 2) / self.temperature, dim=-1
-        )
+        if self.temperature != 1.0:
+            return torch.nn.functional.log_softmax(
+                self.decoder_layers(encoder_output).transpose(1, 2) / self.temperature, dim=-1
+            )
+        return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
     def input_example(self, max_batch=1, max_dim=256):
         """
