@@ -25,7 +25,7 @@ cd /workspace/nemo
 for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
 
-   RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
+   OMP_NUM_THREADS=12 RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
      python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
       --config-path=/workspace/nemo/examples/nlp/language_modeling/conf \
       --config-name=megatron_gpt_config \
@@ -55,7 +55,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.tokenizer.vocab_file=gpt2-vocab.json \
       model.tokenizer.merge_file=gpt2-merges.txt \
       model.data.data_prefix=[1.0,${TRAINING_DATA_FILE_PREFIX:?}] \
-      model.data.num_workers=2 \
+      model.data.num_workers=12 \
       model.data.seq_length=1024 \
       model.data.splits_string=\'949,50,1\' \
       model.optim.name=fused_adam \
