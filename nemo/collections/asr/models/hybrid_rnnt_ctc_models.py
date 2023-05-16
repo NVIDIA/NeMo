@@ -236,7 +236,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 if hasattr(self, 'ctc_decoder'):
                     self.ctc_decoder.unfreeze()
         if logprobs:
-            return logits_list, None
+            return logits_list
         else:
             return hypotheses, all_hypotheses
 
