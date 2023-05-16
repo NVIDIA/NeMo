@@ -583,7 +583,7 @@ def get_batch_variables(
 
     for i_line, line in enumerate(manifest_lines_batch):
         if align_using_pred_text:
-            gt_text_for_alignment = pred_text_batch[i_line]
+            gt_text_for_alignment = " ".join(pred_text_batch[i_line].split())
         else:
             gt_text_for_alignment = line["text"]
         utt_obj = get_utt_obj(
