@@ -27,7 +27,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
 
    RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
      python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-      --config-path=examples/nlp/language_modeling/conf \
+      --config-path=/workspace/nemo/examples/nlp/language_modeling/conf \
       --config-name=megatron_gpt_config \
       trainer.devices=$GPUS_PER_NODE \
       trainer.num_nodes=$NNODES \
@@ -71,7 +71,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.nsys_profile.end_step=${NSYS_PROFILE_END_STEP:=10} \
       model.nsys_profile.ranks=${NSYS_PROFILE_RANKS:="[0]"} \
       exp_manager.exp_dir=${NEMO_EXPERIMENT_ROOT_PATH:?} \
-      exp_manager.version=${JOB_TIMESTAMP:?} \
+      +exp_manager.version=${JOB_TIMESTAMP:?} \
       exp_manager.resume_if_exists=True \
       exp_manager.resume_ignore_no_checkpoint=True \
       exp_manager.create_checkpoint_callback=True \
