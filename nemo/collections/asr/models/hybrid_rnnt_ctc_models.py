@@ -348,7 +348,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
         self.ctc_decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.ctc_decoder.vocabulary)
-        self.decoding = self.ctc_decoding
 
         self.ctc_wer = WER(
             decoding=self.ctc_decoding,

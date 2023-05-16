@@ -156,8 +156,10 @@ def beam_search_eval(
     # Update model's decoding strategy
     if isinstance(model, EncDecHybridRNNTCTCModel):
         model.change_decoding_strategy(model.cfg.decoding, decoder_type='ctc')
+        decoding = model.ctc_decoding
     else:
         model.change_decoding_strategy(model.cfg.decoding)
+        decoding = model.decoding
     logging.setLevel(level)
 
     wer_dist_first = cer_dist_first = 0
@@ -188,7 +190,7 @@ def beam_search_eval(
                     probs_batch[prob_index], device=packed_batch.device, dtype=packed_batch.dtype
                 )
 
-            _, beams_batch = model.decoding.ctc_decoder_predictions_tensor(
+            _, beams_batch = decoding.ctc_decoder_predictions_tensor(
                 packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
             )
 
