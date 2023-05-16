@@ -118,22 +118,28 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
             raise ValueError(f"precision: {model.cfg['precision']} is not supported.")
 
     def forward(self, tokens, position_ids, attention_mask):
-        with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
-            enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
-        ), torch.no_grad(), torch.inference_mode(), torch.autocast(
-            'cuda', dtype=self.dtype
-        ), warnings.catch_warnings() if self.fp8_enabled and HAVE_TE else torch.no_grad(), torch.inference_mode(), torch.autocast(
-            'cuda', dtype=self.dtype
-        ), warnings.catch_warnings():
-            warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
-            assert tokens.shape == position_ids.shape
-            assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
-            output_tensor = self.model.forward(
-                tokens=tokens.cuda(),
-                text_position_ids=position_ids.cuda(),
-                attention_mask=attention_mask.cuda(),
-                labels=None,
-            )
+        if self.fp8_enabled and HAVE_TE:
+            with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe), torch.no_grad(), torch.inference_mode(), torch.autocast('cuda', dtype=self.dtype), warnings.catch_warnings():
+                warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
+                assert tokens.shape == position_ids.shape
+                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+                output_tensor = self.model.forward(
+                    tokens=tokens.cuda(),
+                    text_position_ids=position_ids.cuda(),
+                    attention_mask=attention_mask.cuda(),
+                    labels=None,
+                )
+        else:
+            with torch.no_grad(), torch.inference_mode(), torch.autocast('cuda', dtype=self.dtype), warnings.catch_warnings():
+                warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
+                assert tokens.shape == position_ids.shape
+                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+                output_tensor = self.model.forward(
+                    tokens=tokens.cuda(),
+                    text_position_ids=position_ids.cuda(),
+                    attention_mask=attention_mask.cuda(),
+                    labels=None,
+                )
 
         return output_tensor
 
@@ -155,22 +161,22 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "id_tensors": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "position_ids": NeuralType(('B', 'T'), ChannelType()),
             "attention_mask": NeuralType(('D', 'D', 'T', 'T'), ChannelType()),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"log_probs": NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {"logits": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def input_names(self) -> List[str]:
-        return ['id_tensors', 'position_ids', 'attention_mask']
+        return ['input_ids', 'position_ids', 'attention_mask']
 
     @property
     def output_names(self) -> List[str]:
-        return ['log_probs']
+        return ['logits']
 
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
@@ -1056,9 +1062,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def mgpt_wrapper(self):
-        return MegatronGPTExportableModel(self)
-
     def generate(
         self,
         inputs: Union[List[str], torch.Tensor, List[dict]],
@@ -1200,6 +1203,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+    @property
+    def mgpt_wrapper(self):
+        return MegatronGPTExportableModel(self)
+
+    def list_export_subnets(self):
+        return ['mgpt_wrapper']
 
     def _reset_activation_checkpointing_args(self):
         """ Disables activation checkpointing completely and saves the values so that
