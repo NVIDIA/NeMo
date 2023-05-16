@@ -246,7 +246,7 @@ class MegatronHiddensModule(torch.nn.Module):
             loss_dict.update(cur_loss_dict)
 
         loss_dict["loss"] = joint_loss
-        
+
         return loss_dict
 
     def get_enc_output(self, outputs):
