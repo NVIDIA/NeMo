@@ -118,8 +118,9 @@ class TestVADUtils:
         assert ref == hyp == pyannote_object_gt
 
         # test for list input
-        speech_segments_new = load_speech_segments_from_rttm(rttm_file)
-        frame_labels = get_frame_labels(speech_segments_new, 0.02, 0.0, 3.0, as_str=False)
+        speech_segments = load_speech_segments_from_rttm(rttm_file)
+        frame_labels = get_frame_labels(speech_segments, 0.02, 0.0, 3.0, as_str=False)
         speech_segments_new = convert_labels_to_speech_segments(frame_labels, 0.02)
+        assert speech_segments_new == speech_segments
         ref, hyp = frame_vad_construct_pyannote_object_per_file(frame_labels, frame_labels, 0.02)
         assert ref == hyp == pyannote_object_gt
