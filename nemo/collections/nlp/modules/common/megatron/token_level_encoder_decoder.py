@@ -599,6 +599,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     token_logits = self.tokens_head(dec_output)[0]
 
                 if labels is not None:
+                    # compute loss here
                     # [b, s] -> [s, b]
                     labels = labels.transpose(0, 1).contiguous()
 
@@ -615,15 +616,24 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
                     
-                    # if enc_output is a dict than  hidden transforms is used
-                    if isinstance(enc_output, dict):
-                        enc_output["tokens_loss"] = tokens_loss
-
-                    return tokens_loss
+                    # check if hiddens is used
+                    if self.enc_dec_model.hiddens_module is not None:
+                        loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(enc_output)
+                        loss_dict["tokens_loss"] = tokens_loss
+                        return loss_dict
+                    else:
+                        return tokens_loss
                 else:
+                    # else return token logits (and hiddens if needed)
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
-                    return token_logits
+                    if self.enc_dec_model.hiddens_module is not None:
+                        # return all hiddens and token logits
+                        hiddens_dict = enc_output
+                        hiddens_dict["token_logits"] = token_logits
+                        return hiddens_dict
+                    else:
+                        return token_logits
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
