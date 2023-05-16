@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import os
 import re
 from typing import Any, Dict, Optional, Union
@@ -148,6 +149,13 @@ class MegatronBaseModel(NLPModel):
             "default_on_epoch": False,
         }
 
+        self.gc_interval = cfg.get('gc_interval', 0)
+        assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
+        # If gc_interval > 0, memory garbage collection is manually controlled.
+        # The automatic garbage collector sould be disabled before training starts.
+        if self.gc_interval > 0:
+            gc.disable()
+
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
@@ -239,7 +247,8 @@ class MegatronBaseModel(NLPModel):
         params = []
         for param_group in self._optimizer_param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if param.requires_grad:  # (@adithyare) adapter training with pp>1 can result in params with no grads
+                    params.append(param)
         return params
 
     def configure_gradient_clipping(self, *args, **kwargs):
@@ -349,6 +358,9 @@ class MegatronBaseModel(NLPModel):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
+
+        if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
+            gc.collect()
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,

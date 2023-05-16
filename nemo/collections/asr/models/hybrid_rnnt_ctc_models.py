@@ -138,6 +138,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 num_workers=num_workers,
                 channel_selector=channel_selector,
                 augmentor=augmentor,
+                verbose=verbose,
             )
 
         if paths2audio_files is None or len(paths2audio_files) == 0:
@@ -345,6 +346,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             log_prediction=self.ctc_wer.log_prediction,
             dist_sync_on_step=True,
         )
+
+        self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
 
         # Update config
         with open_dict(self.cfg.aux_ctc):

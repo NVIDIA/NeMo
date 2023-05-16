@@ -90,6 +90,10 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
+
         # used in NVIDIA NGC PyTorch containers
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_lm_loss_buffer = []
@@ -152,6 +156,7 @@ class MegatronBertModel(MegatronBaseModel):
             init_method_std=cfg.get('init_method_std', 0.02),
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
+            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
@@ -309,9 +314,9 @@ class MegatronBertModel(MegatronBaseModel):
             forward_only=False,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
+            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
@@ -412,7 +417,7 @@ class MegatronBertModel(MegatronBaseModel):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
+            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
