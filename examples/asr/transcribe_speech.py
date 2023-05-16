@@ -15,7 +15,7 @@
 import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
@@ -25,6 +25,7 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -47,7 +48,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
 
   compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)
-  
+
   (Optionally: You can limit the type of timestamp computations using below overrides)
   ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
   rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
@@ -60,14 +61,19 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
-  allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available 
+  allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
 
   overwrite_transcripts: Bool which when set allows repeated transcriptions to overwrite previous results.
-  
+
   ctc_decoding: Decoding sub-config for CTC. Refer to documentation for specific values.
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
+
+  calculate_wer: Bool to decide whether to calculate wer/cer at end of this script
+  clean_groundtruth_text: Bool to clean groundtruth text
+  langid: Str used for convert_num_to_words during groundtruth cleaning
+  use_cer: Bool to use Character Error Rate (CER)  or Word Error Rate (WER)
 
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
@@ -82,6 +88,8 @@ python transcribe_speech.py \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
+    clean_groundtruth_text=True \
+    langid='en' \
     batch_size=32 \
     compute_timestamps=False \
     compute_langs=False \
@@ -149,9 +157,20 @@ class TranscriptionConfig:
     # Use this for model-specific changes before transcription
     model_change: ModelChangeConfig = ModelChangeConfig()
 
+    # Config for word / character error rate calculation
+    calculate_wer: bool = True
+    clean_groundtruth_text: bool = False
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    use_cer: bool = False
+
+    # can be set to True to return list of transcriptions instead of the config
+    # if True, will also skip writing anything to the output file
+    return_transcriptions: bool = False
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
-def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
+# just specifying List in the return type as otherwise it's too many things
+def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List]:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     for key in cfg:
@@ -209,9 +228,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # collect additional transcription information
     return_hypotheses = True
 
-    # we will adjust this flag is the model does not support it
+    # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
+
+    # Check whether model and decoder type match
+    if isinstance(asr_model, EncDecCTCModel):
+        if cfg.decoder_type and cfg.decoder_type != 'ctc':
+            raise ValueError('CTC model only support ctc decoding!')
+    elif isinstance(asr_model, EncDecHybridRNNTCTCModel):
+        if cfg.decoder_type and cfg.decoder_type not in ['ctc', 'rnnt']:
+            raise ValueError('Hybrid model only support ctc or rnnt decoding!')
+    else:  # rnnt model, there could be other models needs to be addressed.
+        if cfg.decoder_type and cfg.decoder_type != 'rnnt':
+            raise ValueError('RNNT model only support rnnt decoding!')
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
@@ -226,7 +256,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 decoding_cfg.preserve_alignments = cfg.compute_timestamps
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
-            asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+            if hasattr(asr_model, 'cur_decoder'):
+                asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+            else:
+                asr_model.change_decoding_strategy(decoding_cfg)
 
         # Check if ctc or rnnt model
         elif hasattr(asr_model, 'joint'):  # RNNT model
@@ -254,7 +287,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             cfg.decoding = cfg.rnnt_decoding
 
-    # prepare audio filepaths and decide wether it's partical audio
+    # prepare audio filepaths and decide wether it's partial audio
     filepaths, partial_audio = prepare_audio_data(cfg)
 
     # setup AMP (optional)
@@ -271,7 +304,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     cfg = compute_output_filename(cfg, model_name)
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
-    if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
+    if not cfg.return_transcriptions and not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
         logging.info(
             f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
             f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
@@ -321,8 +354,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
 
+    if cfg.return_transcriptions:
+        return transcriptions
+
     # write audio transcriptions
-    output_filename = write_transcription(
+    output_filename, pred_text_attr_name = write_transcription(
         transcriptions,
         cfg,
         model_name,
@@ -331,6 +367,19 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         compute_timestamps=compute_timestamps,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
+
+    if cfg.calculate_wer:
+        output_manifest_w_wer, total_res, _ = cal_write_wer(
+            pred_manifest=output_filename,
+            pred_text_attr_name=pred_text_attr_name,
+            clean_groundtruth_text=cfg.clean_groundtruth_text,
+            langid=cfg.langid,
+            use_cer=cfg.use_cer,
+            output_filename=None,
+        )
+        if output_manifest_w_wer:
+            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(f"{total_res}")
 
     return cfg
 
