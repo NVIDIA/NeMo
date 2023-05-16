@@ -272,7 +272,8 @@ class ConvSubsampling(torch.nn.Module):
             x, success = self.batch_split_conv(x)
             if not success:
                 if self._subsampling == 'dw_striding':
-                    x = self.time_split_conv(x)
+                    # x = self.time_split_conv(x)
+                    x = self.channel_split_conv(x)
                 else:
                     x = self.conv(x)  # try anyway
         else:
@@ -320,6 +321,24 @@ class ConvSubsampling(torch.nn.Module):
         logging.debug(f'conv subsampling: using split batch size {new_batch_size}')
         return torch.cat([self.conv(chunk) for chunk in torch.split(x, new_batch_size, 0)]), True
 
+    def channel_split_conv(self, x):
+        """ For dw convs, tries to split input by time, run conv and concat results """
+        x = self.conv[0](x)  # full conv2D
+        x = self.conv[1](x)  # activation
+
+        for i in range(self._sampling_num - 1):
+            p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
+            _, c, t, _ = x.size()
+            new_c = int(c // (2 ** p)) 
+            new_t = int(t // (2 ** (p + 1))) * 2  # forcing new_t to be even
+            logging.debug(f'conv dw subsampling: using split C size {new_c} and split T size {new_t}')
+            x = self.channel_chunked_conv(self.conv[i * 3 + 2], new_c, x)  # conv2D, depthwise
+
+            # splitting pointwise convs by time 
+            x = torch.cat([self.conv[i * 3 + 3](chunk) for chunk in torch.split(x, new_t, 2)], 2)  # conv2D, pointwise
+            x = self.conv[i * 3 + 4](x)  # activation
+        return x
+
     def time_split_conv(self, x):
         """ For dw convs, tries to split input by time, run conv and concat results """
         x = self.conv[0](x)  # full conv2D
@@ -330,13 +349,33 @@ class ConvSubsampling(torch.nn.Module):
             _, _, t, _ = x.size()
             new_t = int(t // (2 ** (p + 1))) * 2  # forcing new_t to be even
             logging.debug(f'conv dw subsampling: using split T size {new_t}')
-            x = self.chunked_conv(self.conv[i * 3 + 2], new_t, x)  # conv2D, depthwise
+            x = self.time_chunked_conv(self.conv[i * 3 + 2], new_t, x)  # conv2D, depthwise
             x = torch.cat([self.conv[i * 3 + 3](chunk) for chunk in torch.split(x, new_t, 2)], 2)  # conv2D, pointwise
             x = self.conv[i * 3 + 4](x)  # activation
         return x
 
-    def chunked_conv(self, conv, chunk_size, x):
-        """ Performs exact chunked convolution"""
+    def channel_chunked_conv(self, conv, chunk_size, x):
+        """ Performs channel chunked convolution"""
+
+        ind = 0
+        out_chunks = []
+        for chunk in torch.split(x, chunk_size, 1):
+            step = chunk.size()[1]
+            ch_out = nn.functional.conv2d(
+                chunk,
+                conv.weight[ind:ind+step,:,:,:], 
+                bias = conv.bias[ind:ind+step], 
+                stride = self._stride, 
+                padding=self._left_padding, 
+                groups = step
+            )
+            out_chunks.append(ch_out)
+            ind += step
+
+        return torch.cat(out_chunks, 1)
+
+    def time_chunked_conv(self, conv, chunk_size, x):
+        """ Performs exact time chunked convolution"""
         t_size = x.size()[2]
         i = 0
         out_chunks = []
