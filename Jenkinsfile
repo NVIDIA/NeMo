@@ -3400,10 +3400,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
         model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
         model.data.train_ds.num_workers=0 \
-        model.data.test_ds.micro_batch_size=1 \
-        model.data.test_ds.global_batch_size=4 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-        model.data.test_ds.names=[quarel,trec] \
         model.data.validation_ds.micro_batch_size=1 \
         model.data.validation_ds.global_batch_size=4 \
         model.data.validation_ds.num_workers=0 \
