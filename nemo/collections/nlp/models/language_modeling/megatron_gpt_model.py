@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import itertools
-import warnings
 import queue
+import warnings
 from functools import partial
-from typing import Any, Iterator, List, Optional, Union, Dict
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
 import torch
@@ -119,7 +119,11 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
 
     def forward(self, tokens, position_ids, attention_mask):
         if self.fp8_enabled and HAVE_TE:
-            with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe), torch.no_grad(), torch.inference_mode(), torch.autocast('cuda', dtype=self.dtype), warnings.catch_warnings():
+            with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
+                enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
+            ), torch.no_grad(), torch.inference_mode(), torch.autocast(
+                'cuda', dtype=self.dtype
+            ), warnings.catch_warnings():
                 warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
                 assert tokens.shape == position_ids.shape
                 assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
@@ -130,7 +134,9 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
                     labels=None,
                 )
         else:
-            with torch.no_grad(), torch.inference_mode(), torch.autocast('cuda', dtype=self.dtype), warnings.catch_warnings():
+            with torch.no_grad(), torch.inference_mode(), torch.autocast(
+                'cuda', dtype=self.dtype
+            ), warnings.catch_warnings():
                 warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
                 assert tokens.shape == position_ids.shape
                 assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
