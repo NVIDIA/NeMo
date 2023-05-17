@@ -19,16 +19,16 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
     ALiBiRelativePositionEmbedding,
 )
 from nemo.collections.nlp.modules.common.megatron.kerple_relative_position_embedding import (
     KERPLERelativePositionEmbedding,
 )
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -562,7 +562,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
         elif position_embedding_type == 'alibi':
             # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
-            # addition for decoder. Currently it is only used for decoder model only. 
+            # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
                 bidirectional=False,
@@ -574,7 +574,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
         elif position_embedding_type == 'kerple':
             # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
-            # addition for decoder. Currently it is only used for decoder model only. 
+            # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.decoder_relative_position_embedding = KERPLERelativePositionEmbedding(
                 bidirectional=False,
@@ -777,7 +777,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
         elif self.position_embedding_type == 'kerple':
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding
-            
 
         # encoder.
         if enc_hidden_states is None:
@@ -793,7 +792,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias
-                if encoder_self_attention_relative_position_bias is not None else None
+                if encoder_self_attention_relative_position_bias is not None
+                else None,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
