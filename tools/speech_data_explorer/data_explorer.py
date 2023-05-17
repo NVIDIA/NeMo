@@ -970,7 +970,6 @@ if comparison_mode:
         da['wer_' + Oy] = pd.Series(wer_tt2_c, index=da.index)
         da['cer_' + Ox] = pd.Series(cer_tt1_c, index=da.index)
         da['cer_' + Oy] = pd.Series(cer_tt2_c, index=da.index)
-        a = da
         return da.to_dict('records')
 
     data_with_metrics = write_metrics(data, model_name_1, model_name_2)
@@ -1310,10 +1309,6 @@ if args.show_statistics is not None:
         ]
     )
     def show_hide_element(visibility_state):
-        if args.show_statistics is not None:
-            a = {'border': 'none', 'width': '100%', 'height': '100%', 'display': 'block'}
-        else:
-            a = {'border': 'none', 'width': '100%', 'height': '100%', 'display': 'none'}
         if visibility_state == 'word level':
             return (
                 {'width': '50%', 'display': 'inline-block', 'float': 'middle'},
