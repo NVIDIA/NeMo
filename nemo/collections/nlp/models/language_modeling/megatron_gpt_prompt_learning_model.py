@@ -150,6 +150,10 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
         self.model_type = ModelType.encoder_or_decoder
 
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
+
         if self.pipeline_parallel:
             assert (
                 self.cfg.optim.sched.get("min_lr", 0.0) == 0.0
@@ -307,9 +311,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             forward_only=forward_only,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
@@ -646,7 +650,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         Used for generate method only for now.
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,

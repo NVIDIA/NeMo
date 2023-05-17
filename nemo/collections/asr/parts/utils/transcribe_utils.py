@@ -58,7 +58,8 @@ def get_buffered_pred_feat_rnnt(
             print("Parsing manifest files...")
             for l in mfst_f:
                 row = json.loads(l.strip())
-                filepaths.append(row['audio_filepath'])
+                audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
+                filepaths.append(audio_file)
                 if 'text' in row:
                     refs.append(row['text'])
 
@@ -149,8 +150,9 @@ def get_buffered_pred_feat(
                 row = json.loads(l.strip())
                 if 'text' in row:
                     refs.append(row['text'])
+                audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 # do not support partial audio
-                asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
+                asr.read_audio_file(audio_file, delay, model_stride_in_secs)
                 hyp = asr.transcribe(tokens_per_chunk, delay)
                 hyps.append(hyp)
 
@@ -276,7 +278,7 @@ def write_transcription(
     filepaths: List[str] = None,
     compute_langs: bool = False,
     compute_timestamps: bool = False,
-) -> str:
+) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
@@ -321,11 +323,11 @@ def write_transcription(
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
-                if not cfg.ctc_decoding.beam.return_best_hypothesis:
+                if not cfg.decoding.beam.return_best_hypothesis:
                     item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
-            with open(cfg.dataset_manifest, 'r', encoding='utf_8') as fr:
+            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item[pred_text_attr_name] = best_hyps[idx].text
@@ -344,11 +346,11 @@ def write_transcription(
                         item['pred_lang'] = best_hyps[idx].langs
                         item['pred_lang_chars'] = best_hyps[idx].langs_chars
 
-                    if not cfg.ctc_decoding.beam.return_best_hypothesis:
+                    if not cfg.decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename
+    return cfg.output_filename, pred_text_attr_name
 
 
 def transcribe_partial_audio(
@@ -360,11 +362,11 @@ def transcribe_partial_audio(
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
     augmentor: DictConfig = None,
+    decoder_type: Optional[str] = None,
 ) -> List[str]:
     """
-    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
-
-    assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
+    """
 
     if return_hypotheses and logprobs:
         raise ValueError(
@@ -381,6 +383,17 @@ def transcribe_partial_audio(
     device = next(asr_model.parameters()).device
     dither_value = asr_model.preprocessor.featurizer.dither
     pad_to_value = asr_model.preprocessor.featurizer.pad_to
+
+    if decoder_type is not None:  # Hybrid model
+        decode_function = (
+            asr_model.decoding.rnnt_decoder_predictions_tensor
+            if decoder_type == 'rnnt'
+            else asr_model.decoding.ctc_decoder_predictions_tensor
+        )
+    elif hasattr(asr_model, 'joint'):  # RNNT model
+        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
+    else:  # CTC model
+        decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
 
     try:
         asr_model.preprocessor.featurizer.dither = 0.0
@@ -404,18 +417,20 @@ def transcribe_partial_audio(
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            logits, logits_len, greedy_predictions = asr_model.forward(
+            outputs = asr_model.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
+            logits, logits_len = outputs[0], outputs[1]
             if logprobs:
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
                     lg = logits[idx][: logits_len[idx]]
                     hypotheses.append(lg.cpu().numpy())
             else:
-                current_hypotheses, all_hyp = asr_model.decoding.ctc_decoder_predictions_tensor(
-                    logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
-                )
+                current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
+
+                if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
+                    current_hypotheses = current_hypotheses[0]
 
                 if return_hypotheses:
                     # dump log probs per file
@@ -426,7 +441,6 @@ def transcribe_partial_audio(
 
                 hypotheses += current_hypotheses
 
-            del greedy_predictions
             del logits
             del test_batch
 
