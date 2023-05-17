@@ -2630,13 +2630,16 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             # Get max sequence length
             max_out_len = out_len.max()
 
+            # skip means the number of frames the next decoding step should "jump" to. When skip == 1
+            # it means the next decoding step will just use the next input frame.
             skip = 1
             for time_idx in range(max_out_len):
-                if skip > 1:
+                if skip > 1:  # if skip > 1 at the current step, we decrement it and skip the current frame.
                     skip -= 1
                     continue
                 f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
 
+                # need_to_stay is a boolean indicates whether the next decoding step should remain in the same frame.
                 need_to_stay = True
                 symbols_added = 0
 
@@ -2660,7 +2663,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                         g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
 
                     # Batched joint step - Output = [B, V + 1 + num-big-blanks]
-                    # If preserving per-frame confidence, log_normalize must be true
+                    # Note: log_normalize must not be True here since the joiner output is contanetation of both token logits and duration logits,
+                    # and they need to be normalized independently.
                     joined = self._joint_step(f, g, log_normalize=None)
                     logp = joined[:, 0, 0, : -len(self.durations)]
                     duration_logp = joined[:, 0, 0, -len(self.durations) :]
@@ -2669,15 +2673,20 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                         logp = logp.float()
                         duration_logp = duration_logp.float()
 
-                    # Get index k, of max prob for batch
+                    # get the max for both token and duration predictions.
                     v, k = logp.max(1)
                     dv, dk = duration_logp.max(1)
 
+                    # here we set the skip value to be the minimum of all predicted durations, hense the "torch.min(dk)" call there.
+                    # Please refer to Section 5.2 of our paper https://arxiv.org/pdf/2304.06795.pdf for explanation of this.
                     skip = self.durations[int(torch.min(dk))]
 
+                    # this is a special case: if all batches emit blanks, we require that skip be at least 1
+                    # so we don't loop forever at the current frame.
                     if blank_mask.all():
                         if skip == 0:
                             skip = 1
+
                     need_to_stay = skip == 0
                     del g
 
@@ -2697,7 +2706,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
 
                         # Recover prior state for all samples which predicted blank now/past
                         if hidden is not None:
-                            # LSTM has 2 states
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
                         elif len(blank_indices) > 0 and hidden is None:
@@ -2754,200 +2762,4 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         device: torch.device,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
-        if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not supported")
-
-        # x: [B, T, D]
-        # out_len: [B]
-        # device: torch.device
-
-        # Initialize state
-        batchsize = x.shape[0]
-        hypotheses = [
-            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
-        ]
-
-        # Initialize Hidden state matrix (shared by entire batch)
-        hidden = None
-
-        # If alignments need to be preserved, register a danling list to hold the values
-        if self.preserve_alignments:
-            # alignments is a 3-dimensional dangling list representing B x T x U
-            for hyp in hypotheses:
-                hyp.alignments = [[]]
-        else:
-            hyp.alignments = None
-
-        # If confidence scores need to be preserved, register a danling list to hold the values
-        if self.preserve_frame_confidence:
-            # frame_confidence is a 3-dimensional dangling list representing B x T x U
-            for hyp in hypotheses:
-                hyp.frame_confidence = [[]]
-
-        # Last Label buffer + Last Label without blank buffer
-        # batch level equivalent of the last_label
-        last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long, device=device)
-        last_label_without_blank = last_label.clone()
-
-        # Mask buffers
-        blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-
-        # Get max sequence length
-        max_out_len = out_len.max()
-
-        with torch.inference_mode():
-            for time_idx in range(max_out_len):
-                f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
-
-                # Prepare t timestamp batch variables
-                not_blank = True
-                symbols_added = 0
-
-                # Reset blank mask
-                blank_mask.mul_(False)
-
-                # Update blank mask with time mask
-                # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
-                # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
-                blank_mask = time_idx >= out_len
-
-                # Start inner loop
-                while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
-                    # Batch prediction and joint network steps
-                    # If very first prediction step, submit SOS tag (blank) to pred_step.
-                    # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
-                    if time_idx == 0 and symbols_added == 0 and hidden is None:
-                        g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
-                    else:
-                        # Set a dummy label for the blank value
-                        # This value will be overwritten by "blank" again the last label update below
-                        # This is done as vocabulary of prediction network does not contain "blank" token of RNNT
-                        last_label_without_blank_mask = last_label >= self._blank_index
-                        last_label_without_blank[last_label_without_blank_mask] = 0  # temp change of label
-                        last_label_without_blank[~last_label_without_blank_mask] = last_label[
-                            ~last_label_without_blank_mask
-                        ]
-
-                        # Perform batch step prediction of decoder, getting new states and scores ("g")
-                        g, hidden_prime = self._pred_step(last_label_without_blank, hidden, batch_size=batchsize)
-
-                    # Batched joint step - Output = [B, V + 1 + num-big-blanks]
-                    # If preserving per-frame confidence, log_normalize must be true
-                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
-                        :, 0, 0, :
-                    ]
-
-                    if logp.dtype != torch.float32:
-                        logp = logp.float()
-
-                    # Get index k, of max prob for batch
-                    v, k = logp.max(1)
-                    del g
-
-                    # Update blank mask with current predicted blanks
-                    # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
-                    k_is_blank = k == self._blank_index
-                    blank_mask.bitwise_or_(k_is_blank)
-
-                    # If preserving alignments, check if sequence length of sample has been reached
-                    # before adding alignment
-                    if self.preserve_alignments:
-                        # Insert logprobs into last timestep per sample
-                        logp_vals = logp.to('cpu')
-                        logp_ids = logp_vals.max(1)[1]
-                        for batch_idx in range(batchsize):
-                            if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].alignments[-1].append(
-                                    (logp_vals[batch_idx], logp_ids[batch_idx])
-                                )
-                        del logp_vals
-
-                    # If preserving per-frame confidence, check if sequence length of sample has been reached
-                    # before adding confidence scores
-                    if self.preserve_frame_confidence:
-                        # Insert probabilities into last timestep per sample
-                        confidence = self._get_confidence(logp)
-                        for batch_idx in range(batchsize):
-                            if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].frame_confidence[-1].append(confidence[batch_idx])
-                    del logp
-
-                    # If all samples predict / have predicted prior blanks, exit loop early
-                    # This is equivalent to if single sample predicted k
-                    if blank_mask.all():
-                        not_blank = False
-
-                        # If preserving alignments, convert the current Uj alignments into a torch.Tensor
-                        # Then preserve U at current timestep Ti
-                        # Finally, forward the timestep history to Ti+1 for that sample
-                        # All of this should only be done iff the current time index <= sample-level AM length.
-                        # Otherwise ignore and move to next sample / next timestep.
-                        if self.preserve_alignments:
-
-                            # convert Ti-th logits into a torch array
-                            for batch_idx in range(batchsize):
-
-                                # this checks if current timestep <= sample-level AM length
-                                # If current timestep > sample-level AM length, no alignments will be added
-                                # Therefore the list of Uj alignments is empty here.
-                                if len(hypotheses[batch_idx].alignments[-1]) > 0:
-                                    hypotheses[batch_idx].alignments.append([])  # blank buffer for next timestep
-
-                        # Do the same if preserving per-frame confidence
-                        if self.preserve_frame_confidence:
-
-                            for batch_idx in range(batchsize):
-                                if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
-                                    hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
-                    else:
-                        # Collect batch indices where blanks occurred now/past
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
-
-                        # Recover prior state for all samples which predicted blank now/past
-                        if hidden is not None:
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
-
-                        elif len(blank_indices) > 0 and hidden is None:
-                            # Reset state if there were some blank and other non-blank predictions in batch
-                            # Original state is filled with zeros so we just multiply
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
-
-                        # Recover prior predicted label for all samples which predicted blank now/past
-                        k[blank_indices] = last_label[blank_indices, 0]
-
-                        # Update new label and hidden state for next iteration
-                        last_label = k.view(-1, 1)
-                        hidden = hidden_prime
-
-                        # Update predicted labels, accounting for time mask
-                        # If blank was predicted even once, now or in the past,
-                        # Force the current predicted label to also be blank
-                        # This ensures that blanks propogate across all timesteps
-                        # once they have occured (normally stopping condition of sample level loop).
-                        for kidx, ki in enumerate(k):
-                            if blank_mask[kidx] == 0:
-                                hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
-                                hypotheses[kidx].score += float(v[kidx])
-
-                    symbols_added += 1
-
-        # Remove trailing empty list of alignments at T_{am-len} x Uj
-        if self.preserve_alignments:
-            for batch_idx in range(batchsize):
-                if len(hypotheses[batch_idx].alignments[-1]) == 0:
-                    del hypotheses[batch_idx].alignments[-1]
-
-        # Remove trailing empty list of confidence scores at T_{am-len} x Uj
-        if self.preserve_frame_confidence:
-            for batch_idx in range(batchsize):
-                if len(hypotheses[batch_idx].frame_confidence[-1]) == 0:
-                    del hypotheses[batch_idx].frame_confidence[-1]
-
-        # Preserve states
-        for batch_idx in range(batchsize):
-            hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
-
-        return hypotheses
+        raise NotImplementedError("masked greedy-batched decode is not supported for TDT models.")
