@@ -160,15 +160,19 @@ class BertExampleBuilder(object):
         if not ref.count(";") == 9:
             raise ValueError("Expect 10 candidates: " + ref)
 
-        span_info_parts = span_info.split(";")
-        targets = list(map(int, target.split(" ")))
-        if len(span_info_parts) != len(targets):
-            raise ValueError(
-                "len(span_info_parts)="
-                + str(len(span_info_parts))
-                + " is different from len(target_parts)="
-                + str(len(targets))
-            )
+        span_info_parts = []
+        targets = []
+
+        if len(target) > 0:
+            span_info_parts = span_info.split(";")
+            targets = list(map(int, target.split(" ")))
+            if len(span_info_parts) != len(targets):
+                raise ValueError(
+                    "len(span_info_parts)="
+                    + str(len(span_info_parts))
+                    + " is different from len(target_parts)="
+                    + str(len(targets))
+                )
 
         tags = [0 for _ in hyp.split()]
         if not infer:
