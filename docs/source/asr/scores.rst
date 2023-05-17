@@ -31,6 +31,13 @@ EN
 .. csv-table::
     :header-rows: 1
     :align: left
+    :file: data/scores/en/fastconformer_en.csv
+                
+--------------------
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
     :file: data/scores/en/jasper10x5dr_en.csv
                 
 --------------------
@@ -56,6 +63,16 @@ BE
     :header-rows: 1
     :align: left
     :file: data/scores/be/conformer_be.csv
+    
+--------------------
+
+BY
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/by/fastconformer_by.csv
     
 --------------------
 
@@ -103,6 +120,13 @@ DE
 .. csv-table::
     :header-rows: 1
     :align: left
+    :file: data/scores/de/fastconformer_de.csv
+    
+--------------------
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
     :file: data/scores/de/quartznet15x5_de.csv
     
 --------------------
@@ -121,6 +145,16 @@ ENES
     :header-rows: 1
     :align: left
     :file: data/scores/enes/contextnet_enes.csv
+    
+--------------------
+
+EO
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/eo/conformer_eo.csv
     
 --------------------
 
@@ -145,6 +179,13 @@ ES
     :header-rows: 1
     :align: left
     :file: data/scores/es/contextnet_es.csv
+    
+--------------------
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/es/fastconformer_es.csv
     
 --------------------
 
@@ -196,8 +237,29 @@ HR
     
 --------------------
 
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/hr/fastconformer_hr.csv
+    
+--------------------
+
 IT
 ^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/it/conformer_it.csv
+    
+--------------------
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/it/fastconformer_it.csv
+    
+--------------------
 
 .. csv-table::
     :header-rows: 1
@@ -222,12 +284,26 @@ PL
 .. csv-table::
     :header-rows: 1
     :align: left
+    :file: data/scores/pl/fastconformer_pl.csv
+    
+--------------------
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
     :file: data/scores/pl/quartznet15x5_pl.csv
     
 --------------------
 
 RU
 ^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/ru/conformer_ru.csv
+    
+--------------------
 
 .. csv-table::
     :header-rows: 1
@@ -246,6 +322,16 @@ RW
     
 --------------------
 
+UA
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/ua/fastconformer_ua.csv
+    
+--------------------
+
 ZH
 ^^
 
@@ -260,6 +346,91 @@ ZH
     :header-rows: 1
     :align: left
     :file: data/scores/zh/conformer_zh.csv
+    
+--------------------
+
+
+
+Scores with Punctuation and Capitalization
+------------------------------------------
+
+EN with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/en/fastconformer_en.csv
+                
+--------------------
+
+BY with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/by/fastconformer_by.csv
+    
+--------------------
+
+DE with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/de/fastconformer_de.csv
+    
+--------------------
+
+ES with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/es/fastconformer_es.csv
+    
+--------------------
+
+HR with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/hr/fastconformer_hr.csv
+    
+--------------------
+
+IT with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/it/fastconformer_it.csv
+    
+--------------------
+
+PL with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/pl/fastconformer_pl.csv
+    
+--------------------
+
+UA with P&C
+^^^^^^^^^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores_pc/ua/fastconformer_ua.csv
     
 --------------------
 

@@ -31,15 +31,25 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def bert_extended_attention_mask(attention_mask):
@@ -162,6 +172,7 @@ class BertModel(MegatronModule):
         init_method_std=0.02,
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
@@ -209,6 +220,7 @@ class BertModel(MegatronModule):
             post_process=self.post_process,
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,

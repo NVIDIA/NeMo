@@ -31,13 +31,16 @@ from nemo.collections.asr.data.text_to_text import (
     TextToTextDataset,
     TextToTextIterableDataset,
 )
-from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
+from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
 from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
 from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
@@ -87,7 +90,7 @@ class ASRWithTTSModel(ASRModel):
     Text-only data can be mixed with audio-text pairs
     """
 
-    asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE]
+    asr_model: Union[EncDecRNNTBPEModel, EncDecCTCModelBPE, EncDecHybridRNNTCTCBPEModel]
     tts_model: FastPitchModel
     enhancer_model: Optional[SpectrogramEnhancerModel]
 
@@ -98,6 +101,7 @@ class ASRWithTTSModel(ASRModel):
 
         RNNT_BPE = "rnnt_bpe"
         CTC_BPE = "ctc_bpe"
+        HYBRID_RNNT_CTC_BPE = "hybrid_rnnt_ctc_bpe"
 
         @classmethod
         def from_asr_model(cls, model: Any):
@@ -105,6 +109,8 @@ class ASRWithTTSModel(ASRModel):
                 return cls.RNNT_BPE
             if isinstance(model, EncDecCTCModelBPE):
                 return cls.CTC_BPE
+            if isinstance(model, EncDecHybridRNNTCTCBPEModel):
+                return cls.HYBRID_RNNT_CTC_BPE
             raise ValueError(f"Unsupported model type: {type(model)}")
 
         def get_asr_cls(self):
@@ -112,6 +118,8 @@ class ASRWithTTSModel(ASRModel):
                 return EncDecRNNTBPEModel
             if self == self.CTC_BPE:
                 return EncDecCTCModelBPE
+            if self == self.HYBRID_RNNT_CTC_BPE:
+                return EncDecHybridRNNTCTCBPEModel
             raise NotImplementedError(f"Not implemented for value {self.value}")
 
     @classmethod
@@ -339,9 +347,9 @@ class ASRWithTTSModel(ASRModel):
         """Test epoch end hook for ASR model"""
         return self.asr_model.multi_test_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
 
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, verbose: bool = True) -> List[str]:
         """Transcribe audio data using ASR model"""
-        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size)
+        return self.asr_model.transcribe(paths2audio_files=paths2audio_files, batch_size=batch_size, verbose=verbose)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """Setup multiple validation data for ASR model"""
@@ -402,7 +410,11 @@ class ASRWithTTSModel(ASRModel):
         with torch.no_grad():
             spectrogram, spectrogram_len, *_ = self.tts_model(text=tts_texts, durs=None, pitch=None, speaker=speakers)
             if self.enhancer_model is not None:
-                spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
+                # apply enhancer
+                with typecheck.disable_checks():
+                    # spectrogram_len are of TokenDurationType, enhancer requires LengthsType
+                    # TODO: fix FastPitch model to return LengthsType
+                    spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
             spectrogram, *_ = normalize_batch(spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize)
             return spectrogram, spectrogram_len
 
@@ -493,10 +505,14 @@ class ASRWithTTSModel(ASRModel):
         if tts_dataset:
             collate_fn = tts_dataset.collate_fn
         else:
-            if hasattr(asr_dataset, "collate_fn"):
+            if hasattr(asr_dataset, 'collate_fn'):
                 collate_fn = asr_dataset.collate_fn
-            else:
+            elif hasattr(asr_dataset.datasets[0], 'collate_fn'):
+                # support datasets that are lists of entries
                 collate_fn = asr_dataset.datasets[0].collate_fn
+            else:
+                # support datasets that are lists of lists
+                collate_fn = asr_dataset.datasets[0].datasets[0].collate_fn
 
         shuffle = train_data_config.get("shuffle", True) and not dataset_iterable
         self._train_dl = torch.utils.data.DataLoader(
@@ -530,7 +546,7 @@ class ASRWithTTSModel(ASRModel):
                 manifest_filepath=text_data_config.manifest_filepath,
                 speakers_filepath=text_data_config.speakers_filepath,
                 asr_tokenizer=self.asr_model.tokenizer,
-                asr_use_start_end_token=train_data_config.use_start_end_token,
+                asr_use_start_end_token=train_data_config.get("use_start_end_token", False),
                 tts_parser=self.tts_model.parser,
                 tts_text_pad_id=self.tts_model.vocab.pad,
                 tts_text_normalizer=self.tts_model.normalizer,
@@ -546,7 +562,7 @@ class ASRWithTTSModel(ASRModel):
                 manifest_filepath=text_data_config.manifest_filepath,
                 speakers_filepath=text_data_config.speakers_filepath,
                 asr_tokenizer=self.asr_model.tokenizer,
-                asr_use_start_end_token=train_data_config.use_start_end_token,
+                asr_use_start_end_token=train_data_config.get("use_start_end_token", False),
                 tts_parser=self.tts_model.parser,
                 tts_text_pad_id=self.tts_model.vocab.pad,
                 tts_text_normalizer=self.tts_model.normalizer,

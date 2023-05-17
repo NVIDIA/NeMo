@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import os
 import re
 from typing import Any, Dict, Optional, Union
@@ -30,18 +31,29 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
-    from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronBaseModel"]
 
@@ -63,13 +75,15 @@ class MegatronBaseModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
-        # FIXME: switch to self._cfg
-        if not HAVE_APEX:
+
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 
@@ -86,16 +100,29 @@ class MegatronBaseModel(NLPModel):
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_loss_buffer = []
 
+        # Overrides used when converting checkpoints
+        if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
+            app_state = AppState()
+            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+            init_global_rank = app_state.global_rank
+            init_local_rank = app_state.local_rank
+        else:
+            init_world_size = trainer.world_size
+            init_global_rank = trainer.global_rank
+            init_local_rank = trainer.local_rank
+
         initialize_model_parallel_for_nemo(
-            world_size=trainer.world_size,
-            global_rank=trainer.global_rank,
-            local_rank=trainer.local_rank,
+            world_size=init_world_size,
+            global_rank=init_global_rank,
+            local_rank=init_local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
+            rampup_batch_size=cfg.get('rampup_batch_size'),
+            use_fp8=cfg.get('fp8', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -121,6 +148,13 @@ class MegatronBaseModel(NLPModel):
             "default_on_step": True,
             "default_on_epoch": False,
         }
+
+        self.gc_interval = cfg.get('gc_interval', 0)
+        assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
+        # If gc_interval > 0, memory garbage collection is manually controlled.
+        # The automatic garbage collector sould be disabled before training starts.
+        if self.gc_interval > 0:
+            gc.disable()
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -213,7 +247,8 @@ class MegatronBaseModel(NLPModel):
         params = []
         for param_group in self._optimizer_param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if param.requires_grad:  # (@adithyare) adapter training with pp>1 can result in params with no grads
+                    params.append(param)
         return params
 
     def configure_gradient_clipping(self, *args, **kwargs):
@@ -268,7 +303,7 @@ class MegatronBaseModel(NLPModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
-    def reduce_overlap_gradients(self):
+    def reduce_overlap_gradients(self, params=None):
         """Reduce grads if overlapped grad sync is enabled
 
         Used for pipeline parallelism with the distributed Adam
@@ -277,13 +312,17 @@ class MegatronBaseModel(NLPModel):
         stages, the grad sync is deferred until the bubble overhead.
 
         """
-        if self.with_distributed_adam:
-            self._optimizer.try_grad_sync(
-                p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
-            )
+        if self.with_distributed_adam and self._optimizer.overlap_grad_sync:
+            if params is None:
+                params = self._optimizer.parameters()
+            self._optimizer.try_grad_sync(params)
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
+    def sync_overlap_parameters(self, params=None):
+        if self.with_distributed_adam:
+            self._optimizer._try_start_bucket_param_sync(params)
+
+    def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
@@ -320,6 +359,9 @@ class MegatronBaseModel(NLPModel):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
+        if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
+            gc.collect()
+
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -330,20 +372,29 @@ class MegatronBaseModel(NLPModel):
             optim_kwargs['contiguous_grad_buffer'] = True
             optim_kwargs['contiguous_param_buffer'] = True
 
-            if self.megatron_amp_o2:
-                # Match param allgather with model dtype
-                if hasattr(self, 'autocast_dtype'):
-                    optim_kwargs['param_sync_dtype'] = self.autocast_dtype
-                    if self.autocast_dtype == torch.float:
-                        optim_kwargs['store_params'] = False
-                    elif self.autocast_dtype == torch.float16:
-                        optim_kwargs['store_params'] = True
-                    elif self.autocast_dtype == torch.bfloat16:
-                        optim_kwargs['store_params'] = False
-                        optim_kwargs['store_param_remainders'] = True
-            else:
-                # Assume FP32 params, so no need to store main params
+            # Make sure optimizer state is in FP32
+            optim_dtype = torch.float32
+            optim_kwargs['dtype'] = optim_dtype
+
+            # Make sure embedding grad reductions are in FP32
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name:
+                    param._with_fp32_optimizer = True
+
+            # Match param allgather with model dtype
+            model_dtype = torch.float32
+            if self.megatron_amp_o2 and hasattr(self, 'autocast_dtype'):
+                model_dtype = self.autocast_dtype
+            optim_kwargs['param_sync_dtype'] = model_dtype
+
+            # Determine whether to store master params in optimizer
+            if optim_dtype == model_dtype:
                 optim_kwargs['store_params'] = False
+            elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
+                optim_kwargs['store_params'] = False
+                optim_kwargs['store_param_remainders'] = True
+            else:
+                optim_kwargs['store_params'] = True
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -508,17 +559,20 @@ class MegatronBaseModel(NLPModel):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
             )
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() > 1
+                and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 # substract the embedding weights on the last virtual stage
                 num_word_embedding_parameters = sum([p.nelement() for p in model[-1].word_embeddings_weight()])
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
-
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() > 1
+                and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 # substract the embedding weights on the last stage
                 num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])

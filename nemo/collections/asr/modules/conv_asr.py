@@ -38,7 +38,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
@@ -53,7 +53,7 @@ from nemo.utils import logging
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
-class ConvASREncoder(NeuralModule, Exportable):
+class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
 
@@ -135,7 +135,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         residual_panes = []
         encoder_layers = []
         self.dense_residual = False
-        for lcfg in jasper:
+        for layer_idx, lcfg in enumerate(jasper):
             dense_res = []
             if lcfg.get('residual_dense', False):
                 residual_panes.append(feat_in)
@@ -179,6 +179,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                     stride_last=stride_last,
                     future_context=future_context,
                     quantize=quantize,
+                    layer_idx=layer_idx,
                 )
             )
             feat_in = lcfg['filters']
@@ -444,6 +445,9 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         accepted_adapters = [adapter_utils.LINEAR_ADAPTER_CLASSPATH]
         self.set_accepted_adapter_types(accepted_adapters)
 
+        # to change, requires running ``model.temperature = T`` explicitly
+        self.temperature = 1.0
+
     @typecheck()
     def forward(self, encoder_output):
         # Adapter module forward step
@@ -452,6 +456,10 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
             encoder_output = self.forward_enabled_adapters(encoder_output)
             encoder_output = encoder_output.transpose(1, 2)  # [B, C, T]
 
+        if self.temperature != 1.0:
+            return torch.nn.functional.log_softmax(
+                self.decoder_layers(encoder_output).transpose(1, 2) / self.temperature, dim=-1
+            )
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
     def input_example(self, max_batch=1, max_dim=256):

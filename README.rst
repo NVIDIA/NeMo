@@ -1,5 +1,5 @@
 
-|status| |documentation| |license| |lgtm_grade| |lgtm_alerts| |black|
+|status| |documentation| |codeql| |license| |pypi| |pyversion| |downloads| |black|
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -13,13 +13,21 @@
   :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
   :alt: NeMo core license and license for collections in this repo
 
-.. |lgtm_grade| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
-  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
-  :alt: Language grade: Python
+.. |pypi| image:: https://badge.fury.io/py/nemo-toolkit.svg
+  :target: https://badge.fury.io/py/nemo-toolkit
+  :alt: Release version
 
-.. |lgtm_alerts| image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
-  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
-  :alt: Total alerts
+.. |pyversion| image:: https://img.shields.io/pypi/pyversions/nemo-toolkit.svg
+  :target: https://badge.fury.io/py/nemo-toolkit
+  :alt: Python version
+
+.. |downloads| image:: https://static.pepy.tech/personalized-badge/nemo-toolkit?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=downloads
+  :target: https://pepy.tech/project/nemo-toolkit
+  :alt: PyPi total downloads
+
+.. |codeql| image:: https://github.com/nvidia/nemo/actions/workflows/codeql.yml/badge.svg?branch=main&event=push
+  :target: https://github.com/nvidia/nemo/actions/workflows/codeql.yml
+  :alt: CodeQL
 
 .. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
   :target: https://github.com/psf/black
@@ -47,13 +55,17 @@ NeMo models can be optimized for inference and deployed for production use-cases
 Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
 `NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
-These models can be used to transcribe audio, synthesize speech, or translate text in a just a few lines of code.
+These models can be used to transcribe audio, synthesize speech, or translate text in just a few lines of code.
 
-We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
+We have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
 can all be run on `Google Colab <https://colab.research.google.com>`_.
 
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models 
 we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
+
+For scaling NeMo LLM training on Slurm clusters or public clouds, please see the `NVIDIA NeMo Megatron Launcher <https://github.com/NVIDIA/NeMo-Megatron-Launcher>`_.
+The NM launcher has extensive recipes, scripts, utilities, and documentation for training NeMo LLMs and also has an `Autoconfigurator <https://github.com/NVIDIA/NeMo-Megatron-Launcher#53-using-autoconfigurator-to-find-the-optimal-configuration>`_ 
+which can be used to find the optimal model parallel configuration for training on a specific cluster.
 
 Also see our `introductory video <https://www.youtube.com/embed/wBgpMf_KQVw>`_ for a high level overview of NeMo.
 
@@ -63,12 +75,20 @@ Key Features
 * Speech processing
     * `HuggingFace Space for Audio Transcription (File, Microphone and YouTube) <https://huggingface.co/spaces/smajumdar/nemo_multilingual_language_id>`_
     * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_
-        * Supported models: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, Squeezeformer-CTC, Squeezeformer-Transducer, ContextNet, LSTM-Transducer (RNNT), LSTM-CTC, FastConformer-CTC, FastConformer-Transducer...
-        * Supports CTC and Transducer/RNNT losses/decoders
+        * Supported ASR models: `<https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html>`_
+            * Jasper, QuartzNet, CitriNet, ContextNet
+            * Conformer-CTC, Conformer-Transducer, FastConformer-CTC, FastConformer-Transducer
+            * Squeezeformer-CTC and Squeezeformer-Transducer
+            * LSTM-Transducer (RNNT) and LSTM-CTC
+        * Supports the following decoders/losses:
+            * CTC
+            * Transducer/RNNT
+            * Hybrid Transducer/CTC
             * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_
+        * Streaming/Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_chunked_inference>`_
+        * Cache-aware Streaming Conformer - `<https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer>`_
         * Beam Search decoding
         * `Language Modelling for ASR <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
-        * Streaming and Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_chunked_inference>`_
         * `Support of long audios for Conformer with memory efficient local attention <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html#inference-on-long-audio>`_
     * `Speech Classification, Speech Command Recognition and Language Identification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (Command Recognition), AmberNet (LangID)
     * `Voice activity Detection (VAD) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/speech_classification/models.html#marblenet-vad>`_: MarbleNet
@@ -86,12 +106,12 @@ Key Features
     * `Punctuation and Capitalization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_
     * `Token classification (named entity recognition) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/token_classification.html>`_
     * `Text classification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_classification.html>`_
-    * `Joint Intent and Slot Classification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/joint_intent_slot.html>`_    
+    * `Joint Intent and Slot Classification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/joint_intent_slot.html>`_
     * `Question answering <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/question_answering.html>`_
     * `GLUE benchmark <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/glue_benchmark.html>`_
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
     * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
-    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_   
+    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_
     * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
     * `Synthetic Tabular Data Generation <https://developer.nvidia.com/blog/generating-synthetic-data-with-transformers-a-solution-for-enterprise-data-challenges/>`_
@@ -104,6 +124,7 @@ Key Features
     * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization/intro.html>`_
     * `CTC-Segmentation tool <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_
     * `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html>`_: a dash-based tool for interactive exploration of ASR/TTS datasets
+    * `Speech Data Processor <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/speech_data_processor.html>`_
 
 
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
@@ -155,18 +176,16 @@ We recommend installing NeMo in a fresh Conda environment.
 
 .. code-block:: bash
 
-    conda create --name nemo python==3.8
+    conda create --name nemo python==3.8.10
     conda activate nemo
 
-Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_. 
+Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_.
 
 .. code-block:: bash
 
-    conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
+    conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
-.. note::
-
-  The command used to install PyTorch may depend on your system.
+The command used to install PyTorch may depend on your system. Please use the configurator linked above to find the right command for your system.
 
 Pip
 ~~~
@@ -178,13 +197,11 @@ Use this installation mode if you want the latest released version.
     pip install Cython
     pip install nemo_toolkit['all']
 
-.. note::
-
-    Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
 
 Pip from source
 ~~~~~~~~~~~~~~~
-Use this installation mode if you want the a version from particular GitHub branch (e.g main).
+Use this installation mode if you want the version from a particular GitHub branch (e.g main).
 
 .. code-block:: bash
 
@@ -204,10 +221,8 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
-.. note::
-
-    If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
-    with ``pip install -e .`` when your PWD is the root of the NeMo repository.
+If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
+with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
 RNNT
 ~~~~
@@ -224,60 +239,80 @@ NeMo Megatron
 NeMo Megatron training requires NVIDIA Apex to be installed.
 Install it manually if not using the NVIDIA PyTorch container.
 
+To install Apex, run
+
 .. code-block:: bash
 
-    git clone https://github.com/ericharper/apex.git
+    git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout nm_v1.15.0
+    git checkout 57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+
+It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.
+
+While installing Apex, it may raise an error if the CUDA version on your system does not match the CUDA version torch was compiled with.
+This raise can be avoided by commenting it here: https://github.com/NVIDIA/apex/blob/master/setup.py#L32
+
+cuda-nvprof is needed to install Apex. The version should match the CUDA version that you are using:
+
+.. code-block:: bash
+
+  conda install -c nvidia cuda-nvprof=11.8
+
+packaging is also needed:
+
+.. code-block:: bash
+
+  pip install -y packaging
+
 
 Transformer Engine
 ~~~~~~~~~~~~~~~~~~
-NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_ 
+NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
 Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 `Install <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_ it manually if not using the NVIDIA PyTorch container.
 
-.. note::
+.. code-block:: bash
 
-  Transformer Engine requires PyTorch to be built with CUDA 11.8.
+  pip install --upgrade git+https://github.com/NVIDIA/TransformerEngine.git@stable
+
+It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Transformer Engine or any other dependencies.
+
+Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
-NeMo Text Processing, specifically (Inverse) Text Normalization, requires `Pynini <https://pypi.org/project/pynini/>`_ to be installed.
-
-.. code-block:: bash
-
-    bash NeMo/nemo_text_processing/install_pynini.sh
+NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separate repository `https://github.com/NVIDIA/NeMo-text-processing <https://github.com/NVIDIA/NeMo-text-processing>`_.
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.15.0`` comes with container ``nemo:22.12``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_. 
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.16.0`` comes with container ``nemo:23.01``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:22.12
+    docker pull nvcr.io/nvidia/nemo:23.01
 
-To build a nemo container with Dockerfile from a branch, please run 
+To build a nemo container with Dockerfile from a branch, please run
 
 .. code-block:: bash
 
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.01-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.04-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.01-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.04-py3
 
 Examples
 --------
 
-Many examples can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
+Many examples can be found under the `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing
@@ -289,18 +324,6 @@ Publications
 ------------
 
 We provide an ever growing list of publications that utilize the NeMo framework. Please refer to `PUBLICATIONS.md <https://github.com/NVIDIA/NeMo/tree/stable/PUBLICATIONS.md>`_. We welcome the addition of your own articles to this list !
-
-Citation
---------
-
-.. code-block:: bash
-
-  @article{kuchaiev2019nemo,
-    title={Nemo: a toolkit for building ai applications using neural modules},
-    author={Kuchaiev, Oleksii and Li, Jason and Nguyen, Huyen and Hrinchuk, Oleksii and Leary, Ryan and Ginsburg, Boris and Kriman, Samuel and Beliaev, Stanislav and Lavrukhin, Vitaly and Cook, Jack and others},
-    journal={arXiv preprint arXiv:1909.09577},
-    year={2019}
-  }
 
 License
 -------

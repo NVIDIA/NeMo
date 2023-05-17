@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import re
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -361,6 +362,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                 softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                 preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
+                hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
             )
 
         else:
@@ -494,6 +499,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hypothesis = (prediction, alignments, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(prediction)
+
+                # TODO: remove
+                # collapse leading spaces before . , ? for PC models
+                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
                 if self.compute_hypothesis_token_set:
                     hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
@@ -1058,6 +1067,9 @@ class RNNTDecoding(AbstractRNNTDecoding):
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
         )
 
+        if isinstance(self.decoding, beam_decode.BeamRNNTInfer):
+            self.decoding.set_decoding_type('char')
+
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
         Implemented by subclass in order to aggregate token confidence to a word-level confidence.
@@ -1256,3 +1268,6 @@ class RNNTDecodingConfig:
 
     # beam decoding config
     beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)
+
+    # can be used to change temperature for decoding
+    temperature: float = 1.0
