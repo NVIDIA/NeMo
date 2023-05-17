@@ -5,19 +5,20 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+
 def fixed_pos_embedding(x):
     seq_len, dim = x.shape
     inv_freq = 1.0 / (10000 ** (torch.arange(0, dim) / dim))
-    sinusoid_inp = (
-        torch.einsum("i , j -> i j", torch.arange(0, seq_len, dtype=torch.float), inv_freq).to(x)
-    )
+    sinusoid_inp = torch.einsum("i , j -> i j", torch.arange(0, seq_len, dtype=torch.float), inv_freq).to(x)
     return torch.sin(sinusoid_inp), torch.cos(sinusoid_inp)
+
 
 def rotate_every_two(x):
     x1 = x[:, :, ::2]
     x2 = x[:, :, 1::2]
     x = torch.stack((-x2, x1), dim=-1)
     return x.flatten(-2)  # in einsum notation: rearrange(x, '... d j -> ... (d j)')\
+
 
 def duplicate_interleave(m):
     """
@@ -29,6 +30,7 @@ def duplicate_interleave(m):
     m = m.view(dim0, -1)  # reshape into a matrix, interleaving the copy
     return m
 
+
 def apply_rotary_pos_emb(x, sin, cos, scale=1):
     sin, cos = map(lambda t: duplicate_interleave(t * scale), (sin, cos))
     # einsum notation for lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (d j)", j=2)
@@ -36,15 +38,11 @@ def apply_rotary_pos_emb(x, sin, cos, scale=1):
 
 
 class XPOS(nn.Module):
-    def __init__(
-        self, head_dim, scale_base=2048
-    ):
+    def __init__(self, head_dim, scale_base=2048):
         super().__init__()
         self.head_dim = head_dim
         self.scale_base = scale_base
-        self.register_buffer(
-            "scale", (torch.arange(0, head_dim, 2) + 0.4 * head_dim) / (1.4 * head_dim)
-        )
+        self.register_buffer("scale", (torch.arange(0, head_dim, 2) + 0.4 * head_dim) / (1.4 * head_dim))
 
     def forward(self, x, offset=0, downscale=False):
         length = x.shape[1]
@@ -57,7 +55,7 @@ class XPOS(nn.Module):
             scale = scale[-length:]
             sin = sin[-length:]
             cos = cos[-length:]
-        
+
         if downscale:
             scale = 1 / scale
 

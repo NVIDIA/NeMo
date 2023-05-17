@@ -24,20 +24,20 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
+from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import kerple_log_forward
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
-from nemo.collections.nlp.modules.common.megatron.xpos_relative_position import XPOS
 from nemo.collections.nlp.modules.common.megatron.sandwich_relative_position import sandwich_pos_bias
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
+from nemo.collections.nlp.modules.common.megatron.xpos_relative_position import XPOS
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
-from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import kerple_log_forward
 from nemo.utils import logging
 
 try:
+    from apex._autocast_utils import _cast_if_autocast_enabled
     from apex.transformer.enums import AttnMaskType, AttnType
     from apex.transformer.utils import divide as safe_divide
-    from apex._autocast_utils import _cast_if_autocast_enabled
 
     HAVE_APEX = True
 
@@ -57,12 +57,12 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-    
+
 try:
+    from flash_attn.bert_padding import pad_input, unpad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
     from flash_attn.flash_attn_triton import flash_attn_func
-    from flash_attn.bert_padding import unpad_input, pad_input
-    
+
 except (ImportError, ModuleNotFoundError):
     logging.warning(
         "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
@@ -775,7 +775,7 @@ class CoreAttention(MegatronModule):
         self.attention_dropout_p = attention_dropout
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
         self.use_flash_attention = use_flash_attention
-        
+
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOS(hidden_size / num_attention_heads)
 
@@ -798,26 +798,24 @@ class CoreAttention(MegatronModule):
             key_layer.size(0),
             query_layer.size(3),
         )
-        
+
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
-        
+
         if get_key_value:
             with torch.no_grad():
                 if layer_past is not None:
-                    attention_mask = attention_mask[..., sq - 1, : sk].unsqueeze(2)
+                    attention_mask = attention_mask[..., sq - 1, :sk].unsqueeze(2)
                 else:
-                    attention_mask = attention_mask[..., : sq, : sk]
-                    
+                    attention_mask = attention_mask[..., :sq, :sk]
+
         # ==================================================
         # Update attention bias. [b, np, sq, sk]
         # ==================================================
         has_attention_bias = False
-        attention_bias = torch.zeros(b, np, sq, sk,         
-                                     dtype=query_layer.dtype,
-                                     device=torch.cuda.current_device())
-        
+        attention_bias = torch.zeros(b, np, sq, sk, dtype=query_layer.dtype, device=torch.cuda.current_device())
+
         if self.position_embedding_type.lower() == 'sandwich':
             has_attention_bias = True
             attention_bias += sandwich_pos_bias(
@@ -831,15 +829,15 @@ class CoreAttention(MegatronModule):
                     :,
                     self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
                     + self.num_attention_heads_per_partition,
-                    : sq,
-                    : sk,
+                    :sq,
+                    :sk,
                 ]
             elif self.position_embedding_type.lower() == 'kerple':
-                attention_bias += kerple_log_forward(sq, sk, relative_position_bias)            
-                
+                attention_bias += kerple_log_forward(sq, sk, relative_position_bias)
+
         # ==================================================
         # Update query_layer, key_layer, value_layer
-        # ==================================================         
+        # ==================================================
         # TODO: figure out how to do this
         # apply relative positional encoding (rotary embedding)
         if rotary_pos_emb is not None:
@@ -851,7 +849,7 @@ class CoreAttention(MegatronModule):
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
-            
+
         if self.position_embedding_type.lower() == 'xpos':
             query_layer = rearrange(query_layer, 'sq b np hn -> (b np) sq hn')
             key_layer = rearrange(key_layer, 'sk b np hn -> (b np) sk hn')
@@ -859,7 +857,7 @@ class CoreAttention(MegatronModule):
             key_layer = self.xpos(key_layer, offset=0, downscale=True)
             query_layer = rearrange(query_layer, '(b np) sq hn -> sq b np hn', b=b)
             key_layer = rearrange(key_layer, '(b np) sk hn -> sk b np hn', b=b)
-            
+
         if self.use_flash_attention:
             query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
             key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
@@ -873,42 +871,22 @@ class CoreAttention(MegatronModule):
             key_layer = rearrange(key_layer, 'sk b np hn -> (b np) hn sk')
             value_layer = rearrange(value_layer, 'sv b np hn -> (b np) sv hn')
 
-            
         # ==================================================
         # Get context_layer [b, np, sq, hn]
-        # ==================================================  
+        # ==================================================
         if self.use_flash_attention:
             # Use to ensure dtype cast to fp16 or bf16
-            (
-                query_layer, 
-                key_layer, 
-                value_layer, 
-                attention_mask, 
-                attention_bias
-            ) = _cast_if_autocast_enabled(
-                    query_layer, 
-                    key_layer, 
-                    value_layer, 
-                    attention_mask, 
-                    attention_bias,
+            (query_layer, key_layer, value_layer, attention_mask, attention_bias) = _cast_if_autocast_enabled(
+                query_layer, key_layer, value_layer, attention_mask, attention_bias,
             )
-            
+
             if has_attention_bias:
                 context_layer = self.flash_attention_triton(
-                    query_layer, 
-                    key_layer, 
-                    value_layer, 
-                    attention_mask, 
-                    attention_bias,
+                    query_layer, key_layer, value_layer, attention_mask, attention_bias,
                 )
             else:
-                context_layer = self.flash_attention(
-                    query_layer, 
-                    key_layer, 
-                    value_layer, 
-                    attention_mask, 
-                )
-            
+                context_layer = self.flash_attention(query_layer, key_layer, value_layer, attention_mask,)
+
         else:
             matmul_input_buffer = torch.empty(
                 query_layer.shape[0],
@@ -925,13 +903,13 @@ class CoreAttention(MegatronModule):
                 beta=0.0,
                 alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
             )
-            
+
             # change view to [b, np, sq, sk]
             attention_scores = matmul_result.view(b, np, sq, sk)
-            
+
             if has_attention_bias:
                 attention_scores += attention_bias
-                
+
             attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
             # This is actually dropping out entire tokens to attend to, which might
@@ -951,7 +929,7 @@ class CoreAttention(MegatronModule):
 
             # change view [b, np, sq, hn]
             context_layer = context_layer.view(b, np, sq, hn)
-        
+
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -966,50 +944,56 @@ class CoreAttention(MegatronModule):
 
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask):
         batch_size, seqlen, nheads, _ = query_layer.shape
-        
+
         if attention_mask is not None:
             # [b, 1, sq, sk] -> [b, sq] / [b, sk]
             # True: not attend / False: attend -> True: attend / False: not attend
-            attention_mask_q  = torch.any(torch.eq(attention_mask, False), dim=3).squeeze(1)
+            attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).squeeze(1)
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
         else:
-            attention_mask_q = torch.ones(batch_size, query_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device())
-            attention_mask_kv = torch.ones(batch_size, key_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device())
-    
+            attention_mask_q = torch.ones(
+                batch_size, query_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device()
+            )
+            attention_mask_kv = torch.ones(
+                batch_size, key_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device()
+            )
+
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-            
+
         context_layer = flash_attn_unpadded_func(
-            q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
+            q,
+            k,
+            v,
+            cu_seqlens_q,
+            cu_seqlens_k,
+            max_seqlen_q,
+            max_seqlen_k,
             dropout_p=self.attention_dropout_p if self.training else 0.0,
             causal=self.attn_mask_type == AttnMaskType.causal,
         )
-        
+
         # [b, sq, np, hn]
         context_layer = pad_input(context_layer, indices_q, batch_size, seqlen)
-        
+
         # [b, sq, np, hn] -> [b, np, sq, hn]
-        context_layer = context_layer.permute(0, 2, 1, 3)  
+        context_layer = context_layer.permute(0, 2, 1, 3)
         return context_layer
 
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-            
+
         if attention_mask is not None:
             # [b, 1, sq, sk] -> [b, 1, 1, sk]
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
-            attention_bias = attention_bias.masked_fill(
-                ~attention_mask_kv,
-                torch.finfo(query_layer.dtype).min
-            )
-        
+            attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
+
         context_layer = flash_attn_func(
-            query_layer, key_layer, value_layer, attention_bias, 
-            self.attn_mask_type == AttnMaskType.causal
+            query_layer, key_layer, value_layer, attention_bias, self.attn_mask_type == AttnMaskType.causal
         )
-        
+
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
         return context_layer
