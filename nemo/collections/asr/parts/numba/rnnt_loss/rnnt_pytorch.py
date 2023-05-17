@@ -124,7 +124,7 @@ class _TDTNumba(Function):
             [0, 1, 2, 3, 4].
         sigma: hyper-parameter for logit under-normalization method for training
             TDT models. Recommended value 0.05.
-        omega: probability for sampling the standard RNN-T loss
+        omega: probability for sampling the standard RNN-T loss.
         Refer to https://arxiv.org/abs/2304.06795 for detailed explanations for
             the above parameters;
         """
