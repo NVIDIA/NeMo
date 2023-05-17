@@ -236,8 +236,8 @@ Note that RNNT requires numba to be installed from conda.
 
 NeMo Megatron
 ~~~~~~~~~~~~~
-NeMo Megatron training requires NVIDIA Apex and Megatron-core to be installed.
-Install them manually if not using the NVIDIA PyTorch container.
+NeMo Megatron training requires NVIDIA Apex to be installed.
+Install it manually if not using the NVIDIA PyTorch container.
 
 To install Apex, run
 
@@ -247,15 +247,6 @@ To install Apex, run
     cd apex
     git checkout 57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
-
-To install Megatron-core, run
-
-.. code-block:: bash
-
-    git clone https://github.com/NVIDIA/Megatron-LM.git
-    cd Megatron-LM
-    git checkout 3db2063b1ff992a971ba18f7101eecc9c4e90f03
-    pip install -e .
 
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Apex or any other dependencies.
 
@@ -310,13 +301,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.03-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.04-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.03-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.04-py3
 
 Examples
 --------
