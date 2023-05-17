@@ -523,12 +523,11 @@ class TestTDTLoss:
             assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "tdt costs mismatch."
             assert np.allclose(pt_grads, ag_grads, rtol=1e-2), "td gradient mismatch."
 
-
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_fixed_case_act_label(self, device):
         if device == 'cuda':
-#            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+            #            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
             B, T, U, V = 1, 3, 2, 3  # here V is number of non blank labels
             durations = [0, 1, 2]
@@ -540,36 +539,37 @@ class TestTDTLoss:
             fn_pt = TDTLossNumba(blank=V, reduction='sum', durations=durations, sigma=sigma)
             pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
 
-#            fn_ag = TDTLossPytorch(
-#                blank=V, reduction='sum', durations=durations, sigma=sigma
-#            )  # ag for automatic gradient computation
-#            ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
-#
-#            f = open('/tmp/1.txt', 'w')
-#            ag_cost = np.array2string(ag_cost, separator=',')
-#            ag_grads = np.array2string(ag_grads, separator=',')
-#            print(ag_cost, file=f)
-#            print(ag_grads, file=f)
+            #            fn_ag = TDTLossPytorch(
+            #                blank=V, reduction='sum', durations=durations, sigma=sigma
+            #            )  # ag for automatic gradient computation
+            #            ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
+            #
+            #            f = open('/tmp/1.txt', 'w')
+            #            ag_cost = np.array2string(ag_cost, separator=',')
+            #            ag_grads = np.array2string(ag_grads, separator=',')
+            #            print(ag_cost, file=f)
+            #            print(ag_grads, file=f)
 
             expected_cost = 4.155739
-            expected_grads =[[[[-0.64962804, 0.25      , 0.25      , 0.14962798, 0.2672583 ,
-                -0.16792619,-0.09933221],
-                   [ 0.01651875, 0.01651875, 0.01651875,-0.04955626, 0.022025  ,
-                       -0.01227201,-0.009753  ]],
-
-                         [[-0.04892651, 0.01714851, 0.01714851, 0.01462949,-0.01143234,
-                             -0.01143234, 0.02286467],
-                                [ 0.12531489, 0.12531489, 0.12531489,-0.37594467, 0.16708651,
-                                     0.13027048,-0.29735702]],
-
-                                       [[-0.02572276, 0.00857425, 0.00857425, 0.00857425,-0.02286468,
-                                            0.01143234, 0.01143234],
-                                               [ 0.13388914, 0.13388914, 0.13388914,-0.40166742, 0.17851885,
-                                                   -0.35703772, 0.17851885]]]]
+            expected_grads = [
+                [
+                    [
+                        [-0.64962804, 0.25, 0.25, 0.14962798, 0.2672583, -0.16792619, -0.09933221],
+                        [0.01651875, 0.01651875, 0.01651875, -0.04955626, 0.022025, -0.01227201, -0.009753],
+                    ],
+                    [
+                        [-0.04892651, 0.01714851, 0.01714851, 0.01462949, -0.01143234, -0.01143234, 0.02286467],
+                        [0.12531489, 0.12531489, 0.12531489, -0.37594467, 0.16708651, 0.13027048, -0.29735702],
+                    ],
+                    [
+                        [-0.02572276, 0.00857425, 0.00857425, 0.00857425, -0.02286468, 0.01143234, 0.01143234],
+                        [0.13388914, 0.13388914, 0.13388914, -0.40166742, 0.17851885, -0.35703772, 0.17851885],
+                    ],
+                ]
+            ]
 
             assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "tdt costs mismatch."
             assert np.allclose(pt_grads, expected_grads, rtol=1e-2), "td gradient mismatch."
-
 
 
 if __name__ == "__main__":
