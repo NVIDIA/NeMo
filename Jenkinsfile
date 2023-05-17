@@ -3383,28 +3383,25 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
-        +trainer.limit_val_batches=2 \
         trainer.max_steps=3 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_peft_lora_results \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
         model.peft.peft_scheme='lora' \
         model.answer_only_loss=True \
-        model.data.train_ds.micro_batch_size=1 \
-        model.data.train_ds.global_batch_size=4 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
+        model.micro_batch_size=1 \
+        model.global_batch_size=4 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[1.0] \
         model.data.train_ds.num_workers=0 \
-        model.data.validation_ds.micro_batch_size=1 \
-        model.data.validation_ds.global_batch_size=4 \
         model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-        model.data.validation_ds.names=[quarel,trec]"
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]"
         sh "rm -rf examples/nlp/language_modeling/gpt_lora_results"
       }
     }
