@@ -55,7 +55,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.tokenizer.vocab_file=gpt2-vocab.json \
       model.tokenizer.merge_file=gpt2-merges.txt \
       model.data.data_prefix=[1.0,${TRAINING_DATA_FILE_PREFIX:?}] \
-      model.data.num_workers=12 \
+      model.data.num_workers=${NUM_DATA_WORKERS:?} \
       model.data.seq_length=1024 \
       model.data.splits_string=\'949,50,1\' \
       model.optim.name=fused_adam \
@@ -66,6 +66,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.optim.sched.warmup_steps=750 \
       model.optim.sched.constant_steps=80000 \
       model.optim.sched.min_lr=6e-5 \
+      model.transformer_engine=${TRANSFORMER_ENGINE_ENABLED:=False} \
       model.nsys_profile.enabled=${NSYS_PROFILE_ENABLED:=False} \
       model.nsys_profile.start_step=${NSYS_PROFILE_START_STEP:=10} \
       model.nsys_profile.end_step=${NSYS_PROFILE_END_STEP:=10} \
