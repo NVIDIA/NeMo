@@ -54,7 +54,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.layernorm_epsilon=1e-5 \
       model.tokenizer.vocab_file=gpt2-vocab.json \
       model.tokenizer.merge_file=gpt2-merges.txt \
-      model.data.data_prefix=[1.0,${TRAINING_DATA_FILE_PREFIX:?}] \
+      model.data.data_prefix=${TRAINING_DATA_FILE_PREFIX:?} \
       model.data.num_workers=${NUM_DATA_WORKERS:?} \
       model.data.seq_length=1024 \
       model.data.splits_string=\'949,50,1\' \
