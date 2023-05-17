@@ -59,6 +59,7 @@ filter_operators = {
     'contains ': 'contains',
 }
 comparison_mode = False
+
 # parse table filter queries
 def split_filter_part(filter_part):
     for op in filter_operators:
@@ -125,6 +126,7 @@ def parse_args():
     # automaticly going in comparison mode, if there is names_compared argument
     if args.names_compared is not None:
         comparison_mode = True
+        logging.error("comparison mod set to true")
     else:
         comparison_mode = False
 
@@ -938,7 +940,6 @@ wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
 
 
 
-
 if comparison_mode:
     model_name_1, model_name_2 = name_1, name_2
 
@@ -975,8 +976,10 @@ if comparison_mode:
         a = da
         return da.to_dict('records')
     data_with_metrics = write_metrics(data, model_name_1, model_name_2)
-    
-    
+    if args.show_statistics is not None:
+        textdiffstyle = {'border': 'none', 'width': '100%', 'height': '100%'}
+    else:
+        textdiffstyle = {'border': 'none', 'width': '1%', 'height': '1%', 'display': 'none'}
     
     
     
@@ -1138,163 +1141,182 @@ if comparison_mode:
         )
 
 
-    comparison_layout = [
-        html.Div(
-            [dcc.Markdown("model 1:" + ' ' + model_name_1[10:]), dcc.Markdown("model 2:" + ' ' + model_name_2[10:]),
-             dcc.Dropdown(['word level', 'utterance level'], 'word level', placeholder="choose comparison lvl",
-                          id='lvl_choose')]
-        ),
-        html.Hr(),
+
+comparison_layout = [
+	html.Div(
+		[
+			dcc.Markdown("model 1:" + ' ' + model_name_1[10:]),
+			dcc.Markdown("model 2:" + ' ' + model_name_2[10:]),
+			dcc.Dropdown(['word level', 'utterance level'], 'word level', placeholder="choose comparison lvl", id='lvl_choose')
+		]	
+		),
+		
+		html.Hr(),
+		html.Div([
+			html.Div(
+						[
+							dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_1, id='xaxis-column'),
+							dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_2, id='yaxis-column'),
+							dcc.Dropdown(
+								for_col_names.select_dtypes(include='number').columns[::],
+								placeholder='Select what will encode color of points',
+								id='color-column',
+							),
+							dcc.Dropdown(
+								for_col_names.select_dtypes(include='number').columns[::],
+								placeholder='Select what will encode size of points',
+								id='size-column',
+							),
+							dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing', style={'width': '200%'}),
+							dcc.Input(id='radius', placeholder='Enter radius of spacing (std is 0.01)'),
+							html.Hr(),
+							dcc.Input(id='filter-query-input', placeholder='Enter filter query', ),
+						], style={'width': '200%', 'display': 'inline-block', 'float': 'middle'},
+					),
+						html.Hr(),
+						html.Div(id='filter-query-output'),
+						dash_table.DataTable(
+							id='datatable-advanced-filtering',
+							columns=wordstable_columns_tool,
+							data=vocabulary_1,
+							editable=False,
+							page_action='native',
+							page_size=5,
+							filter_action="native",
+                            
+						),
+						
+				html.Hr(),
+				html.Div(id='datatable-query-structure', style={'whitespace': 'pre'}),
+				html.Hr(),
+				dbc.Row(dbc.Col(dcc.Graph(id='voc_graph'), ), ),
+				html.Hr(),
+				
+				], id='wrd_lvl', style={'display': 'block'}, ),
+    html.Div([
         html.Div([
-            html.Div(
-                [
-                    dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_1, id='xaxis-column'),
-                    dcc.Dropdown(for_col_names.columns[::], 'accuracy_model_' + model_name_2, id='yaxis-column'),
-                    dcc.Dropdown(
-                        for_col_names.select_dtypes(include='number').columns[::],
-                        placeholder='Select what will encode color of points',
-                        id='color-column',
-                    ),
-                    dcc.Dropdown(
-                        for_col_names.select_dtypes(include='number').columns[::],
-                        placeholder='Select what will encode size of points',
-                        id='size-column',
-                    ),
-                    dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing'),
-                    dcc.Input(id='radius', placeholder='Enter radius of spacing (std is 0.01)'),
-                    html.Hr(),
-                    dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
-                ],
-                style={'width': '50%', 'display': 'inline-block', 'float': 'middle'},
-            ),
+            dcc.Dropdown(['WER', 'CER'], 'WER', placeholder="Choose metric", id="choose_metric"),
+            dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
             html.Hr(),
-            html.Div(id='filter-query-output'),
-            dash_table.DataTable(
-                id='datatable-advanced-filtering',
-                columns=wordstable_columns_tool,
-                data=vocabulary_1,
-                editable=False,
-                page_action='native',
-                page_size=5,
-                filter_action="native",
-            ),
             html.Hr(),
-            html.Div(id='datatable-query-structure', style={'whitespace': 'pre'}),
-            html.Hr(),
-            dbc.Row(dbc.Col(dcc.Graph(id='voc_graph'), ), ),
-            html.Hr(),
-        ], id='wrd_lvl', style={'display': 'block'}, ),
-        html.Div([
-            html.Div([
-                         dcc.Dropdown(['WER', 'CER'], 'WER', placeholder="Choose metric", id="choose_metric"),
-                         dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
-                         html.Hr(),
-                         html.Hr(),
-                         dcc.Input(id='filter-query-input-2', placeholder='Enter filter query'),
-                         html.Div(id='filter-query-output-2'),
-                         dbc.Row(
-                            dbc.Col(
-                                 dash_table.DataTable(
-                                     id='datatable-advanced-filtering-2',
-                                     columns=[{'name': k.replace('_', ' '), 'id': k, 'hideable': True} for k in data_with_metrics[0]],
-                                     data=data_with_metrics,
-                                     editable=False,
-                                     page_action='native',
-                                     page_size=5,
-                                     row_selectable='single',
-                                     selected_rows=[0],
-                                     page_current=0,
-                                     filter_action="native",
-                                     style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0,
-                                                                 'textAlign': 'center'},
-                                     style_header={
-                                         'color': 'text-primary',
-                                         'text_align': 'center',
-                                         'height': 'auto',
-                                         'whiteSpace': 'normal',
-                                         
-                                     },
-                                     css=[
-                                         {'selector': '.dash-spreadsheet-menu',
-                                          'rule': 'position:absolute; bottom: 8px'},
-                                         {'selector': '.dash-filter--case', 'rule': 'display: none'},
-                                         {'selector': '.column-header--hide', 'rule': 'display: none'},
-                                      ],
-                                  ),
-                              )
-                          ),
-                                                ] + [
-                          dbc.Row(
-                              [
-                                  dbc.Col(
-                                      html.Div(children=k.replace('_', '-')),
-                                      width=2,
-                                      class_name='mt-1 bg-light font-monospace text-break small rounded border',
-                                  ),
-                                  dbc.Col(html.Div(id='__' + k),
-                                          class_name='mt-1 bg-light font-monospace text-break small rounded border'),
-                              ]
-                          ) for k in data_with_metrics[0]
-                     
-                     ] 
-                     ), 
-           
-            
-            html.Div([
-                dbc.Row(dbc.Col(dcc.Graph(id='utt_graph'), ), ),
-                html.Hr(),
-                dcc.Input(id='clicked_aidopath'),
-                html.Hr(),
-                dcc.Input(id='my-output-1'),
-            ]),
-            html.Div([
-                dbc.Row(dbc.Col(html.Audio(id='player-1', controls=True), ), class_name='mt-3'),
-                dbc.Row(dbc.Col(dcc.Graph(id='signal-graph-1')), class_name='mt-3'),
-
-            ]),
-        ], id='unt_lvl', style={'width': '250%', 'display': 'block'})
-    ]
-
-
+            dcc.Input(id='filter-query-input-2', placeholder='Enter filter query', style={'width': '100%'}),
+            html.Div(id='filter-query-output-2'),
+            dbc.Row(
+                dbc.Col([
+                        
+						dash_table.DataTable(
+											id='datatable-advanced-filtering-2',
+											columns=[{'name': k.replace('_', ' '), 'id': k, 'hideable': True} for k in data_with_metrics[0]],
+											data=data_with_metrics,
+											editable=False,
+											page_action='native',
+											page_size=5,
+											row_selectable='single',
+											selected_rows=[0],
+											page_current=0,
+											filter_action="native",
+											style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0, 'textAlign': 'center'},
+											style_header={
+												'color': 'text-primary',
+												'text_align': 'center',
+												'height': 'auto',
+												'whiteSpace': 'normal',
+											},
+											css=[
+												{'selector': '.dash-spreadsheet-menu',
+												 'rule': 'position:absolute; bottom: 8px'},
+												{'selector': '.dash-filter--case', 'rule': 'display: none'},
+												{'selector': '.column-header--hide', 'rule': 'display: none'},
+											],
+										),
+                        dbc.Row(dbc.Col(html.Audio(id='player-1', controls=True), ), class_name='mt-3'),
+						])		
+					),
+				] + [
+						dbc.Row(
+									[
+									dbc.Col(
+										html.Div(children=k.replace('_', '-')),
+										width=2,
+										class_name='mt-1 bg-light font-monospace text-break small rounded border',
+									),
+									dbc.Col(html.Div(id='__' + k),
+											class_name='mt-1 bg-light font-monospace text-break small rounded border'),
+									]
+								) for k in data_with_metrics[0]
+					]
+				),
+			], id='unt_lvl')]
+    
 if args.show_statistics is not None:
-                    comparison_layout += [  dbc.Row(
-                    [
+    comparison_layout+=[html.Div([
+    dbc.Row([
                         dbc.Col(
-                            html.Div(children='text diff.'),
+                            html.Div(children='text diff'),
                             width=2,
                             class_name='mt-1 bg-light font-monospace text-break small rounded border',
+                        ),
+                        dbc.Col(
+                            html.Iframe(
+                                id='__diff',
+                                sandbox='',
+                                srcDoc='',
+                                style=textdiffstyle,
+                                className='bg-light font-monospace text-break small',
                             ),
-                            dbc.Col(
-                                html.Iframe(
-                                    id='__diff',
-                                    sandbox='',
-                                    srcDoc='',
-                                    style={'border': 'none', 'width': '100%', 'height': '100%'},
-                                    className='bg-light font-monospace text-break small',
-                                ),
-                                class_name='mt-1 bg-light font-monospace text-break small rounded border',
-                            ),
-                    ], 
-                    ),]
-
-
-
-
-
-
-@app.callback(
+                            class_name='mt-1 bg-light font-monospace text-break small rounded border',
+                        ),
+                    ],
+                    id="text_diff_div")], id='mid_thing', style={'display': 'block'},),
+            ]
+    @app.callback(
    [Output(component_id='wrd_lvl', component_property='style'),
     Output(component_id='unt_lvl', component_property='style'),
+    Output(component_id='mid_thing', component_property='style'),
+    Output(component_id='down_thing', component_property='style'),
     Input(component_id='lvl_choose', component_property='value')])
-def show_hide_element(visibility_state):
-    if args.show_statistics is not None:
-        a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'block'}
-    else:
-        a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'none'}
-    if visibility_state == 'word level':
-        return {'width': '50%', 'display': 'inline-block', 'float': 'middle'}, {'width': '50%', 'display': 'none', 'float': 'middle'},
-    if visibility_state == 'utterance level':
-        return {'width': '100%', 'display': 'none', 'float': 'middle'}, {'width': '100%', 'display': 'inline-block', 'float': 'middle'},
+    def show_hide_element(visibility_state):
+        if args.show_statistics is not None:
+            a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'block'}
+        else:
+            a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'none'}
+        if visibility_state == 'word level':
+            return {'width': '50%', 'display': 'inline-block', 'float': 'middle'}, {'width': '50%', 'display': 'none', 'float': 'middle'}, {'display':'none'}, {'display':'none'}
+        if visibility_state == 'utterance level':
+            return {'width': '100%', 'display': 'none', 'float': 'middle'}, {'width': '100%', 'display': 'inline-block', 'float': 'middle'}, {'display':'block'}, {'display':'block'}
+comparison_layout += [
+html.Div([
+				html.Div([
+					dbc.Row(dbc.Col(dcc.Graph(id='utt_graph'), ), ),
+					html.Hr(),
+					dcc.Input(id='clicked_aidopath', style={'width':'100%'}),
+					html.Hr(),
+					dcc.Input(id='my-output-1', style={'display':'none'}), # we do need this
+				]),
+				html.Div([
+					dbc.Row(dbc.Col(dcc.Graph(id='signal-graph-1')), class_name='mt-3'),
+				])], id='down_thing', style={'display': 'block'},)
+			] 
+
+
+if args.show_statistics is None:
+    @app.callback(
+       [Output(component_id='wrd_lvl', component_property='style'),
+        Output(component_id='unt_lvl', component_property='style'),
+        Output(component_id='down_thing', component_property='style'),
+        
+        Input(component_id='lvl_choose', component_property='value')])
+    def show_hide_element(visibility_state):
+        if args.show_statistics is not None:
+            a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'block'}
+        else:
+            a ={'border': 'none', 'width': '100%', 'height': '100%', 'display': 'none'}
+        if visibility_state == 'word level':
+            return {'width': '50%', 'display': 'inline-block', 'float': 'middle'}, {'width': '50%', 'display': 'none', 'float': 'middle'}, {'display':'none'},
+        if visibility_state == 'utterance level':
+            return {'width': '100%', 'display': 'none', 'float': 'middle'}, {'width': '100%', 'display': 'inline-block', 'float': 'middle'}, {'display':'block'},
+
+
 
 
 store = []
@@ -1362,17 +1384,6 @@ def draw_table_with_metrics(met, hoverData, data_virt):
         path = str(hoverData['points'][0]['customdata'][-1])
 
     return fig, path
-
-#import torchmetrics
-
-    #if met == "WER":
-        #wer = torchmetrics.functional.word_error_rate(a, b)
-        #cer = -1
-        #return round(float(wer) * 100, 2), -1
-    #if met == "CER":
-        #cer = torchmetrics.functional.char_error_rate(a, b)
-
-
 
 
 @app.callback(
@@ -1482,14 +1493,14 @@ def show_item(idx, data):
     
     
     
-    
-@app.callback(
-    [Output('__' + k, 'children') for k in data_with_metrics[0]], [Input('datatable-advanced-filtering-2', 'selected_rows'), Input('datatable-advanced-filtering-2', 'data')]
-)
-def show_item(idx, data):
-    if len(idx) == 0:
-        raise PreventUpdate
-    return [data[idx[0]][k] for k in data_with_metrics[0]]
+if comparison_mode:    
+    @app.callback(
+        [Output('__' + k, 'children') for k in data_with_metrics[0]], [Input('datatable-advanced-filtering-2', 'selected_rows'), Input('datatable-advanced-filtering-2', 'data')]
+    )
+    def show_item(idx, data):
+        if len(idx) == 0:
+            raise PreventUpdate
+        return [data[idx[0]][k] for k in data_with_metrics[0]]
 
 
 @app.callback(Output('_diff', 'srcDoc'), [Input('datatable', 'selected_rows'), Input('datatable', 'data'),])
