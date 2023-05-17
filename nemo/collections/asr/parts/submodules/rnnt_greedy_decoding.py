@@ -2383,7 +2383,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
                 if self.preserve_frame_confidence:
                     logp = torch.log_softmax(logp, -1)
 
-                duration_logp = torch.softmax(logits[0, 0, 0, -len(self.durations) :], dim=-1)
+                duration_logp = torch.log_softmax(logits[0, 0, 0, -len(self.durations) :], dim=-1)
                 del g
 
                 # torch.max(0) op doesnt exist for FP 16.
@@ -2412,6 +2412,10 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
                 # If blank token is predicted, exit inner loop, move onto next timestep t
                 if k == self._blank_index:
                     not_blank = False
+
+                    # this rarely happens, but we manually increment the `skip` number
+                    # if blank is emitted and duration=0 is predicted. This prevents possible
+                    # infinite loops.
                     if skip == 0:
                         skip = 1
 

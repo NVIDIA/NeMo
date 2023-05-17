@@ -556,7 +556,9 @@ class TDTLossNumba(Module):
 
         # TODO(hainan): in the future, we could further optimize this so that we don't need to
         # make contiguous copies of the acts tensor.
-        label_acts, duration_acts = torch.split(acts, [acts.shape[-1] - len(self.durations), len(self.durations)], dim=-1)
+        label_acts, duration_acts = torch.split(
+            acts, [acts.shape[-1] - len(self.durations), len(self.durations)], dim=-1
+        )
         label_acts = label_acts.contiguous()
         duration_acts = torch.nn.functional.log_softmax(duration_acts, dim=-1).contiguous()
 

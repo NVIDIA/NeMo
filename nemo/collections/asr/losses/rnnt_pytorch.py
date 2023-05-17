@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from typing import List
+
+import torch
 
 from nemo.core.classes import Loss
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
@@ -117,6 +118,7 @@ class TDTLossPytorch(Loss):
     """
     Pure Python implementation of TDT loss (https://arxiv.org/pdf/2304.06795.pdf)
     """
+
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -136,7 +138,7 @@ class TDTLossPytorch(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, blank: int, durations: List[int]=[], reduction: str='sum', sigma: float=0.0):
+    def __init__(self, blank: int, durations: List[int] = [], reduction: str = 'sum', sigma: float = 0.0):
         super().__init__()
         self.blank = blank
         self.durations = durations
@@ -153,7 +155,7 @@ class TDTLossPytorch(Loss):
 
         duration_acts = torch.log_softmax(duration_acts, -1)
 
-        forward_logprob = self.compute_forward_prob(label_acts, duration_acts, labels, act_lens, label_lens)
+        forward_logprob, _ = self.compute_forward_prob(label_acts, duration_acts, labels, act_lens, label_lens)
         losses = -forward_logprob
         if self.reduction == 'mean_batch':
             losses = losses.mean()  # global batch size average
@@ -189,7 +191,9 @@ class TDTLossPytorch(Loss):
                             # u = 0 and t != 0: only considers blank emissions.
                             log_alpha[b, t, u] = -1000.0
                             for n, l in enumerate(self.durations):
-                                if t - l >= 0 and l > 0:  # checking conditions for blank emission, l has to be at least 1
+                                if (
+                                    t - l >= 0 and l > 0
+                                ):  # checking conditions for blank emission, l has to be at least 1
                                     tmp = (
                                         log_alpha[b, t - l, u]
                                         + acts[b, t - l, u, self.blank]
@@ -237,7 +241,7 @@ class TDTLossPytorch(Loss):
 
         log_prob = torch.stack(log_probs)
 
-        return log_prob
+        return log_prob, log_alpha
 
 
 class MultiblankRNNTLossPytorch(Loss):
@@ -273,7 +277,7 @@ class MultiblankRNNTLossPytorch(Loss):
 
     def forward(self, acts, labels, act_lens, label_lens):
         acts = torch.log_softmax(acts, -1) - self.sigma
-        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
+        forward_logprob, _ = self.compute_forward_prob(acts, labels, act_lens, label_lens)
 
         losses = -forward_logprob
         if self.reduction == 'mean_batch':
@@ -362,4 +366,4 @@ class MultiblankRNNTLossPytorch(Loss):
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
 
-        return log_prob
+        return log_prob, log_alpha
