@@ -548,8 +548,17 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         else:
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
+        # KJJ
+        # return torch.utils.data.DataLoader(
+        #     dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+        # )
+        #
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
     def setup(self, stage=None):
