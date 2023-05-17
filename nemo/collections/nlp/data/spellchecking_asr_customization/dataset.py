@@ -255,10 +255,10 @@ def collate_test_dataset(
 
         if len(fragment_indices) < max_length_for_fragment_indices:
             pad_length = max_length_for_fragment_indices - len(fragment_indices)
-            # we use [0, 1, -1] as padding value for fragment_indices, it corresponds to [CLS] token, which is ignored and won't affect anything
-            p = np.zeros((max_length_for_fragment_indices, 2), dtype=int)
+            # we use [0, 1, 0] as padding value for fragment_indices, it corresponds to [CLS] token, which is ignored and won't affect anything
+            p = np.zeros((max_length_for_fragment_indices, 3), dtype=int)
             p[:, 1] = 1
-            p[:, 2] = -1
+            p[:, 2] = 0
             padded_fragment_indices.append(p)
             if len(fragment_indices) > 0:
                 padded_fragment_indices[-1][
