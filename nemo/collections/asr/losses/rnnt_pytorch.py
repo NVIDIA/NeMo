@@ -268,7 +268,7 @@ class MultiblankRNNTLossPytorch(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, blank, big_blank_durations, reduction, sigma):
+    def __init__(self, blank, big_blank_durations, reduction: str = "sum", sigma: float = 0.0):
         super().__init__()
         self.blank = blank
         self.big_blank_durations = big_blank_durations

@@ -520,12 +520,12 @@ class TestTDTCUDAKernels:
         Vd = len(durations)
 
         duration_act_shape = [B, T, U, Vd]
-        sigma = 0.0
+        sigma = 0.05
 
         # for passing into the kernel function -- it expected unnormalized logits
         x = random.randn(*original_shape)
         # for passing into the pytorch function -- it expected normalized logits
-        normalized_x = log_softmax(x, axis=-1)
+        normalized_x = log_softmax(x, axis=-1) - 0.05
 
         xd = random.randn(*duration_act_shape)
         # duration logits are normalized before passing into the loss computation.
@@ -544,6 +544,7 @@ class TestTDTCUDAKernels:
             stream = cuda.default_stream()
 
         x = torch.tensor(x, device=device, dtype=torch.float32)
+        normalized_x = torch.tensor(normalized_x, device=device, dtype=torch.float32)
         xd = torch.tensor(xd, device=device, dtype=torch.float32)
         labels = torch.tensor(labels, device=device, dtype=torch.long)
         durations = torch.tensor(durations, device=device, dtype=torch.long)
@@ -589,6 +590,95 @@ class TestTDTCUDAKernels:
             blank_idx,
             durations,
             Vd,
+        )
+
+        # sync kernel
+        stream.synchronize()
+
+        # reshape alphas
+        alphas = alphas.view([B, T, U])
+        diff = torch.norm(ground_alphas - alphas)
+        ll_diff = torch.norm(ground_log_likelihood - llForward)
+
+        assert diff <= 1e-3
+        assert ll_diff <= 1e-3
+
+
+class TestMultiblankRNNTCUDAKernels:
+    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.unit
+    def test_compute_alphas_kernel(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+        random = np.random.RandomState(0)
+        original_shape = [1, 15, 11, 6]
+        big_blank_durations = [2, 3, 4]
+        B, T, U, V = original_shape
+        num_big_blanks = len(big_blank_durations)
+
+        sigma = 0.05
+
+        # for passing into the kernel function -- it expected unnormalized logits
+        x = random.randn(*original_shape)
+        # for passing into the pytorch function -- it expected normalized logits
+        normalized_x = log_softmax(x, axis=-1) - sigma
+
+        labels = np.array([[1, 1, 1, 1, 0, 0, 1, 0, 0, 1]])  # [1, 10]
+        blank_idx = V - 1
+
+        pytorch_multiblank_loss = MultiblankRNNTLossPytorch(blank_idx, big_blank_durations, sigma=sigma)
+
+        # Pytorch kernel
+        device = torch.device('cuda')
+        if hasattr(cuda, 'external_stream'):
+            stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
+        else:
+            stream = cuda.default_stream()
+
+        x = torch.tensor(x, device=device, dtype=torch.float32)
+        normalized_x = torch.tensor(normalized_x, device=device, dtype=torch.float32)
+        labels = torch.tensor(labels, device=device, dtype=torch.long)
+        big_blank_durations = torch.tensor(big_blank_durations, device=device, dtype=torch.long)
+
+        # Allocate workspace memory
+        denom = torch.zeros(B * T * U, device=device, dtype=x.dtype)
+        alphas = torch.zeros(B * T * U, device=device, dtype=x.dtype)
+        llForward = torch.zeros(B, device=device, dtype=x.dtype)
+        input_lengths = torch.tensor([T], dtype=torch.long, device=device)
+        label_lengths = torch.tensor([U - 1], dtype=torch.long, device=device)
+
+        ground_log_likelihood, ground_alphas = pytorch_multiblank_loss.compute_forward_prob(
+            normalized_x, labels, input_lengths, label_lengths
+        )
+
+        # certify input data
+        certify_inputs(x, labels, input_lengths, label_lengths)
+
+        # flatten activation tensor (for pointer based indexing)
+        x = x.view([-1])
+
+        # call kernel
+        # log softmax reduction
+        reduce.reduce_max(x, denom, rows=V, cols=B * T * U, minus=False, stream=stream)
+        reduce.reduce_exp(x, denom, rows=V, cols=B * T * U, minus=True, stream=stream)
+
+        # alpha kernel
+        gpu_rnnt_kernel.compute_multiblank_alphas_kernel[B, U, stream, 0](
+            x,
+            denom,
+            sigma,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
+            big_blank_durations,
+            num_big_blanks,
         )
 
         # sync kernel
