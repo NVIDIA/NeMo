@@ -169,6 +169,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         pitch_embedding_kernel_size: int,
         energy_embedding_kernel_size: int,
         n_mel_channels: int = 80,
+        min_token_duration: int = 0,
         max_token_duration: int = 75,
         use_log_energy: bool = True,
     ):
@@ -194,7 +195,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         else:
             self.speaker_emb = None
 
-        self.min_token_duration = 1
+        self.min_token_duration = min_token_duration
         self.max_token_duration = max_token_duration
 
         self.pitch_emb = torch.nn.Conv1d(
@@ -452,6 +453,7 @@ class FastPitchSSLModule(NeuralModule):
         symbols_embedding_dim: int,
         pitch_embedding_kernel_size: int,
         n_mel_channels: int = 80,
+        min_token_duration: int = 0,
         max_token_duration: int = 75,
     ):
         super().__init__()
@@ -461,7 +463,7 @@ class FastPitchSSLModule(NeuralModule):
         self.duration_predictor = duration_predictor
         self.pitch_predictor = pitch_predictor
 
-        self.min_token_duration = 1
+        self.min_token_duration = min_token_duration
         self.max_token_duration = max_token_duration
 
         if self.pitch_predictor is not None:

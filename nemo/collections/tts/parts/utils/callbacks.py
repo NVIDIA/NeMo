@@ -47,18 +47,27 @@ def _get_logger(loggers: List[Logger], logger_type: Type[Logger]):
     raise ValueError(f"Could not find {logger_type} logger in {loggers}.")
 
 
-def _load_vocoder(checkpoint_path: Path, type: str):
+def _load_vocoder(model_name: Optional[str], checkpoint_path: Optional[str], type: str):
+    assert (model_name is None) != (
+        checkpoint_path is None
+    ), f"Must provide exactly one of vocoder model_name or checkpoint: ({model_name}, {checkpoint_path})"
+
     checkpoint_path = str(checkpoint_path)
     if type == "hifigan":
         from nemo.collections.tts.models import HifiGanModel
 
-        vocoder = HifiGanModel.load_from_checkpoint(checkpoint_path).eval()
+        model_type = HifiGanModel
     elif type == "univnet":
         from nemo.collections.tts.models import UnivNetModel
 
-        vocoder = UnivNetModel.load_from_checkpoint(checkpoint_path).eval()
+        model_type = UnivNetModel
     else:
         raise ValueError(f"Unknown vocoder type '{type}'")
+
+    if model_name is not None:
+        vocoder = model_type.from_pretrained(model_name).eval()
+    else:
+        vocoder = model_type.load_from_checkpoint(checkpoint_path).eval()
 
     return vocoder
 
@@ -83,7 +92,8 @@ class ImageArtifact:
 @dataclass
 class LogAudioParams:
     vocoder_type: str
-    vocoder_checkpoint_path: Path
+    vocoder_name: str
+    vocoder_checkpoint_path: str
     log_audio_gta: bool = False
 
 
@@ -247,7 +257,9 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
             self.log_audio = True
             self.log_audio_gta = audio_params.log_audio_gta
             self.vocoder = _load_vocoder(
-                checkpoint_path=audio_params.vocoder_checkpoint_path, type=audio_params.vocoder_type
+                model_name=audio_params.vocoder_name,
+                checkpoint_path=audio_params.vocoder_checkpoint_path,
+                type=audio_params.vocoder_type,
             )
 
     def _generate_audio(self, mels, mels_len, hop_length):

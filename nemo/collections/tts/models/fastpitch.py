@@ -157,6 +157,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
         speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
         speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
+        min_token_duration = cfg.get("min_token_duration", 0)
         use_log_energy = cfg.get("use_log_energy", True)
         if n_speakers > 1 and "add" not in input_fft.cond_input.condition_types:
             input_fft.cond_input.condition_types.append("add")
@@ -181,6 +182,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             cfg.pitch_embedding_kernel_size,
             energy_embedding_kernel_size,
             cfg.n_mel_channels,
+            min_token_duration,
             cfg.max_token_duration,
             use_log_energy,
         )
@@ -665,7 +667,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
     def configure_callbacks(self):
         if not self.log_config:
-            return
+            return []
 
         sample_ds_class = self.log_config.dataset._target_
         if sample_ds_class != "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
