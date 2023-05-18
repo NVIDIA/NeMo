@@ -19,14 +19,14 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.position_embedding import (
-    RotaryEmbedding,
-    ALiBiRelativePositionEmbedding,
-    KERPLERelativePositionEmbedding,
-    SandwitchRelativePositionEmbedding,
-)
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.position_embedding import (
+    ALiBiRelativePositionEmbedding,
+    KERPLERelativePositionEmbedding,
+    RotaryEmbedding,
+    SandwitchRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -586,9 +586,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         elif position_embedding_type == 'sandwich':
             self.encoder_relative_position_embedding = SandwitchRelativePositionEmbedding(
                 num_attention_heads=num_attention_heads,
-                hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels
+                hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
             )
-            
+
         # Transformer.
         self.encoder = ParallelTransformer(
             init_method=self.init_method,
@@ -782,7 +782,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
         elif self.position_embedding_type == 'kerple':
             raise NotImplementedError
-            
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(

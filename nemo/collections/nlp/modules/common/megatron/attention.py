@@ -25,9 +25,11 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
 from nemo.collections.nlp.modules.common.megatron.position_embedding import XPOSRelativePositionEmbedding
-from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import apply_rotary_pos_emb
+from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import (
+    apply_rotary_pos_emb,
+)
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
