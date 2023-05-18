@@ -14,7 +14,7 @@
 
 import abc
 from contextlib import nullcontext
-
+from typing import ContextManager
 import torch
 import torch.nn.functional as F
 
@@ -22,46 +22,99 @@ from nemo.core.classes.loss import Loss
 from nemo.core.utils.k2_guard import k2
 
 
-def force_float32_context():
-    """ """
+def force_float32_context() -> ContextManager:
+    """Get context manager to force float32 precision in autocast mode."""
     if torch.is_autocast_enabled():
         return torch.cuda.amp.autocast(dtype=torch.float32)
     return nullcontext()
 
 
 class GraphTransducerLossBase(Loss):
-    def __init__(self, connect: bool, double_scores: bool, optimized: bool, cast_to_float32=False):
+    """
+    Base class for graph transducer losses.
+    Implementation of the approach described in "Powerful and Extensible WFST Framework for RNN-Transducer Losses"
+    https://ieeexplore.ieee.org/document/10096679
+
+    Compose-Transducer: compose the unit (target text) and temporal schemes (graphs) into lattice
+    Grid-Transducer: construct the RNN-T lattice (grid) directly in code
+
+    :param connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
+        `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
+    :param use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
+    :param double_scores: Use calculation of loss in double precision (float64) in the lattice.
+        Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
+    :param cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
+    """
+
+    def __init__(
+        self, use_grid_implementation: bool, connect_composed=False, double_scores=False, cast_to_float32=False
+    ):
         super().__init__()
-        self._connect = connect
-        self._double_scores = double_scores
-        self._optimized = optimized
-        self._cast_to_float32 = cast_to_float32
+        self.use_grid_implementation = use_grid_implementation
+        self.connect_composed = connect_composed
+        self.double_scores = double_scores
+        self.cast_to_float32 = cast_to_float32
 
     @abc.abstractmethod
-    def get_text_graph(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
+    def get_unit_scheme(self, units_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
+        """
+        Get unit scheme (target text) graph for Compose-Transducer.
+
+        :param units_tensor:
+        :param num_labels:
+        :return:
+        """
         pass
 
     @abc.abstractmethod
-    def get_temporal_graph(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
+    def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
+        """
+        Get temporal scheme graph for Compose-Transducer.
+
+        :param sequence_length: length of the sequence (in frames)
+        :param num_labels: number of labels (including blank)
+        :param device: device for tensor to construct
+        :return:
+        """
         pass
 
-    def get_rnnt_graph(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
-        fsa_text = self.get_text_graph(text_tensor, num_labels)
-        fsa_temporal = self.get_temporal_graph(sequence_length, num_labels, text_tensor.device)
+    @abc.abstractmethod
+    def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+        """
+        Construct the RNN-T lattice (grid) for Grid-Transducer.
+
+        :param text_tensor: tensor with target text
+        :param sequence_length: length of the sequence (in frames)
+        :param num_labels: number of labels (including blank)
+        :return:
+        """
+        pass
+
+    def get_composed_lattice(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+        """
+        Get composed lattice (unit and temporal schemes) for Compose-Transducer. Useful for visualization.
+
+        :param text_tensor: tensor with target text
+        :param sequence_length: length of the sequence (in frames)
+        :param num_labels: number of labels (including blank)
+        :return:
+        """
+        fsa_text = self.get_unit_scheme(text_tensor, num_labels)
+        fsa_temporal = self.get_temporal_scheme(sequence_length, num_labels, text_tensor.device)
         composed = k2.compose(fsa_text, fsa_temporal, treat_epsilons_specially=False)
-        if self._connect:
+        if self.connect_composed:
             composed = k2.connect(composed)
         return composed
 
     def get_graphs_batched(
         self, logits_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, num_labels: int
-    ) -> k2.Fsa:
+    ) -> "k2.Fsa":
         batch_size = logits_lengths.shape[0]
         with torch.no_grad():
-            if self._optimized:
+            if self.use_grid_implementation:
                 return k2.create_fsa_vec(
                     [
-                        self.get_rnnt_graph_fast(
+                        self.get_grid(
                             text_tensor=targets[i, : target_lengths[i].item()],
                             sequence_length=logits_lengths[i].item(),
                             num_labels=num_labels,
@@ -72,11 +125,11 @@ class GraphTransducerLossBase(Loss):
 
             # composed version
             text_fsas = [
-                self.get_text_graph(text_tensor=targets[i, : target_lengths[i].item()], num_labels=num_labels,)
+                self.get_unit_scheme(units_tensor=targets[i, : target_lengths[i].item()], num_labels=num_labels,)
                 for i in range(batch_size)
             ]
             temporal_fsas = [
-                self.get_temporal_graph(
+                self.get_temporal_scheme(
                     sequence_length=logits_lengths[i].item(), num_labels=num_labels, device=targets.device
                 )
                 for i in range(batch_size)
@@ -84,11 +137,18 @@ class GraphTransducerLossBase(Loss):
             target_fsas_vec = k2.compose(
                 k2.create_fsa_vec(text_fsas), k2.create_fsa_vec(temporal_fsas), treat_epsilons_specially=False
             )
-            if self._connect:
+            if self.connect_composed:
                 k2.connect(target_fsas_vec)
         return target_fsas_vec
 
     def get_logits_indices(self, target_fsas_vec: k2.Fsa, logits_shape: torch.Size) -> torch.Tensor:
+        """
+        Get indices of flatten logits for each arc in the lattices.
+
+        :param target_fsas_vec: batch of target FSAs with lattices
+        :param logits_shape: shape of the logits tensor
+        :return:
+        """
         # logits_shape: B x Time x Text+1 x Labels
         batch_size = logits_shape[0]
         device = target_fsas_vec.device
@@ -99,35 +159,47 @@ class GraphTransducerLossBase(Loss):
             ),
         )
         indices = (
-            scores_to_batch_i * logits_shape[1] * logits_shape[2] * logits_shape[3]  # B
-            + target_fsas_vec.aux_labels.to(torch.int64) * logits_shape[2] * logits_shape[3]  # Time
-            + target_fsas_vec.text_positions.to(torch.int64) * logits_shape[3]  # Text
+            scores_to_batch_i * logits_shape[1] * logits_shape[2] * logits_shape[3]  # Batch
+            + target_fsas_vec.aux_labels.to(torch.int64) * logits_shape[2] * logits_shape[3]  # Time indices
+            + target_fsas_vec.text_positions.to(torch.int64) * logits_shape[3]  # Units (text) indices
             + target_fsas_vec.labels.to(torch.int64)  # Labels
         )
         return indices
 
-    @abc.abstractmethod
-    def get_rnnt_graph_fast(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
-        pass
-
 
 class GraphRnntLoss(GraphTransducerLossBase):
-    def __init__(self, blank: int, connect=False, double_scores=False, optimized=True, cast_to_float32=False):
+    def __init__(
+        self,
+        blank: int,
+        use_grid_implementation=True,
+        connect_composed=False,
+        double_scores=False,
+        cast_to_float32=False,
+    ):
         """
-        RNNT Loss - implementation based on k2 library
+        RNN-T loss implementation based on WFST according to "Powerful and Extensible WFST Framework for RNN-Transducer Losses"
+        https://ieeexplore.ieee.org/document/10096679
+
         :param blank: blank label index
-        :param connect: connect composed graph (slow operation); useful for visualization, not necessary for loss computation
-        :param double_scores: compute scores in float64
-        :param optimized: use optimized graph construction instead of text-temporal composition
+        :param connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
+            `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
+        :param use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
+        :param double_scores: Use calculation of loss in double precision (float64) in the lattice.
+            Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
+        :param cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
         """
         super().__init__(
-            connect=connect, double_scores=double_scores, optimized=optimized, cast_to_float32=cast_to_float32
+            use_grid_implementation=use_grid_implementation,
+            connect_composed=connect_composed,
+            double_scores=double_scores,
+            cast_to_float32=cast_to_float32,
         )
-        self._blank = blank
+        self.blank = blank
 
-    def get_text_graph(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
+    def get_unit_scheme(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
         """
-        Construct text graph: forward arcs - text labels,
+        Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
+        Forward arcs represent text labels.
         Example graph: text [1, 2], blank_id=0
         labels: text_labels:text_labels:text_position
 
@@ -143,7 +215,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         :return: k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
         """
 
-        blank_id = self._blank
+        blank_id = self.blank
         device = text_tensor.device
         text_len = text_tensor.shape[0]
 
@@ -168,9 +240,9 @@ class GraphRnntLoss(GraphTransducerLossBase):
         fsa_text.text_positions = text_indices.expand(2, -1).transpose(0, 1).flatten()
         return fsa_text
 
-    def get_temporal_graph(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
+    def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
         """
-        Construct temporal graph
+        Get temporal scheme graph for RNN-T loss (Compose-Transducer).
         Forward arc - blank, self-loops - all labels excluding blank
         Example graph: blank_id=0, sequence_length=3, num_labels=3
         labels: labels_id:sequence_position
@@ -189,7 +261,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         :param device:
         :return: k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
         """
-        blank_id = self._blank
+        blank_id = self.blank
 
         fsa_temporal_arcs = torch.zeros((sequence_length * num_labels + 1, 4), dtype=torch.int32, device=device)
         sequence_states = torch.arange(0, sequence_length, dtype=torch.int32, device=device)
@@ -218,13 +290,18 @@ class GraphRnntLoss(GraphTransducerLossBase):
         fsa_temporal = k2.arc_sort(fsa_temporal)  # need for compose
         return fsa_temporal
 
-    def relabel_states(self, states: torch.Tensor, n: int, m: int) -> torch.Tensor:
-        # FixMe: explain + test (!)
-        # some weird math here!
-        # need to be tested
-        # relabel states to be in topological order
+    @staticmethod
+    def relabel_states(states: torch.Tensor, n: int, m: int) -> torch.Tensor:
+        """
+        Relabel states to be in topological order: by diagonals
+
+        :param states: tensor with states
+        :param n: number of rows
+        :param m: number of columns
+        :return:
+        """
         i = states % n
-        j = torch.div(states, n, rounding_mode='floor')  # states // n, torch.div to aviod pytorch warnings
+        j = torch.div(states, n, rounding_mode='floor')  # states // n, torch.div to avoid pytorch warnings
         min_mn = min(m, n)
         max_mn = max(m, n)
         diag = i + j
@@ -239,8 +316,16 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         return states
 
-    def get_rnnt_graph_fast(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
-        blank_id = self._blank
+    def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
+        """
+        Construct the RNN-T lattice directly (Grid-Transducer).
+
+        :param text_tensor: 1d tensor with text units
+        :param sequence_length: length of the sequence (number of frames)
+        :param num_labels: number of total labels (vocab size including blank)
+        :return:
+        """
+        blank_id = self.blank
         text_length = text_tensor.shape[0]
         device = text_tensor.device
         num_grid_states = sequence_length * (text_length + 1)
@@ -297,15 +382,23 @@ class GraphRnntLoss(GraphTransducerLossBase):
     def forward(
         self, acts: torch.Tensor, labels: torch.Tensor, act_lens: torch.Tensor, label_lens: torch.Tensor,
     ):
-        # nemo: acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths
+        """
+
+        :param acts: activations (joint tensor)
+        :param labels: target labels
+        :param act_lens: lengths of activations
+        :param label_lens: length of labels sequences
+        :return:
+        """
+        # NeMo: acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
         # logits: B x Time x Text+1 x C
         num_labels = logits.shape[-1]
         target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, num_labels)
 
-        cast_context = force_float32_context if self._cast_to_float32 else nullcontext
-        with cast_context():
+        cast_context = force_float32_context() if self.cast_to_float32 else nullcontext()
+        with cast_context:
             log_probs = F.log_softmax(logits, dim=-1)
             with torch.no_grad():
                 indices = self.get_logits_indices(target_fsas_vec, logits.shape)
@@ -316,5 +409,5 @@ class GraphRnntLoss(GraphTransducerLossBase):
             scores[target_fsas_vec.labels == -1] = 0
 
             target_fsas_vec.scores = scores
-            scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self._double_scores, log_semiring=True)
+            scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self.double_scores, log_semiring=True)
             return scores
