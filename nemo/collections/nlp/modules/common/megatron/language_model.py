@@ -563,7 +563,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
-                bidirectional=encoder_attn_mask_type!=AttnMaskType.causal,
+                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
                 layer_type=LayerType.encoder,
                 num_attention_heads_alibi=None,
@@ -575,7 +575,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
-                bidirectional=encoder_attn_mask_type!=AttnMaskType.causal,
+                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
                 layer_type=LayerType.encoder,
                 num_attention_heads_kerple=None,
@@ -584,7 +584,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
         elif position_embedding_type == 'sandwich':
             self.encoder_relative_position_embedding = SandwitchRelativePositionEmbedding(
-                bidirectional=encoder_attn_mask_type!=AttnMaskType.causal,
+                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
                 layer_type=LayerType.encoder,
                 hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
