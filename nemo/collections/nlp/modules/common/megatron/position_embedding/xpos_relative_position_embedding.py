@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
+
 def fixed_pos_embedding(x):
     seq_len, dim = x.shape
     inv_freq = 1.0 / (10000 ** (torch.arange(0, dim) / dim))

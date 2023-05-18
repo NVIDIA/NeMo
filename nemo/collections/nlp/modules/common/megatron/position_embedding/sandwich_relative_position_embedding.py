@@ -18,12 +18,13 @@ from torch.nn import functional as F
 
 __all__ = ['SandwitchRelativePositionEmbedding']
 
+
 class SandwitchRelativePositionEmbedding(torch.nn.Module):
     """
     Receptive Field Alignment Enables Transformer Length Extrapolation
     Based on https://arxiv.org/abs/2212.10356
     """
-    
+
     def __init__(self, num_attention_heads, hidden_size):
         """
         Args:
@@ -33,20 +34,32 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
         super().__init__()
         self.num_attention_heads = num_attention_heads
         self.hidden_size = hidden_size
-    
+
     def forward(self, query_seq_length, key_seq_length):
-        context_position = torch.arange(query_seq_length, dtype=torch.long, device=torch.cuda.current_device())[:, None]
+        context_position = torch.arange(query_seq_length, dtype=torch.long, device=torch.cuda.current_device())[
+            :, None
+        ]
         memory_position = torch.arange(key_seq_length, dtype=torch.long, device=torch.cuda.current_device())[None, :]
         relative_position = memory_position - context_position  # shape (query_seq_length, key_seq_length)
 
-        inv_freq = 1.0 / (10000 ** (2 * torch.arange(1, self.hidden_size / 2, device=torch.cuda.current_device()) / self.hidden_size))
+        inv_freq = 1.0 / (
+            10000 ** (2 * torch.arange(1, self.hidden_size / 2, device=torch.cuda.current_device()) / self.hidden_size)
+        )
 
         _bias = torch.sum(relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq, axis=2)
         bias = _bias.repeat(self.num_attention_heads, 1, 1)
 
         _bias_scales = torch.arange(1, self.num_attention_heads + 1, 1, device=torch.cuda.current_device())
         bias_scales = torch.stack(
-            list(map(lambda x, y: x * y, _bias_scales, torch.ones(self.num_attention_heads, query_seq_length, key_seq_length, device=torch.cuda.current_device())))
+            list(
+                map(
+                    lambda x, y: x * y,
+                    _bias_scales,
+                    torch.ones(
+                        self.num_attention_heads, query_seq_length, key_seq_length, device=torch.cuda.current_device()
+                    ),
+                )
+            )
         )
         scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads)
 
