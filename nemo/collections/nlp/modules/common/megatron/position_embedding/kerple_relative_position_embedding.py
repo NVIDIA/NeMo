@@ -39,7 +39,6 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
         layer_type,
         num_attention_heads_kerple=None,
         max_seq_len=512,
-        full=True,
     ):
         """
         Args:
@@ -74,15 +73,15 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
         self.kerple_a = torch.zeros_like(self.kerple_b)
         self.kerple_p = torch.ones_like(self.kerple_b)
 
-        self.full = full
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
-        self.relative_position = build_relative_position(max_seq_len, max_seq_len, num_attention_heads, full)
+        # if we use causal attention (not bidrectional), we can use singleton relative position
+        self.relative_position = build_relative_position(max_seq_len, max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
-            relative_position = build_relative_position(max_seq_len, max_seq_len, self.num_attention_heads, self.full)
+            relative_position = build_relative_position(max_seq_len, max_seq_len, full=self.bidirectional).unsqueeze(0).expand(self.num_attention_heads, -1, -1)
         else:
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)

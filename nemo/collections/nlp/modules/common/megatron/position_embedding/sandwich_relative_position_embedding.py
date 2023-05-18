@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import torch
-import torch.nn as nn
-from torch.nn import functional as F
+from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import build_relative_position
 
 __all__ = ['SandwitchRelativePositionEmbedding']
 
@@ -25,42 +24,53 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
     Based on https://arxiv.org/abs/2212.10356
     """
 
-    def __init__(self, num_attention_heads, hidden_size):
+    def __init__(
+        self, 
+        bidirectional,     
+        num_attention_heads,
+        layer_type,
+        hidden_size, 
+        max_seq_len=512, 
+    ):
         """
         Args:
             num_attention_heads: Number of attention heads
             hidden_size: Hidden size per attention head
         """
         super().__init__()
+        self.bidirectional = bidirectional
+        self.layer_type = layer_type
         self.num_attention_heads = num_attention_heads
         self.hidden_size = hidden_size
-
+        self.max_seq_len = max_seq_len
+        
+        # (query_seq_length, key_seq_length)
+        # if we use causal attention (not bidrectional), we can use singleton relative position
+        self.relative_position = build_relative_position(max_seq_len, max_seq_len, full=bidirectional)
+        
     def forward(self, query_seq_length, key_seq_length):
-        context_position = torch.arange(query_seq_length, dtype=torch.long, device=torch.cuda.current_device())[
-            :, None
-        ]
-        memory_position = torch.arange(key_seq_length, dtype=torch.long, device=torch.cuda.current_device())[None, :]
-        relative_position = memory_position - context_position  # shape (query_seq_length, key_seq_length)
-
+        # used cached relative position if possible
+        max_seq_len = max(query_seq_length, key_seq_length)
+        if max_seq_len > self.max_seq_len:
+            relative_position = build_relative_position(max_seq_len, max_seq_len, full=self.bidirectional)
+        else:
+            relative_position = self.relative_position
+        # shape (query_seq_length, key_seq_length)
+        relative_position = relative_position[:query_seq_length, :key_seq_length]
+        # if not bidirectional, mask out the future positions
+        if not self.bidirectional:
+            relative_position = torch.tril(relative_position)
+        
         inv_freq = 1.0 / (
             10000 ** (2 * torch.arange(1, self.hidden_size / 2, device=torch.cuda.current_device()) / self.hidden_size)
         )
 
-        _bias = torch.sum(relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq, axis=2)
+        _bias = (torch.sum(relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq, axis=2)).cos()
         bias = _bias.repeat(self.num_attention_heads, 1, 1)
 
         _bias_scales = torch.arange(1, self.num_attention_heads + 1, 1, device=torch.cuda.current_device())
-        bias_scales = torch.stack(
-            list(
-                map(
-                    lambda x, y: x * y,
-                    _bias_scales,
-                    torch.ones(
-                        self.num_attention_heads, query_seq_length, key_seq_length, device=torch.cuda.current_device()
-                    ),
-                )
-            )
-        )
-        scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads)
+        bias_scales = _bias_scales[:, None, None]
 
+        scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads)
         return scaled_bias.unsqueeze(0)
+
