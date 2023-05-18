@@ -66,12 +66,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        bidirectional,
-        num_attention_heads,
-        layer_type,
-        num_attention_heads_alibi=None,
-        max_seq_len=512,
+        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512,
     ):
         """
         Args:
@@ -105,13 +100,21 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         self.slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
-        self.relative_position = build_relative_position(max_seq_len, max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
+        self.relative_position = (
+            build_relative_position(max_seq_len, max_seq_len, full=bidirectional)
+            .unsqueeze(0)
+            .expand(num_attention_heads, -1, -1)
+        )
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
-            relative_position = build_relative_position(max_seq_len, max_seq_len, full=self.bidirectional).unsqueeze(0).expand(self.num_attention_heads, -1, -1)
+            relative_position = (
+                build_relative_position(max_seq_len, max_seq_len, full=self.bidirectional)
+                .unsqueeze(0)
+                .expand(self.num_attention_heads, -1, -1)
+            )
         else:
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)

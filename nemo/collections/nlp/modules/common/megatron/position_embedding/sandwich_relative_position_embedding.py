@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import torch
-from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import build_relative_position
+
+from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import (
+    build_relative_position,
+)
 
 __all__ = ['SandwitchRelativePositionEmbedding']
 
@@ -25,12 +28,7 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, 
-        bidirectional,     
-        num_attention_heads,
-        layer_type,
-        hidden_size, 
-        max_seq_len=512, 
+        self, bidirectional, num_attention_heads, layer_type, hidden_size, max_seq_len=512,
     ):
         """
         Args:
@@ -43,11 +41,11 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
         self.num_attention_heads = num_attention_heads
         self.hidden_size = hidden_size
         self.max_seq_len = max_seq_len
-        
+
         # (query_seq_length, key_seq_length)
         # if we use causal attention (not bidrectional), we can use singleton relative position
         self.relative_position = build_relative_position(max_seq_len, max_seq_len, full=bidirectional)
-        
+
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
         max_seq_len = max(query_seq_length, key_seq_length)
@@ -60,7 +58,7 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
         # if not bidirectional, mask out the future positions
         if not self.bidirectional:
             relative_position = torch.tril(relative_position)
-        
+
         inv_freq = 1.0 / (
             10000 ** (2 * torch.arange(1, self.hidden_size / 2, device=torch.cuda.current_device()) / self.hidden_size)
         )
@@ -73,4 +71,3 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
 
         scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads)
         return scaled_bias.unsqueeze(0)
-
