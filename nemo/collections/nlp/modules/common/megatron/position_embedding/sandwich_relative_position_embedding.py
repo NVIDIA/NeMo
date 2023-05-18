@@ -62,5 +62,5 @@ class SandwitchRelativePositionEmbedding(torch.nn.Module):
             )
         )
         scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads)
-        
+
         return scaled_bias.unsqueeze(0)
