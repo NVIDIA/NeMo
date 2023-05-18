@@ -83,6 +83,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         moe_frequency=1,
         moe_dropout=0.0,
         position_embedding_type='learned_absolute',
+        use_flash_attention=False,
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
 
@@ -149,6 +150,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
             position_embedding_type=position_embedding_type,
+            use_flash_attention=use_flash_attention,
         )
         self._model_key = 'model'
 
