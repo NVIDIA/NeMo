@@ -243,7 +243,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
                 moe_frequency=encoder_cfg.get('moe_frequency', 1),
                 moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
-                position_embedding_type=decoder_cfg.get('position_embedding_type', 'learned_absolute'),
+                position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
+                use_flash_attention=encoder_cfg.get('use_flash_attention', False),
             )
 
         if add_decoder:
@@ -375,6 +376,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 moe_frequency=decoder_cfg.get('moe_frequency', 1),
                 moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
                 position_embedding_type=decoder_cfg.get('position_embedding_type', 'learned_absolute'),
+                use_flash_attention=decoder_cfg.get('use_flash_attention', False),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
