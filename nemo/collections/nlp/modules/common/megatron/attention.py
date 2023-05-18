@@ -969,7 +969,7 @@ class CoreAttention(MegatronModule):
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-            
+
         if attention_mask is not None:
             # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
             attention_mask_q  = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)

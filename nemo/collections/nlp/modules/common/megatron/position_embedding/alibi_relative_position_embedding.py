@@ -48,15 +48,13 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
     return slopes.unsqueeze(-1).unsqueeze(-1)
 
 
-def build_relative_position(query_length, key_length, num_attention_heads, full=True):
+def build_relative_position(query_length, key_length, full=True):
     relative_position = torch.arange(1 - query_length, 1)[None, :].cuda().mul(-1)  # (1, max_seq_len)
 
     if full:
         memory_position = torch.arange(1 - key_length, 1)[:, None].cuda().mul(-1)
         relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
 
-    # (num_attention_heads, max_seq_len, max_seq_len)
-    relative_position = relative_position.unsqueeze(0).expand(num_attention_heads, -1, -1)
     return relative_position
 
 
@@ -74,7 +72,6 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         layer_type,
         num_attention_heads_alibi=None,
         max_seq_len=512,
-        full=True,
     ):
         """
         Args:
@@ -103,18 +100,18 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         self.num_attention_heads_alibi = num_attention_heads_alibi
         # Larger sizes will result in more memory usage by computing alibi mask on-the-fly.
         self.max_seq_len = max_seq_len
-        self.full = full
 
         # cache the slopes
         self.slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
-        self.relative_position = build_relative_position(max_seq_len, max_seq_len, num_attention_heads, full)
+        # if we use causal attention (not bidrectional), we can use singleton relative position
+        self.relative_position = build_relative_position(max_seq_len, max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
-            relative_position = build_relative_position(max_seq_len, max_seq_len, self.num_attention_heads, self.full)
+            relative_position = build_relative_position(max_seq_len, max_seq_len, full=self.bidirectional).unsqueeze(0).expand(self.num_attention_heads, -1, -1)
         else:
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)

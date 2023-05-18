@@ -526,7 +526,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
-
         if kv_channels is None:
 
             assert (
@@ -564,12 +563,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
-                bidirectional=False,
+                bidirectional=encoder_attn_mask_type!=AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
                 layer_type=LayerType.encoder,
                 num_attention_heads_alibi=None,
                 max_seq_len=max_position_embeddings,
-                full=False,
             )
 
         elif position_embedding_type == 'kerple':
@@ -577,15 +575,20 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             # addition for decoder. Currently it is only used for decoder model only.
             # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
             self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
-                bidirectional=False,
+                bidirectional=encoder_attn_mask_type!=AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
-                precision=precision
+                layer_type=LayerType.encoder,
+                num_attention_heads_kerple=None,
+                max_seq_len=max_position_embeddings,
             )
 
         elif position_embedding_type == 'sandwich':
             self.encoder_relative_position_embedding = SandwitchRelativePositionEmbedding(
+                bidirectional=encoder_attn_mask_type!=AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
+                layer_type=LayerType.encoder,
                 hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
+                max_seq_len=max_position_embeddings,
             )
 
         # Transformer.
