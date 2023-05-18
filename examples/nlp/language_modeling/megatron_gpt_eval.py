@@ -263,7 +263,8 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    if model.cfg.fp8 == True:
+    fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
+    if fp8_enabled:
         nb_paddings = 0
         while len(cfg.prompts) % 8 != 0:
             cfg.prompts.append("")
@@ -274,21 +275,21 @@ def main(cfg) -> None:
         inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
     )
 
-    if model.cfg.fp8 == True:
+    if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
     print("***************************")
     print(response)
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
-    bs = 8 if model.cfg.fp8 == True else 2
+    bs = 8 if fp8_enabled else 2
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
-    if model.cfg.fp8 == True:
+    if fp8_enabled:
         response[-1] = remove_padded_prompts(response[-1], nb_paddings)
     print("***************************")
     print(response)
