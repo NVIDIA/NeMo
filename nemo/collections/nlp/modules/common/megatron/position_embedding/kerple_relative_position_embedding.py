@@ -17,7 +17,7 @@ import math
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
+from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import (
     build_relative_position,
     build_slopes,
 )

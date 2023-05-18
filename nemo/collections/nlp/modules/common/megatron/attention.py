@@ -24,12 +24,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
-from nemo.collections.nlp.modules.common.megatron.kerple_relative_position import kerple_log_forward
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
-from nemo.collections.nlp.modules.common.megatron.sandwich_relative_position import sandwich_pos_bias
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
-from nemo.collections.nlp.modules.common.megatron.xpos_relative_position import XPOS
+from nemo.collections.nlp.modules.common.megatron.position_embedding import XPOSRelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
@@ -777,7 +775,7 @@ class CoreAttention(MegatronModule):
         self.use_flash_attention = use_flash_attention
 
         if position_embedding_type.lower() == 'xpos':
-            self.xpos = XPOS(hidden_size / num_attention_heads)
+            self.xpos = XPOSRelativePositionEmbedding(hidden_size / num_attention_heads)
 
     def forward(
         self,
@@ -813,27 +811,14 @@ class CoreAttention(MegatronModule):
         # ==================================================
         # Update attention bias. [b, np, sq, sk]
         # ==================================================
-        has_attention_bias = False
-        attention_bias = torch.zeros(b, np, sq, sk, dtype=query_layer.dtype, device=torch.cuda.current_device())
-
-        if self.position_embedding_type.lower() == 'sandwich':
-            has_attention_bias = True
-            attention_bias += sandwich_pos_bias(
-                sq, sk, self.hidden_size_per_attention_head, np, torch.cuda.current_device()
-            )
-
         if relative_position_bias is not None:
-            has_attention_bias = True
-            if self.position_embedding_type.lower() == 'alibi':
-                attention_bias += relative_position_bias[
-                    :,
-                    self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
-                    + self.num_attention_heads_per_partition,
-                    :sq,
-                    :sk,
-                ]
-            elif self.position_embedding_type.lower() == 'kerple':
-                attention_bias += kerple_log_forward(sq, sk, relative_position_bias)
+            relative_position_bias = relative_position_bias[
+                :,
+                self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
+                + self.num_attention_heads_per_partition,
+                :sq,
+                :sk,
+            ]
 
         # ==================================================
         # Update query_layer, key_layer, value_layer
@@ -842,7 +827,6 @@ class CoreAttention(MegatronModule):
         # apply relative positional encoding (rotary embedding)
         if rotary_pos_emb is not None:
             q_pos_emb, k_pos_emb = rotary_pos_emb
-
             query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
             key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
             # TODO, can apply positional embedding to value_layer so it has
@@ -851,13 +835,12 @@ class CoreAttention(MegatronModule):
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
 
         if self.position_embedding_type.lower() == 'xpos':
-            query_layer = rearrange(query_layer, 'sq b np hn -> (b np) sq hn')
-            key_layer = rearrange(key_layer, 'sk b np hn -> (b np) sk hn')
             query_layer = self.xpos(query_layer, offset=0, downscale=False)
             key_layer = self.xpos(key_layer, offset=0, downscale=True)
-            query_layer = rearrange(query_layer, '(b np) sq hn -> sq b np hn', b=b)
-            key_layer = rearrange(key_layer, '(b np) sk hn -> sk b np hn', b=b)
 
+        # ==================================================
+        # Rearrange query_layer, key_layer, value_layer
+        # ==================================================
         if self.use_flash_attention:
             query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
             key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
@@ -876,13 +859,13 @@ class CoreAttention(MegatronModule):
         # ==================================================
         if self.use_flash_attention:
             # Use to ensure dtype cast to fp16 or bf16
-            (query_layer, key_layer, value_layer, attention_mask, attention_bias) = _cast_if_autocast_enabled(
-                query_layer, key_layer, value_layer, attention_mask, attention_bias,
+            (query_layer, key_layer, value_layer, attention_mask, relative_position_bias) = _cast_if_autocast_enabled(
+                query_layer, key_layer, value_layer, attention_mask, relative_position_bias,
             )
 
-            if has_attention_bias:
+            if relative_position_bias is not None:
                 context_layer = self.flash_attention_triton(
-                    query_layer, key_layer, value_layer, attention_mask, attention_bias,
+                    query_layer, key_layer, value_layer, attention_mask, relative_position_bias,
                 )
             else:
                 context_layer = self.flash_attention(query_layer, key_layer, value_layer, attention_mask,)
@@ -907,8 +890,8 @@ class CoreAttention(MegatronModule):
             # change view to [b, np, sq, sk]
             attention_scores = matmul_result.view(b, np, sq, sk)
 
-            if has_attention_bias:
-                attention_scores += attention_bias
+            if relative_position_bias is not None:
+                attention_scores += relative_position_bias
 
             attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
