@@ -76,7 +76,8 @@ class HifiGanModel(Vocoder, Exportable):
         self.log_config = cfg.get("log_config", None)
         self.automatic_optimization = False
 
-    def _get_max_steps(self):
+    @property
+    def max_steps(self):
         if "max_steps" in self._cfg:
             return self._cfg.get("max_steps")
 
@@ -121,7 +122,7 @@ class HifiGanModel(Vocoder, Exportable):
         if sched_config is None:
             return [optim_g, optim_d]
 
-        max_steps = self._get_max_steps()
+        max_steps = self.max_steps
         warmup_steps = self.get_warmup_steps(
             max_steps=max_steps,
             warmup_steps=sched_config.get("warmup_steps", None),
@@ -375,7 +376,7 @@ class HifiGanModel(Vocoder, Exportable):
 
     def configure_callbacks(self):
         if not self.log_config:
-            return
+            return []
 
         sample_ds_class = self.log_config.dataset._target_
         if sample_ds_class != "nemo.collections.tts.data.vocoder_dataset.VocoderDataset":

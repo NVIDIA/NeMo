@@ -22,6 +22,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
+from einops import rearrange
 from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.loggers.logger import Logger
@@ -249,8 +250,8 @@ class VocoderArtifactGenerator(ArtifactGenerator):
         spec, spec_len = model.audio_to_melspec_precessor(audio, audio_len)
 
         with torch.no_grad():
-            # [B, T]
-            audio_pred = model.forward(spec=spec).squeeze(1)
+            audio_pred = model.forward(spec=spec)
+            audio_pred = rearrange(audio_pred, "B 1 T -> B T")
 
         for i, audio_id in enumerate(audio_ids):
             audio_pred_i = audio_pred[i][: audio_len[i]].cpu().numpy()
@@ -372,8 +373,7 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
             )
 
         if self.log_alignment:
-            # [B, T_spec, T_text]
-            attn = attn.squeeze(1)
+            attn = rearrange(attn, "B 1 T_spec T_text -> B T_spec T_text")
             for i, audio_id in enumerate(audio_ids):
                 attn_i = attn[i][: mels_pred_len[i], : text_lens[i]].cpu().numpy()
                 alignment_artifact = ImageArtifact(

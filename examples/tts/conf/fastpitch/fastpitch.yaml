@@ -1,8 +1,11 @@
-# This config contains the default values for training an English 22khz FastPitch model.
+# This config contains the default values for training an English FastPitch model.
 # If you want to train a model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
 name: FastPitch
+
+defaults:
+  - feature: ???
 
 max_epochs: ???
 batch_size: 32
@@ -23,9 +26,6 @@ log_dir: ???
 vocoder_type: ???
 vocoder_name: null
 vocoder_checkpoint_path: null
-
-defaults:
-  - feature: feature_22050
 
 model:
   learn_alignment: true
@@ -79,7 +79,6 @@ model:
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
       phoneme_probability: 0.8
-      # Relies on the heteronyms list for anything that needs to be disambiguated
       ignore_ambiguous_words: false
       use_chars: true
       use_stresses: true
@@ -95,7 +94,6 @@ model:
     stats_path: ${feature_stats_path}
 
   align_prior_config:
-    _target_: nemo.collections.tts.data.text_to_speech_dataset.AlignPriorConfig
     hop_length: ${feature.hop_length}
     use_beta_binomial_interpolator: false
 
@@ -116,7 +114,7 @@ model:
 
     dataloader_params:
       batch_size: ${batch_size}
-      num_workers: 8
+      num_workers: 4
 
   validation_ds:
     dataset:

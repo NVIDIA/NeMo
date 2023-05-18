@@ -49,9 +49,29 @@ class DatasetSample:
 
 @experimental
 class VocoderDataset(Dataset):
+    """
+    Class for processing and loading Vocoder training examples.
+
+    Args:
+        dataset_meta: Dict of dataset names (string) to dataset metadata.
+        sample_rate: Sample rate to load audio as. If the audio is stored at a different sample rate, then it will
+            be resampled.
+        n_segments: Optional int, if provided then n_segments samples will be randomly sampled from the full
+            audio file.
+        weighted_sample_steps: Optional int, If provided, then data will be sampled (with replacement) based on
+            the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
+        feature_processors: Optional, list of feature processors to run on training examples.
+        min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
+            will be ignored.
+        max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
+            will be ignored.
+        num_audio_retries: Number of read attempts to make when sampling audio file, to avoid training failing
+            from sporadic IO errors.
+    """
+
     def __init__(
         self,
-        dataset_meta: Dict[str, DatasetMeta],
+        dataset_meta: Dict,
         sample_rate: int,
         n_segments: Optional[int] = None,
         weighted_sample_steps: Optional[int] = None,
@@ -70,14 +90,15 @@ class VocoderDataset(Dataset):
 
         if feature_processors:
             logging.info(f"Found feature processors {feature_processors.keys()}")
-            self.feature_processors = feature_processors.values()
+            self.feature_processors = list(feature_processors.values())
         else:
             self.feature_processors = []
 
         self.data_samples = []
         self.sample_weights = []
-        for dataset_name, dataset in dataset_meta.items():
-            samples, weights = self._process_dataset(
+        for dataset_name, dataset_info in dataset_meta.items():
+            dataset = DatasetMeta(**dataset_info)
+            samples, weights = self._preprocess_manifest(
                 dataset_name=dataset_name, dataset=dataset, min_duration=min_duration, max_duration=max_duration,
             )
             self.data_samples += samples
@@ -116,7 +137,7 @@ class VocoderDataset(Dataset):
         return audio, audio_len
 
     @staticmethod
-    def _process_dataset(
+    def _preprocess_manifest(
         dataset_name: str, dataset: DatasetMeta, min_duration: float, max_duration: float,
     ):
         entries = read_manifest(dataset.manifest_path)

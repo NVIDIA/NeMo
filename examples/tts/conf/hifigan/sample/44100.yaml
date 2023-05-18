@@ -1,0 +1,3 @@
+sample_rate: 44100
+train_n_segments: 16384
+val_n_segments: 131072

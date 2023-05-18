@@ -88,14 +88,14 @@ class TextToSpeechDataset(Dataset):
 
     def __init__(
         self,
-        dataset_meta: Dict[str, DatasetMeta],
+        dataset_meta: Dict,
         sample_rate: int,
         text_tokenizer: BaseTokenizer,
         weighted_sample_steps: Optional[int] = None,
         speaker_path: Optional[Path] = None,
         featurizers: Optional[Dict[str, Featurizer]] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
-        align_prior_config: Optional[AlignPriorConfig] = None,
+        align_prior_config: Optional[Dict] = None,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
     ):
@@ -115,26 +115,31 @@ class TextToSpeechDataset(Dataset):
 
         if featurizers:
             logging.info(f"Found featurizers {featurizers.keys()}")
-            self.featurizers = featurizers.values()
+            self.featurizers = list(featurizers.values())
         else:
             self.featurizers = []
 
         if feature_processors:
             logging.info(f"Found featurize processors {feature_processors.keys()}")
-            self.feature_processors = feature_processors.values()
+            self.feature_processors = list(feature_processors.values())
         else:
             self.feature_processors = []
 
-        self.align_prior_config = align_prior_config
-        if self.align_prior_config.use_beta_binomial_interpolator:
-            self.beta_binomial_interpolator = BetaBinomialInterpolator()
+        if align_prior_config:
+            self.align_prior_config = AlignPriorConfig(**align_prior_config)
+            if self.align_prior_config.use_beta_binomial_interpolator:
+                self.beta_binomial_interpolator = BetaBinomialInterpolator()
+            else:
+                self.beta_binomial_interpolator = None
         else:
+            self.align_prior_config = None
             self.beta_binomial_interpolator = None
 
         self.data_samples = []
         self.sample_weights = []
-        for dataset_name, dataset in dataset_meta.items():
-            samples, weights = self._process_dataset(
+        for dataset_name, dataset_info in dataset_meta.items():
+            dataset = DatasetMeta(**dataset_info)
+            samples, weights = self._preprocess_manifest(
                 dataset_name=dataset_name,
                 dataset=dataset,
                 min_duration=min_duration,
@@ -153,7 +158,7 @@ class TextToSpeechDataset(Dataset):
         )
         return sampler
 
-    def _process_dataset(
+    def _preprocess_manifest(
         self,
         dataset_name: str,
         dataset: DatasetMeta,
