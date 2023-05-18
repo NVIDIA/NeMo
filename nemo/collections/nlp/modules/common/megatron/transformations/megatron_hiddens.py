@@ -224,40 +224,43 @@ class MegatronHiddensModule(torch.nn.Module):
         loss_inputs = set().union(*[lt.input_names for lt in self.hidden_loss_transforms])
         return list(loss_inputs)
 
-    def apply_hidden_transforms(self, inputs):
+    def apply_hidden_transforms(self, inputs, batch_data=None):
         """
         Apply hidden transforms
         Args:
             inputs: a dictionary of inputs, with "hiddens" as the default key for hidden states
+            batch_data: a dictionary of batch data (e.g. "input_features"), optional
         
         Returns:
             outputs: a dictionary of outputs, collecting 
+        """
+        outputs = inputs.copy()
+        for hidden_transform in self.hidden_transforms:
+            # make sure to collect all outputs from hidden transforms
+            outputs.update(hidden_transform.transform(outputs, batch_data=batch_data))
+
+        return outputs
+
+    def apply_loss_transforms(self, outputs, batch_data=None):
+        """
+        Apply loss transforms
+        Args:
+            outputs: a dictionary of outputs (after hidden transforms)
+            batch_data: a dictionary of batch data (e.g. "target_ids"), optional
+        
+        Returns:
+            loss_dict: a dictionary of all losses
         """
         # TODO finish me
         # add name to loss values
         if self.name:
             loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
 
-        outputs = inputs.copy()
-        for hidden_transform in self.hidden_transforms:
-            # make sure to collect all outputs from hidden transforms
-            outputs.update(hidden_transform.transform(outputs))
 
-        return outputs
-
-    def apply_loss_transforms(self, outputs):
-        """
-        Apply loss transforms
-        Args:
-            outputs: a dictionary of outputs (after hidden transforms)
-        
-        Returns:
-            loss_dict: a dictionary of all losses
-        """
         loss_dict = {}
         joint_loss = 0.0
         for i, loss_transform in enumerate(self.loss_transforms):
-            cur_loss_dict = loss_transform.loss(outputs)
+            cur_loss_dict = loss_transform.loss(outputs, batch_data=batch_data)
             joint_loss = joint_loss + cur_loss_dict["loss"]
             cur_loss_dict.pop["loss"]
             # check if cur_loss keys are unique

@@ -93,6 +93,19 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         self._decoder_key = "decoder"
         self._hiddens_module = "hiddens_module"
 
+    def get_hiddens_mask(self, enc_attn_mask):
+        """
+        Returns the attention mask for the output of the encoder.
+        Required for fixed-size bottleneck models.
+        """
+        if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
+            # Attention mask is expected to be of shape [B x S] 
+            enc_attn_mask = torch.ones(enc_attn_mask.size(0), self.hidden_steps).to(enc_attn_mask.device)
+        else:
+            hiddens_mask = enc_attn_mask
+        
+        return hiddens_mask
+        
     def encode(
         self,
         enc_input,
@@ -100,10 +113,11 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_layer_past=None,
         enc_get_key_value=False,
         enc_self_attention_relative_position_bias=None,
+        batch_data=None,
     ):
+        """Encodes embedder input using encoder"""
         if self.encoder is None:
             raise ValueError(f"Cannot call .encode(...) when self.encoder is None.")
-        """Encodes embedder input using encoder"""
         enc_output = self.encoder(
             enc_input=enc_input,
             enc_attn_mask=enc_attn_mask,
@@ -114,7 +128,13 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         # apply hidden transformations if needed
         if self.hiddens_module is not None:
-            enc_output = self.hiddens_module.apply_hidden_transforms({"hiddens": enc_output})
+            enc_output = self.hiddens_module.apply_hidden_transforms(
+                {
+                    "hiddens": enc_output,
+                    "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),
+                },
+                batch_data=batch_data,
+            )
 
         return enc_output
 
@@ -161,6 +181,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_self_attention_relative_position_bias=None,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        batch_data=None,
     ):
         # encoder
         if enc_output is None:
@@ -171,6 +192,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_layer_past=enc_layer_past,
                     enc_get_key_value=enc_get_key_value,
                     enc_self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
+                    batch_data=batch_data,
                 )
             else:
                 assert self.encoder_hidden_state is not None
@@ -182,18 +204,14 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             return enc_output
 
         # decoder
-        # Adjust encoder attention mask if encoder is a perceiver.
-        if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
-            # Attention mask is expected to be of shape [B x S] and enc_output is of size [S x B x H].
-            enc_attn_mask = torch.ones(enc_output.size(1), self.hidden_steps).to(enc_output.device)
-
         dec_output = self.decode(
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
             enc_output=self.hiddens_module.get_enc_output(enc_output)
             if self.hiddens_module is not None
             else enc_output,  # will return enc_output id it is a torch.tensor
-            enc_attn_mask=enc_attn_mask,
+            # Adjust encoder attention mask if encoder is a perceiver.
+            enc_attn_mask=self.get_hiddens_mask(enc_attn_mask),
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
             dec_self_attention_relative_position_bias=dec_self_attention_relative_position_bias,

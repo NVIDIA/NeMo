@@ -15,6 +15,7 @@
 import copy
 import functools
 import inspect
+from operator import itemgetter
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -564,7 +565,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # convert to list if not already converted.
                 batch = self._process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
-            encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
+            if isinstance(batch, dict):
+                # we support a dict to provide additional inputs to the model for hiddens module
+                encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = itemgetter(
+                    "encoder_input_ids", "decoder_input_ids", "loss_mask", "lm_labels", "encoder_attn_mask", "decoder_attn_mask",
+                )(batch)
+                extra_batch_data = batch.get('extra_batch_data', None)
+            else:
+                # by default we expect a tuple of tensors and support only labels for observation
+                encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
+                extra_batch_data = None
 
             output = model(
                 encoder_input_ids,  # enc_input_ids
@@ -573,6 +583,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_attn_mask,  # dec_attn_mask
                 None,  # token_type_ids
                 lm_labels,  # labels
+                extra_batch_data, # extra_batch_data
             )
 
             def loss_func(output_tensor):

@@ -52,33 +52,36 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         """Add here all required inputs"""
         return []
 
-    def _loss(self, inputs):
+    def _loss(self, inputs, batch_data=None):
         """
         Implement your own loss calculations. Must return "loss" key.
         loss shape - [B, S] for Batch, Sequence sizes
+        batch_data - a dictionary of additional data that can be used to calculate loss
         """
         raise NotImplementedError("Please implement loss calculations in child class")
         # return {"loss": 0.0}
 
-    def loss(self, inputs):
+    def loss(self, inputs, batch_data=None):
         """A wrapper around custom _loss that adds a weighted loss and name to the output dict"""
         self._validate_inputs(inputs)
 
-        loss_dict = self._loss(inputs)
+        loss_dict = self._loss(inputs, batch_data=batch_data)
         if "loss" not in loss_dict:
             raise KeyError("Loss dict must contain 'loss' key")
 
-        # average loss over active steps only
-        # TODO: finish me - add masking of hiddens
-        loss = loss_dict["loss"] * inputs["hidden_mask"] / inputs["hidden_mask"].sum()
-        losses = tokens_loss.view(-1).float()
-        loss_mask = loss_mask.view(-1).float()
-        # TODO: add nemo version here
-        loss = torch.sum(losses * loss_mask) / loss_mask.sum()  # sequence level nll
+        # average loss over active steps only. loss [B, S]
+        loss = loss_dict["loss"]
+        hidden_mask = inputs["hidden_mask"].to(loss)
+        loss = loss * hidden_mask
+        # loss [B, S] -> [B] sequence level loss
+        loss = loss.sum(dim=-1) / inputs["hidden_mask"].sum(dim=-1).clamp(min=1.0)
 
-        # compute weighted loss
-        weighted_loss = loss_dict["loss"] * self.loss_weight
-        loss_dict["loss"] = weighted_loss
+        # compute batch level weighted loss (scalar)
+        weighted_loss = loss.sum() * self.loss_weight
+        
+        # store updated losses
+        loss_dict["loss"] = loss
+        loss_dict["weighted_loss"] = weighted_loss
 
         return loss_dict
 
@@ -102,7 +105,7 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
         """Add here all required inputs"""
         return ["z", "z_log_prob"]
 
-    def _loss(self, inputs):
+    def _loss(self, inputs, batch_data=None):
         """
         Implement your own loss calculations. Must return "loss" key.
         loss shape - [B, S] for Batch, Sequence sizes
@@ -147,7 +150,7 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
         """Add here all required inputs"""
         return ["z", "z_log_prob"]
 
-    def _loss(self, inputs):
+    def _loss(self, inputs, batch_data=None):
         z = self.get_input(inputs, "z")
         # get posterior
         log_prob_q_z_given_x = self.get_input(inputs, "z_log_prob")

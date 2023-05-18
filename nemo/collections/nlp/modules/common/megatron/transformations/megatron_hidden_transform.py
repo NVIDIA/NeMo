@@ -62,19 +62,19 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
         if not set(self.input_names).isssubset(set(inputs.keys())):
             raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
 
-    def _transform(self, inputs):
+    def _transform(self, inputs, batch_data=None):
         """Implement your own transformations"""
         # by default we pass inputs.
         outputs = inputs.copy()
 
         return outputs
 
-    def transform(self, inputs):
+    def transform(self, inputs, batch_data=None):
         """Apply a transformations on the inputs (hiddens is always assumed)"""
         # validate inputs
         self._validate_inputs(inputs)
 
-        outputs = self._transform(inputs)
+        outputs = self._transform(inputs, batch_data=batch_data)
 
         return outputs
 
@@ -117,7 +117,7 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
         """
         return ["z_mean", "z_logvar", "z", "z_log_prob"]
 
-    def _transform(self, inputs):
+    def _transform(self, inputs, batch_data=None):
         """
         inputs:
             hiddens: accepts a tensor of shape (batch_size, seq_len, hidden_size)    
