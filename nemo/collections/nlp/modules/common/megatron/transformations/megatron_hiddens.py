@@ -251,12 +251,6 @@ class MegatronHiddensModule(torch.nn.Module):
         Returns:
             loss_dict: a dictionary of all losses
         """
-        # TODO finish me
-        # add name to loss values
-        if self.name:
-            loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
-
-
         loss_dict = {}
         joint_loss = 0.0
         for i, loss_transform in enumerate(self.loss_transforms):
@@ -269,6 +263,11 @@ class MegatronHiddensModule(torch.nn.Module):
                 raise ValueError(
                     f"Loss transform ({i}) {loss_transform} is trying to override the following loss keys {list(dup_keys)}"
                 )
+
+            # add name to loss values
+            if self.name:
+                loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
+
             loss_dict.update(cur_loss_dict)
 
         loss_dict["loss"] = joint_loss
