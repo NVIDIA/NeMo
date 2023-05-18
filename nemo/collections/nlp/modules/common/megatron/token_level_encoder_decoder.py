@@ -15,12 +15,6 @@
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
-    ALiBiRelativePositionEmbedding,
-)
-from nemo.collections.nlp.modules.common.megatron.kerple_relative_position_embedding import (
-    KERPLERelativePositionEmbedding,
-)
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -29,7 +23,11 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding import (
+    ALiBiRelativePositionEmbedding,
+    KERPLERelativePositionEmbedding,
+    T5RelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
