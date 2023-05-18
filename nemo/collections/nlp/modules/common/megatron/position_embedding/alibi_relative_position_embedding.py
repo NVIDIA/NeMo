@@ -49,12 +49,12 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
 
 
 def build_relative_position(query_length, key_length, num_attention_heads, full=True):
-    relative_position = torch.arange(1 - query_length, 1)[None, :].cuda().mul(-1) # (1, max_seq_len)
-    
+    relative_position = torch.arange(1 - query_length, 1)[None, :].cuda().mul(-1)  # (1, max_seq_len)
+
     if full:
         memory_position = torch.arange(1 - key_length, 1)[:, None].cuda().mul(-1)
-        relative_position = torch.abs(memory_position - relative_position) # (max_seq_len, max_seq_len)
-        
+        relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
+
     # (num_attention_heads, max_seq_len, max_seq_len)
     relative_position = relative_position.unsqueeze(0).expand(num_attention_heads, -1, -1)
     return relative_position
@@ -68,7 +68,13 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512, full=True,
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        num_attention_heads_alibi=None,
+        max_seq_len=512,
+        full=True,
     ):
         """
         Args:
@@ -98,7 +104,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         # Larger sizes will result in more memory usage by computing alibi mask on-the-fly.
         self.max_seq_len = max_seq_len
         self.full = full
-        
+
         # cache the slopes
         self.slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
