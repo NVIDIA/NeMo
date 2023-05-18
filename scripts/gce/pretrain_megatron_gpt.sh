@@ -56,7 +56,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.tokenizer.merge_file=gpt2-merges.txt \
       model.data.data_prefix=${TRAINING_DATA_FILE_PREFIX:?} \
       model.data.num_workers=${NUM_DATA_WORKERS:?} \
-      model.data.seq_length=1024 \
+      model.data.seq_length=${TRANSFORMER_SEQUENCE_LENGTH:?} \
       model.data.splits_string=\'949,50,1\' \
       model.optim.name=fused_adam \
       model.optim.lr=6e-4 \
