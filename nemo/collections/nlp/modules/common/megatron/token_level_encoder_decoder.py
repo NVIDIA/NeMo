@@ -482,7 +482,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         dec_attn_mask=None,
         token_type_ids=None,
         labels=None,
-        extra_batch_data=None, # additional data to be passed to hiddens module
+        extra_batch_data=None,  # additional data to be passed to hiddens module
         enc_output=None,  # Result of running the entire encoder
         enc_output_attn_mask=None,
         enc_input=None,  # Result of running encoder embedding only
@@ -618,12 +618,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
-                    
+
                     # check if hiddens is used
                     if self.enc_dec_model.hiddens_module is not None:
                         loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
-                            inputs=enc_output,
-                            batch_data=extra_batch_data,
+                            inputs=enc_output, batch_data=extra_batch_data,
                         )
                         loss_dict["tokens_loss"] = tokens_loss
                         return loss_dict
