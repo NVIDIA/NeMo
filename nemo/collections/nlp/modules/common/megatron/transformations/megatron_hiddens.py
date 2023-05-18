@@ -256,7 +256,6 @@ class MegatronHiddensModule(torch.nn.Module):
         if self.name:
             loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
 
-
         loss_dict = {}
         joint_loss = 0.0
         for i, loss_transform in enumerate(self.loss_transforms):

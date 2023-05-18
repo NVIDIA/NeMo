@@ -78,7 +78,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
 
         # compute batch level weighted loss (scalar)
         weighted_loss = loss.sum() * self.loss_weight
-        
+
         # store updated losses
         loss_dict["loss"] = loss
         loss_dict["weighted_loss"] = weighted_loss

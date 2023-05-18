@@ -99,13 +99,13 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         Required for fixed-size bottleneck models.
         """
         if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
-            # Attention mask is expected to be of shape [B x S] 
+            # Attention mask is expected to be of shape [B x S]
             enc_attn_mask = torch.ones(enc_attn_mask.size(0), self.hidden_steps).to(enc_attn_mask.device)
         else:
             hiddens_mask = enc_attn_mask
-        
+
         return hiddens_mask
-        
+
     def encode(
         self,
         enc_input,
@@ -129,11 +129,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # apply hidden transformations if needed
         if self.hiddens_module is not None:
             enc_output = self.hiddens_module.apply_hidden_transforms(
-                {
-                    "hiddens": enc_output,
-                    "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),
-                },
-                batch_data=batch_data,
+                {"hiddens": enc_output, "hiddens_mask": self.get_hiddens_mask(enc_attn_mask),}, batch_data=batch_data,
             )
 
         return enc_output
