@@ -101,7 +101,7 @@ def recommend_hyperparameters(df, model=None):
         for potential_bs in potential_batch_sizes:
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
-    
+
     bs = min(max_bs, 32)
 
     df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
