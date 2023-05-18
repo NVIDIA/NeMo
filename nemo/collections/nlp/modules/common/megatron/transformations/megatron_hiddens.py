@@ -191,14 +191,14 @@ class MegatronHiddensModule(torch.nn.Module):
                 raise ValueError(
                     f"Hidden transform {ht.name} requires inputs {cur_input_names - hidden_outputs} that are not available"
                 )
-            
+
             # collect all duplicate output names
             cur_hidden_outputs = set(ht.hidden_outputs)
             if not cur_hidden_outputs.isdisjoint(hidden_outputs):
                 duplicate_names[ht.name] = list(cur_hidden_outputs.intersection(hidden_outputs))
-            
+
             hidden_outputs.update(cur_hidden_outputs)
-        
+
         # fail here reporting all duplicate output names
         if duplicate_names:
             raise ValueError(f"Hidden transforms have duplicate outputs {{names: [duplicates]}} = {duplicate_names}")

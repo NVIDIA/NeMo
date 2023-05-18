@@ -35,7 +35,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
 
     def __str__(self):
         return super().__str__() + f"(name={self.name})"
-    
+
     def _validate_inputs(self, inputs):
         """Validate inputs"""
         # validate inputs
@@ -51,7 +51,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
     def _input_names(self):
         """Add here all required inputs"""
         return []
-    
+
     def _loss(self, inputs):
         """
         Implement your own loss calculations. Must return "loss" key.
@@ -67,7 +67,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         loss_dict = self._loss(inputs)
         if "loss" not in loss_dict:
             raise KeyError("Loss dict must contain 'loss' key")
-        
+
         # average loss over active steps only
         # TODO: finish me - add masking of hiddens
         loss = loss_dict["loss"] * inputs["hidden_mask"] / inputs["hidden_mask"].sum()
@@ -94,14 +94,14 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
         super().__init__(
             name=name, loss_weight=loss_weight,
         )
-        
+
         # allows to determine how to aggregate hidden loss over hidden dimension
         self.hidden_aggregation_method = hidden_aggregation_method
 
     def _input_names(self):
         """Add here all required inputs"""
         return ["z", "z_log_prob"]
-    
+
     def _loss(self, inputs):
         """
         Implement your own loss calculations. Must return "loss" key.

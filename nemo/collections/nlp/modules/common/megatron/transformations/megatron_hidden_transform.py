@@ -36,12 +36,12 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
 
     def __init__(self, name=""):
         super().__init__()
-        
+
         self.name = name
 
     def __str__(self):
         return super().__str__() + f"(name={self.name})"
-        
+
     @property
     def input_names(self):
         """
@@ -64,7 +64,7 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
 
     def _transform(self, inputs):
         """Implement your own transformations"""
-        # by default we pass inputs. 
+        # by default we pass inputs.
         outputs = inputs.copy()
 
         return outputs
