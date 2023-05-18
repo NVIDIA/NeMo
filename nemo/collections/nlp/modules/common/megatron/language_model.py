@@ -775,13 +775,13 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                     )
                 else:
                     rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
-        elif self.position_embedding_type == 'alibi' or self.position_embedding_type == 'sandwich':
+        elif self.position_embedding_type == 'alibi' \
+             or self.position_embedding_type == 'sandwich' \
+             or self.position_embedding_type == 'kerple':
             enc_seq_length = enc_input_ids.size(1)
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
-        elif self.position_embedding_type == 'kerple':
-            raise NotImplementedError
             
         # encoder.
         if enc_hidden_states is None:
