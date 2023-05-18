@@ -28,13 +28,14 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
     Returned dict includes a loss value and additional outputs.
     """
 
-    def __init__(self, name="", loss_weight=1.0, scale_loss_by_hidden_size=False):
-        # allows to name the loss
+    def __init__(self, loss_weight=1.0, name=""):
+        super().__init__()
         self.name = name
         self.loss_weight = float(loss_weight)
-        # whether to scale loss by 1 / hidden size
-        self.scale_loss_by_hidden_size = scale_loss_by_hidden_size
 
+    def __str__(self):
+        return super().__str__() + f"(name={self.name})"
+    
     def _validate_inputs(self, inputs):
         """Validate inputs"""
         # validate inputs
@@ -43,24 +44,40 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
 
     @property
     def input_names(self):
-        return []
+        """Returns and caches input names"""
+        # we always expect hiddens_mask to be used to mask out loss of padded elements
+        return self._input_name() + ["hiddens_mask"]
 
+    def _input_names(self):
+        """Add here all required inputs"""
+        return []
+    
     def _loss(self, inputs):
-        """Implement your own loss calculations. Must return "loss" key."""
-        return {"loss": 0.0}
+        """
+        Implement your own loss calculations. Must return "loss" key.
+        loss shape - [B, S] for Batch, Sequence sizes
+        """
+        raise NotImplementedError("Please implement loss calculations in child class")
+        # return {"loss": 0.0}
 
     def loss(self, inputs):
         """A wrapper around custom _loss that adds a weighted loss and name to the output dict"""
         self._validate_inputs(inputs)
 
         loss_dict = self._loss(inputs)
-        # compute weighted loss ("loss" key is always assumed)
+        if "loss" not in loss_dict:
+            raise KeyError("Loss dict must contain 'loss' key")
+        
+        # average loss over active steps only
+        # TODO: finish me - add masking of hiddens
+        loss = loss_dict["loss"] * inputs["hidden_mask"] / inputs["hidden_mask"].sum()
+        losses = tokens_loss.view(-1).float()
+        loss_mask = loss_mask.view(-1).float()
+        # TODO: add nemo version here
+        loss = torch.sum(losses * loss_mask) / loss_mask.sum()  # sequence level nll
+
+        # compute weighted loss
         weighted_loss = loss_dict["loss"] * self.loss_weight
-
-        # add name to loss values
-        if self.name:
-            loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
-
         loss_dict["loss"] = weighted_loss
 
         return loss_dict
@@ -73,21 +90,30 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
     A-MIM - asymmetric MIM (without sampling)
     """
 
-    def __init__(self, name="mim", loss_weight=1.0, scale_loss_by_hidden_size=False):
+    def __init__(self, loss_weight=1.0, hidden_aggregation_method="sum", name="mim"):
         super().__init__(
-            name=name, loss_weight=loss_weight, scale_loss_by_hidden_size=scale_loss_by_hidden_size,
+            name=name, loss_weight=loss_weight,
         )
+        
+        # allows to determine how to aggregate hidden loss over hidden dimension
+        self.hidden_aggregation_method = hidden_aggregation_method
 
-    @property
-    def input_names(self):
+    def _input_names(self):
+        """Add here all required inputs"""
         return ["z", "z_log_prob"]
-
+    
     def _loss(self, inputs):
-        z = inputs["z"]
+        """
+        Implement your own loss calculations. Must return "loss" key.
+        loss shape - [B, S] for Batch, Sequence sizes
+        """
+        z = self.get_input(inputs, "z")
         # get posterior
-        log_prob_q_z_given_x = inputs["z_log_prob"]
+        log_prob_q_z_given_x = self.get_input(inputs, "z_log_prob")
         # compute log prob of anchor a unit Normal distribution
-        log_prob_P_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
+        log_prob_P_z = -0.5 * (math.log(2 * math.pi) + z.pow(2))
+        # aggregate over hidden dimension, default is sum
+        log_prob_P_z = getattr(log_prob_P_z, self.hidden_aggregation_method)(dim=-1)
 
         # A-MIM loss = log_p_x_given_z - 0.5 * (log_prob_P_z + log_prob_q_z_given_x)
         # here we return only the hidden loss part
@@ -106,9 +132,9 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
     Implements VAE loss with a unit Normal anchor.
     """
 
-    def __init__(self, name="vae", loss_weight=1.0, min_kl_value=None, scale_loss_by_hidden_size=False):
+    def __init__(self, loss_weight=1.0, min_kl_value=None, name="vae"):
         super().__init__(
-            name=name, loss_weight=loss_weight, scale_loss_by_hidden_size=scale_loss_by_hidden_size,
+            name=name, loss_weight=loss_weight,
         )
 
         # minimum value for KL divergence
@@ -117,14 +143,14 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
         else:
             self.min_kl_value = float(min_kl_value)
 
-    @property
-    def input_names(self):
+    def _input_names(self):
+        """Add here all required inputs"""
         return ["z", "z_log_prob"]
 
     def _loss(self, inputs):
-        z = inputs["z"]
+        z = self.get_input(inputs, "z")
         # get posterior
-        log_prob_q_z_given_x = inputs["z_log_prob"]
+        log_prob_q_z_given_x = self.get_input(inputs, "z_log_prob")
         # compute log prob of anchor a unit Normal distribution
         log_prob_p_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
 

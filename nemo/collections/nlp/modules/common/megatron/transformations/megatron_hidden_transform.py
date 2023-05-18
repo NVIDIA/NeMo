@@ -34,16 +34,27 @@ __all__ = ["MegatronBaseHiddenTransform", "MegatronGaussianHiddenTransform"]
 class MegatronBaseHiddenTransform(torch.nn.Module):
     """Base class to apply hidden state transformations"""
 
-    def __init__(self):
-        pass
+    def __init__(self, name=""):
+        super().__init__()
+        
+        self.name = name
 
+    def __str__(self):
+        return super().__str__() + f"(name={self.name})"
+        
     @property
     def input_names(self):
-        return ["hiddens"]
+        """
+        Provide here all required inputs
+        """
+        return []
 
     @property
     def output_names(self):
-        return ["hiddens"]
+        """
+        Provide here all generated outputs
+        """
+        return []
 
     def _validate_inputs(self, inputs):
         """Validate inputs"""
@@ -53,7 +64,8 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
 
     def _transform(self, inputs):
         """Implement your own transformations"""
-        outputs = inputs
+        # by default we pass inputs. 
+        outputs = inputs.copy()
 
         return outputs
 
@@ -72,7 +84,8 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
     Constructes a diagonal Gaussian distribution from the hidden states and samples from it using reparametrization.
     """
 
-    def __init__(self, hidden_size, min_logvar=-8, init_method_std=0.02):
+    def __init__(self, hidden_size, min_logvar=-8, init_method_std=0.02, name="cond_gaussian"):
+        super().__init__(name=name)
         # limit smaller allowed variance (for numerical stability)
         self.min_logvar = min_logvar
         self.hidden_size = hidden_size
@@ -91,7 +104,17 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
         )
 
     @property
+    def input_names(self):
+        """
+        Provide here all required inputs
+        """
+        return ["hiddens", "hiddens_mask"]
+
+    @property
     def output_names(self):
+        """
+        Provide here all generated outputs
+        """
         return ["z_mean", "z_logvar", "z", "z_log_prob"]
 
     def _transform(self, inputs):
@@ -100,10 +123,12 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
             hiddens: accepts a tensor of shape (batch_size, seq_len, hidden_size)    
         
         outputs:
+            z: a sample from Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
             z_mean: mean of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
             z_logvar: log variance of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
+            z_log_prob: log probability of z over posterior log q(z|x) a tensor of shape (batch_size, seq_len, hidden_size)
         """
-        hiddens = inputs["hiddens"]
+        hiddens = self.get_input(inputs, "hiddens")
         # compute distribution's parameters (or use cached ones)
         if "z_mean" in inputs and "z_logvar" in inputs:
             z_mean = inputs["z_mean"]

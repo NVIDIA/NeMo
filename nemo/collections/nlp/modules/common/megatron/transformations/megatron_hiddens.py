@@ -163,6 +163,7 @@ class MegatronHiddensModule(torch.nn.Module):
         hidden_loss_transforms: List[MegatronBaseHiddenTransform] = [],
         enc_output_name: str = "hiddens",
     ):
+        super().__init__()
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
         self.enc_output_name = enc_output_name
@@ -179,32 +180,48 @@ class MegatronHiddensModule(torch.nn.Module):
             )
         self.hidden_transforms = torch.nn.ModuleList(self.hidden_transforms)
 
+        # validate the inputs and outputs of all hidden transforms (make sure there are no duplicate output names)
+        duplicate_names = {}
+        # initialize with available outputs from hidden transforms with hiddens and mask as default
+        hidden_outputs = set(["hiddens", "hiddens_mask"])
+        for ht in self.hidden_transforms:
+            # validate that all required inputs are available by order of hidden transforms
+            cur_input_names = set(ht.input_names)
+            if not cur_input_names.issubset(hidden_outputs):
+                raise ValueError(
+                    f"Hidden transform {ht.name} requires inputs {cur_input_names - hidden_outputs} that are not available"
+                )
+            
+            # collect all duplicate output names
+            cur_hidden_outputs = set(ht.hidden_outputs)
+            if not cur_hidden_outputs.isdisjoint(hidden_outputs):
+                duplicate_names[ht.name] = list(cur_hidden_outputs.intersection(hidden_outputs))
+            
+            hidden_outputs.update(cur_hidden_outputs)
+        
+        # fail here reporting all duplicate output names
+        if duplicate_names:
+            raise ValueError(f"Hidden transforms have duplicate outputs {{names: [duplicates]}} = {duplicate_names}")
+
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
-        loss_inputs = self.loss_inputs
+        loss_inputs = set(self.loss_inputs)
+        if not loss_inputs.issubset(hidden_outputs):
+            raise ValueError(
+                f"Loss transforms inputs = {loss_inputs - hidden_outputs} are not supported by hidden transforms with hidden_outputs = {hidden_outputs}"
+            )
 
     @functools.cached_property
     def hidden_outputs(self):
         """Get the hidden outputs from all the hidden transforms"""
-        all_output_names = [ht.output_names for ht in self.hidden_transforms] + ["hiddens"]
+        all_output_names = [ht.output_names for ht in self.hidden_transforms] + [["hiddens", "hiddens_mask"]]
         output_names = set().union(*all_output_names)
-        # make sure there are no duplicate output names
-        if len(output_names) != len(all_output_names):
-            # collect all duplicate output names
-            duplicate_names = set([x for x in all_output_names if all_output_names.count(x) > 1])
-            raise ValueError(f"Hidden transforms have duplicate output names: {list(duplicate_names)}")
 
         return list(output_names)
 
     @functools.cached_property
     def loss_inputs(self):
         """Get the loss inputs from all the loss transforms"""
-        hidden_outputs = set(self.hidden_outputs)
         loss_inputs = set().union(*[lt.input_names for lt in self.hidden_loss_transforms])
-        if not loss_inputs.issubset(hidden_outputs):
-            raise ValueError(
-                f"Loss transforms {loss_inputs - hidden_outputs} are not supported by hidden transforms {hidden_outputs}"
-            )
-
         return list(loss_inputs)
 
     def apply_hidden_transforms(self, inputs):
@@ -216,8 +233,14 @@ class MegatronHiddensModule(torch.nn.Module):
         Returns:
             outputs: a dictionary of outputs, collecting 
         """
+        # TODO finish me
+        # add name to loss values
+        if self.name:
+            loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
+
         outputs = inputs.copy()
         for hidden_transform in self.hidden_transforms:
+            # make sure to collect all outputs from hidden transforms
             outputs.update(hidden_transform.transform(outputs))
 
         return outputs

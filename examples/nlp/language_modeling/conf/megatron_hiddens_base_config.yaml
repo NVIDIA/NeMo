@@ -12,6 +12,14 @@ transform: # a list of dictionaries of transforms to apply to hiddens according 
       cls_name: cond_gaussian # class path name
       hidden_size: 512 # hidden size of the encoder
       min_logvar: -7.0 # minimum log variance
+  - logP_cls:
+      cls_name: guided_cls
+      input_name: hiddens
+      attr_name: logP
+    QED_cls:
+      cls_name: guided_cls
+      input_name: hiddens
+      attr_name: QED
 loss: # a list of dictionaries of loss terms to add to reconstruction loss according to list order
   # - <loss_name>: # name of loss
   #     cls_name: <loss_class_path_name> # class path name
@@ -25,3 +33,11 @@ loss: # a list of dictionaries of loss terms to add to reconstruction loss accor
         cls_name: vae
         loss_weight: 1e-2 # weight of KL term in loss
         min_kl_value: null # minimum KL value if a float is provided
+      logP_cls:
+        cls_name: guided_cls_loss
+        input_name: logP
+        loss_weight: 1.0
+      QED_cls:
+        cls_name: guided_cls_loss
+        input_name: logP
+        loss_weight: 1.0
