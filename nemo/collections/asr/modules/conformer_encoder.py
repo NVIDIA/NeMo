@@ -20,7 +20,7 @@ from typing import List, Optional, Set
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
@@ -184,6 +184,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         )
 
     @property
+    def input_types_for_export(self):
+        """Returns definitions of module input ports."""
+        return OrderedDict(
+            {
+                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+                "length": NeuralType(tuple('B'), LengthsType()),
+                "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
+                "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+            }
+        )
+
+    @property
     def output_types(self):
         """Returns definitions of module output ports."""
         return OrderedDict(
@@ -192,6 +205,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
                 "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_channel_next_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+            }
+        )
+
+    @property
+    def output_types_for_export(self):
+        """Returns definitions of module output ports."""
+        return OrderedDict(
+            {
+                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "cache_last_channel_next": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
+                "cache_last_time_next": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_next_len": NeuralType(tuple('B'), LengthsType(), optional=True),
             }
         )
@@ -489,6 +515,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         rets = self.streaming_post_process(rets, keep_all_outputs=False)
         if len(rets) == 2:
             return rets
+        elif rets[2] is None and rets[3] is None and rets[4] is None:
+            return (rets[0], rets[1])
         else:
             return (
                 rets[0],
@@ -549,6 +577,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             audio_signal = self.pre_encode(audio_signal)
         else:
             audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
+            length = length.to(torch.int64)
             # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
             if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
                 audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
@@ -855,8 +884,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if att_context_size:
             att_context_size = list(att_context_size)
-        else:
+        elif hasattr(self._cfg, "att_context_size"):
             att_context_size = self._cfg.att_context_size
+        else:
+            att_context_size = self.att_context_size
 
         if self_attention_model is None:
             self_attention_model = self._cfg.self_attention_model
@@ -942,8 +973,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 m.self_attention_model = self_attention_model
 
         if update_config:
-            self._cfg.self_attention_model = self_attention_model
-            self._cfg.att_context_size = att_context_size
+            with open_dict(self._cfg):
+                self._cfg.self_attention_model = self_attention_model
+                self._cfg.att_context_size = att_context_size
 
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
