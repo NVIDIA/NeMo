@@ -4,6 +4,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from einops import rearrange
 
 
 def fixed_pos_embedding(x):
@@ -37,7 +38,7 @@ def apply_rotary_pos_emb(x, sin, cos, scale=1):
     return (x * cos) + (rotate_every_two(x) * sin)
 
 
-class XPOS(nn.Module):
+class XPOSRelativePositionEmbedding(nn.Module):
     def __init__(self, head_dim, scale_base=2048):
         super().__init__()
         self.head_dim = head_dim
@@ -45,7 +46,8 @@ class XPOS(nn.Module):
         self.register_buffer("scale", (torch.arange(0, head_dim, 2) + 0.4 * head_dim) / (1.4 * head_dim))
 
     def forward(self, x, offset=0, downscale=False):
-        length = x.shape[1]
+        length, b = x.shape[0], x.shape[1]
+        x = rearrange(x, 's b np hn -> (b np) s hn')
         min_pos = -(length + offset) // 2
         max_pos = length + offset + min_pos
         scale = self.scale ** torch.arange(min_pos, max_pos, 1).to(self.scale).div(self.scale_base)[:, None]
@@ -60,4 +62,5 @@ class XPOS(nn.Module):
             scale = 1 / scale
 
         x = apply_rotary_pos_emb(x, sin, cos, scale)
+        x = rearrange(x, '(b np) s hn -> s b np hn', b=b)
         return x
