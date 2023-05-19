@@ -67,7 +67,7 @@ class TestGraphRnnt:
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
     def test_grid_compose_equivalent(self, device: torch.device, blank_first: bool, rnn_loss_sample_data):
-        sample_data = rnn_loss_sample_data.get_sample_small_random(blank_first)
+        sample_data = rnn_loss_sample_data.get_sample_small_random(blank_first, device=device)
         criterion = GraphRnntLoss(blank=sample_data.blank_id, connect_composed=True, use_grid_implementation=False)
         text_tensor = sample_data.targets[0]
         sequence_length = sample_data.logits.shape[1]
