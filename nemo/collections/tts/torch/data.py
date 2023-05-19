@@ -26,6 +26,7 @@ import numpy as np
 import torch
 from einops import rearrange
 from tqdm import tqdm
+from encodec import EncodecModel
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
@@ -54,6 +55,8 @@ from nemo.collections.tts.torch.tts_data_types import (
     TTSDataType,
     Voiced_mask,
     WithLens,
+    Codec,
+    ReferenceCodec,
 )
 from nemo.core.classes import Dataset
 from nemo.utils import logging
@@ -67,6 +70,7 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
+NUM_AUDIO_TOKENS = 0
 EPSILON = 1e-9
 WINDOW_FN_SUPPORTED = {
     'hann': torch.hann_window,
@@ -230,10 +234,11 @@ class TTSDataset(Dataset):
 
                     file_info = {
                         "audio_filepath": item["audio_filepath"],
-                        "original_text": item["text"],
+                        "original_text": item["original_text"] if "original_text" in item else item["text"],
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "speaker_id": item["speaker"] if "speaker" in item else None,
+                        "ref_filepath": item["ref_filepath"] if "ref_filepath" in item else item["audio_filepath"],
                     }
 
                     if "normalized_text" in item:
@@ -483,6 +488,26 @@ class TTSDataset(Dataset):
     def add_speaker_id(self, **kwargs):
         pass
 
+    def add_codec(self, **kwargs):
+        if self.sample_rate == 48000:
+            self.encodec_model = EncodecModel.encodec_model_48khz()
+            self.encodec_model.set_target_bandwidth(12.0)
+        elif self.sample_rate == 24000:
+            self.encodec_model = EncodecModel.encodec_model_24khz()
+            self.encodec_model.set_target_bandwidth(6.0)
+        self.codec_folder = kwargs.pop('codec_folder', None)
+        self.use_context = kwargs.pop('use_context', False)
+
+        if self.codec_folder is None:
+            self.codec_folder = Path(self.sup_data_path) / Codec.name
+        elif isinstance(self.codec_folder, str):
+            self.codec_folder = Path(self.codec_folder)
+
+        self.codec_folder.mkdir(exist_ok=True, parents=True)
+
+    def add_reference_codec(self, **kwargs):
+        assert Codec in self.sup_data_types_set, "Codec should be in sup_data_types_set"
+
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
@@ -497,6 +522,31 @@ class TTSDataset(Dataset):
             mel = torch.matmul(self.fb.to(spec.dtype), spec)
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
         return log_mel
+
+    def convert_audio(self, audio, sample_rate, target_sample_rate, target_channels):
+        if audio.dim() == 1:
+            audio = audio.unsqueeze(0).unsqueeze(0)
+        assert audio.shape[1] in [1, 2], "Audio must be mono or stereo."
+        # assert sample_rate == target_sample_rate, "sample rate of FastPitch and Encodec model has to be same"
+        if target_channels == 2:
+            *shape, _, length = audio.shape
+            audio = audio.expand(*shape, target_channels, length)
+        return audio
+    
+    def get_codec(self, audio):
+        wav1 = self.convert_audio(audio, self.sample_rate, self.encodec_model.sample_rate, self.encodec_model.channels)
+        encoded_frames = self.encodec_model.encode(wav1)
+        codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
+        return codes.squeeze(0)
+
+    
+    def get_quantizer_codebook(self, reference_codec, reference_codec_length):
+        out = torch.zeros((1, 128, reference_codec_length.item()))
+        for i in range(reference_codec.size()[0]):
+            out += self.encodec_model.quantizer.vq.layers[i].decode(reference_codec[i,:].unsqueeze(0))
+        return out.squeeze(0)
+            
+
 
     def pitch_shift(self, audio, sr, rel_audio_path_as_text_id):
         audio_shifted_path = Path(self.sup_data_path) / f"{rel_audio_path_as_text_id}_pitch_shift.pt"
@@ -579,6 +629,40 @@ class TTSDataset(Dataset):
             text = torch.tensor(tokenized).long()
             text_length = torch.tensor(len(tokenized)).long()
 
+        codec, codec_length = None, None
+        if Codec in self.sup_data_types_set:
+            codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
+
+            if codec_path.exists():
+                codec = torch.load(codec_path).long()
+            else:
+                codec = self.get_codec(audio).long()
+                torch.save(codec, codec_path)
+
+            codec_length = torch.tensor(codec.shape[1]).long()
+
+        reference_codec, reference_codec_length = None, None
+        if ReferenceCodec in self.sup_data_types_set:
+            ref_rel_audio_path = Path(sample["ref_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+            ref_rel_audio_path_as_text_id = str(ref_rel_audio_path).replace("/", "_")
+            ref_codec_path = self.codec_folder / f"{ref_rel_audio_path_as_text_id}.pt"
+
+            if ref_codec_path.exists():
+                ref_codec = torch.load(ref_codec_path).long()
+            else:
+                ref_codec = codec
+
+            ref_len = int(ref_codec.shape[1] * 0.4)
+            start = random.randint(0, ref_codec.shape[1] - ref_len - 1)
+            reference_codec = ref_codec[:, start:start + ref_len]
+            reference_codec_length = torch.tensor(reference_codec.shape[1]).long()
+            reference_codec = self.get_quantizer_codebook(reference_codec, reference_codec_length)
+
+        
+        if self.use_context:
+            codec = self.get_quantizer_codebook(codec, codec_length)
+
+
         # Load mel if needed
         log_mel, log_mel_length = None, None
         if LogMel in self.sup_data_types_set:
@@ -606,7 +690,7 @@ class TTSDataset(Dataset):
         # Load alignment prior matrix if needed
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
-            mel_len = self.get_log_mel(audio).shape[2]
+            mel_len = self.get_log_mel(audio).shape[2] if codec_length is None else codec_length.item()
             if self.use_beta_binomial_interpolator:
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
@@ -619,7 +703,10 @@ class TTSDataset(Dataset):
                 voiced_folder = getattr(self, f"{voiced_item.name}_folder")
                 voiced_filepath = voiced_folder / f"{rel_audio_path_as_text_id}.pt"
                 if voiced_filepath.exists():
-                    my_var.__setitem__(voiced_item.name, torch.load(voiced_filepath).float())
+                    try:
+                        my_var.__setitem__(voiced_item.name, torch.load(voiced_filepath).float())
+                    except Exception as e:
+                        print(e)
                 else:
                     non_exist_voiced_index.append((i, voiced_item.name, voiced_filepath))
 
@@ -681,6 +768,7 @@ class TTSDataset(Dataset):
         # Load speaker id if needed
         speaker_id = None
         if SpeakerID in self.sup_data_types_set:
+            assert "speaker_id" in sample, "speaker_id key is not present in sample"
             speaker_id = torch.tensor(sample["speaker_id"]).long()
 
         return (
@@ -700,6 +788,10 @@ class TTSDataset(Dataset):
             voiced_mask,
             p_voiced,
             audio_shifted,
+            codec,
+            codec_length,
+            reference_codec,
+            reference_codec_length,
         )
 
     def __len__(self):
@@ -733,6 +825,10 @@ class TTSDataset(Dataset):
             voiced_masks,
             p_voiceds,
             _,
+            _,
+            codec_lengths,
+            _,
+            reference_codec_lengths,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -741,6 +837,8 @@ class TTSDataset(Dataset):
         max_durations_len = max([len(i) for i in durations_list]) if Durations in self.sup_data_types_set else None
         max_pitches_len = max(pitches_lengths).item() if Pitch in self.sup_data_types_set else None
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
+        max_codec_len = max(codec_lengths).item() if Codec in self.sup_data_types_set else None
+        max_reference_codec_len = max(reference_codec_lengths).item() if ReferenceCodec in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
             log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
@@ -765,7 +863,11 @@ class TTSDataset(Dataset):
             voiced_masks,
             p_voiceds,
             audios_shifted,
+            codecs,
+            reference_codecs,
         ) = (
+            [],
+            [],
             [],
             [],
             [],
@@ -796,6 +898,10 @@ class TTSDataset(Dataset):
                 voiced_mask,
                 p_voiced,
                 audio_shifted,
+                codec,
+                codec_length,
+                reference_codec,
+                reference_codec_length,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -834,6 +940,13 @@ class TTSDataset(Dataset):
             if SpeakerID in self.sup_data_types_set:
                 speaker_ids.append(speaker_id)
 
+            if Codec in self.sup_data_types_set:
+                codecs.append(general_padding(codec, codec_length.item(), max_codec_len, pad_value=NUM_AUDIO_TOKENS))
+            
+            if ReferenceCodec in self.sup_data_types_set:
+                reference_codecs.append(general_padding(reference_codec, reference_codec_length.item(), max_reference_codec_len, pad_value=NUM_AUDIO_TOKENS))
+
+
         data_dict = {
             "audio": torch.stack(audios),
             "audio_lens": torch.stack(audio_lengths),
@@ -851,6 +964,10 @@ class TTSDataset(Dataset):
             "voiced_mask": torch.stack(voiced_masks) if Voiced_mask in self.sup_data_types_set else None,
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
             "audio_shifted": torch.stack(audios_shifted) if audio_shifted is not None else None,
+            "codec": torch.stack(codecs) if Codec in self.sup_data_types_set else None,
+            "codec_lens": torch.stack(codec_lengths) if Codec in self.sup_data_types_set else None,
+            "reference_codec": torch.stack(reference_codecs) if ReferenceCodec in self.sup_data_types_set else None,
+            "reference_codec_lens": torch.stack(reference_codec_lengths) if ReferenceCodec in self.sup_data_types_set else None,
         }
 
         return data_dict
