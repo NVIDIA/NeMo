@@ -54,6 +54,7 @@ def get_encoder_model(
     post_process=True,
     init_method_std=0.02,
     use_cpu_initialization=False,
+    megatron_amp_O2=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
     ffn_dropout=0.0,
@@ -89,7 +90,8 @@ def get_encoder_model(
     moe_dropout=0.0,
     turn_off_rop=False,  # turn off the RoP positional embedding
     version=1,  # model version
-    position_embedding_type='learned_absolute'
+    position_embedding_type='learned_absolute',
+    use_flash_attention=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -120,6 +122,7 @@ def get_encoder_model(
             pre_process=pre_process,
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
@@ -146,7 +149,8 @@ def get_encoder_model(
             num_moe_experts=num_moe_experts,
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
-            position_embedding_type=position_embedding_type
+            position_embedding_type=position_embedding_type,
+            use_flash_attention=use_flash_attention,
         )
     elif arch == "retro":
         encoder = MegatronRetrievalTransformerEncoderModule(
@@ -162,6 +166,7 @@ def get_encoder_model(
             pre_process=pre_process,
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             precision=precision,
@@ -204,6 +209,7 @@ def get_encoder_model(
             pre_process=pre_process,
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,

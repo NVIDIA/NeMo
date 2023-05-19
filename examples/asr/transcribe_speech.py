@@ -15,7 +15,7 @@
 import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
@@ -26,6 +26,7 @@ from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -33,7 +34,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     transcribe_partial_audio,
     write_transcription,
 )
-from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -163,9 +163,13 @@ class TranscriptionConfig:
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
 
+    # can be set to True to return list of transcriptions instead of the config
+    # if True, will also skip writing anything to the output file
+    return_transcriptions: bool = False
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
-def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
+def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis]]:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     for key in cfg:
@@ -299,7 +303,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     cfg = compute_output_filename(cfg, model_name)
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
-    if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
+    if not cfg.return_transcriptions and not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
         logging.info(
             f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
             f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
@@ -310,28 +314,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with autocast():
         with torch.no_grad():
             if partial_audio:
-                if isinstance(asr_model, EncDecCTCModel):
-                    transcriptions = transcribe_partial_audio(
-                        asr_model=asr_model,
-                        path2manifest=cfg.dataset_manifest,
-                        batch_size=cfg.batch_size,
-                        num_workers=cfg.num_workers,
-                        return_hypotheses=return_hypotheses,
-                        channel_selector=cfg.channel_selector,
-                        augmentor=augmentor,
-                    )
-                else:
-                    logging.warning(
-                        "RNNT models do not support transcribe partial audio for now. Transcribing full audio."
-                    )
-                    transcriptions = asr_model.transcribe(
-                        paths2audio_files=filepaths,
-                        batch_size=cfg.batch_size,
-                        num_workers=cfg.num_workers,
-                        return_hypotheses=return_hypotheses,
-                        channel_selector=cfg.channel_selector,
-                        augmentor=augmentor,
-                    )
+                transcriptions = transcribe_partial_audio(
+                    asr_model=asr_model,
+                    path2manifest=cfg.dataset_manifest,
+                    batch_size=cfg.batch_size,
+                    num_workers=cfg.num_workers,
+                    return_hypotheses=return_hypotheses,
+                    channel_selector=cfg.channel_selector,
+                    augmentor=augmentor,
+                    decoder_type=cfg.decoder_type,
+                )
             else:
                 transcriptions = asr_model.transcribe(
                     paths2audio_files=filepaths,
@@ -348,6 +340,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
+
+    if cfg.return_transcriptions:
+        return transcriptions
 
     # write audio transcriptions
     output_filename, pred_text_attr_name = write_transcription(

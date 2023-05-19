@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'pytorch_23.03:apex_57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2'
+          image 'nvcr.io/nvidia/pytorch:23.04-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1'
         }
   }
@@ -3799,8 +3799,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
     stage('L2: Megatron T5 with KERPLE Pretraining and Resume Training TP=2') {
       when {
         anyOf {
-          branch 'r1.18.0'
-          changeRequest target: 'r1.18.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true

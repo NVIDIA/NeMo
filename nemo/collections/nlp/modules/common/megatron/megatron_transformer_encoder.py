@@ -54,6 +54,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
@@ -81,7 +82,8 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         num_moe_experts=1,
         moe_frequency=1,
         moe_dropout=0.0,
-        position_embedding_type='learned_absolute'
+        position_embedding_type='learned_absolute',
+        use_flash_attention=False,
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
 
@@ -128,6 +130,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
@@ -146,7 +149,8 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             num_moe_experts=num_moe_experts,
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
-            position_embedding_type=position_embedding_type
+            position_embedding_type=position_embedding_type,
+            use_flash_attention=use_flash_attention,
         )
         self._model_key = 'model'
 
