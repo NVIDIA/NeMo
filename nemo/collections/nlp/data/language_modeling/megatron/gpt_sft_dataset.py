@@ -209,7 +209,7 @@ class GPTSFTDataset(Dataset):
 
         if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
             input_ids = input_ids[: self.max_seq_length]
-        print("len context_ids", len(context_ids))
+        
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
