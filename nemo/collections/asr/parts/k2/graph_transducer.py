@@ -370,7 +370,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, sequence_length)
 
         # sort by start state - required in k2
-        # FixMe: maybe it is more optimal to avoid sort, construct arcs in ascending order
+        # TODO: maybe it is more optimal to avoid sort, construct arcs in ascending order
         _, indices = torch.sort(arcs[:, 0], dim=0)
         sorted_arcs = arcs[indices]
         olabels = olabels[indices]

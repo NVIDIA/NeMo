@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from contextlib import nullcontext
 from typing import Union
 
 import torch
@@ -38,17 +39,17 @@ class GraphWTransducerLoss(GraphRnntLoss):
         blank: int,
         eps_weight=math.log(0.5),
         last_blank_mode: Union[LastBlankMode, str] = LastBlankMode.FORCE_LAST,
-        graph_mode: Union[GraphMode, str] = GraphMode.SEQUENTIAL,
-        connect=False,
+        graph_mode: Union[GraphMode, str] = GraphMode.SKIP_FRAMES,
+        use_grid_implementation=True,
+        connect_composed=False,
         double_scores=False,
-        optimized=False,
         cast_to_float32=False,
     ):
         super().__init__(
             blank=blank,
-            connect=connect,
+            use_grid_implementation=use_grid_implementation,
+            connect_composed=connect_composed,
             double_scores=double_scores,
-            optimized=optimized,
             cast_to_float32=cast_to_float32,
         )
         self._eps_weight = eps_weight
@@ -58,8 +59,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
     def get_eps_id(self, num_labels: int) -> int:
         return num_labels
 
-    def get_text_graph(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
-        blank_id = self._blank
+    def get_unit_scheme(self, text_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
+        blank_id = self.blank
         start_eps_id = num_labels
         end_eps_id = num_labels + 1
         device = text_tensor.device
@@ -92,8 +93,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_text.text_positions[-1] = fsa_text.text_positions[-2]
         return fsa_text
 
-    def get_temporal_graph(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
-        blank_id = self._blank
+    def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
+        blank_id = self.blank
         start_eps_id = num_labels
         end_eps_id = num_labels + 1
         num_eps = 2
@@ -148,8 +149,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_temporal = k2.arc_sort(fsa_temporal)  # need for compose
         return fsa_temporal
 
-    def get_rnnt_graph_fast(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
-        blank_id = self._blank
+    def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+        blank_id = self.blank
         eps_id = self.get_eps_id(num_labels)
         text_length = text_tensor.shape[0]
         device = text_tensor.device
@@ -233,7 +234,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
             ] = num_grid_states
 
         # sort by start state - required in k2
-        # FixMe: maybe it is more optimal to avoid sort, construct arcs in ascending order
+        # TODO: maybe it is more optimal to avoid sort, construct arcs in ascending order
         _, indices = torch.sort(arcs[:, 0], dim=0)
         arcs = arcs[indices]
         olabels = olabels[indices]
@@ -255,8 +256,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         num_labels = logits.shape[-1]
         target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, num_labels)
 
-        cast_context = force_float32_context if self._cast_to_float32 else nullcontext
-        with cast_context():
+        cast_context = force_float32_context() if self.cast_to_float32 else nullcontext()
+        with cast_context:
             log_probs = F.log_softmax(logits, dim=-1)
             with torch.no_grad():
                 indices = self.get_logits_indices(target_fsas_vec, logits.shape)
