@@ -18,8 +18,10 @@ import torch.multiprocessing as mp
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
-from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
+from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
@@ -54,8 +56,11 @@ def main(cfg) -> None:
         or cfg.pipeline_model_parallel_size < 0
         or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
     ):
-        model_config = MegatronGPTAdapterLearningModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.gpt_model_file):
+            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+        model_config = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
         )
 
         with open_dict(cfg):
