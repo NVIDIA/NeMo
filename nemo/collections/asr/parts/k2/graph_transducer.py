@@ -81,7 +81,7 @@ class GraphTransducerLossBase(Loss):
     @abc.abstractmethod
     def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
         """
-        Construct the RNN-T lattice (grid) for Grid-Transducer.
+        Construct the transducer lattice (grid) directly for Grid-Transducer.
 
         :param text_tensor: tensor with target text
         :param sequence_length: length of the sequence (in frames)
@@ -93,6 +93,7 @@ class GraphTransducerLossBase(Loss):
     def get_composed_lattice(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
         """
         Get composed lattice (unit and temporal schemes) for Compose-Transducer. Useful for visualization.
+        Should be equivalent to the lattice from `get_grid` method.
 
         :param text_tensor: tensor with target text
         :param sequence_length: length of the sequence (in frames)
