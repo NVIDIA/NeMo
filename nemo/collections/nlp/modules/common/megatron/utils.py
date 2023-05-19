@@ -78,7 +78,6 @@ def parallel_lm_logits(
     Returns:
         torch.Tensor: [b, s, (padded) vocab size]
     """
-    
     tensor_model_parallel = parallel_state.get_tensor_model_parallel_world_size() > 1
 
     # async grad allreduce can only be used when not using sequence parallelism
@@ -90,7 +89,6 @@ def parallel_lm_logits(
 
     else:
         input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
-    # sequence_parallel
     # Matrix multiply.
     logits_parallel = linear_with_grad_accumulation_and_async_allreduce(
         input=input_parallel,
