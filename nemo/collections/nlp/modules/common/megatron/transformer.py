@@ -495,7 +495,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
             )
-
+            
             if get_key_value:
                 attention_output, presents = attention_output
 

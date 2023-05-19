@@ -169,7 +169,7 @@ class GPTSFTDataset(Dataset):
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
         context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
-        total_ids = len(context_ids) + len(answer_ids)
+        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
         if self.add_bos:
             total_ids += 1
         if self.add_sep:
@@ -207,7 +207,7 @@ class GPTSFTDataset(Dataset):
 
         if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
             input_ids = input_ids[: self.max_seq_length]
-
+        print("len context_ids", len(context_ids))
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
