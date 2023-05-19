@@ -386,13 +386,12 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         Compute forward method for RNN-T.
 
-        :param acts: activations (joint tensor)
+        :param acts: activations (joint tensor). NB: raw logits, not after log-softmax
         :param labels: target labels
         :param act_lens: lengths of activations
         :param label_lens: length of labels sequences
         :return:
         """
-        # NeMo: acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
         # logits: B x Time x Text+1 x C
