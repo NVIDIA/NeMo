@@ -122,7 +122,7 @@ def main(cfg) -> None:
         peft_model_cfg.encoder_seq_length = cfg.model.data.test_ds.max_seq_length
         if 'use_flash_attention' not in peft_model_cfg:
             peft_model_cfg.use_flash_attention = False
-       
+
         if 'use_flash_attention' in cfg.model:
             peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
 
