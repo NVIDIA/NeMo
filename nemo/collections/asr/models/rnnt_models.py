@@ -286,7 +286,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=True):
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
@@ -441,6 +441,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
+
+        self.joint.temperature = decoding_cfg.get('temperature', 1.0)
 
         # Update config
         with open_dict(self.cfg.decoding):

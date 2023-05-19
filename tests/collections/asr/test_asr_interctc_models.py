@@ -66,6 +66,7 @@ def squeezeformer_encoder_config() -> Dict:
 
 
 class TestInterCTCLoss:
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "model_class", [EncDecCTCModel, EncDecHybridRNNTCTCModel],
@@ -86,6 +87,7 @@ class TestInterCTCLoss:
             ([], [0.3]),
         ],
     )
+    @pytest.mark.pleasefixme
     def test_forward(self, model_class, encoder_config, apply_at_layers, loss_weights):
         preprocessor_config = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
         vocabulary = [

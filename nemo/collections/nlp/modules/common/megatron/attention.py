@@ -18,11 +18,16 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, InfusedAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    InfusedAdapterConfig,
+    LoraKQVAdapterConfig,
+)
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
@@ -84,6 +89,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         layer_type=None,
@@ -107,8 +113,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.multi_query_attention = multi_query_attention
 
         self.megatron_legacy = megatron_legacy
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
-        self.set_accepted_adapter_types([InfusedAdapterConfig._target_])
+        self.set_accepted_adapter_types([InfusedAdapterConfig._target_, LoraKQVAdapterConfig._target_])
 
         if kv_channels is None:
             assert (
@@ -137,6 +144,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 gather_output=False,
                 init_method=init_method,
                 use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -149,6 +157,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 projection_size,
                 gather_output=False,
                 init_method=init_method,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -160,6 +170,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 2 * projection_size,
                 gather_output=False,
                 init_method=init_method,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -190,6 +202,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            params_dtype=self.dtype,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
@@ -360,6 +373,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if self.attention_type == AttnType.self_attn:
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
+            if self.is_adapter_available():
+                lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
+                if lora_kqv_adapter:
+                    lora_mixed_x_layer = lora_kqv_adapter(hidden_states)
+                    mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
 
             # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
             new_tensor_shape = mixed_x_layer.size()[:-1] + (
@@ -371,7 +389,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
             # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-            (query_layer, key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_x_layer, 3)
+            (query_layer, key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
+                mixed_x_layer, 3, contiguous_split_chunks=True
+            )
         else:
             # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
             mixed_kv_layer, _ = self.key_value(encoder_output)
@@ -386,7 +406,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
             # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
+            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
+                mixed_kv_layer, 2, contiguous_split_chunks=True
+            )
 
             # Attention head [sq, b, h] --> [sq, b, hp]
             query_layer, _ = self.query(hidden_states)
@@ -502,6 +524,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
@@ -524,6 +547,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
