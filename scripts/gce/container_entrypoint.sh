@@ -2,7 +2,9 @@
 
 if [ ${USE_GCSFUSE:?} -eq 0 ]; then
   echo "Mounting $GCS_BUCKET to /gcs using gcsfuse"
-  gcsfuse ${GCS_BUCKET:?} /gcs
+  gcsfuse --client-protocol ${GCSFUSE_CLIENT_PROTOCOL:?} \
+    --http-client-timeout ${GCSFUSE_CLIENT_TIMEOUT:=0} \
+    ${GCS_BUCKET:?} /gcs
 fi
 
 NETWORK_DEVICES=`ifconfig | gawk '{ if (match($0,/(^[^ ].*):/,m)) print m[1] }'`
