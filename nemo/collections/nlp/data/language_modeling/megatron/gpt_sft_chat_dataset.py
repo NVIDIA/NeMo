@@ -41,6 +41,12 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. s_id has that extra token too
         skip_name_len = len(tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
+        if (s_id[1:] == 255002).any().item():
+            # if contains the token <extra_id_2>
+            assert skip_name_len - 1 == torch.where((s_id[1:] == 255002))[0].item() 
+            # find new line token id 14
+            more_skip_len = torch.where((s_id[skip_name_len:] == 14))[0][0].item()
+            skip_name_len += more_skip_len + 1
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
@@ -65,6 +71,16 @@ def cannonical_form_formater(cannoical_form):
     return f'<extra_id_2>{cannoical_form}\n'
 
 
+def response_value_formater(label):
+    keys = ['quality', 'toxicity', 'humor', 'creativity', 'violence', 'helpfulness', 'not_appropriate']
+    output_str = '<extra_id_2>'
+    elements = []
+    for key in keys:
+        if key in label:
+            elements.append(f'{key}:{label[key]:.2f}')
+    return output_str + ','.join(elements) + '\n'
+
+
 def _add_speaker_and_signal(header, source, mask_role, gtype):
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
@@ -72,6 +88,10 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
     for i, sentence in enumerate(source):
         sentence_from = sentence["from"]
         role_token = TURN_TOKEN
+        if 'label' in sentence:
+            gtype = "RESPONSE_VALUE"
+        else:
+            gtype = None
         if gtype is None:
             sentence["value"] = (
                 BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
@@ -93,6 +113,16 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + sentence_from
                 + END_NAME_SIGNAL
                 + cannonical_form_formater(sentence['canonical_form'])
+                + sentence["value"]
+                + END_SIGNAL
+            )
+        elif gtype == "RESPONSE_VALUE":
+            sentence["value"] = (  
+                BEGIN_SIGNAL
+                + role_token
+                + sentence_from
+                + END_NAME_SIGNAL
+                + response_value_formater(sentence['label'])
                 + sentence["value"]
                 + END_SIGNAL
             )
@@ -124,7 +154,7 @@ def preprocess(
     if canonical_type is not None:
         conversation = conversation + '\n' + GUARD_RAIL_INSTRUCTION[canonical_type]
     mask_role = source.get('mask', 'User')
-    header = f"{SYSTEM_TOKEN}{conversation}\n\n"
+    header = f"{SYSTEM_TOKEN}{conversation}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, canonical_type)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
