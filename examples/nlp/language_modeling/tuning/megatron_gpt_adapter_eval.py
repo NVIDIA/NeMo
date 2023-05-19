@@ -18,12 +18,11 @@ import torch.multiprocessing as mp
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 
 mp.set_start_method("spawn", force=True)
@@ -60,7 +59,10 @@ def main(cfg) -> None:
         if os.path.isdir(cfg.gpt_model_file):
             save_restore_connector.model_extracted_dir = cfg.gpt_model_file
         model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
         )
 
         with open_dict(cfg):
