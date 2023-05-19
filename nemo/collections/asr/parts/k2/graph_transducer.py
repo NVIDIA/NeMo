@@ -60,8 +60,8 @@ class GraphTransducerLossBase(Loss):
         """
         Get unit scheme (target text) graph for Compose-Transducer.
 
-        :param units_tensor:
-        :param num_labels:
+        :param units_tensor: tensor with target text
+        :param num_labels: number of labels (including blank)
         :return:
         """
         pass
@@ -79,29 +79,29 @@ class GraphTransducerLossBase(Loss):
         pass
 
     @abc.abstractmethod
-    def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+    def get_grid(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
         """
         Construct the transducer lattice (grid) directly for Grid-Transducer.
 
-        :param text_tensor: tensor with target text
+        :param units_tensor: tensor with target text
         :param sequence_length: length of the sequence (in frames)
         :param num_labels: number of labels (including blank)
         :return:
         """
         pass
 
-    def get_composed_lattice(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+    def get_composed_lattice(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
         """
         Get composed lattice (unit and temporal schemes) for Compose-Transducer. Useful for visualization.
         Should be equivalent to the lattice from `get_grid` method.
 
-        :param text_tensor: tensor with target text
+        :param units_tensor: tensor with target text
         :param sequence_length: length of the sequence (in frames)
         :param num_labels: number of labels (including blank)
         :return:
         """
-        fsa_text = self.get_unit_scheme(text_tensor, num_labels)
-        fsa_temporal = self.get_temporal_scheme(sequence_length, num_labels, text_tensor.device)
+        fsa_text = self.get_unit_scheme(units_tensor, num_labels)
+        fsa_temporal = self.get_temporal_scheme(sequence_length, num_labels, units_tensor.device)
         composed = k2.compose(fsa_text, fsa_temporal, treat_epsilons_specially=False)
         if self.connect_composed:
             composed = k2.connect(composed)
@@ -116,7 +116,7 @@ class GraphTransducerLossBase(Loss):
                 return k2.create_fsa_vec(
                     [
                         self.get_grid(
-                            text_tensor=targets[i, : target_lengths[i].item()],
+                            units_tensor=targets[i, : target_lengths[i].item()],
                             sequence_length=logits_lengths[i].item(),
                             num_labels=num_labels,
                         )
@@ -197,7 +197,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         self.blank = blank
 
-    def get_unit_scheme(self, text_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
+    def get_unit_scheme(self, units_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
         """
         Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
         Forward arcs represent text labels.
@@ -211,14 +211,14 @@ class GraphRnntLoss(GraphTransducerLossBase):
         |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
         +-----------+          +-----------+          +-----------+            #===#
 
-        :param text_tensor: 1d tensor with text
+        :param units_tensor: 1d tensor with text units
         :param num_labels: number of total labels (vocab size including blank)
         :return: k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
         """
 
         blank_id = self.blank
-        device = text_tensor.device
-        text_len = text_tensor.shape[0]
+        device = units_tensor.device
+        text_len = units_tensor.shape[0]
 
         # arcs
         # text_len + 1 states, in every state - self-loops (blank) and forward (text label / last forward -1)
@@ -232,7 +232,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         # text labels
         arcs[1::2, 0] = text_indices  # from state
         arcs[1::2, 1] = text_indices + 1  # to state
-        arcs[1:-1:2, 2] = text_tensor  # labels: text
+        arcs[1:-1:2, 2] = units_tensor  # labels: text
 
         arcs[-1, 2] = -1  # last transition to final state, ilabel=-1 (special for k2)
         olabels = arcs[:, 2].detach().clone()  # same as ilabels
@@ -317,18 +317,18 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         return states
 
-    def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
+    def get_grid(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
         """
         Construct the RNN-T lattice directly (Grid-Transducer).
 
-        :param text_tensor: 1d tensor with text units
+        :param units_tensor: 1d tensor with text units
         :param sequence_length: length of the sequence (number of frames)
         :param num_labels: number of total labels (vocab size including blank)
         :return:
         """
         blank_id = self.blank
-        text_length = text_tensor.shape[0]
-        device = text_tensor.device
+        text_length = units_tensor.shape[0]
+        device = units_tensor.device
         num_grid_states = sequence_length * (text_length + 1)
         num_forward_arcs = (sequence_length - 1) * (text_length + 1)
         num_text_arcs = text_length * sequence_length
@@ -348,7 +348,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
             .flatten()
         )
         to_states = from_states + 1
-        ilabels = text_tensor.expand(sequence_length, -1).flatten()
+        ilabels = units_tensor.expand(sequence_length, -1).flatten()
         arcs[num_forward_arcs:-2, 0] = from_states
         arcs[num_forward_arcs:-2, 1] = to_states
         arcs[num_forward_arcs:-2, 2] = ilabels
@@ -382,8 +382,9 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
     def forward(
         self, acts: torch.Tensor, labels: torch.Tensor, act_lens: torch.Tensor, label_lens: torch.Tensor,
-    ):
+    ) -> torch.Tensor:
         """
+        Compute forward method for RNN-T.
 
         :param acts: activations (joint tensor)
         :param labels: target labels
