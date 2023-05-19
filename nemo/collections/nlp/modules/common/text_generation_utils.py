@@ -662,7 +662,7 @@ def sample_sequence_batch(
             output = inference_strategy.forward_step(batch, tensor_shape)
             
             if parallel_state.is_pipeline_last_stage():
-                output = output[0]['logits'] #.float()
+                output = output[0]['logits']  # .float()
                 output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 # output = output.float()

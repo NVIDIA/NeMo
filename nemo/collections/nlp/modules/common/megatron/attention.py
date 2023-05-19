@@ -905,5 +905,5 @@ class CoreAttention(MegatronModule):
         # [sq, b, np, hn] --> [sq, b, hp]
         new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size_per_partition,)
         context_layer = context_layer.view(*new_context_layer_shape)
-        
+
         return context_layer
