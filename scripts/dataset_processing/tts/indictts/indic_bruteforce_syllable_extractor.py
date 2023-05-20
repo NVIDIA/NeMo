@@ -1,10 +1,10 @@
 import json
 import string
-from nemo.collections.common.tokenizers.text_to_speech.indic_symbols import indic_symbols_mapping
 
 data_dir = "./data/indic_tts"
 lang_id = "hi"
 target_file = f"{data_dir}/syllables_{lang_id}.json"
+symbols = {"ா", "ி", "ீ", "ு", "ூ", "ெ", "ே", "ை", "ொ", "ோ", "ௌ", "்", "ஃ"}
 
 
 def generate_grapheme_clusters(text, lang_symbols):
@@ -30,9 +30,8 @@ with open(f"{data_dir}/train_manifest.json", 'r') as f:
 
 text = [json.loads(x) for x in text]
 all_text = " ".join(x["text"] for x in text)
-lang_symbols = indic_symbols_mapping[lang_id]
 
-syllables = generate_grapheme_clusters(all_text, lang_symbols)
+syllables = generate_grapheme_clusters(all_text, symbols)
 
 with open(target_file, 'w') as f:
     f.write(json.dumps(sorted(list(set(syllables)))))

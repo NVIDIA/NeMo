@@ -13,12 +13,13 @@
 # limitations under the License.
 
 
+import os
 import re
 import string
 import unicodedata
 from builtins import str as unicode
 from typing import List, Tuple
-import os
+
 from indicnlp import common, loader
 from indicnlp.syllable import syllabifier
 
@@ -32,13 +33,15 @@ __all__ = [
     "LATIN_CHARS_ALL",
     "normalize_unicode_text",
     "indic_syllable_text_processing",
-    "indic_syllable_text_processing_improved"
+    "indic_syllable_text_processing_improved",
 ]
 
 # indic syllable processing specific utils
-indic_nlp_resources_path = os.getenv("indic_nlp_resources")
+indic_nlp_resources_path = os.getenv("INDIC_RESOURCES_ROOT")
 if not indic_nlp_resources_path:
-        raise FileNotFoundError("Indic NLP resources not found. Are you sure you added it to the environment variables under 'indic_nlp_resources'?")
+    raise FileNotFoundError(
+        "Indic NLP resources not found. Are you sure you added it to the environment variables under 'INDIC_RESOURCES_ROOT'?"
+    )
 common.set_resources_path(indic_nlp_resources_path)
 loader.load()
 
@@ -119,6 +122,7 @@ def indic_syllable_text_processing(text, lang_symbols):
     clusters.append(current_cluster)
     return clusters
 
+
 def indic_syllable_text_processing_improved(text: str, lang_id: str):
     """
     Process text for improved Indic syllable extraction.
@@ -132,7 +136,7 @@ def indic_syllable_text_processing_improved(text: str, lang_id: str):
 
     The function performs improved Indic syllable extraction on the provided text using the specified Indic language.
     It first applies any necessary locale-specific text preprocessing to the input text. Then, it sets the resources path
-    for the indic_nlp library based on the 'indic_nlp_resources' environment variable. After loading the necessary 
+    for the indic_nlp library based on the "INDIC_RESOURCES_ROOT" environment variable. After loading the necessary 
     resources, it utilizes the indic_nlp library's orthographic syllabification method to extract syllables from the text.
 
     Example:
@@ -142,7 +146,7 @@ def indic_syllable_text_processing_improved(text: str, lang_id: str):
         ['अ','स','रा','रे',' ','म','आ','बि','द','-','उ','र्दू',' ','सा','प्ता','हि','क',' ','आ','वा','ज','-','ए','-','ख','ल्क़','अ','स','रा','रे',' ','म','आ','बि','द','-','उ','र्दू',' ','सा','प्ता','हि','क',' ','आ','वा','ज','-','ए','-','ख','ल्क़']
 
     Note:
-        - Ensure that the 'indic_nlp_resources' environment variable is set to the path containing the necessary 
+        - Ensure that the "INDIC_RESOURCES_ROOT" environment variable is set to the path containing the necessary 
           resources for Indic language processing.
         - The lang_id should correspond to one of the supported Indic languages. Refer to the indicnlp library for a list
           of supported languages.
@@ -152,7 +156,7 @@ def indic_syllable_text_processing_improved(text: str, lang_id: str):
     syllables = []
     for i, word in enumerate(words):
         syllables += syllabifier.orthographic_syllabify_improved(word, lang_id)
-        syllables += [" "] if i != len(words) -1 else []
+        syllables += [" "] if i != len(words) - 1 else []
 
     return syllables
 

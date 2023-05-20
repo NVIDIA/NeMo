@@ -10,3 +10,4 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
+indic-nlp-library

@@ -4,8 +4,8 @@
 
 name: FastPitch
 
-train_dataset: ~/ttsteam/datasets/indictts/hi/train_manifest.json
-validation_dataset: ~/ttsteam/datasets/indictts/hi/test_manifest.json
+train_dataset: ???  # path to train manifest file
+validation_dataset: ??? # path to validation manifest file
 sup_data_path: ./sup_data
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
@@ -55,7 +55,7 @@ model:
   text_tokenizer:
     _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IndicSyllableTokenizer
     lang_id: hi
-    syllables_path: /home/praveen/ttsteam/repos/syllables.json
+    syllables_path: ???
     punct: true
 
   train_ds:

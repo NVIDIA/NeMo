@@ -341,8 +341,8 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
         return [self._token2id[p] for p in cs]
 
 
-class IndicSyllableBFTokenizer(BaseTokenizer): #BF stands for Brute Force
-    PUNCT_LIST = (  
+class IndicSyllableBFTokenizer(BaseTokenizer):  # BF stands for Brute Force
+    PUNCT_LIST = (
         ',',
         '.',
         '!',
@@ -437,8 +437,9 @@ class IndicSyllableBFTokenizer(BaseTokenizer): #BF stands for Brute Force
 
         return "".join(decoded)
 
-class IndicSyllableTokenizer(BaseTokenizer): # Uses syllable splitting from indic_nlp_library
-    PUNCT_LIST = (  
+
+class IndicSyllableTokenizer(BaseTokenizer):  # Uses syllable splitting from indic_nlp_library
+    PUNCT_LIST = (
         ',',
         '.',
         '!',
@@ -484,7 +485,7 @@ class IndicSyllableTokenizer(BaseTokenizer): # Uses syllable splitting from indi
              if None then no blank in labels.
             text_processing_func: source text processing/splitting scheme for the language
         """
-        self.lang_id = lang_id #TODO: Add support for multiple languages
+        self.lang_id = lang_id  # TODO: Add support for multiple languages
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]
         with open(syllables_path, 'r') as f:

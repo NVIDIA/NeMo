@@ -130,7 +130,9 @@ class TestTokenizerUtils:
         expected_output = self._create_expected_output(
             ['उ', 'ठ', 'ता', ' ', 'धु', 'आँ', ' ', 'को', 'ई', ' ', 'कै', 'से', ' ', 'छु', 'पा', 'ये']
         )
-        output = indic_syllable_text_processing(input_text, ("ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्", "ं", "ः", "ऽ", "़", "ॄ", "ँ"))
+        output = indic_syllable_text_processing(
+            input_text, ("ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्", "ं", "ः", "ऽ", "़", "ॄ", "ँ")
+        )
         assert output == expected_output
 
     @pytest.mark.run_only_on('CPU')
@@ -138,7 +140,7 @@ class TestTokenizerUtils:
     def test_indic_syllable_text_processing_improved(self):
         input_text = "उठता धुआँ कोई कैसे छुपाये"
         expected_output = self._create_expected_output(
-            ['उ','ठ','ता',' ','धु','आँ',' ','को','ई',' ','कै','से',' ','छु','पा','ये']
+            ['उ', 'ठ', 'ता', ' ', 'धु', 'आँ', ' ', 'को', 'ई', ' ', 'कै', 'से', ' ', 'छु', 'पा', 'ये']
         )
         output = indic_syllable_text_processing_improved(input_text, lang_id="hi")
         assert output == expected_output
