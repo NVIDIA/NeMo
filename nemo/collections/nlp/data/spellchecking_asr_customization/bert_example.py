@@ -359,7 +359,9 @@ class BertExampleBuilder(object):
                 fragment_indices.append((adjusted_start + 1, adjusted_start + 1 + right_space_position, target))
                 is_right_shrink = True
             if is_left_shrink and is_right_shrink:
-                fragment_indices.append((adjusted_start + 1 + left_space_position + 1, adjusted_start + 1 + right_space_position, target))
+                fragment_indices.append(
+                    (adjusted_start + 1 + left_space_position + 1, adjusted_start + 1 + right_space_position, target)
+                )
 
         return fragment_indices
 
