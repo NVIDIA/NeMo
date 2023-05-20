@@ -29,6 +29,7 @@ from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_dec
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.postprocessing.asr_text_postprocessor import AbstractTextPostProcessor
 from nemo.utils import logging
 
 __all__ = ['RNNTDecoding', 'RNNTWER']
@@ -426,6 +427,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 n_hyps = nbest_hyp.n_best_hypotheses  # Extract all hypotheses for this sample
                 decoded_hyps = self.decode_hypothesis(n_hyps)  # type: List[str]
 
+                # Text normlaize the decoded hypothesis
+                decoded_hyps = self.normalize_hypothesis(decoded_hyps)
+
                 # If computing timestamps
                 if self.compute_timestamps is True:
                     timestamp_type = self.cfg.get('rnnt_timestamp_type', 'all')
@@ -444,6 +448,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
+
+            # Text normlaize the decoded hypothesis
+            decoded_hyps = self.normalize_hypothesis(decoded_hyps)
 
             # If computing timestamps
             if self.compute_timestamps is True:
@@ -511,6 +518,43 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             hypotheses_list[ind].text = hypothesis
 
         return hypotheses_list
+    
+    def normalize_hypothesis(self, decoded_hyps: List[str]) -> List[str]:
+        """
+        Perform text normalization of the list of decode strings
+
+        Args:
+            decoded_hyps: List of decoded strings.
+
+        Returns:
+            A list of strings.
+        """
+
+        language_id = self.cfg.decoding.processor.lang
+        remove_punctuation = self.cfg.decoding.processor.remove_punctuation
+        remove_capitalization = self.cfg.decoding.processor.remove_capitalization
+
+        normalizer_cls = AbstractTextPostProcessor.get_processor(language_id)
+
+        if normalizer_cls is None:
+            logging.warning(f"Normalizer class for language : `{language_id}` not found.\n"
+                            f"Check if the normalizer has been added to the __init__.py file inside "
+                            f"`language_normalizations` directory.")
+            
+            #Default to the AbstractTextPostProcessor class
+            normalizer_cls = AbstractTextPostProcessor.get_processor('default')
+
+        #  Create an object of the normalizer class
+        normalizer = normalizer_cls()
+
+        normalized_decoded_hyps = []
+
+        for decoded_hyp in decoded_hyps:
+            normalized_decoded_hyp = normalizer.normalize(decoded_hyp, remove_punctuation, remove_capitalization)
+            normalized_decoded_hyps.append(normalized_decoded_hyp)
+
+
+        return normalized_decoded_hyps
 
     def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
         """

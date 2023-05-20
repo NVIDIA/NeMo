@@ -1,0 +1,3 @@
+from nemo.collections.asr.parts.postprocessing.language_normalizations.def_normalizer import DefaultTextPostProcessor
+from nemo.collections.asr.parts.postprocessing.language_normalizations.en_normalizer import EnglishTextPostProcessor
+from nemo.collections.asr.parts.postprocessing.language_normalizations.de_normalizer import GermanTextPostProcessor
