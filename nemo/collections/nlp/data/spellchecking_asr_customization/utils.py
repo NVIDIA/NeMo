@@ -476,7 +476,9 @@ def read_spellmapper_predictions(
     return results
 
 
-def substitute_replacements_in_text(text: str, replacements: List[Tuple[int, int, str, float]], replace_hyphen_to_space: bool) -> str:
+def substitute_replacements_in_text(
+    text: str, replacements: List[Tuple[int, int, str, float]], replace_hyphen_to_space: bool
+) -> str:
     # Apply replacements to the input text, iterating from end to beginning, so that indexing does not change.
     # Note that we expect intersecting replacements to be filtered earlier.
     replacements.sort()
@@ -494,10 +496,7 @@ def substitute_replacements_in_text(text: str, replacements: List[Tuple[int, int
 
 
 def apply_replacements_to_text(
-    text: str,
-    replacements: List[Tuple[int, int, str, float]],
-    min_prob: float = 0.5,
-    replace_hyphen_to_space=False,
+    text: str, replacements: List[Tuple[int, int, str, float]], min_prob: float = 0.5, replace_hyphen_to_space=False,
 ):
     # sort replacements by positions
     replacements.sort()
