@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import os
 import re
 import string
 import unicodedata
 from builtins import str as unicode
 from typing import List, Tuple
 
-from indicnlp import common, loader
-from indicnlp.syllable import syllabifier
+try:
+    from indicnlp.syllable import syllabifier
+except ImportError:
+    pass
 
 __all__ = [
     "chinese_text_preprocessing",
@@ -35,15 +35,6 @@ __all__ = [
     "indic_syllable_text_processing",
     "indic_syllable_text_processing_improved",
 ]
-
-# indic syllable processing specific utils
-indic_nlp_resources_path = os.getenv("INDIC_RESOURCES_ROOT")
-if not indic_nlp_resources_path:
-    raise FileNotFoundError(
-        "Indic NLP resources not found. Are you sure you added it to the environment variables under 'INDIC_RESOURCES_ROOT'?"
-    )
-common.set_resources_path(indic_nlp_resources_path)
-loader.load()
 
 # Derived from LJSpeech
 _synoglyphs = {
@@ -154,10 +145,13 @@ def indic_syllable_text_processing_improved(text: str, lang_id: str):
     text = any_locale_text_preprocessing(text)
     words = text.split()
     syllables = []
-    for i, word in enumerate(words):
-        syllables += syllabifier.orthographic_syllabify_improved(word, lang_id)
-        syllables += [" "] if i != len(words) - 1 else []
-
+    try:
+        for i, word in enumerate(words):
+            syllables += syllabifier.orthographic_syllabify_improved(word, lang_id)
+            syllables += [" "] if i != len(words) - 1 else []
+    except NameError as e:
+        if e.name == "syllabifier":
+            raise ImportError("The indic_nlp library is not installed. Please install the indic_nlp library to use this function.")
     return syllables
 
 
