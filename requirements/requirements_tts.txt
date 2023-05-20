@@ -1,5 +1,6 @@
 attrdict
 einops
+indic-nlp-library
 inflect
 jieba
 kornia
@@ -10,4 +11,3 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
-indic-nlp-library
