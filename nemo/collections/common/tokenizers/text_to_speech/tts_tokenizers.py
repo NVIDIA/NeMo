@@ -15,8 +15,8 @@
 
 import itertools
 import json
-import string
 import os
+import string
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional
@@ -501,10 +501,11 @@ class IndicSyllableTokenizer(BaseTokenizer):  # Uses syllable splitting from ind
         self.OOV = OOV
         self.text_preprocessing_func = text_preprocessing_func
         self.instantiate_indic_nlp_library()
-        
+
     def instantiate_indic_nlp_library(self):
         # indic syllable processing specific utils
         from indicnlp import common, loader
+
         indic_nlp_resources_path = os.getenv("INDIC_RESOURCES_ROOT")
         if not indic_nlp_resources_path:
             raise FileNotFoundError(
@@ -512,7 +513,6 @@ class IndicSyllableTokenizer(BaseTokenizer):  # Uses syllable splitting from ind
             )
         common.set_resources_path(indic_nlp_resources_path)
         loader.load()
-
 
     def encode(self, text):
         text = self.text_preprocessing_func(text, self.lang_id)

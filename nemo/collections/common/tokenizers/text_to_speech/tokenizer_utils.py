@@ -151,7 +151,9 @@ def indic_syllable_text_processing_improved(text: str, lang_id: str):
             syllables += [" "] if i != len(words) - 1 else []
     except NameError as e:
         if e.name == "syllabifier":
-            raise ImportError("The indic_nlp library is not installed. Please install the indic_nlp library to use this function.")
+            raise ImportError(
+                "The indic_nlp library is not installed. Please install the indic_nlp library to use this function."
+            )
     return syllables
 
 
