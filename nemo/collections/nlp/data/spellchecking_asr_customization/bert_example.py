@@ -296,17 +296,24 @@ class BertExampleBuilder(object):
     def _get_fragment_indices(
         self, hyp: str, targets: List[int], span_info_parts: List[str]
     ) -> Tuple[List[int], List[Tuple[int, int, int]]]:
-        """ Maps each single character to the position of its corresponding word.
+        """ Build fragment indices for real candidates.
+            This is used only at inference.
+            After external candidate retrieval we know approximately, where the candidate is located in the text (from the positions of matched n-grams).
+            In this function we 
+               1) adjust start/end positions to match word borders (possibly in multiple ways). 
+               2) generate content for fragment_indices tensor (it will be used during inference to average all predictions inside each fragment). 
 
             Args:
                 hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
-                targets: [1 2 3 4 6 7 9]
-                span_info_parts: ["CUSTOM 12 25", "CUSTOM 0 10", "CUSTOM 27 42", ...], where numbers are EXPECTED start/end positions of corresponding target candidates in the text. These positions will be adjusted in this functuion.
+                targets: list of candidate ids (only for real candidates, not dummy)
+                span_info_parts: list of strings of format like "CUSTOM 12 25", corresponding to each of targets, with start/end coordinates in text.
             Returns:
                 List of tuples (start, end, target) where start and end are positions in ASR-hypothesis, target is candidate_id.
                 Note that returned fragments can be unsorted and can overlap, it's ok.
             Example:
                 hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
+                targets: [1 2 3 4 6 7 9]
+                span_info_parts: ["CUSTOM 12 25", "CUSTOM 0 10", "CUSTOM 27 42", ...], where numbers are EXPECTED start/end positions of corresponding target candidates in the text. These positions will be adjusted in this functuion.
                 fragment_indices: [(1, 12, 2), (13, 24, 1), (13, 28, 1), ..., (29, 42, 3)]
             """
 
@@ -319,6 +326,7 @@ class BertExampleBuilder(object):
             start = int(start)
             end = int(end)
 
+            # Adjusting strategy 1: expand both sides to the nearest space.
             # Adjust start by finding the nearest left space or beginning of text. If start is already some word beginning, it won't change.
             k = start
             while k > 0 and letters[k] != '_':
@@ -333,6 +341,25 @@ class BertExampleBuilder(object):
 
             # +1 because this should be indexing on input_ids which has [CLS] token at beginning
             fragment_indices.append((adjusted_start + 1, adjusted_end + 1, target))
+
+            # Adjusting strategy 2: try to shrink to the closest space (from left or right or both sides).
+            # For example, here the candidate "shippers" has a matching n-gram covering part of previous word
+            # a b o u t _ o u r _ s h i p e r s _ b u t _ y o u _ k n o w
+            # 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0
+            expanded_fragment = "".join(letters[adjusted_start:adjusted_end])
+            left_space_position = expanded_fragment.find("_")
+            right_space_position = expanded_fragment.rfind("_")
+            is_left_shrink = False
+            is_right_shrink = False
+            if left_space_position > -1 and left_space_position < len(expanded_fragment) / 2:
+                # +1 because of CLS token, another +1 to put start position after found space
+                fragment_indices.append((adjusted_start + 1 + left_space_position + 1, adjusted_end + 1, target))
+                is_left_shrink = True
+            if right_space_position > -1 and right_space_position > len(expanded_fragment) / 2:
+                fragment_indices.append((adjusted_start + 1, adjusted_start + 1 + right_space_position, target))
+                is_right_shrink = True
+            if is_left_shrink and is_right_shrink:
+                fragment_indices.append((adjusted_start + 1 + left_space_position + 1, adjusted_start + 1 + right_space_position, target))
 
         return fragment_indices
 
