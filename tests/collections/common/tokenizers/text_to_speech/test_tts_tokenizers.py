@@ -17,6 +17,8 @@ import pytest
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     EnglishCharsTokenizer,
     GermanCharsTokenizer,
+    IndicSyllableTokenizer,
+    IndicSyllableBFTokenizer,
     IPATokenizer,
     SpanishCharsTokenizer,
 )
@@ -48,6 +50,30 @@ class TestTTSTokenizers:
         expected_output = "hello world!"
 
         tokenizer = EnglishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_indic_syllable_brute_force_tokenizer(self):
+        input_text = "आप कैसे हैं?"
+        expected_output = "आप कैसे हैं?"
+
+        tokenizer = IndicSyllableBFTokenizer("tests/collections/common/tokenizers/text_to_speech/indic_syllables.json", ("ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्", "ं", "ः", "ऽ", "़", "ॄ", "ँ"))
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+        
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_indic_syllable_tokenizer(self):
+        input_text = "आप कैसे हैं?"
+        expected_output = "आप कैसे हैं?"
+
+        tokenizer = IndicSyllableTokenizer("hi", "tests/collections/common/tokenizers/text_to_speech/indic_syllables.json")
         chars, tokens = self._parse_text(tokenizer, input_text)
 
         assert chars == expected_output

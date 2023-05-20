@@ -1,0 +1,2 @@
+The IndicTTS dataset requires you to sign up at their website and get your account/purpose for downloading the dataset approved before you can actually download them.
+You shall find the database here: https://www.iitm.ac.in/donlab/tts/database.php

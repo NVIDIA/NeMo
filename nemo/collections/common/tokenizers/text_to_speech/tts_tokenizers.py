@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import string
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -28,6 +29,8 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
+    indic_syllable_text_processing,
+    indic_syllable_text_processing_improved,
     spanish_text_preprocessing,
 )
 from nemo.utils import logging
@@ -336,6 +339,199 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
             cs = [space] + cs + [space]
 
         return [self._token2id[p] for p in cs]
+
+
+class IndicSyllableBFTokenizer(BaseTokenizer): #BF stands for Brute Force
+    PUNCT_LIST = (  
+        ',',
+        '.',
+        '!',
+        '?',
+        '-',
+        ':',
+        ';',
+        '/',
+        '"',
+        '(',
+        ')',
+        '[',
+        ']',
+        '{',
+        '}',
+    )
+
+    def __init__(
+        self,
+        syllables_path,
+        symbols,
+        punct=True,
+        non_default_punct_list=None,
+        OOV=BaseTokenizer.OOV,
+        *,
+        space=' ',
+        sep='',
+        add_blank_at=None,
+        text_preprocessing_func=indic_syllable_text_processing,
+    ):
+        """SyllableTokenizer for all Indian Languages
+        Args:
+            syllables_path: path to syllables.json
+            symbols: List of special symbols that define graphemes in indic languages
+            punct: use punctuations flag
+            non_default_punct_list: custom punctuation list
+            space: Space token as string.
+            pad: Pad token as string.
+            blank: Blank token as string.
+            oov: OOV token as string.
+            sep: Separation token as string.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            text_processing_func: source text processing/splitting scheme for the language
+        """
+        self.lang_symbols = symbols
+        tokens = []
+        self.space, tokens = len(tokens), tokens + [space]
+        with open(syllables_path, 'r') as f:
+            syllables = json.load(f)
+        tokens.extend(syllables)
+        if punct:
+            if non_default_punct_list:
+                self.PUNCT_LIST = non_default_punct_list
+            tokens.extend(self.PUNCT_LIST)
+        super().__init__(tokens, oov=OOV, sep=sep, add_blank_at=add_blank_at)
+        self.add_blank_at = add_blank_at
+        self.OOV = OOV
+        self.text_preprocessing_func = text_preprocessing_func
+
+    def encode(self, text):
+        text = self.text_preprocessing_func(text, self.lang_symbols)
+        tokens = self.tokens
+
+        encoded = []
+        for char in text:
+            if char in tokens:
+                encoded.append(tokens.index(char))
+            elif char in self.PUNCT_LIST:
+                encoded.append(tokens.index(self.sep))
+                encoded.append(tokens.index(char))
+                encoded.append(tokens.index(self.sep))
+            else:
+                encoded.append(tokens.index(self.OOV))
+
+        if self.add_blank_at == "last":
+            encoded.append(tokens.index(self.blank))
+
+        return encoded
+
+    def decode(self, tokens):
+        decoded = []
+        for token in tokens:
+            if token == self.blank and self.add_blank_at == "last":
+                continue
+            elif token == self.space:
+                decoded.append(" ")
+            elif token < len(self.tokens):
+                decoded.append(self.tokens[token])
+            else:
+                decoded.append(self.oov)
+
+        return "".join(decoded)
+
+class IndicSyllableTokenizer(BaseTokenizer): # Uses syllable splitting from indic_nlp_library
+    PUNCT_LIST = (  
+        ',',
+        '.',
+        '!',
+        '?',
+        '-',
+        ':',
+        ';',
+        '/',
+        '"',
+        '(',
+        ')',
+        '[',
+        ']',
+        '{',
+        '}',
+    )
+
+    def __init__(
+        self,
+        lang_id,
+        syllables_path,
+        punct=True,
+        non_default_punct_list=None,
+        OOV=BaseTokenizer.OOV,
+        *,
+        space=' ',
+        sep='',
+        add_blank_at=None,
+        text_preprocessing_func=indic_syllable_text_processing_improved,
+    ):
+        """SyllableTokenizer for all Indian Languages
+        Args:
+            lang_id: Language ID for indic_nlp_library
+            syllables_path: path to syllables.json
+            punct: use punctuations flag
+            non_default_punct_list: custom punctuation list
+            space: Space token as string.
+            pad: Pad token as string.
+            blank: Blank token as string.
+            oov: OOV token as string.
+            sep: Separation token as string.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            text_processing_func: source text processing/splitting scheme for the language
+        """
+        self.lang_id = lang_id #TODO: Add support for multiple languages
+        tokens = []
+        self.space, tokens = len(tokens), tokens + [space]
+        with open(syllables_path, 'r') as f:
+            syllables = json.load(f)
+        tokens.extend(syllables)
+        if punct:
+            if non_default_punct_list:
+                self.PUNCT_LIST = non_default_punct_list
+            tokens.extend(self.PUNCT_LIST)
+        super().__init__(tokens, oov=OOV, sep=sep, add_blank_at=add_blank_at)
+        self.add_blank_at = add_blank_at
+        self.OOV = OOV
+        self.text_preprocessing_func = text_preprocessing_func
+
+    def encode(self, text):
+        text = self.text_preprocessing_func(text, self.lang_id)
+        tokens = self.tokens
+
+        encoded = []
+        for char in text:
+            if char in tokens:
+                encoded.append(tokens.index(char))
+            elif char in self.PUNCT_LIST:
+                encoded.append(tokens.index(self.sep))
+                encoded.append(tokens.index(char))
+                encoded.append(tokens.index(self.sep))
+            else:
+                encoded.append(tokens.index(self.OOV))
+
+        if self.add_blank_at == "last":
+            encoded.append(tokens.index(self.blank))
+
+        return encoded
+
+    def decode(self, tokens):
+        decoded = []
+        for token in tokens:
+            if token == self.blank and self.add_blank_at == "last":
+                continue
+            elif token == self.space:
+                decoded.append(" ")
+            elif token < len(self.tokens):
+                decoded.append(self.tokens[token])
+            else:
+                decoded.append(self.OOV)
+
+        return "".join(decoded)
 
 
 class EnglishPhonemesTokenizer(BaseTokenizer):

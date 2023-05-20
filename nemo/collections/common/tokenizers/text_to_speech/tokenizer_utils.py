@@ -14,9 +14,13 @@
 
 
 import re
+import string
 import unicodedata
 from builtins import str as unicode
 from typing import List, Tuple
+import os
+from indicnlp import common, loader
+from indicnlp.syllable import syllabifier
 
 __all__ = [
     "chinese_text_preprocessing",
@@ -27,7 +31,16 @@ __all__ = [
     "english_word_tokenize",
     "LATIN_CHARS_ALL",
     "normalize_unicode_text",
+    "indic_syllable_text_processing",
+    "indic_syllable_text_processing_improved"
 ]
+
+# indic syllable processing specific utils
+indic_nlp_resources_path = os.getenv("indic_nlp_resources")
+if not indic_nlp_resources_path:
+        raise FileNotFoundError("Indic NLP resources not found. Are you sure you added it to the environment variables under 'indic_nlp_resources'?")
+common.set_resources_path(indic_nlp_resources_path)
+loader.load()
 
 # Derived from LJSpeech
 _synoglyphs = {
@@ -65,6 +78,83 @@ def english_text_preprocessing(text, lower=True):
         text = text.lower()
 
     return text
+
+
+def indic_syllable_text_processing(text, lang_symbols):
+    """
+    Process text for Indic syllable extraction.
+
+    Args:
+        text (str): The input text to be processed.
+        lang_symbols (Iterable): The list of language-specific symbols. Could be a list, set or a tuple
+
+    Returns:
+        list: A list of clusters representing syllables extracted from the text.
+
+    The function performs Indic syllable extraction on the provided text. It removes any digits, punctuation, and whitespace 
+    characters from the text and then groups the remaining characters into clusters based on the language-specific symbols 
+    provided. Each cluster represents a syllable.
+
+    Example:
+        >>> text = "असरारे मआबिद- उर्दू साप्ताहिक आवाज-ए-खल्क़"
+        >>> lang_symbols = {"ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्", "ं", "ः", "ऽ", "़", "ॄ", "ँ"}
+        >>> indic_syllable_text_processing(text, lang_symbols)
+        ["अ", "स", "रा", "रे", " ", "म", "आ", "बि", "द", " ", "उ", "र्", "दू", " ", "सा", "प्", "ता", "हि", "क", " ", "आ", "वा", "ज", "ए", "ख", "ल्", "क़"]
+    """
+    text = any_locale_text_preprocessing(text)
+
+    clusters = []
+    current_cluster = ""
+    for i, char in enumerate(text):
+        if char.isdigit() or char in string.punctuation or char in string.whitespace:
+            continue
+        if i == 0:
+            current_cluster += char
+        else:
+            if char in lang_symbols:
+                current_cluster += char
+            else:
+                clusters.append(current_cluster)
+                current_cluster = char
+    clusters.append(current_cluster)
+    return clusters
+
+def indic_syllable_text_processing_improved(text: str, lang_id: str):
+    """
+    Process text for improved Indic syllable extraction.
+
+    Args:
+        text (str): The input text to be processed.
+        lang_id (str): The ID of the Indic language. Refer to the indicnlp library for supported languages.
+
+    Returns:
+        list: A list of clusters representing syllables extracted from the text.
+
+    The function performs improved Indic syllable extraction on the provided text using the specified Indic language.
+    It first applies any necessary locale-specific text preprocessing to the input text. Then, it sets the resources path
+    for the indic_nlp library based on the 'indic_nlp_resources' environment variable. After loading the necessary 
+    resources, it utilizes the indic_nlp library's orthographic syllabification method to extract syllables from the text.
+
+    Example:
+        >>> text = "असरारे मआबिद- उर्दू साप्ताहिक आवाज-ए-खल्क़"
+        >>> lang_id = "hi"
+        >>> indic_syllable_text_processing_improved(text, lang_id)
+        ['अ','स','रा','रे',' ','म','आ','बि','द','-','उ','र्दू',' ','सा','प्ता','हि','क',' ','आ','वा','ज','-','ए','-','ख','ल्क़','अ','स','रा','रे',' ','म','आ','बि','द','-','उ','र्दू',' ','सा','प्ता','हि','क',' ','आ','वा','ज','-','ए','-','ख','ल्क़']
+
+    Note:
+        - Ensure that the 'indic_nlp_resources' environment variable is set to the path containing the necessary 
+          resources for Indic language processing.
+        - The lang_id should correspond to one of the supported Indic languages. Refer to the indicnlp library for a list
+          of supported languages.
+    """
+    text = any_locale_text_preprocessing(text)
+    words = text.split()
+    syllables = []
+    for i, word in enumerate(words):
+        syllables += syllabifier.orthographic_syllabify_improved(word, lang_id)
+        syllables += [" "] if i != len(words) -1 else []
+
+    return syllables
 
 
 def any_locale_text_preprocessing(text: str) -> str:

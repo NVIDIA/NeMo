@@ -16,6 +16,8 @@ import pytest
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_word_tokenize,
     english_word_tokenize,
+    indic_syllable_text_processing,
+    indic_syllable_text_processing_improved,
 )
 
 
@@ -119,4 +121,24 @@ class TestTokenizerUtils:
         )
 
         output = any_locale_word_tokenize(input_text)
+        assert output == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_indic_syllable_text_processing(self):
+        input_text = "उठता धुआँ कोई कैसे छुपाये"
+        expected_output = self._create_expected_output(
+            ['उ', 'ठ', 'ता', ' ', 'धु', 'आँ', ' ', 'को', 'ई', ' ', 'कै', 'से', ' ', 'छु', 'पा', 'ये']
+        )
+        output = indic_syllable_text_processing(input_text, ("ा", "ि", "ी", "ु", "ू", "ृ", "े", "ै", "ो", "ौ", "्", "ं", "ः", "ऽ", "़", "ॄ", "ँ"))
+        assert output == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_indic_syllable_text_processing_improved(self):
+        input_text = "उठता धुआँ कोई कैसे छुपाये"
+        expected_output = self._create_expected_output(
+            ['उ','ठ','ता',' ','धु','आँ',' ','को','ई',' ','कै','से',' ','छु','पा','ये']
+        )
+        output = indic_syllable_text_processing_improved(input_text, lang_id="hi")
         assert output == expected_output
