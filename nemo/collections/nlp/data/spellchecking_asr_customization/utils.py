@@ -447,9 +447,9 @@ def get_candidates(
 
 def read_spellmapper_predictions(
     filename: str,
-) -> List[Tuple[str, List[str], List[Tuple[int, int, int, float]], List[int]]]:
+) -> List[Tuple[str, List[str], List[Tuple[int, int, str, float]], List[int]]]:
     # results is a list of (sent, list of candidates, list of fragment predictions, list of letter predictions)
-    # fragment prediction is (begin, end, candidate_id, prob)
+    # fragment prediction is (begin, end, str, prob)
     results = []
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
@@ -470,27 +470,44 @@ def read_spellmapper_predictions(
                     end = int(end)
                     candidate_id = int(candidate_id)
                     prob = float(prob)
-                    replacements.append((begin, end, candidate_id, prob))
+                    replacements.append((begin, end, candidates[candidate_id - 1], prob))
                     replacements.sort()  # it will sort by begin, then by end
-            results.append((text, candidates, replacements, letter_predictions))
+            results.append((text, replacements, letter_predictions))
     return results
+
+
+def substitute_replacements_in_text(text: str, replacements: List[Tuple[int, int, str, float]], replace_hyphen_to_space: bool) -> str:
+    # Apply replacements to the input text, iterating from end to beginning, so that indexing does not change.
+    # Note that we expect intersecting replacements to be filtered earlier.
+    replacements.sort()
+    last_begin = len(text) + 1
+    corrected_text = text
+    for begin, end, candidate, prob in reversed(replacements):
+        if end > last_begin:
+            print("WARNING: skip intersecting replacement [", candidate, "] in text: ", text)
+            continue
+        if replace_hyphen_to_space:
+            candidate = candidate.replace("-", " ")
+        corrected_text = corrected_text[:begin] + candidate + corrected_text[end:]
+        last_begin = begin
+    return corrected_text
 
 
 def apply_replacements_to_text(
     text: str,
-    candidates: List[str],
-    replacements: List[Tuple[int, int, int, float]],
+    replacements: List[Tuple[int, int, str, float]],
     min_prob: float = 0.5,
     replace_hyphen_to_space=False
 ):
-    corrected_text = text
-    # filter replacements (note that they are already sorted by positions)
+    # sort replacements by positions
+    replacements.sort()
+    # filter replacements
     filtered_replacements = []
     for j in range(len(replacements)):
         replacement = replacements[j]
-        begin, end, candidate_id, prob = replacement
+        begin, end, candidate, prob = replacement
         # skip replacement to the same text
-        if candidates[candidate_id - 1] == text[begin:end]:
+        if candidate == text[begin:end]:
             continue
         # skip replacement with low probability
         if prob < min_prob:
@@ -502,15 +519,8 @@ def apply_replacements_to_text(
             else:
                 filtered_replacements.pop()
         filtered_replacements.append(replacement)
-    # Apply replacements to the input text, iterating from end to beginning, so that indexing does not change.
-    # Note that we already filtered out intersecting replacements.
-    for begin, end, candidate_id, prob in reversed(filtered_replacements):
-        candidate = candidates[candidate_id - 1]
-        if replace_hyphen_to_space:
-            candidate = candidate.replace("-", " ")
-        corrected_text = corrected_text[:begin] + candidate + text[end:]
 
-    return corrected_text
+    return substitute_replacements_in_text(text, filtered_replacements, replace_hyphen_to_space)
 
 
 def update_json_with_spellmapper_corrections(
@@ -529,12 +539,12 @@ def update_json_with_spellmapper_corrections(
             "len(input_lines)=", len(input_lines), "; len(spellmapper_results)=", len(spellmapper_results)
         )
     for i in range(len(input_lines)):
-        text, candidates, replacements, _ = spellmapper_results[i]
+        text, replacements, _ = spellmapper_results[i]
         data = json.loads(input_lines[i].strip())
         if text != data["pred_text"]:
             raise IndexError("Line mismatch: text=", text, "data[\"pred_text\"]", data["pred_text"])
         # store old predicted text in another field
         data["pred_text_before_correction"] = data["pred_text"]
-        data["pred_text"] = apply_replacements_to_text(text, candidates, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space)
+        data["pred_text"] = apply_replacements_to_text(text, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space)
         out.write(json.dumps(data) + "\n")         
     out.close()

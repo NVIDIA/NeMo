@@ -410,6 +410,8 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                             int(fragment_indices[i][j][1]),
                             int(fragment_indices[i][j][2]),
                         )
+                        if candidate_id == 0:  # this is padding
+                            continue
                         prob = round(float(candidate_probs[i][j]), 5)
                         if prob < 0.01:
                             continue
