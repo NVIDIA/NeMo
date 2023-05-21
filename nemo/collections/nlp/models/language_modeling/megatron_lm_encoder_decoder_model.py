@@ -564,7 +564,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = next(dataloader_iter)
             # convert to list if not already converted.
             batch = self._process_batch(batch)
-            batch = [x.cuda(non_blocking=True) for x in batch if torch.is_tensor(x) else x]
+            batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
             (
                 encoder_input_ids,
                 decoder_input_ids,
