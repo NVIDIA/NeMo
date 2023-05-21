@@ -74,38 +74,37 @@ def load_ngram_mappings(input_name: str, max_dst_freq: int = 1000000000) -> Tupl
 
 def load_ngram_mappings_for_dp(input_name: str) -> Tuple[defaultdict, defaultdict, defaultdict, int]:
     """Loads vocab from file
-    Input format:
+    Input format: original \t misspelled \t joint_freq \t original_freq \t misspelled_freq
         u t o	u+i t o	49	8145	114
         u t o	<DELETE> t e	63	8145	16970
         u t o	o+_ t o	42	8145	1807
     """
     joint_vocab = defaultdict(int)
-    src_vocab = defaultdict(int)
-    dst_vocab = defaultdict(int)
+    orig_vocab = defaultdict(int)
+    misspelled_vocab = defaultdict(int)
     max_len = 0
     with open(input_name, "r", encoding="utf-8") as f:
         for line in f:
-            src, dst, joint_freq, _, _ = line.strip().split("\t")
-            assert src != "" and dst != "", "src=" + src + "; dst=" + dst
-            dst = dst.replace("<DELETE>", " ").replace("+", " ")
-            dst = " ".join(dst.split())
-            if dst == "":  # skip if resulting ngram doesn't contain any real character
+            orig, misspelled, joint_freq, _, _ = line.strip().split("\t")
+            if orig == "" or misspelled == "":
+                raise ValueError("Emty n-gram: orig=" + orig + "; misspelled=" + misspelled)
+            misspelled = misspelled.replace("<DELETE>", " ").replace("+", " ")
+            misspelled = " ".join(misspelled.split())
+            if misspelled == "":  # skip if resulting ngram doesn't contain any real character
                 continue
-            max_len = max(max_len, src.count(" ") + 1, dst.count(" ") + 1)
-            joint_vocab[(src, dst)] += int(joint_freq)
-            src_vocab[src] += int(joint_freq)
-            dst_vocab[dst] += int(joint_freq)
-    return joint_vocab, src_vocab, dst_vocab, max_len
+            max_len = max(max_len, orig.count(" ") + 1, misspelled.count(" ") + 1)
+            joint_vocab[(orig, misspelled)] += int(joint_freq)
+            orig_vocab[orig] += int(joint_freq)
+            misspelled_vocab[misspelled] += int(joint_freq)
+    return joint_vocab, orig_vocab, misspelled_vocab, max_len
 
 
 def get_alignment_by_dp(
-    hyp_phrase: str,
     ref_phrase: str,
-    joint_vocab: defaultdict,
-    src_vocab: defaultdict,
-    dst_vocab: defaultdict,
-    max_len: int,
+    hyp_phrase: str,
+    dp_data: Tuple[defaultdict, defaultdict, defaultdict, int]
 ) -> List[Tuple[str, str, float, float, int, int, int]]:
+    joint_vocab, orig_vocab, misspelled_vocab, max_len = dp_data
     hyp_letters = ["*"] + hyp_phrase.split()
     ref_letters = ["*"] + ref_phrase.split()
     DpInfo = namedtuple(
@@ -129,11 +128,11 @@ def get_alignment_by_dp(
                 hyp_ngram = " ".join(hyp_letters[(hyp_pos - hyp_ngram_len + 1) : (hyp_pos + 1)])
                 for ref_ngram_len in range(1, 1 + min(max_len, ref_pos + 1)):
                     ref_ngram = " ".join(ref_letters[(ref_pos - ref_ngram_len + 1) : (ref_pos + 1)])
-                    if (hyp_ngram, ref_ngram) not in joint_vocab:
+                    if (ref_ngram, hyp_ngram) not in joint_vocab:
                         continue
-                    joint_freq = joint_vocab[(hyp_ngram, ref_ngram)]
-                    src_freq = src_vocab.get(hyp_ngram, 1)
-                    ngram_score = math.log(joint_freq / src_freq)
+                    joint_freq = joint_vocab[(ref_ngram, hyp_ngram)]
+                    orig_freq = orig_vocab.get(ref_ngram, 1)
+                    ngram_score = math.log(joint_freq / orig_freq)
                     previous_score = 0.0
                     previous_cell = (hyp_pos - hyp_ngram_len, ref_pos - ref_ngram_len)
                     if previous_cell not in history:
@@ -197,10 +196,10 @@ def get_alignment_by_dp(
     for info in reversed(path):
         hyp_ngram = " ".join(hyp_letters[(info.hyp_pos - info.best_hyp_ngram_len + 1) : (info.hyp_pos + 1)])
         ref_ngram = " ".join(ref_letters[(info.ref_pos - info.best_ref_ngram_len + 1) : (info.ref_pos + 1)])
-        joint_freq = joint_vocab.get((hyp_ngram, ref_ngram), 0)
-        src_freq = src_vocab.get(hyp_ngram, 0)
-        dst_freq = dst_vocab.get(ref_ngram, 0)
-        result.append((hyp_ngram, ref_ngram, info.score, info.sum_score, joint_freq, src_freq, dst_freq))
+        joint_freq = joint_vocab.get((ref_ngram, hyp_ngram), 0)
+        orig_freq = orig_vocab.get(ref_ngram, 0)
+        misspelled_freq = misspelled_vocab.get(hyp_ngram, 0)
+        result.append((hyp_ngram, ref_ngram, info.score, info.sum_score, joint_freq, orig_freq, misspelled_freq))
     return result
 
 
@@ -496,28 +495,48 @@ def substitute_replacements_in_text(
 
 
 def apply_replacements_to_text(
-    text: str, replacements: List[Tuple[int, int, str, float]], min_prob: float = 0.5, replace_hyphen_to_space=False,
+    text: str,
+    replacements: List[Tuple[int, int, str, float]],
+    min_prob: float = 0.5,
+    replace_hyphen_to_space = False,
+    dp_data: Tuple[defaultdict, defaultdict, defaultdict, int] = None,
+    min_dp_score_per_symbol: float = -99.9
 ):
     # sort replacements by positions
     replacements.sort()
     # filter replacements
+    # Note that we do not skip replacements with same text, otherwise intersecting candidates with lower probability can win
     filtered_replacements = []
     for j in range(len(replacements)):
         replacement = replacements[j]
         begin, end, candidate, prob = replacement
-        # skip replacement to the same text
-        if candidate == text[begin:end]:
-            continue
+        fragment = text[begin:end]
+        candidate_spaced = " ".join(list(candidate.replace(" ", "_")))
+        fragment_spaced = " ".join(list(fragment.replace(" ", "_")))
+        # apply penalty if candidate length is bigger than fragment length
+        # to avoid cases like "forward-looking" replacing "looking" in "forward looking" resulting in "forward forward looking"
+        if len(candidate) > len(fragment):
+            penalty = len(fragment) / len(candidate)
+            prob *= penalty 
         # skip replacement with low probability
         if prob < min_prob:
             continue
+        # skip replacements with some predefined templates, e.g. "*'s" => "*s"
+        if check_banned_replacements(fragment, candidate):
+            continue
+        if dp_data is not None:
+            path = get_alignment_by_dp(candidate_spaced, fragment_spaced, dp_data)
+            # path[-1][3] is the sum of logprobs for best path of dynamic programming: divide sum_score by length
+            if path[-1][3] / (len(fragment)) < min_dp_score_per_symbol:
+                continue
+
         # skip replacement if it intersects with previous replacement and has lower probability, otherwise remove previous replacement
         if len(filtered_replacements) > 0 and filtered_replacements[-1][1] > begin:
             if filtered_replacements[-1][3] > prob:
                 continue
             else:
                 filtered_replacements.pop()
-        filtered_replacements.append(replacement)
+        filtered_replacements.append((begin, end, candidate, prob))
 
     return substitute_replacements_in_text(text, filtered_replacements, replace_hyphen_to_space)
 
@@ -549,3 +568,139 @@ def update_json_with_spellmapper_corrections(
         )
         out.write(json.dumps(data) + "\n")
     out.close()
+
+
+def check_banned_replacements(src, dst):
+    # customers' => customer's
+    if src.endswith("s'") and dst.endswith("'s") and src[0:-2] == dst[0:-2]:
+        return True
+    # customer's => customers'
+    if src.endswith("'s") and dst.endswith("s'") and src[0:-2] == dst[0:-2]:
+        return True
+    # customers => customer's
+    if src.endswith("s") and dst.endswith("'s") and src[0:-1] == dst[0:-2]:
+        return True
+    # customer's => customers
+    if src.endswith("'s") and dst.endswith("s") and src[0:-2] == dst[0:-1]:
+        return True
+    # customers => customers'
+    if src.endswith("s") and dst.endswith("s'") and src[0:-1] == dst[0:-2]:
+        return True
+    # customers' => customers
+    if src.endswith("s'") and dst.endswith("s") and src[0:-2] == dst[0:-1]:
+        return True
+    # utilities => utility's
+    if src.endswith("ies") and dst.endswith("y's") and src[0:-3] == dst[0:-3]:
+        return True
+    # utility's => utilities
+    if src.endswith("y's") and dst.endswith("ies") and src[0:-3] == dst[0:-3]:
+        return True
+    # utilities => utility
+    if src.endswith("ies") and dst.endswith("y") and src[0:-3] == dst[0:-1]:
+        return True
+    # utility => utilities
+    if src.endswith("y") and dst.endswith("ies") and src[0:-1] == dst[0:-3]:
+        return True
+    # group is => group's
+    if src.endswith(" is") and dst.endswith("'s") and src[0:-3] == dst[0:-2]:
+        return True
+    # group's => group is
+    if src.endswith("'s") and dst.endswith(" is") and src[0:-2] == dst[0:-3]:
+        return True
+    # trex's => trex
+    if src.endswith("'s") and src[0:-2] == dst:
+        return True
+    # trex => trex's
+    if dst.endswith("'s") and dst[0:-2] == src:
+        return True
+    # increases => increase (but trimass => trimas is ok)
+    if src.endswith("s") and (not src.endswith("ss")) and src[0:-1] == dst:
+        return True
+    # increase => increases ((but trimas => trimass is ok))
+    if dst.endswith("s") and (not dst.endswith("ss")) and dst[0:-1] == src:
+        return True
+    # anticipate => anticipated
+    if src.endswith("e") and dst.endswith("ed") and src[0:-1] == dst[0:-2]:
+        return True
+    # anticipated => anticipate
+    if src.endswith("ed") and dst.endswith("e") and src[0:-2] == dst[0:-1]:
+        return True
+    # regarded => regard
+    if src.endswith("ed") and src[0:-2] == dst:
+        return True
+    # regard => regarded
+    if dst.endswith("ed") and dst[0:-2] == src:
+        return True
+    # longer => long
+    if src.endswith("er") and src[0:-2] == dst:
+        return True
+    # long => longer
+    if dst.endswith("er") and dst[0:-2] == src:
+        return True
+    # discussed => discussing
+    if src.endswith("ed") and dst.endswith("ing") and src[0:-2] == dst[0:-3]:
+        return True
+    # discussing => discussed
+    if src.endswith("ing") and dst.endswith("ed") and src[0:-3] == dst[0:-2]:
+        return True
+    # discussion => discussing
+    if src.endswith("ion") and dst.endswith("ing") and src[0:-3] == dst[0:-3]:
+        return True
+    # discussing => discussion
+    if src.endswith("ing") and dst.endswith("ion") and src[0:-3] == dst[0:-3]:
+        return True
+    # dispensers => dispensing
+    if src.endswith("ers") and dst.endswith("ing") and src[0:-3] == dst[0:-3]:
+        return True
+    # dispensing => dispensers
+    if src.endswith("ing") and dst.endswith("ers") and src[0:-3] == dst[0:-3]:
+        return True
+    # discussion => discussed
+    if src.endswith("ion") and dst.endswith("ed") and src[0:-3] == dst[0:-2]:
+        return True
+    # discussed => discussion
+    if src.endswith("ed") and dst.endswith("ion") and src[0:-2] == dst[0:-3]:
+        return True
+    # incremental => increment
+    if src.endswith("ntal") and dst.endswith("nt") and src[0:-4] == dst[0:-2]:
+        return True
+    # increment => incremental
+    if src.endswith("nt") and dst.endswith("ntal") and src[0:-2] == dst[0:-4]:
+        return True
+    # delivery => deliverer
+    if src.endswith("ery") and dst.endswith("erer") and src[0:-3] == dst[0:-4]:
+        return True
+    # deliverer => delivery
+    if src.endswith("erer") and dst.endswith("ery") and src[0:-4] == dst[0:-3]:
+        return True
+    # comparably => comparable
+    if src.endswith("bly") and dst.endswith("ble") and src[0:-3] == dst[0:-3]:
+        return True
+    # comparable => comparably
+    if src.endswith("ble") and dst.endswith("bly") and src[0:-3] == dst[0:-3]:
+        return True
+    # beautiful => beautifully
+    if src.endswith("l") and dst.endswith("lly") and src[0:-1] == dst[0:-3]:
+        return True
+    # beautifully => beautiful
+    if src.endswith("lly") and dst.endswith("l") and src[0:-3] == dst[0:-1]:
+        return True
+    # america => american
+    if src.endswith("a") and dst.endswith("an") and src[0:-1] == dst[0:-2]:
+        return True
+    # american => america
+    if src.endswith("an") and dst.endswith("a") and src[0:-2] == dst[0:-1]:
+        return True
+    # reinvesting => investing
+    if src.startswith("re") and src[2:] == dst:
+        return True
+    # investing => reinvesting
+    if dst.startswith("re") and dst[2:] == src:
+        return True
+    # outperformance => performance
+    if src.startswith("out") and src[3:] == dst:
+        return True
+    # performance => outperformance
+    if dst.startswith("out") and dst[3:] == src:
+        return True
+    return False
