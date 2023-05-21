@@ -556,7 +556,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["labels"],
             global_batch["enc_mask"],
             global_batch["dec_mask"],
-            global_batch.get('extra_data', None)
+            global_batch.get('data', None)
         ]
 
     def get_forward_output_and_loss_func(self):
@@ -572,9 +572,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 lm_labels,
                 encoder_attn_mask,
                 decoder_attn_mask,
-                extra_batch_data,
+                batch_data,
             ) = batch
-            extra_batch_data = None
 
             output = model(
                 encoder_input_ids,  # enc_input_ids
@@ -583,7 +582,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_attn_mask,  # dec_attn_mask
                 None,  # token_type_ids
                 lm_labels,  # labels
-                extra_batch_data,  # extra_batch_data
+                batch_data,  # batch_data
             )
 
             def loss_func(output_tensor):
@@ -929,7 +928,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def encode(self, tokens_enc, enc_mask, encoder_input=None, extra_data=None, reconfigure_microbatch=True):
+    def encode(self, tokens_enc, enc_mask, encoder_input=None, batch_data=None, reconfigure_microbatch=True):
         """
         tokens_enc - encoder input tokens
         enc_mask - corresponding mask
@@ -979,8 +978,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            batch_for_pipeline = [tokens_enc, enc_mask, extra_data]
-            arg_names = ['enc_input_ids', 'enc_attn_mask', 'extra_batch_data']
+            batch_for_pipeline = [tokens_enc, enc_mask, batch_data]
+            arg_names = ['enc_input_ids', 'enc_attn_mask', 'batch_data']
         else:
             if encoder_input is None:
                 raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
@@ -1052,6 +1051,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         ignore_ids=[],
         bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
         predicted_tokens_dec=None,
+        batch_data=None,
         sampling_method: str = "greedy-search",
         sampling_kwargs: dict = {},
     ):
@@ -1160,8 +1160,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
             dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
-            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
-            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
+            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
