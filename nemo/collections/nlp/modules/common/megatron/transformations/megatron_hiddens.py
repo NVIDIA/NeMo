@@ -249,27 +249,32 @@ class MegatronHiddensModule(torch.nn.Module):
             batch_data: a dictionary of batch data (e.g. "target_ids"), optional
         
         Returns:
-            loss_dict: a dictionary of all losses
+            loss_dict: a dictionary of all losses, 
+                {
+                    loss: joint loss (float),
+                    <name>_*: loss values from loss transforms, could be loss, or loss elements
+                }
         """
         loss_dict = {}
         joint_loss = 0.0
         for i, loss_transform in enumerate(self.loss_transforms):
             cur_loss_dict = loss_transform.loss(outputs, batch_data=batch_data)
-            joint_loss = joint_loss + cur_loss_dict["loss"]
-            cur_loss_dict.pop["loss"]
-            # check if cur_loss keys are unique
+            joint_loss = joint_loss + cur_loss_dict["weighted_loss"]
+            cur_loss_dict.pop["weighted_loss"]
+            # add name to loss values
+            if loss_transform.name:
+                loss_dict = {f"{loss_transform.name}_{k}": v for k, v in cur_loss_dict.items()}
+
+            # check if cur_loss keys are unique - we do not allow to override keys
             dup_keys = set(cur_loss_dict.keys()).intersection(set(loss_dict.keys()))
             if len(dup_keys):
                 raise ValueError(
                     f"Loss transform ({i}) {loss_transform} is trying to override the following loss keys {list(dup_keys)}"
                 )
-
-            # add name to loss values
-            if self.name:
-                loss_dict = {f"{self.name}_{k}": v for k, v in loss_dict.items()}
-
+            # update loss dict
             loss_dict.update(cur_loss_dict)
 
+        # joint weighted loss (float)
         loss_dict["loss"] = joint_loss
 
         return loss_dict

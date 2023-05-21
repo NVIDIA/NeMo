@@ -556,46 +556,25 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["labels"],
             global_batch["enc_mask"],
             global_batch["dec_mask"],
+            global_batch.get('extra_data', None)
         ]
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
-            if isinstance(batch, dict):
-                # convert to list if not already converted.
-                batch = self._process_batch(batch)
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            if isinstance(batch, dict):
-                # we support a dict to provide additional inputs to the model for hiddens module
-                (
-                    encoder_input_ids,
-                    decoder_input_ids,
-                    loss_mask,
-                    lm_labels,
-                    encoder_attn_mask,
-                    decoder_attn_mask,
-                ) = itemgetter(
-                    "encoder_input_ids",
-                    "decoder_input_ids",
-                    "loss_mask",
-                    "lm_labels",
-                    "encoder_attn_mask",
-                    "decoder_attn_mask",
-                )(
-                    batch
-                )
-                extra_batch_data = batch.get('extra_batch_data', None)
-            else:
-                # by default we expect a tuple of tensors and support only labels for observation
-                (
-                    encoder_input_ids,
-                    decoder_input_ids,
-                    loss_mask,
-                    lm_labels,
-                    encoder_attn_mask,
-                    decoder_attn_mask,
-                ) = batch
-                extra_batch_data = None
+            # convert to list if not already converted.
+            batch = self._process_batch(batch)
+            batch = [x.cuda(non_blocking=True) for x in batch if torch.is_tensor(x) else x]
+            (
+                encoder_input_ids,
+                decoder_input_ids,
+                loss_mask,
+                lm_labels,
+                encoder_attn_mask,
+                decoder_attn_mask,
+                extra_batch_data,
+            ) = batch
+            extra_batch_data = None
 
             output = model(
                 encoder_input_ids,  # enc_input_ids
@@ -950,7 +929,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
+    def encode(self, tokens_enc, enc_mask, encoder_input=None, extra_data=None, reconfigure_microbatch=True):
         """
         tokens_enc - encoder input tokens
         enc_mask - corresponding mask
@@ -1000,8 +979,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            batch_for_pipeline = [tokens_enc, enc_mask]
-            arg_names = ['enc_input_ids', 'enc_attn_mask']
+            batch_for_pipeline = [tokens_enc, enc_mask, extra_data]
+            arg_names = ['enc_input_ids', 'enc_attn_mask', 'extra_batch_data']
         else:
             if encoder_input is None:
                 raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
