@@ -79,6 +79,7 @@ def get_tokenizer(
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast: Optional[bool] = False,
     bpe_dropout: Optional[float] = 0.0,
+    legacy=False,
 ):
     """
     Args:
@@ -116,7 +117,7 @@ def get_tokenizer(
 
     if tokenizer_name == 'sentencepiece':
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, special_tokens=special_tokens, legacy=True
+            model_path=tokenizer_model, special_tokens=special_tokens, legacy=legacy
         )
     elif tokenizer_name == 'yttm':
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
@@ -204,7 +205,7 @@ def get_nmt_tokenizer(
         logging.info(
             f'Getting Megatron tokenizer for pretrained model name: {model_name}, custom vocab file: {vocab_file}, and merges file: {merges_file}'
         )
-        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
+        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file, tokenizer_model=tokenizer_model, legacy=legacy)
     elif library == 'tabular':
         return TabularTokenizer(vocab_file, delimiter=delimiter)
     else:
