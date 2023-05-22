@@ -818,8 +818,8 @@ class CoreAttention(MegatronModule):
                 :,
                 self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
                 + self.num_attention_heads_per_partition,
-                :sq,
-                :sk,
+                -sq:,
+                -sk:,
             ]
 
         # ==================================================
