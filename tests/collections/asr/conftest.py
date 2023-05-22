@@ -22,7 +22,7 @@ import torch
 
 class RNNTTestHelper:
     @staticmethod
-    def wrap_and_call(fn, acts, labels, device):
+    def wrap_and_call(fn, acts, labels, device, input_lengths=None, target_lengths=None):
         if not torch.is_tensor(acts):
             acts = torch.FloatTensor(acts)
 
@@ -32,11 +32,20 @@ class RNNTTestHelper:
         if not acts.requires_grad:
             acts.requires_grad = True
 
-        lengths = [acts.shape[1]] * acts.shape[0]
-        label_lengths = [len(l) for l in labels]
         labels = torch.LongTensor(labels)
-        lengths = torch.LongTensor(lengths)
-        label_lengths = torch.LongTensor(label_lengths)
+
+        if input_lengths is None:
+            lengths = [acts.shape[1]] * acts.shape[0]
+            lengths = torch.LongTensor(lengths)
+        else:
+            lengths = input_lengths
+
+        if target_lengths is None:
+            label_lengths = [len(l) for l in labels]
+            label_lengths = torch.LongTensor(label_lengths)
+        else:
+            label_lengths = target_lengths
+
         if 'cuda' in device:
             labels = labels.cuda()
             lengths = lengths.cuda()
@@ -310,12 +319,11 @@ class RnntLossSampleData:
         )
 
     @classmethod
-    def get_sample_large_random(cls, blank_first: bool, device=torch.device("cpu")) -> "RnntLossSampleData":
-        # TODO: use or remove
-        num_labels = 512
+    def get_sample_medium_random_var_size(cls, blank_first: bool, device=torch.device("cpu")) -> "RnntLossSampleData":
+        num_labels = 32
         blank_id = 0 if blank_first else num_labels - 1
-        sequence_length = 128
-        text_len = 64
+        sequence_length = 32
+        text_len = 27
         min_symbol = 1 if blank_first else 0
         max_symbol = num_labels if blank_first else num_labels - 1
         batch_size = 4
