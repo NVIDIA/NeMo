@@ -786,6 +786,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
+            # causal attention bias: [1, head, 1, k]
+            # non-causal attention bias: [1, head, q, k]
 
         # encoder.
         if enc_hidden_states is None:
