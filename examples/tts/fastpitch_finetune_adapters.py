@@ -106,6 +106,14 @@ def main(cfg):
     # Setup adapters
     if adapter_global_cfg is not None:
         add_global_adapter_cfg(model, adapter_global_cfg)
+    
+    
+    if cfg.model.get("unfreeze_duration", False)
+        for name, param in model.fastpitch.aligner.named_parameters():
+            param.requires_grad = True
+
+        for name, param in model.fastpitch.duration_predictor.named_parameters():
+            param.requires_grad = True
 
     # Add adapters
     model.add_adapter(name=adapter_name, cfg=cfg.model.adapter)
