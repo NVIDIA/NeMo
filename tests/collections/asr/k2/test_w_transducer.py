@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import pytest
 import torch
 
@@ -29,13 +30,27 @@ if torch.cuda.is_available() and k2.with_cuda:
 
 class TestGraphWTransducerLoss:
     @pytest.mark.unit
+    def test_temporal_scheme(self):
+        # TODO
+        pass
+
+    @pytest.mark.unit
+    def test_unit_scheme(self):
+        # TODO
+        pass
+
+    @pytest.mark.unit
+    def test_grid_scheme(self):
+        # TODO
+        pass
+
+    @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
     @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_last"])
-    def test_grid_compose_equivalent(
+    def test_small_random_grid_compose_equivalent(
         self, device: torch.device, blank_first: bool, last_blank_mode, rnn_loss_sample_data
     ):
-        # TODO:  "force_all" mode fully implemented yet
         sample_data = rnn_loss_sample_data.get_sample_small_random(blank_first, device=device)
         criterion = GraphWTransducerLoss(
             blank=sample_data.blank_id,
@@ -50,3 +65,26 @@ class TestGraphWTransducerLoss:
         assert k2.is_rand_equivalent(
             graph_grid, graph_composed, log_semiring=True, treat_epsilons_specially=False
         ), "Grid and composed graphs are not equivalent."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_last"])
+    @pytest.mark.parametrize("use_grid_implementation", [True, False])
+    def test_small_grid_transducer_inf_penalty(
+        self, device, last_blank_mode, use_grid_implementation, rnnt_test_helper, rnn_loss_sample_data
+    ):
+        """
+        With -inf eps penalty W-Transducer loss should be equivalent to RNN-T loss.
+        """
+        sample_data = rnn_loss_sample_data.get_sample_small()
+        graph_rnnt = GraphWTransducerLoss(
+            blank=0,
+            eps_weight=-100.0,
+            last_blank_mode=last_blank_mode,
+            use_grid_implementation=use_grid_implementation,
+        )
+        graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
+            graph_rnnt, sample_data.logits, sample_data.targets, device
+        )
+        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=1e-6), "costs mismatch."
+        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."

@@ -71,7 +71,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         self.eps_weight = eps_weight
         self.last_blank_mode = self.LastBlankMode(last_blank_mode)
 
-    def get_unit_scheme(self, text_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
+    def get_unit_scheme(self, units_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
         """
         Get unit scheme (target text) graph for W-Transducer loss (Compose-Transducer).
         Forward arcs represent text labels.
@@ -101,8 +101,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         blank_id = self.blank
         start_eps_id = num_labels
         end_eps_id = num_labels + 1
-        device = text_tensor.device
-        text_len = text_tensor.shape[0]
+        device = units_tensor.device
+        text_len = units_tensor.shape[0]
 
         # arcs: scr, dest, label, score
         arcs = torch.zeros(((text_len + 1) * 2 + 2, 4), dtype=torch.int32, device=device)
@@ -117,7 +117,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         # text labels
         arcs[2:-1:2, 0] = text_indices  # from state
         arcs[2:-1:2, 1] = text_indices + 1  # to state
-        arcs[2:-2:2, 2] = text_tensor  # labels: text
+        arcs[2:-2:2, 2] = units_tensor  # labels: text
 
         arcs[-1] = arcs[-2]
         arcs[-2, 1] = text_len
