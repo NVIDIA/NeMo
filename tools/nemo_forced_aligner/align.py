@@ -143,6 +143,7 @@ class AlignmentConfig:
     ctm_file_config: CTMFileConfig = CTMFileConfig()
     ass_file_config: ASSFileConfig = ASSFileConfig()
 
+
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
 def main(cfg: AlignmentConfig):
 
@@ -286,7 +287,6 @@ def main(cfg: AlignmentConfig):
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-        
         (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
             manifest_lines_batch,
             model,
@@ -297,7 +297,7 @@ def main(cfg: AlignmentConfig):
             cfg.simulate_cache_aware_streaming,
             cfg.use_buffered_chunked_streaming,
             buffered_chunk_params,
-        )       
+        )
 
         alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
