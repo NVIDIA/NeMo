@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -268,14 +268,14 @@ def collate_test_dataset(
             padded_fragment_indices.append(fragment_indices)
 
     return (
-        torch.LongTensor(padded_input_ids),
-        torch.LongTensor(padded_input_mask),
-        torch.LongTensor(padded_segment_ids),
-        torch.LongTensor(padded_input_ids_for_subwords),
-        torch.LongTensor(padded_input_mask_for_subwords),
-        torch.LongTensor(padded_segment_ids_for_subwords),
-        torch.LongTensor(padded_character_pos_to_subword_pos),
-        torch.LongTensor(padded_fragment_indices),
+        torch.LongTensor(np.array(padded_input_ids)),
+        torch.LongTensor(np.array(padded_input_mask)),
+        torch.LongTensor(np.array(padded_segment_ids)),
+        torch.LongTensor(np.array(padded_input_ids_for_subwords)),
+        torch.LongTensor(np.array(padded_input_mask_for_subwords)),
+        torch.LongTensor(np.array(padded_segment_ids_for_subwords)),
+        torch.LongTensor(np.array(padded_character_pos_to_subword_pos)),
+        torch.LongTensor(np.array(padded_fragment_indices)),
     )
 
 
