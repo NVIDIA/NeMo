@@ -153,11 +153,14 @@ def _clean_kwargs(
     """
     Cleans kwargs for the given loss function. Warn if there are unused kwargs.
 
-    :param loss_name: name of the loss function
-    :param kwargs: kwargs to clean
-    :param init_method: LossClass.__init__ method
-    :param ignore_params: set of argument names for init_method to ignore
-    :return:
+    Args:
+        loss_name: name of the loss function
+        kwargs: kwargs to clean
+        init_method: LossClass.__init__ method
+        ignore_params: set of argument names for init_method to ignore
+
+    Returns:
+        only used kwargs for the given `init_method`
     """
     if not kwargs:
         return {}
