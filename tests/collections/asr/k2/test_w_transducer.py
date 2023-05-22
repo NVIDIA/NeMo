@@ -32,16 +32,14 @@ class TestGraphWTransducerLoss:
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
     @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_last"])
-    @pytest.mark.parametrize("graph_mode", ["sequential", "skip_frames"])
     def test_grid_compose_equivalent(
-        self, device: torch.device, blank_first: bool, last_blank_mode, graph_mode, rnn_loss_sample_data
+        self, device: torch.device, blank_first: bool, last_blank_mode, rnn_loss_sample_data
     ):
         # TODO:  "force_all" mode fully implemented yet
         sample_data = rnn_loss_sample_data.get_sample_small_random(blank_first, device=device)
         criterion = GraphWTransducerLoss(
             blank=sample_data.blank_id,
             last_blank_mode=last_blank_mode,
-            graph_mode=graph_mode,
             connect_composed=True,
             use_grid_implementation=False,
         )
