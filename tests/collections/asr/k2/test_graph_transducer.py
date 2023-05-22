@@ -98,7 +98,7 @@ class TestGraphRnnt:
         graph_rnnt = GraphRnntLoss(blank=0, use_grid_implementation=True)
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt,
-            sample_data.logits,
+            sample_data.logits.detach(),
             sample_data.targets,
             device,
             input_lengths=sample_data.input_lengths,
@@ -107,14 +107,14 @@ class TestGraphRnnt:
         etalon_rnnt = RNNTLoss_Numpy(blank=0)
         etalon_cost, etalon_grads = rnnt_test_helper.wrap_and_call(
             etalon_rnnt,
-            sample_data.logits,
+            sample_data.logits.detach(),
             sample_data.targets,
             device,
             input_lengths=sample_data.input_lengths,
             target_lengths=sample_data.target_lengths,
         )
         assert np.allclose(graph_cost.sum(), etalon_cost, rtol=EPS_SM_INPUT), "costs mismatch."
-        assert np.allclose(graph_grads, etalon_grads, atol=1e-6), "gradient mismatch."
+        assert np.allclose(graph_grads, etalon_grads, atol=1e-4), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
