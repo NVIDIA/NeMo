@@ -241,7 +241,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
         Forward arcs represent text labels.
 
-        Example graph: text [1, 2], blank_id=0.
+        Example graph: text [1, 2], blank=0.
         Labels: <text_labels>:<text_labels>:<text_position>.
 
         graph::
@@ -291,7 +291,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         Get temporal scheme graph for RNN-T loss (Compose-Transducer).
         Forward arc - blank, self-loops - all labels excluding blank
 
-        Example graph: blank_id=0, sequence_length=3, num_labels=3.
+        Example graph: blank=0, sequence_length=3, num_labels=3.
         Labels: <labels_id>:<sequence_position>.
 
         graph::

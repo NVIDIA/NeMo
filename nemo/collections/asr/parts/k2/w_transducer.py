@@ -76,7 +76,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Get unit scheme (target text) graph for W-Transducer loss (Compose-Transducer).
         Forward arcs represent text labels.
 
-        Example graph: text [1, 2], blank_id=0. Eps ids: 3, 4.
+        Example graph: text [1, 2], blank=0. Eps ids: 3, 4.
         Labels: <text_labels>:<text_labels>:<text_position>.
 
         graph::
@@ -134,6 +134,28 @@ class GraphWTransducerLoss(GraphRnntLoss):
     def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
         """
         Get temporal scheme graph for W-Transducer loss (Compose-Transducer).
+
+        Example graph: blank=0, sequence_length=3, num_labels=3, last_blank_mode="force_last".
+        Labels: <labels_id>:<sequence_position>. Eps ids: 3, 4.§
+
+        graph::
+
+                                                         4:0
+                       +--------------------------------------------+
+                       |                               4:1          |
+                       |                     +--------------------+ |
+                1:0    |              1:1    |              1:2   | |
+              +-----+  |            +-----+  |            +-----+ | |
+              v     |  |            v     |  |            v     | v v
+            +--------------+  0:0  +------------+  0:1   +------------+  0:2   +---+  -1:-1   #===#
+            |    0         | ----> |    1       | -----> |    2       | -----> | 3 | -------> H 4 H
+            +--------------+       +------------+        +------------+        +---+          #===#
+              ^ 2:0 | | | |         ^ 2:1 |  ^            ^ 2:2 |  ^             ^
+              +-----+ | | |         +-----+  |            +-----+  |             |
+                      | | |     3:0          |                     |             |
+                      | | +------------------+     3:0             |             |
+                      | +------------------------------------------+    3:0      |
+                      +----------------------------------------------------------+
 
         Args:
             sequence_length: length of the sequence (in frames)
