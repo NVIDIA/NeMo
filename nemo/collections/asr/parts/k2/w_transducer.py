@@ -76,6 +76,20 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Get unit scheme (target text) graph for W-Transducer loss (Compose-Transducer).
         Forward arcs represent text labels.
 
+        Example graph: text [1, 2], blank_id=0. Eps ids: 3, 4.
+        Labels: <text_labels>:<text_labels>:<text_position>.
+
+        graph::
+
+                3:3:0                  0:0:1                  0:0:2
+              +-------+              +-------+              +-------+
+              v       |              v       |              v       |
+            +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:2   #===#
+            |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
+            +-----------+          +-----------+          +-----------+            #===#
+              ^ 0:0:0 |                                     ^ 4:4:2 |
+              +-------+                                     +-------+
+
         Args:
             units_tensor: 1d tensor with text units
             num_labels: number of total labels (vocab size including blank)
@@ -175,7 +189,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_temporal = k2.arc_sort(fsa_temporal)  # need for compose
         return fsa_temporal
 
-    def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+    def get_grid(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
         """
         Construct W-Transducer lattice directly (Grid-Transducer).
 
@@ -189,8 +203,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         """
         blank_id = self.blank
         eps_id = num_labels  # beyond vocabulary
-        text_length = text_tensor.shape[0]
-        device = text_tensor.device
+        text_length = units_tensor.shape[0]
+        device = units_tensor.device
         num_grid_states = sequence_length * (text_length + 1)
         num_forward_arcs_base = (sequence_length - 1) * (text_length + 1)
         num_forward_arcs_additional = (sequence_length - 1) * 2
@@ -232,7 +246,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
             .flatten()
         )
         to_states = from_states + 1
-        ilabels = text_tensor.expand(sequence_length, -1).flatten()
+        ilabels = units_tensor.expand(sequence_length, -1).flatten()
         arcs[num_forward_arcs:-2, 0] = from_states
         arcs[num_forward_arcs:-2, 1] = to_states
         arcs[num_forward_arcs:-2, 2] = ilabels

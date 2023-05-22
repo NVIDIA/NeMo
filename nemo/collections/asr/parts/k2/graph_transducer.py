@@ -68,7 +68,7 @@ class GraphTransducerLossBase(Loss):
 
         Args:
             units_tensor: tensor with target text
-            num_labels: number of labels (including blank)
+            num_labels: number of labels (including blank). Needed to construct additional eps-arcs (when needed).
 
         Returns:
             unit scheme graph (k2.Fsa)
@@ -240,15 +240,18 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
         Forward arcs represent text labels.
-        Example graph: text [1, 2], blank_id=0
-        labels: text_labels:text_labels:text_position
 
-            0:0:0                  0:0:1                  0:0:2
-          +-------+              +-------+              +-------+
-          v       |              v       |              v       |
-        +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:2   #===#
-        |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
-        +-----------+          +-----------+          +-----------+            #===#
+        Example graph: text [1, 2], blank_id=0.
+        Labels: <text_labels>:<text_labels>:<text_position>.
+
+        graph::
+
+                0:0:0                  0:0:1                  0:0:2
+              +-------+              +-------+              +-------+
+              v       |              v       |              v       |
+            +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:2   #===#
+            |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
+            +-----------+          +-----------+          +-----------+            #===#
 
         Args:
             units_tensor: 1d tensor with text units
@@ -287,17 +290,20 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         Get temporal scheme graph for RNN-T loss (Compose-Transducer).
         Forward arc - blank, self-loops - all labels excluding blank
-        Example graph: blank_id=0, sequence_length=3, num_labels=3
-        labels: labels_id:sequence_position
 
-            1:0                1:1                1:2
-          +-----+            +-----+            +-----+
-          v     |            v     |            v     |
-        +---------+  0:0   +---------+  0:1   +---------+  0:2   +---+  -1:-1   #===#
-        |    0    | -----> |    1    | -----> |    2    | -----> | 3 | -------> H 4 H
-        +---------+        +---------+        +---------+        +---+          #===#
-          ^ 2:0 |            ^ 2:1 |            ^ 2:2 |
-          +-----+            +-----+            +-----+
+        Example graph: blank_id=0, sequence_length=3, num_labels=3.
+        Labels: <labels_id>:<sequence_position>.
+
+        graph::
+
+                1:0                1:1                1:2
+              +-----+            +-----+            +-----+
+              v     |            v     |            v     |
+            +---------+  0:0   +---------+  0:1   +---------+  0:2   +---+  -1:-1   #===#
+            |    0    | -----> |    1    | -----> |    2    | -----> | 3 | -------> H 4 H
+            +---------+        +---------+        +---------+        +---+          #===#
+              ^ 2:0 |            ^ 2:1 |            ^ 2:2 |
+              +-----+            +-----+            +-----+
 
         Args:
             sequence_length: length of the sequence (in frames)
