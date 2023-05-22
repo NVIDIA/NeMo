@@ -123,7 +123,7 @@ class RnntLossSampleData:
                 ]
             ]
         )
-        labels = [[0, 1, 0]]
+        labels = np.array([[0, 1, 0]])
 
         expected_cost = [6.789285182952881]
         expected_grads = np.array(
@@ -164,17 +164,17 @@ class RnntLossSampleData:
         )
         return RnntLossSampleData(
             num_labels=3,
-            blank_id=0,
+            blank_id=2,
             logits=torch.from_numpy(activations).to(torch.float32),
             targets=torch.from_numpy(labels),
-            input_lengths=torch.tensor([2]),
-            target_lengths=torch.tensor([2]),
+            input_lengths=torch.tensor([5]),
+            target_lengths=torch.tensor([3]),
             expected_cost=torch.tensor(expected_cost).to(torch.float32),
             expected_grads=torch.from_numpy(expected_grads),
         )
 
     @classmethod
-    def get_sample_large(cls) -> "RnntLossSampleData":
+    def get_sample_medium(cls) -> "RnntLossSampleData":
         # minibatch x T x U x alphabet_size
         activations = [
             [
@@ -271,15 +271,16 @@ class RnntLossSampleData:
             ],
         ]
         activations = np.array(activations)
-        labels = [[1, 2], [1, 1]]
+        labels = np.array([[1, 2], [1, 1]])
+        expected_grads = np.array(expected_grads)
 
         return RnntLossSampleData(
             num_labels=3,
             blank_id=0,
             logits=torch.from_numpy(activations).to(torch.float32),
             targets=torch.from_numpy(labels),
-            input_lengths=torch.tensor([2]),
-            target_lengths=torch.tensor([2]),
+            input_lengths=torch.tensor([4, 4]),
+            target_lengths=torch.tensor([2, 2]),
             expected_cost=torch.tensor(expected_cost).to(torch.float32),
             expected_grads=torch.from_numpy(expected_grads),
         )
@@ -310,6 +311,7 @@ class RnntLossSampleData:
 
     @classmethod
     def get_sample_large_random(cls, blank_first: bool, device=torch.device("cpu")) -> "RnntLossSampleData":
+        # TODO: use or remove
         num_labels = 512
         blank_id = 0 if blank_first else num_labels - 1
         sequence_length = 128

@@ -33,20 +33,39 @@ if torch.cuda.is_available() and k2.with_cuda:
 
 class TestGraphRnnt:
     @pytest.mark.unit
+    def test_temporal_scheme(self):
+        # TODO
+        pass
+
+    @pytest.mark.unit
+    def test_unit_scheme(self):
+        # TODO
+        pass
+
+    @pytest.mark.unit
+    def test_grid_scheme(self):
+        # TODO
+        pass
+
+    @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("connect_composed", [True, False])
-    def test_small_compose_transducer(self, device, connect_composed, rnnt_test_helper, rnn_loss_sample_data):
-        sample_data = rnn_loss_sample_data.get_sample_small()
-        graph_rnnt = GraphRnntLoss(blank=0, connect_composed=connect_composed, use_grid_implementation=False)
+    @pytest.mark.parametrize("blank_first", [True, False])
+    def test_small_compose_transducer(
+        self, device, connect_composed, blank_first, rnnt_test_helper, rnn_loss_sample_data
+    ):
+        if blank_first:
+            sample_data = rnn_loss_sample_data.get_sample_small()
+        else:
+            sample_data = rnn_loss_sample_data.get_sample_small_blank_last()
+        graph_rnnt = GraphRnntLoss(
+            blank=sample_data.blank_id, connect_composed=connect_composed, use_grid_implementation=False
+        )
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt, sample_data.logits, sample_data.targets, device
         )
-        assert np.allclose(
-            graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT
-        ), "small_test costs mismatch."
-        assert np.allclose(
-            graph_grads, sample_data.expected_grads.numpy(), rtol=EPS_SM_INPUT
-        ), "small_test gradient mismatch."
+        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT), "costs mismatch."
+        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -56,17 +75,24 @@ class TestGraphRnnt:
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt, sample_data.logits, sample_data.targets, device
         )
-        assert np.allclose(
-            graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT
-        ), "small_test costs mismatch."
-        assert np.allclose(
-            graph_grads, sample_data.expected_grads.numpy(), rtol=EPS_SM_INPUT
-        ), "small_test gradient mismatch."
+        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT), "costs mismatch."
+        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_medium_grid_transducer(self, device, rnnt_test_helper, rnn_loss_sample_data):
+        sample_data = rnn_loss_sample_data.get_sample_medium()
+        graph_rnnt = GraphRnntLoss(blank=0, use_grid_implementation=True)
+        graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
+            graph_rnnt, sample_data.logits, sample_data.targets, device
+        )
+        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT), "costs mismatch."
+        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
-    def test_grid_compose_equivalent(self, device: torch.device, blank_first: bool, rnn_loss_sample_data):
+    def test_small_random_grid_compose_equivalent(self, device: torch.device, blank_first: bool, rnn_loss_sample_data):
         sample_data = rnn_loss_sample_data.get_sample_small_random(blank_first, device=device)
         criterion = GraphRnntLoss(blank=sample_data.blank_id, connect_composed=True, use_grid_implementation=False)
         text_tensor = sample_data.targets[0]
