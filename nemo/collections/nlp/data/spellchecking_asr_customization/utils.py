@@ -564,7 +564,7 @@ def update_json_with_spellmapper_corrections(
         # store old predicted text in another field
         data["pred_text_before_correction"] = data["pred_text"]
         data["pred_text"] = apply_replacements_to_text(
-            text, candidates, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space
+            text, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space
         )
         out.write(json.dumps(data) + "\n")
     out.close()
