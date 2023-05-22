@@ -108,7 +108,7 @@ def main(cfg):
         add_global_adapter_cfg(model, adapter_global_cfg)
     
     
-    if cfg.model.get("unfreeze_duration", False)
+    if cfg.model.get("unfreeze_duration", False):
         for name, param in model.fastpitch.aligner.named_parameters():
             param.requires_grad = True
 
