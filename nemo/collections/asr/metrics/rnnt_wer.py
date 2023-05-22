@@ -29,7 +29,9 @@ from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_dec
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
-from nemo.collections.asr.parts.postprocessing.asr_text_postprocessor import AbstractTextPostProcessor
+from nemo.collections.asr.parts.postprocessing.asr_text_postprocessor import AbstractTextPostProcessor, TextPostProcessorConfig
+from nemo.collections.asr.parts.postprocessing.language_normalizations.default_normalizer import DefaultTextPostProcessor
+
 from nemo.utils import logging
 
 __all__ = ['RNNTDecoding', 'RNNTWER']
@@ -448,9 +450,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
-
             # Text normlaize the decoded hypothesis
-            decoded_hyps = self.normalize_hypothesis(decoded_hyps)
+            decoded_hyps = self.normalize_hypothesis(hypotheses)
 
             # If computing timestamps
             if self.compute_timestamps is True:
@@ -530,9 +531,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             A list of strings.
         """
 
-        language_id = self.cfg.decoding.processor.lang
-        remove_punctuation = self.cfg.decoding.processor.remove_punctuation
-        remove_capitalization = self.cfg.decoding.processor.remove_capitalization
+        language_id = self.cfg.decoding_processor_config.lang
+        remove_punctuation = self.cfg.decoding_processor_config.remove_punctuation
+        remove_capitalization = self.cfg.decoding_processor_config.remove_capitalization
 
         normalizer_cls = AbstractTextPostProcessor.get_processor(language_id)
 
@@ -550,8 +551,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         normalized_decoded_hyps = []
 
         for decoded_hyp in decoded_hyps:
-            normalized_decoded_hyp = normalizer.normalize(decoded_hyp, remove_punctuation, remove_capitalization)
-            normalized_decoded_hyps.append(normalized_decoded_hyp)
+            decoded_hyp.text = normalizer.normalize(decoded_hyp.text, remove_punctuation, remove_capitalization)
+            normalized_decoded_hyps.append(decoded_hyp)
 
 
         return normalized_decoded_hyps
@@ -1315,3 +1316,8 @@ class RNNTDecodingConfig:
 
     # can be used to change temperature for decoding
     temperature: float = 1.0
+
+    # config for text based post processing
+    decoding_processor_config: TextPostProcessorConfig = TextPostProcessorConfig()
+
+

@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 import re
 from typing import Type, Optional
 
 class AbstractTextPostProcessor(ABC):
     language_id: str = None
-    processor_registry: dict
+    processor_registry: dict = {}
 
     # def __init__(self, language_id):
     #     self.language_id = language_id
@@ -88,6 +89,11 @@ class AbstractTextPostProcessor(ABC):
 
 
     
+@dataclass
+class TextPostProcessorConfig:
+    lang: str = "Default"
+    remove_punctuation: bool = False
+    remove_capitalization: bool = False
 
 
 
