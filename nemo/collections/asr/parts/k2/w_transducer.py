@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from contextlib import nullcontext
 from typing import Union
 
@@ -25,26 +24,43 @@ from nemo.utils.enum import PrettyStrEnum
 
 
 class GraphWTransducerLoss(GraphRnntLoss):
+    """
+    W-Transducer loss: RNN-T loss modification for training RNN-T model for the case
+    when some text at the beginning/end of the utterance is missing.
+    The resulting model behaves like the RNN-T model (no modification for decoding is required).
+    For details see "Powerful and Extensible WFST Framework for RNN-Transducer Losses" paper
+        https://ieeexplore.ieee.org/document/10096679
+    """
+
     class LastBlankMode(PrettyStrEnum):
         ALLOW_IGNORE = "allow_ignore"
         FORCE_LAST = "force_last"
-        FORCE_ALL = "force_all"
-
-    class GraphMode(PrettyStrEnum):
-        SEQUENTIAL = "sequential"
-        SKIP_FRAMES = "skip_frames"
 
     def __init__(
         self,
         blank: int,
-        eps_weight=math.log(0.5),
+        eps_weight: float = 0.0,
         last_blank_mode: Union[LastBlankMode, str] = LastBlankMode.FORCE_LAST,
-        graph_mode: Union[GraphMode, str] = GraphMode.SKIP_FRAMES,
         use_grid_implementation=True,
         connect_composed=False,
         double_scores=False,
         cast_to_float32=False,
     ):
+        """
+        Init method
+
+        Args:
+            blank: blank label index
+            eps_weight: weight of epsilon transitions, 0 means no penalty (default)
+            last_blank_mode: allow to skip last blank in the prediction (default) or force it
+            use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
+            connect_composed: Connect graph after composing unit and temporal schemes
+                (only for Compose-Transducer). `connect` operation is slow, it is useful for visualization,
+                but not necessary for loss computation.
+            double_scores: Use calculation of loss in double precision (float64) in the lattice.
+                Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
+            cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
+        """
         super().__init__(
             blank=blank,
             use_grid_implementation=use_grid_implementation,
@@ -52,14 +68,22 @@ class GraphWTransducerLoss(GraphRnntLoss):
             double_scores=double_scores,
             cast_to_float32=cast_to_float32,
         )
-        self._eps_weight = eps_weight
-        self._last_blank_mode = self.LastBlankMode(last_blank_mode)
-        self._graph_mode = self.GraphMode(graph_mode)
-
-    def get_eps_id(self, num_labels: int) -> int:
-        return num_labels
+        self.eps_weight = eps_weight
+        self.last_blank_mode = self.LastBlankMode(last_blank_mode)
 
     def get_unit_scheme(self, text_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
+        """
+        Get unit scheme (target text) graph for W-Transducer loss (Compose-Transducer).
+        Forward arcs represent text labels.
+
+        Args:
+            units_tensor: 1d tensor with text units
+            num_labels: number of total labels (vocab size including blank)
+
+        Returns:
+            k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
+        """
+
         blank_id = self.blank
         start_eps_id = num_labels
         end_eps_id = num_labels + 1
@@ -94,16 +118,24 @@ class GraphWTransducerLoss(GraphRnntLoss):
         return fsa_text
 
     def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
+        """
+        Get temporal scheme graph for W-Transducer loss (Compose-Transducer).
+
+        Args:
+            sequence_length: length of the sequence (in frames)
+            num_labels: number of labels (including blank)
+            device: device for tensor to construct
+
+        Returns:
+            k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
+        """
         blank_id = self.blank
         start_eps_id = num_labels
         end_eps_id = num_labels + 1
         num_eps = 2
-        last_eps_ark = (
-            self._graph_mode == self.GraphMode.SEQUENTIAL and self._last_blank_mode == self.LastBlankMode.ALLOW_IGNORE
-        )
 
         num_sequence_arcs = sequence_length * (num_labels + num_eps)
-        fsa_temporal_arcs = torch.zeros((num_sequence_arcs + int(last_eps_ark), 4), dtype=torch.int32, device=device)
+        fsa_temporal_arcs = torch.zeros((num_sequence_arcs, 4), dtype=torch.int32, device=device)
         sequence_states = torch.arange(0, sequence_length, dtype=torch.int32, device=device)
         sequence_states_next = sequence_states + 1
         # for every state - num_labels+1 arcs, [0, 1, ..., num_labels-1, eps, 0, 1, ..., num_labels-1, eps, ...]
@@ -120,27 +152,21 @@ class GraphWTransducerLoss(GraphRnntLoss):
         # forward arcs
         fsa_temporal_arcs[blank_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states_next  # blanks
         # eps arcs
-        if self._graph_mode == self.GraphMode.SEQUENTIAL:
-            fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states_next
-            fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states_next
-        else:
-            # self._graph_mode == self.GraphMode.SKIP_FRAMES
-            fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 0] = 0
-            fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states + 1
-            fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 0] = sequence_states
-            fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = (
-                sequence_length - 1 if self._last_blank_mode == self.LastBlankMode.FORCE_LAST else sequence_length
-            )
+        fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 0] = 0
+        fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states + 1
+        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 0] = sequence_states
+        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = (
+            sequence_length - 1 if self.last_blank_mode == self.LastBlankMode.FORCE_LAST else sequence_length
+        )
 
         # transition to last final state
         fsa_temporal_arcs[-1, :3] = torch.tensor(
             (sequence_length, sequence_length + 1, -1), dtype=torch.int32, device=device
         )
 
-        if self._graph_mode == self.GraphMode.SKIP_FRAMES:
-            # need to sort arcs
-            _, indices = torch.sort(fsa_temporal_arcs[:, 0], dim=0)
-            fsa_temporal_arcs = fsa_temporal_arcs[indices]
+        # need to sort arcs
+        _, indices = torch.sort(fsa_temporal_arcs[:, 0], dim=0)
+        fsa_temporal_arcs = fsa_temporal_arcs[indices]
 
         # output symbols: position in the sequence, same as start states for arcs
         olabels = fsa_temporal_arcs[:, 0].detach().clone()
@@ -150,16 +176,24 @@ class GraphWTransducerLoss(GraphRnntLoss):
         return fsa_temporal
 
     def get_grid(self, text_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+        """
+        Construct W-Transducer lattice directly (Grid-Transducer).
+
+        Args:
+            units_tensor: 1d tensor with text units
+            sequence_length: length of the sequence (number of frames)
+            num_labels: number of total labels (vocab size including blank)
+
+        Returns:
+            transducer lattice (k2.Fsa)
+        """
         blank_id = self.blank
-        eps_id = self.get_eps_id(num_labels)
+        eps_id = num_labels  # beyond vocabulary
         text_length = text_tensor.shape[0]
         device = text_tensor.device
         num_grid_states = sequence_length * (text_length + 1)
-        last_eps_ark = (
-            self._last_blank_mode == self.LastBlankMode.ALLOW_IGNORE and self._graph_mode == self.GraphMode.SEQUENTIAL
-        )
         num_forward_arcs_base = (sequence_length - 1) * (text_length + 1)
-        num_forward_arcs_additional = (sequence_length - 1) * 2 + int(last_eps_ark)
+        num_forward_arcs_additional = (sequence_length - 1) * 2
         num_forward_arcs = num_forward_arcs_base + num_forward_arcs_additional
         num_text_arcs = text_length * sequence_length
         arcs = torch.zeros((num_forward_arcs + num_text_arcs + 2, 4), dtype=torch.int32, device=device)
@@ -184,13 +218,11 @@ class GraphWTransducerLoss(GraphRnntLoss):
         arcs[num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 2] = (
             eps_id + 1
         )
-        if self._graph_mode == self.GraphMode.SKIP_FRAMES:
-            arcs[num_forward_arcs_base : num_forward_arcs_base + (sequence_length - 1), 0] = 0
-            arcs[
-                num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 1
-            ] = (
-                num_grid_states - 1
-            )  # if other mode - fix later
+
+        arcs[num_forward_arcs_base : num_forward_arcs_base + (sequence_length - 1), 0] = 0
+        arcs[num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 1] = (
+            num_grid_states - 1
+        )  # if other mode - fix later
         # last eps ark - after relabel
 
         # text arcs
@@ -221,14 +253,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         arcs[:-2, 0] = self.relabel_states(arcs[:-2, 0], text_length + 1, sequence_length)
         arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, sequence_length)
 
-        if last_eps_ark:
-            arcs[num_forward_arcs - 1, 0] = num_grid_states - 1
-            arcs[num_forward_arcs - 1, 1] = num_grid_states
-            arcs[num_forward_arcs - 1, 2] = eps_id + 1
-        if (
-            self._last_blank_mode == self.LastBlankMode.ALLOW_IGNORE
-            or self._last_blank_mode == self.LastBlankMode.FORCE_ALL
-        ) and self._graph_mode == self.GraphMode.SKIP_FRAMES:
+        if self.last_blank_mode == self.LastBlankMode.ALLOW_IGNORE:
             arcs[
                 num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 1
             ] = num_grid_states
@@ -239,8 +264,6 @@ class GraphWTransducerLoss(GraphRnntLoss):
         arcs = arcs[indices]
         olabels = olabels[indices]
         text_positions = text_positions[indices]
-        if self._last_blank_mode == self.LastBlankMode.FORCE_ALL:
-            arcs[arcs[:, 2] == eps_id + 1, 2] = blank_id
 
         rnnt_graph = k2.Fsa(arcs, olabels)
         rnnt_graph.text_positions = text_positions
@@ -249,6 +272,10 @@ class GraphWTransducerLoss(GraphRnntLoss):
     def forward(
         self, acts: torch.Tensor, labels: torch.Tensor, act_lens: torch.Tensor, label_lens: torch.Tensor,
     ):
+        """
+        Forward method is similar to RNN-T Graph-Transducer forward method,
+        but we need to assign eps weight to eps-transitions.
+        """
         # nemo: acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
@@ -267,8 +294,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
             # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
             scores = log_probs.flatten().index_select(-1, indices)
             scores[target_fsas_vec.labels == -1] = 0
-            scores[target_fsas_vec.labels >= num_labels] = self._eps_weight  # eps
+            scores[target_fsas_vec.labels >= num_labels] = self.eps_weight  # eps
 
             target_fsas_vec.scores = scores
-            scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self._double_scores, log_semiring=True)
+            scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self.double_scores, log_semiring=True)
             return scores
