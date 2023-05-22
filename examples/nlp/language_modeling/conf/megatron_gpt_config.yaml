@@ -45,6 +45,7 @@ model:
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
   global_batch_size: 8 # will use more micro batches to reach global batch size
+  rampup_batch_size: null # Should be a list of 3 values: [<start_batch_size>, <batch_size_increment>, <rampup_samples>]
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
@@ -194,6 +195,7 @@ model:
     no_seqlen_plus_one_input_tokens: False # Set to True to disable fetching (sequence length + 1) input tokens, instead get (sequence length) input tokens and mask the last token
     pad_samples_to_global_batch_size: False # Set to True if you want to pad the last partial batch with -1's to equal global batch size
     shuffle_documents: True # Set to False to disable documents shuffling. Sample index will still be shuffled
+    exchange_indices_distributed: False # Set to True to exchange indices via torch.distributed instead of filesystem
 
   # Nsys profiling options
   nsys_profile:
@@ -215,3 +217,7 @@ model:
       warmup_steps: 500
       constant_steps: 50000
       min_lr: 2e-5
+
+  gc_interval: 0
+  # Interval of the host memory garbage collection. When it is zero, collectiion relies on the automatic garbage collector.
+  # If an interger value larger than zero is set, collection is done manually by the batch step interval of `gc_interval`.

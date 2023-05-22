@@ -15,6 +15,10 @@
 """Transformer based language model."""
 import torch
 
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
@@ -25,18 +29,30 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
+from nemo.collections.nlp.parts import utils_funcs
+from nemo.core import adapter_mixins
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
 
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
     LayerType = ApexGuardDefaults()
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def get_language_model(
@@ -59,6 +75,7 @@ def get_language_model(
     post_process=True,
     init_method_std=0.02,
     use_cpu_initialization=False,
+    megatron_amp_O2=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
     ffn_dropout=0.0,
@@ -134,6 +151,7 @@ def get_language_model(
         pre_process=pre_process,
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
+        megatron_amp_O2=megatron_amp_O2,
         hidden_dropout=hidden_dropout,
         attention_dropout=attention_dropout,
         ffn_dropout=ffn_dropout,
@@ -237,6 +255,8 @@ class Embedding(MegatronModule):
         init_method,
         num_tokentypes=0,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
+        dtype=torch.float32,
         fp32_residual_connection=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
@@ -252,13 +272,17 @@ class Embedding(MegatronModule):
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
+            vocab_size,
+            self.hidden_size,
+            init_method=self.init_method,
+            use_cpu_initialization=use_cpu_initialization,
+            params_dtype=dtype,
         )
         self._word_embeddings_key = 'word_embeddings'
 
         if self.position_embedding_type == 'learned_absolute':
             # Position embedding (serial).
-            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size)
+            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size, dtype=dtype)
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
@@ -269,7 +293,7 @@ class Embedding(MegatronModule):
         # token types and add them as needed.
         self._tokentype_embeddings_key = 'tokentype_embeddings'
         if self.num_tokentypes > 0:
-            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size)
+            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size, dtype=dtype)
             # Initialize the token-type embeddings.
             self.init_method(self.tokentype_embeddings.weight)
         else:
@@ -400,7 +424,7 @@ class Embedding(MegatronModule):
                 )
 
 
-class TransformerLanguageModel(MegatronModule):
+class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """Transformer language model.
 
     Arguments:
@@ -433,6 +457,7 @@ class TransformerLanguageModel(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
@@ -492,6 +517,7 @@ class TransformerLanguageModel(MegatronModule):
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
 
@@ -509,10 +535,12 @@ class TransformerLanguageModel(MegatronModule):
                 init_method=self.init_method,
                 num_tokentypes=self.num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 embedding_dropout_prob=self.hidden_dropout,
                 sequence_parallel=sequence_parallel,
                 position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
+                dtype=self.dtype,
             )
             self._embedding_key = 'embedding'
 
@@ -546,6 +574,7 @@ class TransformerLanguageModel(MegatronModule):
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
@@ -600,6 +629,7 @@ class TransformerLanguageModel(MegatronModule):
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
@@ -625,10 +655,13 @@ class TransformerLanguageModel(MegatronModule):
                 self.output_layer = tensor_parallel.ColumnParallelLinear(
                     self.hidden_size,
                     self.vocab_size,
+                    use_cpu_initialization=use_cpu_initialization,
+                    params_dtype=self.dtype,
                     bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
                     init_method=self.init_method,
                 )
                 self._output_layer_key = 'output_layer'
+        self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -661,7 +694,21 @@ class TransformerLanguageModel(MegatronModule):
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
+
             encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+            if self.is_adapter_available():
+                _sq, _bs, _hs = encoder_input.size()
+                ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
+                v = ptuning_adapter.virtual_tokens
+                if ptuning_adapter and _sq >= v:  # The sequence should be longer the v to insert virtual embeddings.
+                    strategy = ptuning_adapter.adapter_strategy
+                    virtual_embeddings = self.forward_single_enabled_adapter_(
+                        _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
+                    )
+                    encoder_input = encoder_input[
+                        v:, :, :
+                    ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
+                    encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
         else:
             pass
 
@@ -686,6 +733,7 @@ class TransformerLanguageModel(MegatronModule):
                     rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
         else:
             rotary_pos_emb = None
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(

@@ -20,6 +20,7 @@ from typing import List, Union
 
 import librosa
 import torch
+from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 from nemo.utils import logging
@@ -207,8 +208,10 @@ def get_utt_obj(
     utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
 
     if hasattr(model, 'tokenizer'):
-
-        BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
+        if hasattr(model, 'blank_id'):
+            BLANK_ID = model.blank_id
+        else:
+            BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
 
         utt.token_ids_with_blanks = [BLANK_ID]
 
@@ -542,6 +545,9 @@ def get_batch_variables(
     align_using_pred_text,
     audio_filepath_parts_in_utt_id,
     output_timestep_duration,
+    simulate_cache_aware_streaming=False,
+    use_buffered_chunked_streaming=False,
+    buffered_chunk_params={},
 ):
     """
     Returns:
@@ -563,16 +569,34 @@ def get_batch_variables(
     # and (optionally) the predicted ASR text from the hypotheses
     audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
     B = len(audio_filepaths_batch)
-    with torch.no_grad():
-        hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
-
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []
-    for hypothesis in hypotheses:
-        log_probs_list_batch.append(hypothesis.y_sequence)
-        T_list_batch.append(hypothesis.y_sequence.shape[0])
-        pred_text_batch.append(hypothesis.text)
+
+    if not use_buffered_chunked_streaming:
+        if not simulate_cache_aware_streaming:
+            with torch.no_grad():
+                hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+        else:
+            with torch.no_grad():
+                hypotheses = model.transcribe_simulate_cache_aware_streaming(
+                    audio_filepaths_batch, return_hypotheses=True, batch_size=B
+                )
+        for hypothesis in hypotheses:
+            log_probs_list_batch.append(hypothesis.y_sequence)
+            T_list_batch.append(hypothesis.y_sequence.shape[0])
+            pred_text_batch.append(hypothesis.text)
+    else:
+        delay = buffered_chunk_params["delay"]
+        model_stride_in_secs = buffered_chunk_params["model_stride_in_secs"]
+        tokens_per_chunk = buffered_chunk_params["tokens_per_chunk"]
+        for l in tqdm(audio_filepaths_batch, desc="Sample:"):
+            model.reset()
+            model.read_audio_file(l, delay, model_stride_in_secs)
+            hyp, logits = model.transcribe(tokens_per_chunk, delay, keep_logits=True)
+            log_probs_list_batch.append(logits)
+            T_list_batch.append(logits.shape[0])
+            pred_text_batch.append(hyp)
 
     # we loop over every line in the manifest that is in our current batch,
     # and record the y (list of tokens, including blanks), U (list of lengths of y) and
