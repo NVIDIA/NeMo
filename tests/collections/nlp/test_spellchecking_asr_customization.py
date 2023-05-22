@@ -28,6 +28,7 @@ from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
     update_json_with_spellmapper_corrections,
 )
 
+
 @pytest.mark.unit
 def test_substitute_replacements_in_text():
     text = "we began the further diversification of our revenue base with the protterra supply agreement and the navastar joint development agreement"
@@ -44,21 +45,28 @@ def test_substitute_replacements_in_text():
 @pytest.mark.unit
 def test_apply_replacements_to_text():
 
-    #min_prob = 0.5
-    #dp_data = None,
-    #min_dp_score_per_symbol: float = -99.9
+    # min_prob = 0.5
+    # dp_data = None,
+    # min_dp_score_per_symbol: float = -99.9
 
-    # test more than one fragment to replace, test multiple same replacements 
+    # test more than one fragment to replace, test multiple same replacements
     text = "we began the further diversification of our revenue base with the protterra supply agreement and the navastar joint development agreement"
-    replacements = [(66, 75, 'proterra', 0.99986), (66, 75, 'proterra', 0.9956), (101, 109, 'navistar', 0.93), (101, 109, 'navistar', 0.91), (101, 109, 'navistar', 0.92)]
+    replacements = [
+        (66, 75, 'proterra', 0.99986),
+        (66, 75, 'proterra', 0.9956),
+        (101, 109, 'navistar', 0.93),
+        (101, 109, 'navistar', 0.91),
+        (101, 109, 'navistar', 0.92),
+    ]
     gold_text = "we began the further diversification of our revenue base with the proterra supply agreement and the navistar joint development agreement"
-    corrected_text = apply_replacements_to_text(text, replacements, min_prob=0.5, replace_hyphen_to_space=False, dp_data=None)
+    corrected_text = apply_replacements_to_text(
+        text, replacements, min_prob=0.5, replace_hyphen_to_space=False, dp_data=None
+    )
     assert corrected_text == gold_text
 
     # test that min_prob works
     gold_text = "we began the further diversification of our revenue base with the proterra supply agreement and the navastar joint development agreement"
-    corrected_text = apply_replacements_to_text(text, replacements, min_prob=0.95, replace_hyphen_to_space=False, dp_data=None)
+    corrected_text = apply_replacements_to_text(
+        text, replacements, min_prob=0.95, replace_hyphen_to_space=False, dp_data=None
+    )
     assert corrected_text == gold_text
-
-
-

@@ -309,9 +309,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     # Functions for inference
 
     @torch.no_grad()
-    def infer(
-        self, dataloader_cfg: DictConfig, input_name: str, output_name: str
-    ) -> None:
+    def infer(self, dataloader_cfg: DictConfig, input_name: str, output_name: str) -> None:
         """ Main function for Inference
 
         Args:
