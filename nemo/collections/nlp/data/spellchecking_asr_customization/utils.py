@@ -100,9 +100,7 @@ def load_ngram_mappings_for_dp(input_name: str) -> Tuple[defaultdict, defaultdic
 
 
 def get_alignment_by_dp(
-    ref_phrase: str,
-    hyp_phrase: str,
-    dp_data: Tuple[defaultdict, defaultdict, defaultdict, int]
+    ref_phrase: str, hyp_phrase: str, dp_data: Tuple[defaultdict, defaultdict, defaultdict, int]
 ) -> List[Tuple[str, str, float, float, int, int, int]]:
     joint_vocab, orig_vocab, misspelled_vocab, max_len = dp_data
     hyp_letters = ["*"] + hyp_phrase.split()
@@ -498,9 +496,9 @@ def apply_replacements_to_text(
     text: str,
     replacements: List[Tuple[int, int, str, float]],
     min_prob: float = 0.5,
-    replace_hyphen_to_space = False,
+    replace_hyphen_to_space=False,
     dp_data: Tuple[defaultdict, defaultdict, defaultdict, int] = None,
-    min_dp_score_per_symbol: float = -99.9
+    min_dp_score_per_symbol: float = -99.9,
 ):
     # sort replacements by positions
     replacements.sort()
@@ -517,7 +515,7 @@ def apply_replacements_to_text(
         # to avoid cases like "forward-looking" replacing "looking" in "forward looking" resulting in "forward forward looking"
         if len(candidate) > len(fragment):
             penalty = len(fragment) / len(candidate)
-            prob *= penalty 
+            prob *= penalty
         # skip replacement with low probability
         if prob < min_prob:
             continue
@@ -544,7 +542,7 @@ def apply_replacements_to_text(
 def update_json_with_spellmapper_corrections(
     input_name: str,
     output_name: str,
-    spellmapper_results: List[Tuple[str, List[str], List[Tuple[int, int, int, float]],List[int]]],
+    spellmapper_results: List[Tuple[str, List[str], List[Tuple[int, int, int, float]], List[int]]],
     min_prob: float = 0.5,
     replace_hyphen_to_space=True,
 ) -> None:
