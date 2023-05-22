@@ -268,12 +268,6 @@ def main(cfg: AlignmentConfig):
     # get start and end line IDs of batches
     starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
 
-    if cfg.align_using_pred_text:
-        # record pred_texts to save them in the new manifest at the end of this script
-        pred_text_all_lines = []
-    else:
-        pred_text_all_lines = None
-
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
 
