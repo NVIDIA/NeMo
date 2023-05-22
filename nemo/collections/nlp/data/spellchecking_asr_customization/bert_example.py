@@ -1,5 +1,5 @@
 # Copyright 2019 The Google Research Authors.
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -206,7 +206,6 @@ class BertExampleBuilder(object):
         fragment_indices = []
         if infer:
             # used in inference to take argmax over whole fragments instead of separate characters to get more consistent predictions
-            # fragment_indices = self._get_fragment_indices(hyp, targets, span_info_parts)
             fragment_indices = self._get_fragment_indices(hyp, targets, span_info_parts)
 
         spans = []
@@ -265,34 +264,6 @@ class BertExampleBuilder(object):
             result_spans.append((cid, start, end))
         return result_spans
 
-    def _get_word_indices(self, hyp: str) -> Tuple[List[int], List[Tuple[int, int, int]]]:
-        """ Maps each single character to the position of its corresponding word.
-
-            Args:
-                hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
-            Returns:
-                List of tuples (start, end, -1) positions in ASR-hypothesis. -1 means that candidate_id is not set.
-
-            Example:
-                hyp: "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
-                fragment_indices: [(1, 12, -1), (12, 13, -1), (13, 18, -1), (18, 19, -1), (19, 24, -1), (24, 25, -1), (25, 28, -1), (28, 29, -1), (29, 37, -1), (37, 38, -1), (38, 42, -1)]
-        """
-
-        fragment_indices = []
-        begin, end = 1, 1
-
-        letters = hyp.split()
-        for i in range(len(letters)):
-            if letters[i] == "_":
-                fragment_indices.append((begin, end, -1))  # add previous word
-                fragment_indices.append((end, end + 1, -1))  # add space itself
-                begin = end + 1
-                end = begin
-            else:
-                end += 1
-        fragment_indices.append((begin, end, -1))  # add last word
-        return fragment_indices
-
     def _get_fragment_indices(
         self, hyp: str, targets: List[int], span_info_parts: List[str]
     ) -> Tuple[List[int], List[Tuple[int, int, int]]]:
@@ -324,7 +295,7 @@ class BertExampleBuilder(object):
         for target, p in zip(targets, span_info_parts):
             _, start, end = p.split(" ")
             start = int(start)
-            end = int(end)
+            end = min(int(end), len(hyp))  # guarantee that end is not outside length
 
             # Adjusting strategy 1: expand both sides to the nearest space.
             # Adjust start by finding the nearest left space or beginning of text. If start is already some word beginning, it won't change.

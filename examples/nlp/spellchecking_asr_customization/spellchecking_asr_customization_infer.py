@@ -86,12 +86,7 @@ def main(cfg: DictConfig) -> None:
         if not os.path.exists(input_filename):
             logging.info(f"Skip non-existing {input_filename}.")
             continue
-        if cfg.infer_reproduce_paper:
-            all_preds = model.infer_reproduce_paper(dataloader_cfg, input_filename)
-            with open(output_filename, "w", encoding="utf-8") as f_out:
-                f_out.write("\n".join(all_preds))
-        else:
-            all_preds = model.infer(dataloader_cfg, input_filename, output_filename)
+        model.infer(dataloader_cfg, input_filename, output_filename)
         logging.info(f"Predictions saved to {output_filename}.")
 
 
