@@ -35,20 +35,26 @@ class GraphTransducerLossBase(Loss):
     Implementation of the approach described in "Powerful and Extensible WFST Framework for RNN-Transducer Losses"
     https://ieeexplore.ieee.org/document/10096679
 
-    Compose-Transducer: compose the unit (target text) and temporal schemes (graphs) into lattice
-    Grid-Transducer: construct the RNN-T lattice (grid) directly in code
-
-    :param connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
-        `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
-    :param use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
-    :param double_scores: Use calculation of loss in double precision (float64) in the lattice.
-        Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
-    :param cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
+    Compose-Transducer: compose the unit (target text) and temporal schemes (graphs) into lattice.
+        Subclass should implement `get_unit_scheme` and `get_temporal_scheme` methods.
+    Grid-Transducer: construct the RNN-T lattice (grid) directly in code.
+        Subclass should implement `get_grid` method.
     """
 
     def __init__(
         self, use_grid_implementation: bool, connect_composed=False, double_scores=False, cast_to_float32=False
     ):
+        """
+
+        Args:
+            use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
+            connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
+                `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
+            double_scores: Use calculation of loss in double precision (float64) in the lattice.
+                Does not significantly affect memory usage since the lattice is ~V/2 times smaller
+                than the joint tensor.
+            cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
+        """
         super().__init__()
         self.use_grid_implementation = use_grid_implementation
         self.connect_composed = connect_composed
@@ -60,9 +66,12 @@ class GraphTransducerLossBase(Loss):
         """
         Get unit scheme (target text) graph for Compose-Transducer.
 
-        :param units_tensor: tensor with target text
-        :param num_labels: number of labels (including blank)
-        :return:
+        Args:
+            units_tensor: tensor with target text
+            num_labels: number of labels (including blank)
+
+        Returns:
+            unit scheme graph (k2.Fsa)
         """
         pass
 
@@ -71,10 +80,13 @@ class GraphTransducerLossBase(Loss):
         """
         Get temporal scheme graph for Compose-Transducer.
 
-        :param sequence_length: length of the sequence (in frames)
-        :param num_labels: number of labels (including blank)
-        :param device: device for tensor to construct
-        :return:
+        Args:
+            sequence_length: length of the sequence (in frames)
+            num_labels: number of labels (including blank)
+            device: device for tensor to construct
+
+        Returns:
+            temporal scheme graph (k2.Fsa)
         """
         pass
 
@@ -83,10 +95,13 @@ class GraphTransducerLossBase(Loss):
         """
         Construct the transducer lattice (grid) directly for Grid-Transducer.
 
-        :param units_tensor: tensor with target text
-        :param sequence_length: length of the sequence (in frames)
-        :param num_labels: number of labels (including blank)
-        :return:
+        Args:
+            units_tensor: tensor with target text
+            sequence_length: length of the sequence (in frames)
+            num_labels: number of labels (including blank)
+
+        Returns:
+            transducer lattice (k2.Fsa)
         """
         pass
 
@@ -95,10 +110,13 @@ class GraphTransducerLossBase(Loss):
         Get composed lattice (unit and temporal schemes) for Compose-Transducer. Useful for visualization.
         Should be equivalent to the lattice from `get_grid` method.
 
-        :param units_tensor: tensor with target text
-        :param sequence_length: length of the sequence (in frames)
-        :param num_labels: number of labels (including blank)
-        :return:
+        Args:
+            units_tensor: tensor with target text
+            sequence_length: length of the sequence (in frames)
+            num_labels: vocab size (including blank)
+
+        Returns:
+            composed lattice (k2.Fsa) from unit and temporal schemes
         """
         fsa_text = self.get_unit_scheme(units_tensor, num_labels)
         fsa_temporal = self.get_temporal_scheme(sequence_length, num_labels, units_tensor.device)
@@ -110,6 +128,18 @@ class GraphTransducerLossBase(Loss):
     def get_graphs_batched(
         self, logits_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, num_labels: int
     ) -> "k2.Fsa":
+        """
+        Get batched lattice (grid or composed) for the batch of sequences.
+
+        Args:
+            logits_lengths: tensor with lengths of logits
+            targets: tensor with target units
+            target_lengths: tensor with lengths of targets
+            num_labels: vocab size (including blank)
+
+        Returns:
+            batched lattice - FsaVec (k2.Fsa)
+        """
         batch_size = logits_lengths.shape[0]
         with torch.no_grad():
             if self.use_grid_implementation:
@@ -146,9 +176,12 @@ class GraphTransducerLossBase(Loss):
         """
         Get indices of flatten logits for each arc in the lattices.
 
-        :param target_fsas_vec: batch of target FSAs with lattices
-        :param logits_shape: shape of the logits tensor
-        :return:
+        Args:
+            target_fsas_vec: batch of target FSAs with lattices
+            logits_shape: shape of the logits tensor
+
+        Returns:
+            1d tensor with indices
         """
         # logits_shape: B x Time x Text+1 x Labels
         batch_size = logits_shape[0]
@@ -169,6 +202,12 @@ class GraphTransducerLossBase(Loss):
 
 
 class GraphRnntLoss(GraphTransducerLossBase):
+    """
+    RNN-T loss implementation based on WFST according
+    to "Powerful and Extensible WFST Framework for RNN-Transducer Losses"
+    https://ieeexplore.ieee.org/document/10096679
+    """
+
     def __init__(
         self,
         blank: int,
@@ -178,16 +217,16 @@ class GraphRnntLoss(GraphTransducerLossBase):
         cast_to_float32=False,
     ):
         """
-        RNN-T loss implementation based on WFST according to "Powerful and Extensible WFST Framework for RNN-Transducer Losses"
-        https://ieeexplore.ieee.org/document/10096679
+        Init method
 
-        :param blank: blank label index
-        :param connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
-            `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
-        :param use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
-        :param double_scores: Use calculation of loss in double precision (float64) in the lattice.
-            Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
-        :param cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
+        Args:
+            blank: blank label index
+            use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
+            connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
+                `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
+            double_scores: Use calculation of loss in double precision (float64) in the lattice.
+                Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
+            cast_to_float32: Force cast joint tensor to float32 before log-softmax calculation.
         """
         super().__init__(
             use_grid_implementation=use_grid_implementation,
@@ -211,9 +250,12 @@ class GraphRnntLoss(GraphTransducerLossBase):
         |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
         +-----------+          +-----------+          +-----------+            #===#
 
-        :param units_tensor: 1d tensor with text units
-        :param num_labels: number of total labels (vocab size including blank)
-        :return: k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
+        Args:
+            units_tensor: 1d tensor with text units
+            num_labels: number of total labels (vocab size including blank)
+
+        Returns:
+            k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
         """
 
         blank_id = self.blank
@@ -257,10 +299,13 @@ class GraphRnntLoss(GraphTransducerLossBase):
           ^ 2:0 |            ^ 2:1 |            ^ 2:2 |
           +-----+            +-----+            +-----+
 
-        :param sequence_length:
-        :param num_labels:
-        :param device:
-        :return: k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
+        Args:
+            sequence_length: length of the sequence (in frames)
+            num_labels: number of labels (including blank)
+            device: device for tensor to construct
+
+        Returns:
+            k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
         """
         blank_id = self.blank
 
@@ -296,10 +341,13 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         Relabel states to be in topological order: by diagonals
 
-        :param states: tensor with states
-        :param n: number of rows
-        :param m: number of columns
-        :return:
+        Args:
+            states: tensor with states
+            n: number of rows
+            m: number of columns
+
+        Returns:
+            tensor with relabeled states (same shape as `states`)
         """
         i = states % n
         j = torch.div(states, n, rounding_mode='floor')  # states // n, torch.div to avoid pytorch warnings
@@ -321,10 +369,13 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         Construct the RNN-T lattice directly (Grid-Transducer).
 
-        :param units_tensor: 1d tensor with text units
-        :param sequence_length: length of the sequence (number of frames)
-        :param num_labels: number of total labels (vocab size including blank)
-        :return:
+        Args:
+            units_tensor: 1d tensor with text units
+            sequence_length: length of the sequence (number of frames)
+            num_labels: number of total labels (vocab size including blank)
+
+        Returns:
+            transducer lattice (k2.Fsa)
         """
         blank_id = self.blank
         text_length = units_tensor.shape[0]
@@ -386,11 +437,14 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         Compute forward method for RNN-T.
 
-        :param acts: activations (joint tensor). NB: raw logits, not after log-softmax
-        :param labels: target labels
-        :param act_lens: lengths of activations
-        :param label_lens: length of labels sequences
-        :return:
+        Args:
+            acts: activations (joint tensor). NB: raw logits, not after log-softmax
+            labels: target labels
+            act_lens: lengths of activations
+            label_lens: length of labels sequences
+
+        Returns:
+            batch of RNN-T scores (loss)
         """
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
