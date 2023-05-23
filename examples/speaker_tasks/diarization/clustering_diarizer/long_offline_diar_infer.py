@@ -45,11 +45,12 @@ def main(cfg):
     cfg.diarizer.speaker_embeddings.parameters.save_embeddings=False
     
 
-    input_path = '/home/gabi/git_repos/2023.04.27.08.11.36_aaa.wav'
+    input_path = '/home/gabi/NOSFE_Gojira_Podcast_16khz_mono.wav'
     num_speakers = 2
 
     sd_model = LongClusteringDiarizer(cfg=cfg)
-    sd_model.diarize(input_path= input_path)
+    sd_model.diarize(input_path= input_path,
+                     num_speakers = num_speakers)
 
 
 if __name__ == '__main__':    

@@ -423,7 +423,7 @@ class LongClusteringDiarizer(Model, DiarizationMixin):
         if duration > 2700 and duration <= 3600:
             """
             Split in 2 equal parts
-            Creat cate un manifest folosind offset si duration
+            Create a manifest for each part using duration and an offset.
             """
             split = "True"
             part_dur = duration/2
@@ -462,8 +462,8 @@ class LongClusteringDiarizer(Model, DiarizationMixin):
 
         elif duration > 3600:
             """
-            Split in mai multe parti egale
-            Creat cate un manifest ptr fiecare parte cu offset si duration
+            Split in multiple equal parts
+            Create a manifest for each part using duration and an offset.
             """
             no_parts = duration // 1800
             remainder = (duration % 1800) / no_parts
@@ -533,7 +533,7 @@ class LongClusteringDiarizer(Model, DiarizationMixin):
         
         
         self.input_path = input_path
-        self.num_speakers = num_speakers # we do not use the one from the manifest
+        self.num_speakers = num_speakers # this will be used for the manifest
         
         logging.info("Preparing data! Predictions will be saved in <filename+_out> and manifest will be save in manifests/<filename+_manifest.json> .")
         manifest_filepath, out_dir, input_filename = self.prepare_data()

@@ -814,7 +814,7 @@ def perform_clustering(
                 split_audios[str(uniq_id)]["split_size"] = float(split_size)
             
             if clustering_params.oracle_num_speakers:
-                split_audios[str(uniq_id)]["num_speakers"] = audio_rttm_values.get('num_speakers', None)
+                split_audios[str(uniq_id)]["num_speakers"] = audio_rttm_values.get('num_speakers', None) # we give the number of speakers for reclustering
                 if split_audios[str(uniq_id)]["num_speakers"] is None: 
                     split_audios[str(uniq_id)]["num_speakers"] = -1 # inainte era raise ValueError in loc de print
             else:
@@ -864,6 +864,7 @@ def perform_reclustering(split_audios,
     	Directory where predictions will be saved
     clustering_params:
     	Parameters important for clustering
+    
     Returns:
     	Final labels for the merged audio.
     """
@@ -885,6 +886,7 @@ def perform_reclustering(split_audios,
     """
     
     labels_per_emb_count = []
+    #embs_count_recluster = [100,150,200,250,300,350,400,450,500] #instead of using the config one, replace clustering_params.embs_count_recluster
     
     for count in clustering_params.embs_count_recluster:
 
@@ -907,11 +909,14 @@ def perform_reclustering(split_audios,
         if len(recluster_labels) != len(embs_and_tmps_recluster["tmps"],):
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
         
+        # EXPLICAT
         label_map = label_mapping(embs_and_tmps_recluster["label"],recluster_labels,embs_and_tmps_recluster["audio"])
-                      
+                
+        # EXPLICAT       
         new_labels = label_conversion(all_cluster_labels, label_map, all_audio_names)
         
         # ORDER LABELS, we need to order labels/speakers by appearance so a majority speaker per timestamp can be calculated
+
         ordered_labels = order_labels(new_labels)
         
         labels_per_emb_count.append(ordered_labels)
@@ -926,6 +931,7 @@ def perform_reclustering(split_audios,
                     out_audio_name=filename)
 
     return final_labels
+
 
 def get_vad_out_from_rttm_line(rttm_line):
     """
