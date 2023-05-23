@@ -14,7 +14,7 @@
 
 
 from time import perf_counter
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig

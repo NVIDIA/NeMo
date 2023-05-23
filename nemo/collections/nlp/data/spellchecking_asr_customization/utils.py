@@ -29,7 +29,7 @@ from numba import jit
 def replace_diacritics(text):
     text = re.sub(r"[éèëēêęěė]", "e", text)  # latin
     text = re.sub(r"[ё]", "е", text)  # cyrillic
-    text = re.sub(r"[ãâāáäăâàąåạảǎ]", "a", text)
+    text = re.sub(r"[ãâāáäăàąåạảǎ]", "a", text)
     text = re.sub(r"[úūüùưûů]", "u", text)
     text = re.sub(r"[ôōóöõòőø]", "o", text)
     text = re.sub(r"[ćçč]", "c", text)
@@ -131,7 +131,6 @@ def get_alignment_by_dp(
                     joint_freq = joint_vocab[(ref_ngram, hyp_ngram)]
                     orig_freq = orig_vocab.get(ref_ngram, 1)
                     ngram_score = math.log(joint_freq / orig_freq)
-                    previous_score = 0.0
                     previous_cell = (hyp_pos - hyp_ngram_len, ref_pos - ref_ngram_len)
                     if previous_cell not in history:
                         print("cell ", previous_cell, "does not exist")
@@ -167,7 +166,7 @@ def get_alignment_by_dp(
                     best_ref_ngram_len = 1
 
             if best_hyp_ngram_len == 0 and best_ref_ngram_len == 0:
-                raise (ValueError, "best_hyp_ngram_len = 0 and best_ref_ngram_len = 0")
+                raise ValueError("best_hyp_ngram_len = 0 and best_ref_ngram_len = 0")
 
             # save cell to history
             history[(hyp_pos, ref_pos)] = DpInfo(
@@ -230,7 +229,7 @@ def get_index(
     for custom_phrase in custom_phrases:
         inputs = custom_phrase.split(" ")
         begin = 0
-        index_keys = [{} for i in inputs]  # key - letter ngram, index - beginning positions in phrase
+        index_keys = [{} for _ in inputs]  # key - letter ngram, index - beginning positions in phrase
 
         for begin in range(len(inputs)):
             for end in range(begin + 1, min(len(inputs) + 1, begin + 5)):
@@ -551,6 +550,7 @@ def update_json_with_spellmapper_corrections(
     with open(input_name, "r", encoding="utf-8") as f:
         input_lines = f.readlines()
     if len(input_lines) != len(spellmapper_results):
+        out.close()
         raise IndexError(
             "len(input_lines)=", len(input_lines), "; len(spellmapper_results)=", len(spellmapper_results)
         )
@@ -558,6 +558,7 @@ def update_json_with_spellmapper_corrections(
         text, replacements, _ = spellmapper_results[i]
         data = json.loads(input_lines[i].strip())
         if text != data["pred_text"]:
+            out.close()
             raise IndexError("Line mismatch: text=", text, "data[\"pred_text\"]", data["pred_text"])
         # store old predicted text in another field
         data["pred_text_before_correction"] = data["pred_text"]
