@@ -108,7 +108,7 @@ class TestGraphWTransducerLoss:
         etalon_scheme_fst.append([0, 0, num_labels, num_labels, 0, 0])
         etalon_scheme_fst.append([len(labels), len(labels), num_labels + 1, num_labels + 1, len(labels), 0])
 
-        etalon_scheme_fst.append([len(labels), len(labels) + 1, -1, -1, len(labels), 0])  # transition to final state
+        etalon_scheme_fst.append([len(labels), len(labels) + 1, -1, -1, -1, 0])  # transition to final state
         etalon_scheme_fst.append([len(labels) + 1])  # final state
         etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
         etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
@@ -122,7 +122,16 @@ class TestGraphWTransducerLoss:
         assert k2.is_rand_equivalent(
             unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
         ), "Unit scheme output labels mismatch"
-        # TODO: check unit_positions
+
+        # swap aux_labels and unit positions to test unit_positions
+        unit_scheme.aux_labels, unit_scheme.unit_positions = unit_scheme.unit_positions, unit_scheme.aux_labels
+        etalon_unit_scheme.aux_labels, etalon_unit_scheme.unit_positions = (
+            etalon_unit_scheme.unit_positions,
+            etalon_unit_scheme.aux_labels,
+        )
+        assert k2.is_rand_equivalent(
+            unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Unit scheme unit positions mismatch"
 
     @pytest.mark.unit
     def test_grid_scheme(self):

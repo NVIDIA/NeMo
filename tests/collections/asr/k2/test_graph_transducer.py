@@ -95,7 +95,7 @@ class TestGraphRnnt:
             etalon_scheme_fst.append([label_i, label_i + 1, label, label, label_i, 0])  # forward: label
             etalon_scheme_fst.append([label_i, label_i, blank_id, blank_id, label_i, 0])  # self-loop: blank
         etalon_scheme_fst.append([len(labels), len(labels), blank_id, blank_id, len(labels), 0])
-        etalon_scheme_fst.append([len(labels), len(labels) + 1, -1, -1, len(labels), 0])  # transition to final state
+        etalon_scheme_fst.append([len(labels), len(labels) + 1, -1, -1, -1, 0])  # transition to final state
         etalon_scheme_fst.append([len(labels) + 1])  # final state
         etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
         etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
@@ -109,7 +109,16 @@ class TestGraphRnnt:
         assert k2.is_rand_equivalent(
             unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
         ), "Unit scheme output labels mismatch"
-        # TODO: check unit_positions
+
+        # swap aux_labels and unit positions to test unit_positions
+        unit_scheme.aux_labels, unit_scheme.unit_positions = unit_scheme.unit_positions, unit_scheme.aux_labels
+        etalon_unit_scheme.aux_labels, etalon_unit_scheme.unit_positions = (
+            etalon_unit_scheme.unit_positions,
+            etalon_unit_scheme.aux_labels,
+        )
+        assert k2.is_rand_equivalent(
+            unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Unit scheme unit positions mismatch"
 
     @pytest.mark.unit
     def test_grid_scheme(self):

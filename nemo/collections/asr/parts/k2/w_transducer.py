@@ -84,7 +84,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
                 3:3:0                  0:0:1                  0:0:2
               +-------+              +-------+              +-------+
               v       |              v       |              v       |
-            +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:2   #===#
+            +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:-1  #===#
             |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
             +-----------+          +-----------+          +-----------+            #===#
               ^ 0:0:0 |                                     ^ 4:4:2 |
@@ -128,7 +128,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_text = k2.Fsa(arcs, olabels)
         fsa_text.unit_positions = torch.zeros_like(olabels)
         fsa_text.unit_positions[1:-1] = text_indices.expand(2, -1).transpose(0, 1).flatten()
-        fsa_text.unit_positions[-1] = fsa_text.unit_positions[-2]
+        fsa_text.unit_positions[-1] = -1
         return fsa_text
 
     def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":

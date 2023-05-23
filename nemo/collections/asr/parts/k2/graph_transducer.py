@@ -249,7 +249,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
                 0:0:0                  0:0:1                  0:0:2
               +-------+              +-------+              +-------+
               v       |              v       |              v       |
-            +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:2   #===#
+            +-----------+  1:1:0   +-----------+  2:2:1   +-----------+  -1:-1:-1  #===#
             |     0     | -------> |     1     | -------> |     2     | ---------> H 3 H
             +-----------+          +-----------+          +-----------+            #===#
 
@@ -284,6 +284,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
         fsa_text = k2.Fsa(arcs, olabels)
         fsa_text.unit_positions = text_indices.expand(2, -1).transpose(0, 1).flatten()
+        fsa_text.unit_positions[-1] = -1  # last transition to final state
         return fsa_text
 
     def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
