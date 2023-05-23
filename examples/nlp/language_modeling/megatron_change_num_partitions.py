@@ -154,15 +154,10 @@ def force_cpu_model(cfg):
         if key is not None:
             cfg[key] = False
 
-        logging.info(f"Setting megatron_amp_O2 to False from {original_amp_o2}")
-
     # Setup restore dict
     restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
     if key is not None:
         restore_dict[key] = original_amp_o2
-
-    # # force for now
-    # restore_dict['gradient_accumulation_fusion'] = True
 
     return cfg, restore_dict
 
