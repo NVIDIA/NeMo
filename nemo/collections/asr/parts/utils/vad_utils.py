@@ -29,12 +29,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+from omegaconf import DictConfig
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from tqdm import tqdm
 
 from nemo.collections.asr.models import EncDecClassificationModel, EncDecFrameClassificationModel
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging
 
 try:
@@ -1613,3 +1616,101 @@ def frame_vad_construct_pyannote_object_per_file(
     else:
         raise ValueError('groundtruth must be a path to rttm file or a list of frame labels.')
     return reference, hypothesis
+
+
+def frame_vad_infer_load_manifest(cfg: DictConfig):
+    """
+    Load manifest file and prepare label/rttm mapping
+    Args:
+        cfg: config file
+    Returns:
+        manifest_orig (List[Dict]): original manifest data 
+        key_labels_map (Dict): mapping from unique_audio_name to its labels
+        key_rttm_map (Dict): mapping from unique_audio_name to its rttm file
+    """
+    unique_audio_names = set()
+    key_labels_map = {}
+    key_rttm_map = {}
+    manifest_orig = []
+    manifest_file = Path(cfg.dataset).absolute().as_posix()
+    with open(manifest_file, 'r') as fin:
+        for line in fin.readlines():
+            entry = json.loads(line.strip())
+            audio_filepath = get_full_path(audio_file=entry['audio_filepath'], manifest_file=manifest_file)
+            entry['audio_filepath'] = str(audio_filepath)
+            uniq_audio_name = Path(audio_filepath).stem
+
+            if uniq_audio_name in unique_audio_names:
+                raise ValueError("Please make sure each line is with different audio_filepath! ")
+            else:
+                unique_audio_names.add(uniq_audio_name)
+
+            manifest_orig.append(entry)
+
+            # always prefer RTTM labels if exist
+            if "label" not in entry or "rttm_filepath" in entry or "rttm_file" in entry:
+                rttm_key = "rttm_filepath" if "rttm_filepath" in entry else "rttm_file"
+                segments = load_speech_segments_from_rttm(entry[rttm_key])
+                label_str = get_frame_labels(
+                    segments=segments,
+                    frame_length=cfg.vad.parameters.shift_length_in_sec,
+                    duration=entry['duration'],
+                    offset=entry['offset'],
+                )
+                key_rttm_map[uniq_audio_name] = entry[rttm_key]
+                key_labels_map[uniq_audio_name] = [float(x) for x in label_str.split()]
+            elif entry.get("label", None) is not None:
+                key_labels_map[uniq_audio_name] = [float(x) for x in entry["label"].split()]
+            else:
+                raise ValueError("Must have either `label` or `rttm_filepath` in manifest")
+
+    return manifest_orig, key_labels_map, key_rttm_map
+
+
+def frame_vad_eval_detection_error(
+    pred_dir: str, key_labels_map: dict, key_rttm_map: dict, key_pred_rttm_map: dict, frame_length_in_sec: float
+):
+    """
+    Perform evaluation on frame-VAD results
+    Args:
+        pred_dir: directory of frame-VAD prediction files with in `<unique_audio_name>.frame` format
+        key_labels_map: dictionary of mapping each <unique_audio_name> to its labels
+        key_rttm_map: dictionary of mapping each <unique_audio_name> to its GROUNDTRUTH rttm file
+        key_pred_rttm_map: dictionary of mapping each <unique_audio_name> to its PREDICTED rttm file
+        frame_length_in_sec: frame length in seconds, e.g. 0.02s
+    Returns:
+        auroc: AUROC score in 0~100%
+        report: Pyannote detection.DetectionErrorRate() report
+    """
+    all_probs = []
+    all_labels = []
+    metric = detection.DetectionErrorRate()
+    key_probs_map = {}
+    predictions_list = list(Path(pred_dir).glob("*.frame"))
+    for frame_pred in tqdm(predictions_list, desc="Evaluating VAD results", total=len(predictions_list)):
+        pred_probs = []
+        with frame_pred.open("r") as fin:
+            for line in fin.readlines():
+                line = line.strip()
+                if not line:
+                    continue
+                pred_probs.append(float(line))
+        key = frame_pred.stem
+        key_probs_map[key] = pred_probs
+        key_labels_map[key] = align_labels_to_frames(probs=pred_probs, labels=key_labels_map[key])
+        all_probs.extend(key_probs_map[key])
+        all_labels.extend(key_labels_map[key])
+
+        if key in key_rttm_map:
+            groundtruth = key_rttm_map[key]
+        else:
+            groundtruth = key_labels_map[key]
+
+        reference, hypothesis = frame_vad_construct_pyannote_object_per_file(
+            prediction=key_pred_rttm_map[key], groundtruth=groundtruth, frame_length_in_sec=frame_length_in_sec,
+        )
+        metric(reference, hypothesis)
+
+    auroc = roc_auc_score(y_true=all_labels, y_score=all_probs)
+    report = metric.report(display=False)
+    return auroc, report
