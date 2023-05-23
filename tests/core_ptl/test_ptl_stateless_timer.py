@@ -94,7 +94,7 @@ class TestStatelessTimer:
             max_steps=10000,
             accelerator='gpu',
             strategy='ddp',
-            logger=None,
+            logger=False,
             enable_checkpointing=False,
         )
         exp_manager_cfg = ExpManagerConfig(
