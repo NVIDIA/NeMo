@@ -3386,8 +3386,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 prompts=['How to fix GPU memory? A:'] \
                 tensor_model_parallel_size=1 \
                 inference.tokens_to_generate=32 \
-                trainer.precision=16 \
-                trainer.devices=[0]"
+                trainer.precision=16"
           }
         }
           stage('Megatron GPT SFT Eval (longer seq len during eval)') {
@@ -3401,7 +3400,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.data.test_ds.micro_batch_size=1 \
                 model.data.test_ds.tokens_to_generate=30 \
                 model.data.test_ds.max_seq_length=6000 \
-                trainer.devices=[1] \
                 inference.greedy=True \
                 inference.repetition_penalty=1.0 \
                 inference.outfile_path='examples/nlp/language_modeling/out.jsonl' && \
