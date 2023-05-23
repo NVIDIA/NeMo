@@ -77,7 +77,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0. Eps ids: 3, 4.
-        Labels: <text_labels>:<text_labels>:<text_position>.
+        Labels: <text_labels>:<text_labels>:<unit_position>.
 
         graph::
 
@@ -95,7 +95,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
             num_labels: number of total labels (vocab size including blank)
 
         Returns:
-            k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
+            k2 graph, ilabels=olabels (text labels + blank), unit_positions - text label indices
         """
 
         blank_id = self.blank
@@ -126,9 +126,9 @@ class GraphWTransducerLoss(GraphRnntLoss):
         olabels = arcs[:, 2].detach().clone()  # same as ilabels
 
         fsa_text = k2.Fsa(arcs, olabels)
-        fsa_text.text_positions = torch.zeros_like(olabels)
-        fsa_text.text_positions[1:-1] = text_indices.expand(2, -1).transpose(0, 1).flatten()
-        fsa_text.text_positions[-1] = fsa_text.text_positions[-2]
+        fsa_text.unit_positions = torch.zeros_like(olabels)
+        fsa_text.unit_positions[1:-1] = text_indices.expand(2, -1).transpose(0, 1).flatten()
+        fsa_text.unit_positions[-1] = fsa_text.unit_positions[-2]
         return fsa_text
 
     def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
@@ -279,10 +279,10 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
         # sequence indices, time indices
         olabels = torch.div(arcs[:, 0], (text_length + 1), rounding_mode="floor")  # arcs[:, 0] // (text_length + 1)
-        text_positions = arcs[:, 0] % (text_length + 1)
+        unit_positions = arcs[:, 0] % (text_length + 1)
         # last state: final
         olabels[-1] = -1
-        text_positions[-1] = -1
+        unit_positions[-1] = -1
 
         # relabel
         # instead of using top sort (extremely expensive) k2.top_sort(rnnt_graph)
@@ -299,10 +299,10 @@ class GraphWTransducerLoss(GraphRnntLoss):
         _, indices = torch.sort(arcs[:, 0], dim=0)
         arcs = arcs[indices]
         olabels = olabels[indices]
-        text_positions = text_positions[indices]
+        unit_positions = unit_positions[indices]
 
         rnnt_graph = k2.Fsa(arcs, olabels)
-        rnnt_graph.text_positions = text_positions
+        rnnt_graph.unit_positions = unit_positions
         return rnnt_graph
 
     def forward(

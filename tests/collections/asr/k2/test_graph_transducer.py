@@ -99,7 +99,7 @@ class TestGraphRnnt:
         etalon_scheme_fst.append([len(labels) + 1])  # final state
         etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
         etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
-        etalon_unit_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, aux_label_names=["aux_labels", "text_positions"])
+        etalon_unit_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, aux_label_names=["aux_labels", "unit_positions"])
 
         assert unit_scheme.num_arcs == etalon_unit_scheme.num_arcs
         assert unit_scheme.shape == etalon_unit_scheme.shape  # (num_states, None)
@@ -109,7 +109,7 @@ class TestGraphRnnt:
         assert k2.is_rand_equivalent(
             unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
         ), "Unit scheme output labels mismatch"
-        # TODO: check text_positions
+        # TODO: check unit_positions
 
     @pytest.mark.unit
     def test_grid_scheme(self):

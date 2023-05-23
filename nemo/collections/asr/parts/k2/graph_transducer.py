@@ -195,7 +195,7 @@ class GraphTransducerLossBase(Loss):
         indices = (
             scores_to_batch_i * logits_shape[1] * logits_shape[2] * logits_shape[3]  # Batch
             + target_fsas_vec.aux_labels.to(torch.int64) * logits_shape[2] * logits_shape[3]  # Time indices
-            + target_fsas_vec.text_positions.to(torch.int64) * logits_shape[3]  # Units (text) indices
+            + target_fsas_vec.unit_positions.to(torch.int64) * logits_shape[3]  # Units (text) indices
             + target_fsas_vec.labels.to(torch.int64)  # Labels
         )
         return indices
@@ -242,7 +242,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0.
-        Labels: <text_labels>:<text_labels>:<text_position>.
+        Labels: <text_labels>:<text_labels>:<unit_position>.
 
         graph::
 
@@ -258,7 +258,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
             num_labels: number of total labels (vocab size including blank)
 
         Returns:
-            k2 graph, ilabels=olabels (text labels + blank), text_positions - text label indices
+            k2 graph, ilabels=olabels (text labels + blank), unit_positions - text label indices
         """
 
         blank_id = self.blank
@@ -283,7 +283,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         olabels = arcs[:, 2].detach().clone()  # same as ilabels
 
         fsa_text = k2.Fsa(arcs, olabels)
-        fsa_text.text_positions = text_indices.expand(2, -1).transpose(0, 1).flatten()
+        fsa_text.unit_positions = text_indices.expand(2, -1).transpose(0, 1).flatten()
         return fsa_text
 
     def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
@@ -416,10 +416,10 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
         # sequence indices, time indices
         olabels = torch.div(arcs[:, 0], (text_length + 1), rounding_mode="floor")  # arcs[:, 0] // (text_length + 1)
-        text_positions = arcs[:, 0] % (text_length + 1)
+        unit_positions = arcs[:, 0] % (text_length + 1)
         # last state: final
         olabels[-1] = -1
-        text_positions[-1] = -1
+        unit_positions[-1] = -1
 
         # relabel
         # instead of using top sort (extremely expensive) k2.top_sort(rnnt_graph)
@@ -431,10 +431,10 @@ class GraphRnntLoss(GraphTransducerLossBase):
         _, indices = torch.sort(arcs[:, 0], dim=0)
         sorted_arcs = arcs[indices]
         olabels = olabels[indices]
-        text_positions = text_positions[indices]
+        unit_positions = unit_positions[indices]
 
         rnnt_graph = k2.Fsa(sorted_arcs, olabels)
-        rnnt_graph.text_positions = text_positions
+        rnnt_graph.unit_positions = unit_positions
         return rnnt_graph
 
     def forward(
