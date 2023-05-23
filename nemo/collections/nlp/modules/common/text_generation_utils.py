@@ -135,11 +135,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
 
 def get_computeprob_response(tokenizer, response, inputs):
-    if (
-        not parallel_state.model_parallel_is_initialized()
-        or parallel_state.is_pipeline_first_stage()
-        or parallel_state.is_pipeline_last_stage()
-    ):
+    if parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage():
         # we only have a reseponse on the first and last pipeline stages
         compute_prob_response = {}
         new_token_ids = []
