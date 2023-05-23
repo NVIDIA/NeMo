@@ -16,16 +16,7 @@ import pytest
 
 from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
     apply_replacements_to_text,
-    get_alignment_by_dp,
-    get_all_candidates_coverage,
-    get_candidates,
-    get_index,
-    load_ngram_mappings,
-    load_ngram_mappings_for_dp,
-    read_spellmapper_predictions,
-    search_in_index,
     substitute_replacements_in_text,
-    update_json_with_spellmapper_corrections,
 )
 
 

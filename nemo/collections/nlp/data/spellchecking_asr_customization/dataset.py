@@ -146,7 +146,6 @@ def collate_train_dataset(
             padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
 
         if len(spans) < max_length_for_spans:
-            pad_length = max_length_for_spans - len(spans)
             padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)  # pad value is [-1, -1, -1]
             if len(spans) > 0:
                 padded_spans[-1][: spans.shape[0], : spans.shape[1]] = spans  # copy actual spans to the beginning
@@ -154,16 +153,16 @@ def collate_train_dataset(
             padded_spans.append(spans)
 
     return (
-        torch.LongTensor(padded_input_ids),
-        torch.LongTensor(padded_input_mask),
-        torch.LongTensor(padded_segment_ids),
-        torch.LongTensor(padded_input_ids_for_subwords),
-        torch.LongTensor(padded_input_mask_for_subwords),
-        torch.LongTensor(padded_segment_ids_for_subwords),
-        torch.LongTensor(padded_character_pos_to_subword_pos),
-        torch.LongTensor(padded_labels_mask),
-        torch.LongTensor(padded_labels),
-        torch.LongTensor(padded_spans),
+        torch.LongTensor(np.array(padded_input_ids)),
+        torch.LongTensor(np.array(padded_input_mask)),
+        torch.LongTensor(np.array(padded_segment_ids)),
+        torch.LongTensor(np.array(padded_input_ids_for_subwords)),
+        torch.LongTensor(np.array(padded_input_mask_for_subwords)),
+        torch.LongTensor(np.array(padded_segment_ids_for_subwords)),
+        torch.LongTensor(np.array(padded_character_pos_to_subword_pos)),
+        torch.LongTensor(np.array(padded_labels_mask)),
+        torch.LongTensor(np.array(padded_labels)),
+        torch.LongTensor(np.array(padded_spans)),
     )
 
 
@@ -254,7 +253,6 @@ def collate_test_dataset(
             padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
 
         if len(fragment_indices) < max_length_for_fragment_indices:
-            pad_length = max_length_for_fragment_indices - len(fragment_indices)
             # we use [0, 1, 0] as padding value for fragment_indices, it corresponds to [CLS] token, which is ignored and won't affect anything
             p = np.zeros((max_length_for_fragment_indices, 3), dtype=int)
             p[:, 1] = 1
@@ -374,7 +372,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
     ):
         super(TarredSpellcheckingAsrCustomizationDataset, self).__init__()
         if pad_token_id < 0:
-            raise (ValueError, "use non-negative pad_token_id: " + str(pad_token_id))
+            raise ValueError("use non-negative pad_token_id: " + str(pad_token_id))
 
         self.pad_token_id = pad_token_id
 
