@@ -727,10 +727,8 @@ def perform_clustering(
     # This dictionary is used for reclustering over the whole dictionary. 
     split_audios = {}
 
-    cuda = False
-    if not torch.cuda.is_available():
-        logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
-        cuda = False
+    # Everything was tested on CPU only
+    cuda = False 
 
     speaker_clustering = SpeakerClustering(cuda=cuda)
 
@@ -869,10 +867,8 @@ def perform_reclustering(split_audios,
     	Final labels for the merged audio.
     """
 
+    # ONLY USED CPU, GPU WAS NOT TESTED
     cuda = False
-    if not torch.cuda.is_available():
-        logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
-        cuda = False
 
     speaker_clustering = SpeakerClustering(maj_vote_spk_count=clustering_params.maj_vote_spk_count, cuda=cuda)
 
