@@ -29,24 +29,29 @@ END_NAME_SIGNAL = "\n"
 SYSTEM_TOKEN = "<extra_id_0>System\n"
 TURN_TOKEN = "<extra_id_1>"
 
-GUARD_RAIL_INSTRUCTION = {
+TYPE_INSTRUCTION = {
     "TEXT_TO_CANONICAL_FORM": "Given a dialogue, for each turn you need to generate a short summary called a canonical form. Generate the canonical form for the last turn in the dialogue.",
     "CANONICAL_FORM_TO_TEXT": "Given a dialogue, for each turn we also have a short summary called a canonical form. Generate the canonical form given the last turn message and canonical form. Then generate the message.",
+    'TEXT_TO_VALUE': "",
+    'VALUE_TO_TEXT': '',
 }
 
 
-def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role):
+def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype):
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. s_id has that extra token too
         skip_name_len = len(tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
         if (s_id[1:] == 255002).any().item():
-            # if contains the token <extra_id_2>
-            assert skip_name_len - 1 == torch.where((s_id[1:] == 255002))[0].item() 
-            # find new line token id 14
-            more_skip_len = torch.where((s_id[skip_name_len:] == 14))[0][0].item()
-            skip_name_len += more_skip_len + 1
+            if gtype == 'VALUE_TO_TEXT':
+                # if contains the token <extra_id_2>
+                assert skip_name_len - 1 == torch.where((s_id[1:] == 255002))[0].item() 
+                # find new line token id 14
+                more_skip_len = torch.where((s_id[skip_name_len:] == 14))[0][0].item()
+                skip_name_len += more_skip_len + 1
+            elif gtype == 'TEXT_TO_VALUE':
+                skip_name_len = torch.where((s_id[1:] == 255002))[0].item() + 2
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
@@ -88,10 +93,6 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
     for i, sentence in enumerate(source):
         sentence_from = sentence["from"]
         role_token = TURN_TOKEN
-        if 'label' in sentence:
-            gtype = "RESPONSE_VALUE"
-        else:
-            gtype = None
         if gtype is None:
             sentence["value"] = (
                 BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
@@ -116,15 +117,25 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + sentence["value"]
                 + END_SIGNAL
             )
-        elif gtype == "RESPONSE_VALUE":
+        elif gtype == "VALUE_TO_TEXT":
             sentence["value"] = (  
                 BEGIN_SIGNAL
                 + role_token
                 + sentence_from
                 + END_NAME_SIGNAL
-                + response_value_formater(sentence['label'])
+                + (response_value_formater(sentence['label']) if 'label' in sentence else '')
                 + sentence["value"]
                 + END_SIGNAL
+            )
+        elif gtype == "TEXT_TO_VALUE":
+            sentence["value"] = (  
+                BEGIN_SIGNAL
+                + role_token
+                + sentence_from
+                + END_NAME_SIGNAL
+                + sentence["value"]
+                + END_SIGNAL
+                + (response_value_formater(sentence['label']) if 'label' in sentence else '')
             )
         else:
             raise ValueError(f"source type {gtype} not supported")
@@ -145,17 +156,17 @@ def preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
-    canonical_type = None
+    data_type = None
     if 'type' in source:
-        canonical_type = source['type']
-        assert canonical_type in GUARD_RAIL_INSTRUCTION, f"source type {canonical_type} not supported"
+        data_type = source['type']
+        assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
     # add end signal and concatenate together
     conversation = source['system']
-    if canonical_type is not None:
-        conversation = conversation + '\n' + GUARD_RAIL_INSTRUCTION[canonical_type]
+    if data_type is not None:
+        conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
     header = f"{SYSTEM_TOKEN}{conversation}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, canonical_type)
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -175,7 +186,7 @@ def preprocess(
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
 
-    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role)
+    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type)
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
