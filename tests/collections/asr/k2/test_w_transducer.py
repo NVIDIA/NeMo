@@ -43,45 +43,86 @@ class TestGraphWTransducerLoss:
         temporal_scheme = loss.get_temporal_scheme(
             sequence_length=sequence_length, num_labels=num_labels, device=torch.device(device)
         )
-        text_scheme: List[List[int]] = []
+
+        etalon_scheme_fst: List[List[int]] = []
         for time_i in range(sequence_length):
             for label_i in range(num_labels):
                 if label_i == blank_id:
                     # transition to the next state
-                    text_scheme.append([time_i, time_i + 1, label_i, time_i, 0])
+                    etalon_scheme_fst.append([time_i, time_i + 1, label_i, time_i, 0])
                 else:
                     # self-loop
-                    text_scheme.append([time_i, time_i, label_i, time_i, 0])
+                    etalon_scheme_fst.append([time_i, time_i, label_i, time_i, 0])
 
         # eps transitions from the first state
         eps_from_first_state = num_labels
         for time_i in range(1, sequence_length + 1):
-            text_scheme.append([0, time_i, eps_from_first_state, 0, 0])
+            etalon_scheme_fst.append([0, time_i, eps_from_first_state, 0, 0])
 
         # eps transitions to the last state
         eps_to_last_state = num_labels + 1
         last_state_eps = sequence_length - 1 if last_blank_mode == "force_last" else sequence_length
         for time_i in range(0, sequence_length - 1):
-            text_scheme.append([time_i, last_state_eps, eps_to_last_state, time_i, 0])
+            etalon_scheme_fst.append([time_i, last_state_eps, eps_to_last_state, time_i, 0])
 
         # transition to the final state
-        text_scheme.append([sequence_length, sequence_length + 1, -1, -1, 0])
+        etalon_scheme_fst.append([sequence_length, sequence_length + 1, -1, -1, 0])
         # final state
-        text_scheme.append([sequence_length + 1])
+        etalon_scheme_fst.append([sequence_length + 1])
 
-        text_scheme = sorted(text_scheme)  # required for k2.Fsa.from_str
-        text_scheme_str = "\n".join([" ".join(map(str, line)) for line in text_scheme])
-        etalon_temporal_scheme = k2.Fsa.from_str(text_scheme_str, num_aux_labels=1)
+        etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
+        etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
+        etalon_temporal_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, num_aux_labels=1)
+
         assert temporal_scheme.num_arcs == etalon_temporal_scheme.num_arcs
         assert temporal_scheme.shape == etalon_temporal_scheme.shape  # (num_states, None)
         assert k2.is_rand_equivalent(
             temporal_scheme, etalon_temporal_scheme, log_semiring=True, treat_epsilons_specially=False
         ), "Temporal scheme mismatch"
+        # TODO: check output labels
+        # assert k2.is_rand_equivalent(
+        #     temporal_scheme.invert(), etalon_temporal_scheme.invert(), log_semiring=False, treat_epsilons_specially=False
+        # ), "Temporal scheme output labels mismatch"
 
     @pytest.mark.unit
-    def test_unit_scheme(self):
-        # TODO
-        pass
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("blank_first", [True, False])
+    def test_unit_scheme(self, device, blank_first):
+        num_labels = 3
+        blank_id = 0 if blank_first else num_labels - 1
+        if blank_first:
+            labels = [1, 1, 2, 1]
+        else:
+            labels = [1, 1, 0, 1]
+        loss = GraphWTransducerLoss(blank=blank_id)
+        unit_scheme = loss.get_unit_scheme(
+            units_tensor=torch.tensor(labels, device=torch.device(device)), num_labels=num_labels
+        )
+
+        etalon_scheme_fst: List[List[int]] = []
+        for label_i, label in enumerate(labels):
+            etalon_scheme_fst.append([label_i, label_i + 1, label, label, label_i, 0])  # forward: label
+            etalon_scheme_fst.append([label_i, label_i, blank_id, blank_id, label_i, 0])  # self-loop: blank
+        etalon_scheme_fst.append([len(labels), len(labels), blank_id, blank_id, len(labels), 0])
+        # eps-transitions
+        etalon_scheme_fst.append([0, 0, num_labels, num_labels, 0, 0])
+        etalon_scheme_fst.append([len(labels), len(labels), num_labels + 1, num_labels + 1, len(labels), 0])
+
+        etalon_scheme_fst.append([len(labels), len(labels) + 1, -1, -1, len(labels), 0])  # transition to final state
+        etalon_scheme_fst.append([len(labels) + 1])  # final state
+        etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
+        etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
+        etalon_unit_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, aux_label_names=["aux_labels", "text_positions"])
+
+        assert unit_scheme.num_arcs == etalon_unit_scheme.num_arcs
+        assert unit_scheme.shape == etalon_unit_scheme.shape  # (num_states, None)
+        assert k2.is_rand_equivalent(
+            unit_scheme, etalon_unit_scheme, log_semiring=True, treat_epsilons_specially=False
+        ), "Unit scheme input labels mismatch"
+        assert k2.is_rand_equivalent(
+            unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Unit scheme output labels mismatch"
+        # TODO: check text_positions
 
     @pytest.mark.unit
     def test_grid_scheme(self):
