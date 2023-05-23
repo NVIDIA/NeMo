@@ -3395,8 +3395,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
                 model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
                 model.peft.restore_from_path=null \
-                model.data.test_ds.file_names=\['/home/TestData/nlp/megatron_gpt_sft/sample.jsonl'] \
-                model.data.test_ds.names=\[\'test\'\] \
+                model.data.test_ds.file_names=['/home/TestData/nlp/megatron_gpt_sft/sample.jsonl'] \
+                model.data.test_ds.names=['test'] \
                 model.data.test_ds.global_batch_size=1 \
                 model.data.test_ds.micro_batch_size=1 \
                 model.data.test_ds.tokens_to_generate=30 \
