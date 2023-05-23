@@ -136,7 +136,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Get temporal scheme graph for W-Transducer loss (Compose-Transducer).
 
         Example graph: blank=0, sequence_length=3, num_labels=3, last_blank_mode="force_last".
-        Labels: <labels_id>:<sequence_position>. Eps ids: 3, 4.§
+        Labels: <labels_id>:<sequence_position>. Eps ids: 3, 4.
 
         graph::
 
@@ -147,7 +147,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
                 1:0    |              1:1    |              1:2   | |
               +-----+  |            +-----+  |            +-----+ | |
               v     |  |            v     |  |            v     | v v
-            +--------------+  0:0  +------------+  0:1   +------------+  0:2   +---+  -1:3    #===#
+            +--------------+  0:0  +------------+  0:1   +------------+  0:2   +---+  -1:-1   #===#
             |    0         | ----> |    1       | -----> |    2       | -----> | 3 | -------> H 4 H
             +--------------+       +------------+        +------------+        +---+          #===#
               ^ 2:0 | | | |         ^ 2:1 |  ^            ^ 2:2 |  ^             ^
@@ -206,6 +206,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
         # output symbols: position in the sequence, same as start states for arcs
         olabels = fsa_temporal_arcs[:, 0].detach().clone()
+        olabels[-1] = -1  # transition to the last final state
 
         fsa_temporal = k2.Fsa(fsa_temporal_arcs, olabels)
         fsa_temporal = k2.arc_sort(fsa_temporal)  # need for compose

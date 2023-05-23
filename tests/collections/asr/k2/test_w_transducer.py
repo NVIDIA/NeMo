@@ -66,7 +66,7 @@ class TestGraphWTransducerLoss:
             etalon_scheme_fst.append([time_i, last_state_eps, eps_to_last_state, time_i, 0])
 
         # transition to the final state
-        etalon_scheme_fst.append([sequence_length, sequence_length + 1, -1, sequence_length, 0])
+        etalon_scheme_fst.append([sequence_length, sequence_length + 1, -1, -1, 0])
         # final state
         etalon_scheme_fst.append([sequence_length + 1])
 
@@ -79,10 +79,12 @@ class TestGraphWTransducerLoss:
         assert k2.is_rand_equivalent(
             temporal_scheme, etalon_temporal_scheme, log_semiring=True, treat_epsilons_specially=False
         ), "Temporal scheme mismatch"
-        # TODO: check output labels
-        # assert k2.is_rand_equivalent(
-        #     temporal_scheme.invert(), etalon_temporal_scheme.invert(), log_semiring=False, treat_epsilons_specially=False
-        # ), "Temporal scheme output labels mismatch"
+        assert k2.is_rand_equivalent(
+            temporal_scheme.invert(),
+            etalon_temporal_scheme.invert(),
+            log_semiring=False,
+            treat_epsilons_specially=False,
+        ), "Temporal scheme output labels mismatch"
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
