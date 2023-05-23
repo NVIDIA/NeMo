@@ -3401,7 +3401,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.data.test_ds.micro_batch_size=1 \
                 model.data.test_ds.tokens_to_generate=30 \
                 model.data.test_ds.max_seq_length=6000 \
-                inference.tokens_to_generate=32 \
                 trainer.devices=[1] \
                 inference.greedy=True \
                 inference.repetition_penalty=1.0 \
