@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import Counter
+
 import gc
 import json
 import math
@@ -104,6 +106,7 @@ def audio_rttm_map(manifest, attach_dur=False):
                 'num_speakers': dic.get('num_speakers', None),
                 'uem_filepath': dic.get('uem_filepath', None),
                 'ctm_filepath': dic.get('ctm_filepath', None),
+                'split': dic.get('split', None)
             }
             if attach_dur:
                 uniqname = get_uniq_id_with_dur(meta)
@@ -429,9 +432,271 @@ def generate_cluster_labels(segment_ranges: List[str], cluster_labels: List[int]
     diar_hyp = merge_stamps(cont_lines)
     return diar_hyp, lines
 
+def get_merged_embs_tmps(split_audios, limit: int):
+    """
+    Function used to get a certain number of embeddings from each audio and speaker and merge them
+    so reclustering can be performed on a subset of embeddings from all the audio parts.
+    
+    split_audios:
+        Dictionary from which we extract for each audio part: multiscale_weights, timestamps, embeddings, labels.
+    limit:
+        We extract a number of instances smaller or equal to variable limit.
+
+    Return:
+        Dictionary containing:
+            list of audio names for each embedding
+            list of embeddings
+            list of timestamps for each embedding
+            list of already predicted label for each embedding
+            tensor with weights for each scale
+        NOTE: Size of each list is <= limit.
+    """
+    merged_embs_tmps = {}
+    merged_embs_tmps["audio"] = []
+    merged_embs_tmps["embs"] = []
+    merged_embs_tmps["tmps"] = []
+    merged_embs_tmps["label"] = []
+    
+    for key in split_audios.keys():
+        # Multiscale weights are the same for all audios.
+        merged_embs_tmps["multiscale_weights"] = split_audios[key]["multiscale_weights"] 
+        merged_embs_tmps["num_speakers"] = split_audios[key]["num_speakers"]
+        merged_embs_tmps["split_size"] = split_audios[key]["split_size"]
+        # The labels_count numpy array has 2 lists: 1st list with the unique labels and the 2nd with the no. of appearances of each label.
+        labels_count = np.unique(split_audios[key]["cluster_labels"],return_counts=True) 
+
+        # We limit the number of labels for a speaker to "limit" number
+        for i in range(len(labels_count[0])):
+            if labels_count[1][i] >= limit:             
+                labels_count[1][i] = limit
+        
+
+        for (i,lbl) in enumerate(split_audios[key]["cluster_labels"]):
+            for (j,uniq_lbl) in enumerate(labels_count[0]):
+                if lbl == uniq_lbl:
+                    """
+                    Get for each unique label a number of labels, embeddings, timestamps and the audio names corresponding for each <= limit
+                    """
+                    if labels_count[1][j]>0:
+                        merged_embs_tmps["audio"].append(key)
+                        merged_embs_tmps["embs"].append(torch.unsqueeze(split_audios[key]["embeddings"][:,i,:],dim=1))
+                        merged_embs_tmps["tmps"].append(split_audios[key]["timestamps"][i])
+                        merged_embs_tmps["label"].append(lbl)    
+                        labels_count[1][j] = labels_count[1][j] - 1        
+
+    merged_embs_tmps["embs"] = torch.cat(merged_embs_tmps["embs"],dim=1)
+    
+    return merged_embs_tmps
+
+def prepare_reclusterization(split_audios, limit: int):
+    """
+    split_audios:
+        Dictionary containing embeddings, timestamps, labels and audio names of audio parts that resulted from splitting.
+    limit:
+        Integer value representing the maximum number of instances taken for each speaker in each audio.
+    Returns:
+        all_cluster_labels, all_audio_names, all_timestamps:
+            All instances of labels, audio names and timestamps for each audio part merged together. These will be mapped to new values later.
+            These merged values should be from audio parts that resulted from the same original audio.
+            Example: audio1_p01, audio1_p02, audio1_p03 all resulted from splitting audio1. We shouldn't merge audio parts from audio1 and audio2 together.
+        embs_and_tmps_recluster:
+            For each audio: a number of audio names, embeddings, timestamps and labels were selected for each speaker <= limit
+    """
+    all_cluster_labels=[]
+    all_audio_names=[]
+    all_timestamps=[]
+    
+    for key in sorted(split_audios.keys()):
+        
+        for i in range(len(split_audios[key]["cluster_labels"])):
+            # List of names of splitted audios, these audios will be transformed into a single merged_audio
+            all_audio_names.append(key) 
+        
+        # These "old" labels will be converted to the new labels after reclusterization
+        all_cluster_labels.extend(split_audios[key]["cluster_labels"])
+        
+        # These "old" timestamps will be merged and made into a continuous interval after reclustering
+        all_timestamps.extend(split_audios[key]["timestamps"]) 
+    
+    """
+    Obtain a certain number of embs, labels and timestamps for each speaker.
+    """
+    embs_and_tmps_recluster = get_merged_embs_tmps(split_audios, limit = limit)
+
+    return embs_and_tmps_recluster, all_cluster_labels, all_audio_names, all_timestamps
+
+def label_mapping( cluster_labels, reclustering_labels, audio_names):
+
+    """
+    cluster_labels:
+        Labels predicted in the clusterization step. For each speaker, there is a number of labels <= to a limit set in prepare_reclusterization() function
+    reclustering_labels:
+        Labels resulted after reclusterization.
+    audio_names:
+        We associate label mapping between clusterization and reclusterization depending on the audio part.
+    
+    Returns:
+        map:
+            List containing: [audio_part, old_label, new_label]
+            NOTE The new_label was chosen by taking the reclusterization label that appeared most often for an "old"(clustering) label
+    """
+    # Create dictionary for mapping
+    map = {}
+    for audio in set(audio_names):
+        map[audio]={}
+    
+    for idx in range(len(audio_names)):
+        for cluster in set(cluster_labels):
+            if cluster==cluster_labels[idx]:
+                map[audio_names[idx]][str(cluster)] ={}
+    
+    for uniq_audio in map.keys():
+        for uniq_lb in map[uniq_audio].keys():
+            for uniq_rlb in set(reclustering_labels):
+                map[uniq_audio][uniq_lb][str(uniq_rlb)] = 0
+
+
+    for uniq_lb in set(reclustering_labels):
+        for idx in range(len(reclustering_labels)):
+            if uniq_lb == reclustering_labels[idx]:
+                map[audio_names[idx]][str(cluster_labels[idx])][str(uniq_lb)] = map[audio_names[idx]][str(cluster_labels[idx])][str(uniq_lb)] + 1
+    
+    final_map = []
+    for audio in sorted(map.keys()):
+        for cluster in sorted(map[audio].keys()):
+            max = 0
+            for recluster in map[audio][cluster].keys():
+                if map[audio][cluster][recluster] > max:
+                    max = map[audio][cluster][recluster]
+                    new_label = recluster
+            final_map.append([audio, cluster, new_label])
+
+    return final_map
+
+def label_conversion(cluster_labels, label_map, audio_names):
+    """
+    cluster_labels:
+        All cluster_labels for audio parts belonging to the same splitted audio
+    label_map:
+        The mapping between the cluster_labels and the new labels resulted after reclusterization
+    audio_names:
+        Names of audios corresponding to each label by index.
+    Returns:
+        List of labels resulted after reclusterization
+    """
+    final_labels = []
+
+    for idx in range(len(cluster_labels)):
+        for map in label_map:
+            if audio_names[idx] == str(map[0]) and str(cluster_labels[idx]) == str(map[1]):
+                final_labels.append(int(map[2]))
+
+    return final_labels
+
+def order_labels(labels):
+    """
+    Takes a list of input labels after clusterization and orders the speakers by appearance.
+
+    labels:
+        Any list of integer values that represent labels resulted after clusterization of embeddings.
+    Return:
+        ordered_labels:
+            Ordered speakers labels by appearance in the audio file.    
+    """
+    ordered = {}
+    count = 0
+    for label in labels:
+        if str(label) not in ordered.keys():
+            ordered[str(label)]=count
+            count = count + 1
+    
+    ordered_labels = []
+    for label in labels:
+        for ordered_label in ordered.keys():
+            if str(label) == ordered_label:
+                ordered_labels.append(ordered[ordered_label])
+    
+    return ordered_labels
+
+def majority_label(labels_per_emb_count):
+    """
+    labels_per_emb_count:
+        List of lists of labels resulted after reclusterization. 
+        After those labels were ordered, we only keep the label that appears most often for a timestamp along all scales. 
+        (the scale is represented by the number of embeddings taken from each speaker for reclusterization)
+    Return:
+        final_labels:
+            List of labels selected by taking the majority label from all scales, at each timstamp.
+    """
+    final_labels = []
+    for i in range(len(labels_per_emb_count[0])):
+        dummy = []
+        for k in range(len(labels_per_emb_count)):
+           dummy.append(labels_per_emb_count[k][i])
+
+        c = Counter(dummy)
+        maj_label,_ = c.most_common()[0]
+        final_labels.append(maj_label)
+
+    return final_labels
+
+def recluster_write(final_labels,
+                    all_audio_names, 
+                    all_timestamps,
+                    out_rttm_dir,
+                    audio_len,
+                    out_audio_name):
+    """
+    final_labels: 
+        Labels resulted from merging reclustering results for an audio that was splitted.
+    all_audio_names:
+        List of audio names of the parts that resulted from splitting a long audio.
+        We use the number of unique names in this list in order to see how many transitions there will be.
+    all_timestamps:
+        List of timestamps at base scale, these timestamps will be merged and made continuous, in order for the final pred rttm to be created with continuous time intervals.
+    out_rttm_dir:
+        Directory where predicted rttm will be saved
+    audio_len:
+        The length of an audio part. It is assumed that audios were split in equal sizes.
+        It is needed for merging all audio parts together in a continuous time interval.
+    out_audio_name:
+        Name of the original audio that was splitted in multiple parts.
+    Return:
+        Write to disk <out_rttm_dir>/<out_audio_name>.rttm
+
+    NOTE This output rttm file should look exactly like a normal predicted rttm from perform_clustering() function. 
+    """
+
+    if len(final_labels) != len(all_timestamps):
+        raise ValueError("Mismatch of length between recluster_labels and timestamps.")
+    
+    # EXPLICAT
+    lines = []
+    addition = 0
+    
+    transitions = len(set(all_audio_names))-1
+    print(f"Number of audios in that will be merged is:{transitions+1}")
+    for idx, label in enumerate(final_labels):
+        tag = 'speaker_' + str(label)
+        all_timestamps[idx][0] = all_timestamps[idx][0] + addition 
+        all_timestamps[idx][1] = all_timestamps[idx][1] + addition
+        if idx>0:
+            if all_timestamps[idx][0] < all_timestamps[idx-1][0] and transitions!=0:
+                addition = addition + audio_len
+                all_timestamps[idx][0] = all_timestamps[idx][0] + audio_len 
+                all_timestamps[idx][1] = all_timestamps[idx][1] + audio_len
+                transitions = transitions - 1
+
+        lines.append(f"{all_timestamps[idx][0]:.3f} {all_timestamps[idx][1]:.3f} {tag}")
+        
+    a = get_contiguous_stamps(lines)
+    labels = merge_stamps(a)
+
+    if out_rttm_dir:
+        labels_to_rttmfile(labels, out_audio_name, out_rttm_dir)
 
 def perform_clustering(
-    embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, device, verbose: bool = True
+    embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, verbose: bool = True
 ):
     """
     Performs spectral clustering on embeddings with time stamps generated from VAD output
@@ -459,31 +724,52 @@ def perform_clustering(
     no_references = False
     lines_cluster_labels = []
 
-    cuda = True
-    if device.type != 'cuda':
+    # This dictionary is used for reclustering over the whole dictionary. 
+    split_audios = {}
+
+    cuda = False
+    if not torch.cuda.is_available():
         logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
     speaker_clustering = SpeakerClustering(cuda=cuda)
+
 
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
         speaker_clustering = torch.jit.script(speaker_clustering)
         torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
 
-    for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=True, disable=not verbose):
+    for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=True):
+        
         uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
 
+        split_state = (audio_rttm_values.get('split', "False") == "True")
+
+        base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
+        multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
+        split_size = audio_rttm_values.get('duration', None)
+
+        """
+        NOTE clustering parameter "oracle_num_speakers" is set as True by default now. 
+        If num_speakers is null in manifest, we estimate it. 
+        If num_speakers is given in the manifest, but the audio was splitted and there are more than 2 speakers in the original audio:
+            we must use an estimated number of speakers, because we can't know how many speakers there are in a subsegment of the whole audio.
+        """
         if clustering_params.oracle_num_speakers:
             num_speakers = audio_rttm_values.get('num_speakers', None)
-            if num_speakers is None:
-                raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
+            if num_speakers is None: 
+                print("Provided option as oracle num of speakers but num_speakers in manifest is null. Number of speaker will be estimated.")
+                num_speakers = -1 # inainte era raise ValueError in loc de print
+            if split_state == True and num_speakers>2:
+                num_speakers = -1
         else:
             num_speakers = -1
 
+
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
 
-        cluster_labels = speaker_clustering.forward_infer(
+        cluster_labels, repeated_embeddings = speaker_clustering.forward_infer(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
             multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
@@ -494,6 +780,7 @@ def perform_clustering(
             sparse_search_volume=int(clustering_params.sparse_search_volume),
         )
 
+
         del uniq_embs_and_timestamps
         if cuda:
             torch.cuda.empty_cache()
@@ -501,14 +788,50 @@ def perform_clustering(
             gc.collect()
 
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
+
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
+        
+        """
+        For audio parts that resulted from splitting an audio, we create a dictionary containing for each audio part:
+            embeddings, labels resulted from previous clusterization, timestamps, multiscale weights, number of speakers from original audio and size of audio part
+        The audio parts passed through one more clusterization step using a certain number of these data for each speaker.
+        In the end these audio parts will be merged together and return the output file for the original audio that was split when creating the manifest files.
+        The split_audios dictionary will be the main input for the perform_reclustering() function.
+        """ 
+        if split_state == True:
+            
+            split_audios[str(uniq_id)] = {}
+            split_audios[str(uniq_id)]["embeddings"] = repeated_embeddings # for the audio, we need the repeated embeddings for computing affinity matrix later
+            split_audios[str(uniq_id)]["cluster_labels"] = cluster_labels
+            split_audios[str(uniq_id)]["timestamps"] = timestamps
+            split_audios[str(uniq_id)]["multiscale_weights"] = multiscale_weights #they are all the same
+            
+            if split_size is None:
+                raise ValueError("Audio is classified as splitted, but there is no split size for the audio given.")
+            else:
+                split_audios[str(uniq_id)]["split_size"] = float(split_size)
+            
+            if clustering_params.oracle_num_speakers:
+                split_audios[str(uniq_id)]["num_speakers"] = audio_rttm_values.get('num_speakers', None)
+                if split_audios[str(uniq_id)]["num_speakers"] is None: 
+                    split_audios[str(uniq_id)]["num_speakers"] = -1 # inainte era raise ValueError in loc de print
+            else:
+                split_audios[str(uniq_id)]["num_speakers"] = -1
 
-        labels, lines = generate_cluster_labels(timestamps, cluster_labels)
+        lines = []
+        for idx, label in enumerate(cluster_labels):
+            tag = 'speaker_' + str(label)
+            lines.append(f"{timestamps[idx][0]:.3f} {timestamps[idx][1]:.3f} {tag}")
 
+        a = get_contiguous_stamps(lines)
+        labels = merge_stamps(a)
+
+        # For writing to file pred rttms
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+            # Starting from here, these lines are not necessary for inference, only if we want to calculate score too.
             lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
@@ -520,13 +843,89 @@ def perform_clustering(
             all_reference.append([uniq_id, reference])
         else:
             no_references = True
-            all_reference = []
+            all_reference = []    
+        # For writing to file speaker outputs
+        if out_rttm_dir:
+            write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
+    
+    return all_reference, all_hypothesis, split_audios
 
-    if out_rttm_dir:
-        write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
 
-    return all_reference, all_hypothesis
+def perform_reclustering(split_audios,
+                        out_rttm_dir,
+                        clustering_params,
+                        filename
+                        ):
+    """
+    Function used in 2 step clusterization for audio files that have split argument in manifest equal to True. We perform clusterization multiple times, depending on the number of embedding scales, in order to produce a more stable model.
+    split_audios:
+    	Dictionary containing all embeddigns, timestamps, labels, split size, number of speakers and audio names associated with these values. It will be used to extract a certain number of embeddings for each label in each audio, perform clusterization, then map the new labels to the old labels and merge all audios back into the audio that was splitted initially.
+    out_rttm_dir:
+    	Directory where predictions will be saved
+    clustering_params:
+    	Parameters important for clustering
+    Returns:
+    	Final labels for the merged audio.
+    """
 
+    cuda = False
+    if not torch.cuda.is_available():
+        logging.warning("cuda=False, using CPU for eigen decomposition. This might slow down the clustering process.")
+        cuda = False
+
+    speaker_clustering = SpeakerClustering(maj_vote_spk_count=clustering_params.maj_vote_spk_count, cuda=cuda)
+
+    # If True, export torch script module and save it to the base folder.
+    if clustering_params.get('export_script_module', False):
+        speaker_clustering = torch.jit.script(speaker_clustering)
+        torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
+
+    """
+    Perform reclustering for multiple scales (each scale is represented by a number of embeddings,timestamps and labels taken for each speaker in each audio).
+    """
+    
+    labels_per_emb_count = []
+    
+    for count in clustering_params.embs_count_recluster:
+
+        embs_and_tmps_recluster, all_cluster_labels, all_audio_names, all_timestamps = prepare_reclusterization(split_audios, limit = count)
+        
+
+        # No need for multiscale_segment_counts and some other stuff
+        recluster_labels= speaker_clustering.forward_reinfer(
+            multiscale_weights = embs_and_tmps_recluster["multiscale_weights"],
+            embeddings_in_scales = embs_and_tmps_recluster["embs"],
+            timestamps_in_scales = embs_and_tmps_recluster["tmps"],
+            oracle_num_speakers = int(embs_and_tmps_recluster["num_speakers"]),
+            max_num_speakers = int(clustering_params.max_num_speakers),
+            max_rp_threshold = float(clustering_params.max_rp_threshold),
+            sparse_search_volume = int(clustering_params.sparse_search_volume),
+        )
+        
+
+        recluster_labels = recluster_labels.cpu().numpy()
+        if len(recluster_labels) != len(embs_and_tmps_recluster["tmps"],):
+            raise ValueError("Mismatch of length between cluster_labels and timestamps.")
+        
+        label_map = label_mapping(embs_and_tmps_recluster["label"],recluster_labels,embs_and_tmps_recluster["audio"])
+                      
+        new_labels = label_conversion(all_cluster_labels, label_map, all_audio_names)
+        
+        # ORDER LABELS, we need to order labels/speakers by appearance so a majority speaker per timestamp can be calculated
+        ordered_labels = order_labels(new_labels)
+        
+        labels_per_emb_count.append(ordered_labels)
+                
+    final_labels = majority_label(labels_per_emb_count)
+
+    recluster_write(final_labels=final_labels,  
+                    all_audio_names=all_audio_names, 
+                    all_timestamps=all_timestamps,
+                    out_rttm_dir=out_rttm_dir,
+                    audio_len=embs_and_tmps_recluster["split_size"],
+                    out_audio_name=filename)
+
+    return final_labels
 
 def get_vad_out_from_rttm_line(rttm_line):
     """

@@ -529,6 +529,59 @@ def getMultiScaleCosAffinityMatrix(
         fused_sim_d += multiscale_weights[scale_idx] * repeated_tensor_1
     return fused_sim_d
 
+def reclusteringMultiScaleCosAffinityMatrix(
+    multiscale_weights: torch.Tensor,
+    embeddings_in_scales: torch.Tensor,
+    timestamps_in_scales: List[torch.Tensor],
+    device: torch.device = torch.device('cpu'),
+) -> torch.Tensor:
+    """
+    This function is similar to getMultiScaleCosAffinityMatrix, but it is used for only
+    a few number of embeddings from each speaker, discovered in the earlier step of clusterization
+    The embeddings are already repeated, so it isn't needed to repeat the score_mat_torch tensor
+    """
+    multiscale_weights = torch.squeeze(multiscale_weights,dim=0).to(device)   
+    fused_sim_d = torch.zeros(len(timestamps_in_scales),len(timestamps_in_scales))
+    
+    for scale_idx in range(len(embeddings_in_scales)):
+        emb_t = embeddings_in_scales[scale_idx].half().to(device)
+        score_mat_torch = getCosAffinityMatrix(emb_t)
+        fused_sim_d = fused_sim_d + multiscale_weights[scale_idx] * score_mat_torch  #fused affinity matrix of scales
+        
+    #print(f"[INFO] Size of fused affinity matrix for reclustering is:{fused_sim_d.size()}")
+    return fused_sim_d
+
+def getRepeatedEmbeddings(
+    embeddings_in_scales: List[torch.Tensor],
+    timestamps_in_scales: List[torch.Tensor],
+    device: torch.device = torch.device('cpu'),
+) -> torch.Tensor:
+    """
+
+    Args:
+        embeddings_in_scales: embeddings extracted from each speaker at a scale
+        timestamps_in_scales: used to calculate the mapping between different scales  
+    Returns:
+        Repeated embeddings from each audio at each scale. 
+        These embeddings will be used for calculating the affinity matrix in the reclustering step.
+        Size: [num_scales, num_embeddings_base_scale, num_embeddings_base_scale]
+    """
+    
+    repeated_embs_list = []
+    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)    
+    scale_list = list(range(len(timestamps_in_scales)))
+    
+    for scale_idx in scale_list:                   
+        mapping_argmat = session_scale_mapping_list[scale_idx]
+        emb_t = embeddings_in_scales[scale_idx].half().to(device)
+        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.size()[0])).to(device)
+        repeated_embs = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
+        repeated_embs_list.append(repeated_embs)
+
+    repp = torch.stack(repeated_embs_list).float()    
+
+    return repp
+
 
 def getLaplacian(X: torch.Tensor) -> torch.Tensor:
     """
@@ -1289,6 +1342,13 @@ class SpeakerClustering(torch.nn.Module):
             multiscale_weights, self.embeddings_in_scales, self.timestamps_in_scales, self.device
         )
 
+        """
+        Computer the fused embeddings tensor for all timestamp scales for an audio.
+        """
+        repeated_embeddings = getRepeatedEmbeddings(self.embeddings_in_scales, self.timestamps_in_scales, self.device)
+        
+
+
         nmesc = NMESC(
             mat,
             max_num_speakers=max_num_speakers,
@@ -1324,4 +1384,93 @@ class SpeakerClustering(torch.nn.Module):
             n_clusters=n_clusters, n_random_trials=kmeans_random_trials, cuda=self.cuda, device=self.device
         )
         Y = spectral_model.forward(affinity_mat)
+
+        return Y, repeated_embeddings
+
+    def forward_reinfer(
+        self,
+        multiscale_weights: torch.Tensor,
+        embeddings_in_scales: torch.Tensor,
+        timestamps_in_scales: List[torch.Tensor],
+        oracle_num_speakers: int = -1,
+        max_rp_threshold: float = 0.15,
+        max_num_speakers: int = 8,
+        enhanced_count_thres: int = 80,
+        sparse_search_volume: int = 30,
+        fixed_thres: float = -1.0,
+    ) -> torch.LongTensor:
+        
+        """
+        This function is similar to forward_infer() function, but is used only in the case we perform reclustering
+        on long audios that were split.
+         
+        Comparison with the forward_infer() function:
+            embeddings_in_scales - torch.tensor:
+                - is an already merged tensor with embeddings from each speaker (from each audio subsegment), 
+                these embeddings were repeated in the previous clusterization step similar to the repeated tensor in theg getMultiScaleCosAffinityMatrix() function.
+                    ex: from [6000,192] embeddings per audio with n speakers, we only choose 200 embeddings for each speaker ( knowing the outputs of the clusterization step)
+                    =>[200 x n,192] x number of audios=> repeated_emb_tensor = [200 x n, 200 x n]
+            
+            timestamps_in_scales - List[torch.tensor]:
+                - it doesn't have much of a contribution, besides keeping a similar form to the to functions. 
+                - it is used only for obtaining the dimensions of the affinity matrix 
+                - it can be eliminated and the length of the affinity matrix can be inferred 
+                from the embeddings_in_scales.   
+            
+            Note: We compute the cosinus affinity matrix only for the embeddings selected previously.
+        Returns:
+            Y (LongTensor):
+                Speaker labels for the segments in the given input embeddings.
+        """
+
+        emb = embeddings_in_scales[-1]
+
+        # Cases for extreamly short sessions
+        if emb.shape[0] == 1:
+            return torch.zeros((1,), dtype=torch.int64)
+        elif emb.shape[0] <= max(enhanced_count_thres, self.min_samples_for_nmesc) and oracle_num_speakers < 0:
+            est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb=emb, cuda=self.cuda)
+        else:
+            est_num_of_spk_enhanced = torch.tensor(-1)
+
+        if oracle_num_speakers > 0:
+            max_num_speakers = oracle_num_speakers
+
+        mat = reclusteringMultiScaleCosAffinityMatrix(
+            multiscale_weights, embeddings_in_scales, timestamps_in_scales, self.device
+        )
+            
+        nmesc = NMESC(
+            mat,
+            max_num_speakers=max_num_speakers,
+            max_rp_threshold=max_rp_threshold,
+            sparse_search=self.sparse_search,
+            sparse_search_volume=sparse_search_volume,
+            fixed_thres=fixed_thres,
+            nme_mat_size=self.nme_mat_size,
+            maj_vote_spk_count=self.maj_vote_spk_count,
+            parallelism=self.parallelism,
+            cuda=self.cuda,
+            device=self.device,
+        )
+        # If there are less than `min_samples_for_nmesc` segments, est_num_of_spk is 1.
+        if mat.shape[0] > self.min_samples_for_nmesc:
+            est_num_of_spk, p_hat_value = nmesc.forward()
+            
+            affinity_mat = getAffinityGraphMat(mat, p_hat_value)
+        else:
+            est_num_of_spk = torch.tensor(1)
+            affinity_mat = mat
+
+        # n_clusters is number of speakers estimated from spectral clustering.
+        if oracle_num_speakers > 0:
+            n_clusters = int(oracle_num_speakers)
+        elif est_num_of_spk_enhanced > 0:
+            n_clusters = int(est_num_of_spk_enhanced.item())
+        else:
+            n_clusters = int(est_num_of_spk.item())
+
+        spectral_model = SpectralClustering(n_clusters=n_clusters, cuda=self.cuda, device=self.device)
+        Y = spectral_model.forward(affinity_mat)
+        
         return Y

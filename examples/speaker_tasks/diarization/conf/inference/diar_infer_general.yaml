@@ -13,8 +13,8 @@ device: null # can specify a specific device, i.e: cuda:1 (default cuda if cuda 
 verbose: True # enable additional logging
 
 diarizer:
-  manifest_filepath: ???
-  out_dir: ???
+  manifest_filepath: null
+  out_dir: null
   oracle_vad: False # If True, uses RTTM files provided in the manifest file to get speech activity (VAD) timestamps
   collar: 0.25 # Collar value for scoring
   ignore_overlap: True # Consider or ignore overlap segments while scoring
@@ -46,7 +46,7 @@ diarizer:
   
   clustering:
     parameters:
-      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
+      oracle_num_speakers: True # If True, use num of speakers value provided in manifest file.
       max_num_speakers: 8 # Max number of speakers for each recording. If an oracle number of speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
