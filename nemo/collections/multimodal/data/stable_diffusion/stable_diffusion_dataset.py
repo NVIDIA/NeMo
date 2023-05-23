@@ -25,6 +25,14 @@ def build_train_valid_datasets(
 ):
     data_cfg = model_cfg.data
 
+    def build_resolution_filter(value=None, method='larger'):
+        assert method == 'larger' or method == 'smaller'
+        if method == 'larger':
+            print(f'Only Selecting images with resolution >= {value}')
+            return lambda x: x['jpg'].size[0] >= value and x['jpg'].size[1] >= value
+        print(f'Only Selecting images with resolution <= {value}')
+        return lambda x: x['jpg'].size[0] <= value and x['jpg'].size[1] <= value
+
     # This function maps data that are tuples to dictionary.
     def tuple_to_dict(inp):
         for input in inp:
@@ -45,6 +53,7 @@ def build_train_valid_datasets(
         consumed_samples=consumed_samples,
         map_fn=transform_fn,
         compose_fn=tuple_to_dict,
+        filter_fn=build_resolution_filter,
         is_train=True,
     )
 
@@ -55,6 +64,7 @@ def build_train_valid_datasets(
             consumed_samples=consumed_samples,
             map_fn=transform_fn,
             compose_fn=tuple_to_dict,
+            filter_fn=build_resolution_filter,
             is_train=False,
         )
 
