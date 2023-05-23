@@ -66,7 +66,7 @@ class TestGraphWTransducerLoss:
             etalon_scheme_fst.append([time_i, last_state_eps, eps_to_last_state, time_i, 0])
 
         # transition to the final state
-        etalon_scheme_fst.append([sequence_length, sequence_length + 1, -1, -1, 0])
+        etalon_scheme_fst.append([sequence_length, sequence_length + 1, -1, sequence_length, 0])
         # final state
         etalon_scheme_fst.append([sequence_length + 1])
 
