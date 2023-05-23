@@ -62,9 +62,9 @@ from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import torch
+import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
 
-import transcribe_speech
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
