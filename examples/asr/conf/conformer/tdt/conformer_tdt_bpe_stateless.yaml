@@ -172,6 +172,9 @@ model:
       joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
       dropout: 0.2
+
+    # this variable is non-zero for this TDT model, as well as multi-blank models. It represents the number of
+    # additional outputs from the joiner, besides all tokens in the BPE vocab plus the (standard) blank symbol.
     num_extra_outputs: ${model.model_defaults.num_tdt_durations}
 
   decoding:
