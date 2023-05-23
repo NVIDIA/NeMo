@@ -19,7 +19,6 @@ import torch.nn as nn
 from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
-from nemo.utils import avoid_bfloat16_autocast_context
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -80,7 +79,6 @@ class ConvSubsampling(torch.nn.Module):
         self._conv_channels = conv_channels
         self._feat_in = feat_in
         self._feat_out = feat_out
-        in_length = torch.tensor(feat_in, dtype=torch.float)
 
         if subsampling_factor % 2 != 0:
             raise ValueError("Sampling factor should be a multiply of 2!")
@@ -90,10 +88,6 @@ class ConvSubsampling(torch.nn.Module):
 
         in_channels = 1
         layers = []
-        self.post_norm = None
-        self.post_postnorm = None
-        if 'swish' in subsampling:
-            activation = nn.SiLU()
 
         if subsampling == 'vggnet':
             self._stride = 2
@@ -126,7 +120,7 @@ class ConvSubsampling(torch.nn.Module):
                 )
                 in_channels = conv_channels
 
-        elif 'dw_striding' in subsampling:
+        elif subsampling == 'dw_striding':
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
@@ -163,59 +157,45 @@ class ConvSubsampling(torch.nn.Module):
                 )
             in_channels = conv_channels
             layers.append(activation)
-            if '_midnorm' in subsampling:
-                out_length = calc_length(
-                    lengths=in_length,
-                    all_paddings=self._left_padding + self._right_padding,
-                    kernel_size=self._kernel_size,
-                    stride=self._stride,
-                    ceil_mode=self._ceil_mode,
-                    repeat_num=1,
-                )
-                norm_layer = nn.LayerNorm(int(out_length))
-                layers.append(norm_layer)
 
             for i in range(self._sampling_num - 1):
                 if self.is_causal:
-                    layers.append(CausalConv2D(
-                                    in_channels=in_channels,
-                                    out_channels=in_channels,
-                                    kernel_size=self._kernel_size,
-                                    stride=self._stride,
-                                    padding=None,
-                                    groups=in_channels))
-                else:
-                    layers.append(torch.nn.Conv2d(
-                                    in_channels=in_channels,
-                                    out_channels=in_channels,
-                                    kernel_size=self._kernel_size,
-                                    stride=self._stride,
-                                    padding=self._left_padding,
-                                    groups=in_channels))
-
-                layers.append(torch.nn.Conv2d(
-                                in_channels=in_channels,
-                                out_channels=conv_channels,
-                                kernel_size=1,
-                                stride=1,
-                                padding=0,
-                                groups=1))
-                layers.append(activation)
-                if '_midnorm' in subsampling:
-                    out_length = calc_length(
-                        lengths=in_length,
-                        all_paddings=self._left_padding + self._right_padding,
-                        kernel_size=self._kernel_size,
-                        stride=self._stride,
-                        ceil_mode=self._ceil_mode,
-                        repeat_num=i+2,
+                    layers.append(
+                        CausalConv2D(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=None,
+                            groups=in_channels,
+                        )
                     )
-                    norm_layer = nn.LayerNorm(int(out_length))
-                    layers.append(norm_layer)
+                else:
+                    layers.append(
+                        torch.nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=self._left_padding,
+                            groups=in_channels,
+                        )
+                    )
 
+                layers.append(
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                        groups=1,
+                    )
+                )
+                layers.append(activation)
                 in_channels = conv_channels
 
-        elif 'striding' in subsampling:
+        elif subsampling == 'striding':
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
@@ -251,21 +231,11 @@ class ConvSubsampling(torch.nn.Module):
                         )
                     )
                 layers.append(activation)
-                if '_midnorm' in subsampling:
-                    out_length = calc_length(
-                        lengths=in_length,
-                        all_paddings=self._left_padding + self._right_padding,
-                        kernel_size=self._kernel_size,
-                        stride=self._stride,
-                        ceil_mode=self._ceil_mode,
-                        repeat_num=i+1,
-                    )
-                    norm_layer = nn.LayerNorm(int(out_length))
-                    layers.append(norm_layer)
                 in_channels = conv_channels
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
+        in_length = torch.tensor(feat_in, dtype=torch.float)
         out_length = calc_length(
             lengths=in_length,
             all_paddings=self._left_padding + self._right_padding,
@@ -274,17 +244,8 @@ class ConvSubsampling(torch.nn.Module):
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
-
-        self.conv = torch.nn.Sequential(*layers)
-
-        if "_postnorm" in subsampling:
-            self.post_norm = nn.LayerNorm(conv_channels * int(out_length))
-
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
-
-        if "_postpostnorm" in subsampling:
-            self.post_postnorm = nn.LayerNorm(feat_out)
-
+        self.conv = torch.nn.Sequential(*layers)
 
     def get_sampling_frames(self):
         return [1, self.subsampling_factor]
@@ -303,26 +264,15 @@ class ConvSubsampling(torch.nn.Module):
         )
         x = x.unsqueeze(1)
 
-        if 'striding' in self._subsampling:
-            # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
-            # to be removed once the above is fixed in cudnn
-            with avoid_bfloat16_autocast_context():
-                x = self.conv(x)
-        else:
-            x = self.conv(x)
+        x = self.conv(x)
 
         b, c, t, f = x.size()
-        x = x.transpose(1, 2).reshape(b, t, -1)
-        if self.post_norm is not None:
-            x = self.post_norm(x)
-        x = self.out(x)
-        if self.post_postnorm is not None:
-            x = self.post_postnorm(x)
+        x = self.out(x.transpose(1, 2).reshape(b, t, -1))
         return x, lengths
 
     def reset_parameters(self):
         # initialize weights
-        if 'dw_striding' in self._subsampling:
+        if self._subsampling == 'dw_striding':
             with torch.no_grad():
                 # init conv
                 scale = 1.0 / self._kernel_size

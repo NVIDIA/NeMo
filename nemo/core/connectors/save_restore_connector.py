@@ -126,7 +126,9 @@ class SaveRestoreConnector:
 
                 else:
                     # Extract the nemo file into the temporary directory
-                    self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                    self._unpack_nemo_file(
+                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                    )
 
                 # Change current working directory to
                 os.chdir(tmpdir)
@@ -239,7 +241,7 @@ class SaveRestoreConnector:
         loaded_params = self.load_config_and_state_dict(
             calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
         )
-        if not isinstance(loaded_params, tuple):
+        if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
         state_dict = self.modify_state_dict(conf, state_dict)
@@ -468,7 +470,10 @@ class SaveRestoreConnector:
                     # unpack all restorations paths (nemo checkpoints)
                     # in nemo checkpoints all resources contain hash in name, so there should be no collisions
                     for path in restoration_paths:
-                        self._unpack_nemo_file(path2file=path, out_folder=archive_dir)
+                        if self.model_extracted_dir:
+                            shutil.copytree(src=path, dst=archive_dir, dirs_exist_ok=True)
+                        else:
+                            self._unpack_nemo_file(path2file=path, out_folder=archive_dir)
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
@@ -532,7 +537,7 @@ class SaveRestoreConnector:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
-    def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
+    def _unpack_nemo_file(path2file: str, out_folder: str, extract_config_only: bool = False) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
 
@@ -546,7 +551,11 @@ class SaveRestoreConnector:
             # can be older checkpoint => try compressed tar
             tar_header = "r:gz"
         tar = tarfile.open(path2file, tar_header)
-        tar.extractall(path=out_folder)
+        if not extract_config_only:
+            tar.extractall(path=out_folder)
+        else:
+            members = [x for x in tar.getmembers() if ".yaml" in x.name]
+            tar.extractall(path=out_folder, members=members)
         tar.close()
         return out_folder
 
@@ -556,7 +565,7 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location=map_location)
+        return torch.load(model_weights, map_location='cpu')
 
     @property
     def model_config_yaml(self) -> str:

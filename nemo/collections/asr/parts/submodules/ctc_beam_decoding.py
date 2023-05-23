@@ -25,6 +25,8 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
 
+DEFAULT_TOKEN_OFFSET = 100
+
 
 def pack_hypotheses(
     hypotheses: List[rnnt_utils.NBestHypotheses], logitlen: torch.Tensor,
@@ -513,6 +515,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 vocabulary=self.vocab,
                 tokenizer=self.tokenizer,
                 lexicon_path=self.flashlight_cfg.lexicon_path,
+                boost_path=self.flashlight_cfg.boost_path,
                 beam_size=self.beam_size,
                 beam_size_token=self.flashlight_cfg.beam_size_token,
                 beam_threshold=self.flashlight_cfg.beam_threshold,
@@ -520,7 +523,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 word_score=self.beam_beta,
                 unk_weight=self.flashlight_cfg.unk_weight,
                 sil_weight=self.flashlight_cfg.sil_weight,
-                unit_lm=self.flashlight_cfg.unit_lm,
             )
 
         x = x.to('cpu')
@@ -563,7 +565,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
         # TOKEN_OFFSET for BPE-based models
         if self.decoding_type == 'subword':
-            self.token_offset = 100
+            self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
 @dataclass
@@ -581,11 +583,11 @@ class PyCTCDecodeConfig:
 @dataclass
 class FlashlightConfig:
     lexicon_path: Optional[str] = None
+    boost_path: Optional[str] = None
     beam_size_token: int = 16
     beam_threshold: float = 20.0
     unk_weight: float = -math.inf
     sil_weight: float = 0.0
-    unit_lm: bool = False
 
 
 @dataclass

@@ -33,7 +33,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 2
     mode: min
-    save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
+    save_nemo_on_train_end: True 
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -44,6 +44,7 @@ exp_manager:
     min_delta: 0.001
     patience: 10
     verbose: True
+    strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
   
 
 model:
@@ -57,6 +58,8 @@ model:
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
+  report_validation_metric: False
+  validation_metric: 'accuracy'
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the GPT language model .nemo file, always required
@@ -111,6 +114,14 @@ model:
     answer_only_loss: True
     answer_field: "answer"
 
+  - taskname: "taskname"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {prompt} {completion}"
+    total_virtual_tokens: 100
+    virtual_token_splits: [100]
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "completion"
+
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
@@ -133,6 +144,8 @@ model:
     validation_cache_data_path: null  # the path to the validation cache data 
     test_cache_data_path: null  # the path to the test cache data 
     load_cache: False  # whether to load from the cache data
+    max_seq_length: 1024  # filter out training and validation examples longer than 1024 tokens. Set to None will default to model's encoder length.
+    min_seq_length: 1  # filter out training and validation examples less than 1 token long.
 
 
   optim:
@@ -149,3 +162,13 @@ model:
       constant_steps: 0 # Constant steps should also be 0 when min_lr=0
       monitor: val_loss
       reduce_on_plateau: false
+
+  # required for reporting validation metrics
+  inference:
+    greedy: False
+    top_k: 0
+    top_p: 0.9
+    temperature: 1.0
+    tokens_to_generate: 30
+    repetition_penalty: 1.2
+    min_tokens_to_generate: 0

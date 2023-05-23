@@ -32,7 +32,6 @@ from nemo.core import adapter_mixins
 try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
 
     HAVE_APEX = True
 
@@ -42,6 +41,17 @@ except (ImportError, ModuleNotFoundError):
 
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.parallel_state import get_tensor_model_parallel_world_size
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
@@ -59,6 +69,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         hidden_size,
         ffn_hidden_size,
         use_cpu_initialization=False,
+        dtype=torch.float32,
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
@@ -81,6 +92,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.persist_layer_norm = persist_layer_norm
         self.activation = activation
         self.dropout = dropout
+        self.dtype = dtype
         self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
 
         supported_activations = [
@@ -100,8 +112,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             )
 
         self.fast_glu_activation = activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-        no_async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
         )
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
@@ -113,9 +125,10 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             init_method=init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            params_dtype=dtype,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
-            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+            async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
@@ -129,9 +142,10 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 init_method=init_method,
                 skip_bias_add=True,
                 use_cpu_initialization=use_cpu_initialization,
+                params_dtype=dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
@@ -185,6 +199,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            params_dtype=dtype,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
@@ -270,6 +285,7 @@ class SwitchMLP(MegatronModule):
         hidden_size,
         ffn_hidden_size,
         use_cpu_initialization=False,
+        dtype=torch.float32,
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
@@ -294,6 +310,7 @@ class SwitchMLP(MegatronModule):
             init_method=init_method,
             skip_bias_add=False,
             use_cpu_initialization=use_cpu_initialization,
+            params_dtype=dtype,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
@@ -305,6 +322,7 @@ class SwitchMLP(MegatronModule):
             'hidden_size': hidden_size,
             'ffn_hidden_size': ffn_hidden_size,
             'use_cpu_initialization': use_cpu_initialization,
+            'dtype': dtype,
             'bias_activation_fusion': bias_activation_fusion,
             'openai_gelu': openai_gelu,
             'onnx_safe': onnx_safe,

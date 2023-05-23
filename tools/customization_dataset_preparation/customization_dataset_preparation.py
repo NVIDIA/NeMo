@@ -50,10 +50,12 @@ We suggest you prioritize changes suggested under ACTIONABLE MESSAGES but also h
 
 """
 import argparse
+import math
 import os
 import pathlib
 from collections import Counter
 
+import numpy as np
 import pandas as pd
 
 
@@ -79,31 +81,71 @@ def load_file_into_df(filename):
     return df, message
 
 
+def recommend_hyperparameters_human_readable(recommended_hyperparameters):
+    message = 'TODO: Recommended hyperparameters\n'
+    for param, param_value in recommended_hyperparameters.items():
+        message += f'{param}: {param_value}\n'
+    return message
+
+
 def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
+    
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
-    bs = 2
-    for potential_bs in potential_batch_sizes:
-        if 0.002 * len(df) > potential_bs:
-            bs = potential_bs
 
-    message = f"TODO: A batch_size={bs} is recommended for training."
-
+    max_bs = 128
     if len(df) < 128:
         max_bs = 2
         for potential_bs in potential_batch_sizes:
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
-        additional_msg_for_small_df = f" Please have a maximum batch_size of {max_bs}."
-        message += additional_msg_for_small_df
 
-    return message
+    bs = min(max_bs, 32)
+
+    df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
+    length_by_chars = sorted(list(df_char_length))
+    n_samples_under_99p5_limit = math.ceil(len(df_char_length) * 0.995)
+    char_length_99p5 = length_by_chars[n_samples_under_99p5_limit - 1]
+    mean_char_length = np.mean(length_by_chars)
+    std_char_length = np.std(length_by_chars)
+
+    # filter out only outliers that are >2 std above mean
+    max_char_length = max(min(mean_char_length + 2 * std_char_length, length_by_chars[-1]), char_length_99p5)
+
+    # every token is around 4 chars + 100 for extra capacity
+    max_seq_length = max_char_length // 4 + 100
+
+    if len(df) <= 100:
+        encoder_hidden_size = 1024
+    elif len(df) <= 1000:
+        encoder_hidden_size = 2048
+    else:
+        encoder_hidden_size = 4096
+
+    if len(df) <= 100:
+        lr = 5e-3
+    elif len(df) <= 1000:
+        lr = 1e-3
+    elif len(df) <= 10000:
+        lr = 5e-4
+    else:
+        lr = 1e-4
+
+    return {
+        'batch_size': bs,
+        'max_batch_size': max_bs,
+        'num_virtual_tokens': 10,
+        'lr': lr,
+        'epochs': 10,
+        'max_seq_length': max_seq_length,
+        'encoder_hidden_size': encoder_hidden_size,
+    }
 
 
-def estimating_customization_job_time(df, recommend_hyperparameters_message):
-    recommended_batch_size = int(recommend_hyperparameters_message.split("=")[1].split()[0])
+def estimating_customization_job_time(df, recommended_hyperparameters):
+    recommended_batch_size = recommended_hyperparameters['batch_size']
 
     size = df.memory_usage(index=True, deep=True).sum()
     time_in_seconds_per_epoch = size / recommended_batch_size * 0.0025
@@ -304,7 +346,7 @@ def get_prepared_filename(filename, split_train_validation=False):
             message += f"File {new_filename} exists. Trying next available filename increment\n"
             retry += 1
             new_filename = filename.replace(file_extension, f"_prepared{retry}.jsonl")
-        return new_filename, message
+        return new_filename, message if message else None
     else:
         train_filename = filename.replace(file_extension, "_prepared_train.jsonl")
         val_filename = filename.replace(file_extension, "_prepared_val.jsonl")
@@ -367,7 +409,8 @@ if __name__ == "__main__":
     messages = []
     messages.append(str(args))
 
-    MAX_TOTAL_CHAR_LENGTH = 10000
+    # every token is around 4 chars
+    MAX_TOTAL_CHAR_LENGTH = 4 * 2048
 
     df, message = load_file_into_df(args.filename)
     messages.append(message)
@@ -397,11 +440,11 @@ if __name__ == "__main__":
     df, message = warn_and_drop_long_samples(df, MAX_TOTAL_CHAR_LENGTH)
     messages.append(message)
 
-    recommend_hyperparameters_message = recommend_hyperparameters(df)
-
+    recommended_hyperparameters = recommend_hyperparameters(df)
+    recommend_hyperparameters_message = recommend_hyperparameters_human_readable(recommended_hyperparameters)
     messages.append(recommend_hyperparameters_message)
 
-    messages.append(estimating_customization_job_time(df, recommend_hyperparameters_message))
+    messages.append(estimating_customization_job_time(df, recommended_hyperparameters))
 
     prepared_filename, message = get_prepared_filename(
         args.filename, split_train_validation=args.split_train_validation
