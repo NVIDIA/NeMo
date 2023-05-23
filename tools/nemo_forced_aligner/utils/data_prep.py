@@ -23,6 +23,7 @@ import torch
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.utils import logging
 
 
@@ -211,7 +212,7 @@ def get_utt_obj(
         if hasattr(model, 'blank_id'):
             BLANK_ID = model.blank_id
         else:
-            BLANK_ID = len(model.decoder.vocabulary)  # TODO: check
+            BLANK_ID = len(model.tokenizer.vocab)  # TODO: check
 
         utt.token_ids_with_blanks = [BLANK_ID]
 
@@ -582,6 +583,10 @@ def get_batch_variables(
                 hypotheses = model.transcribe_simulate_cache_aware_streaming(
                     audio_filepaths_batch, return_hypotheses=True, batch_size=B
                 )
+
+        if isinstance(model, EncDecHybridRNNTCTCModel):
+            hypotheses = hypotheses[0]  # since hybrid models return 2 hypotheses lists and we only need one
+
         for hypothesis in hypotheses:
             log_probs_list_batch.append(hypothesis.y_sequence)
             T_list_batch.append(hypothesis.y_sequence.shape[0])
@@ -645,7 +650,10 @@ def get_batch_variables(
     T_max = max(T_list_batch)
     U_max = max(U_list_batch)
     #  V = the number of tokens in the vocabulary + 1 for the blank token.
-    V = len(model.decoder.vocabulary) + 1
+    if hasattr(model, 'tokenizer'):
+        V = len(model.tokenizer.vocab) + 1
+    else:
+        V = len(model.decoder.vocabulary) + 1
     T_batch = torch.tensor(T_list_batch)
     U_batch = torch.tensor(U_list_batch)
 

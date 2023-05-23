@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from utils.data_prep import (
     add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
@@ -35,6 +35,7 @@ from utils.make_output_manifest import write_manifest_out_line
 from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
@@ -218,10 +219,17 @@ def main(cfg: AlignmentConfig):
     model, _ = setup_model(cfg, transcribe_device)
     model.eval()
 
-    if not isinstance(model, EncDecCTCModel):
+    if isinstance(model, EncDecHybridRNNTCTCModel):
+        model.change_decoding_strategy(decoder_type="ctc")
+
+        # change to local attention since our hybrid models are currently all conformers
+        # TODO: logic should be only if model is conformer and if audio duration is too long
+        model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=[64, 64])
+
+    if not (isinstance(model, EncDecCTCModel) or isinstance(model, EncDecHybridRNNTCTCModel)):
         raise NotImplementedError(
-            f"Model {cfg.model_name} is not an instance of NeMo EncDecCTCModel."
-            " Currently only instances of EncDecCTCModels are supported"
+            f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
+            " Currently only instances of these models are supported"
         )
 
     if cfg.minimum_timestamp_duration > 0:
