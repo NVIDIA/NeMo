@@ -531,9 +531,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             A list of strings.
         """
 
-        language_id = self.cfg.decoding_processor_config.lang
-        remove_punctuation = self.cfg.decoding_processor_config.remove_punctuation
-        remove_capitalization = self.cfg.decoding_processor_config.remove_capitalization
+        language_id = self.cfg.text_post_process.lang
+        remove_punctuation = self.cfg.text_post_process.remove_punctuation
+        remove_capitalization = self.cfg.text_post_process.remove_capitalization
 
         normalizer_cls = AbstractTextPostProcessor.get_processor(language_id)
 
@@ -1318,6 +1318,6 @@ class RNNTDecodingConfig:
     temperature: float = 1.0
 
     # config for text based post processing
-    decoding_processor_config: TextPostProcessorConfig = TextPostProcessorConfig()
+    text_post_process: TextPostProcessorConfig = TextPostProcessorConfig()
 
 
