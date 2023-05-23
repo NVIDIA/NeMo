@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import numpy as np
 import pytest
 import torch
@@ -35,9 +37,35 @@ if torch.cuda.is_available() and k2.with_cuda:
 
 class TestGraphRnnt:
     @pytest.mark.unit
-    def test_temporal_scheme(self):
-        # TODO
-        pass
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("blank_first", [True, False])
+    @pytest.mark.parametrize("sequence_length", [1, 3, 6])
+    @pytest.mark.parametrize("num_labels", [3])
+    def test_temporal_scheme(self, device, blank_first, sequence_length, num_labels):
+        blank_id = 0 if blank_first else num_labels - 1
+        loss = GraphRnntLoss(blank=blank_id)
+        temporal_scheme = loss.get_temporal_scheme(
+            sequence_length=sequence_length, num_labels=num_labels, device=torch.device(device)
+        )
+        text_scheme: List[List[int]] = []
+        for time_i in range(sequence_length):
+            for label_i in range(num_labels):
+                if label_i == blank_id:
+                    # transition to the next state
+                    text_scheme.append([time_i, time_i + 1, label_i, time_i, 0])
+                else:
+                    # self-loop
+                    text_scheme.append([time_i, time_i, label_i, time_i, 0])
+        text_scheme.append([sequence_length, sequence_length + 1, -1, -1, 0])  # transition to final state
+        text_scheme.append([sequence_length + 1])  # final state
+        text_scheme = sorted(text_scheme)  # required for k2.Fsa.from_str
+        text_scheme_str = "\n".join([" ".join(map(str, line)) for line in text_scheme])
+        etalon_temporal_scheme = k2.Fsa.from_str(text_scheme_str, num_aux_labels=1)
+        assert temporal_scheme.num_arcs == etalon_temporal_scheme.num_arcs
+        assert temporal_scheme.shape == etalon_temporal_scheme.shape  # (num_states, None)
+        assert k2.is_rand_equivalent(
+            temporal_scheme, etalon_temporal_scheme, log_semiring=True, treat_epsilons_specially=False
+        ), "Temporal scheme mismatch"
 
     @pytest.mark.unit
     def test_unit_scheme(self):
