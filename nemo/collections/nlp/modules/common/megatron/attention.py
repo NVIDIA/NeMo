@@ -241,6 +241,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         # relative position embedding
         self.layer_type = layer_type
+        
+        if position_embedding_type.lower() == 'xpos':
+            self.xpos = XPOSRelativePositionEmbedding(kv_channels)
 
     def _checkpointed_attention_forward(
         self,
@@ -458,7 +461,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # duplicate the pos_emb for self attention
         if rotary_pos_emb is not None:
             rotary_pos_emb = rotary_pos_emb if isinstance(rotary_pos_emb, tuple) else ((rotary_pos_emb,) * 2)
-
+            
         if inference_max_sequence_len:
             # Adjust the range variables.
             start = self.inference_current_sequence_len
@@ -490,6 +493,10 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if get_key_value:
             present = (key_layer, value_layer)
+            
+        if self.position_embedding_type.lower() == 'xpos':
+            query_layer = self.xpos(query_layer, offset=0 if inference_max_sequence_len is None else end-1, downscale=False)
+            key_layer = self.xpos(key_layer, offset=0, downscale=True)
 
         if checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
@@ -776,8 +783,6 @@ class CoreAttention(MegatronModule):
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
         self.use_flash_attention = use_flash_attention
 
-        if position_embedding_type.lower() == 'xpos':
-            self.xpos = XPOSRelativePositionEmbedding(hidden_size / num_attention_heads)
 
     def forward(
         self,
@@ -802,7 +807,6 @@ class CoreAttention(MegatronModule):
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
-
         if get_key_value:
             with torch.no_grad():
                 if layer_past is not None:
@@ -835,10 +839,6 @@ class CoreAttention(MegatronModule):
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
-
-        if self.position_embedding_type.lower() == 'xpos':
-            query_layer = self.xpos(query_layer, offset=0, downscale=False)
-            key_layer = self.xpos(key_layer, offset=0, downscale=True)
 
         # ==================================================
         # Rearrange query_layer, key_layer, value_layer
