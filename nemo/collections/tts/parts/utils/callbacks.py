@@ -373,9 +373,9 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
             )
 
         if self.log_alignment:
-            attn = rearrange(attn, "B 1 T_spec T_text -> B T_spec T_text")
+            attn = rearrange(attn, "B 1 T_spec T_text -> B T_text T_spec")
             for i, audio_id in enumerate(audio_ids):
-                attn_i = attn[i][: mels_pred_len[i], : text_lens[i]].cpu().numpy()
+                attn_i = attn[i][: text_lens[i], : mels_pred_len[i]].cpu().numpy()
                 alignment_artifact = ImageArtifact(
                     id=f"align_{audio_id}",
                     data=attn_i,
