@@ -3384,6 +3384,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
         trainer.max_steps=3 \
+        trainer.precision=bf16 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_peft_lora_results \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
