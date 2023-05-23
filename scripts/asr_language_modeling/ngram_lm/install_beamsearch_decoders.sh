@@ -27,7 +27,7 @@ if [ $(id -u) -eq 0 ]; then
   alias sudo=eval
 fi
 
-RUN sudo apt-get update && apt-get upgrade -y && apt-get install -y liblzma-dev && rm -rf /var/lib/apt/lists/* # liblzma needed for flashlight decoder
+sudo apt-get update && apt-get upgrade -y && apt-get install -y liblzma-dev && rm -rf /var/lib/apt/lists/* # liblzma needed for flashlight decoder
 
 
 git clone https://github.com/NVIDIA/OpenSeq2Seq
