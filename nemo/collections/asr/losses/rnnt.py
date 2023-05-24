@@ -119,8 +119,8 @@ RNNT_LOSS_RESOLVER = {
         is_available=True,
         installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
     ),
-    "graph_wrnnt": RNNTLossConfig(
-        loss_name="graph_wrnnt",
+    "graph_w_transducer": RNNTLossConfig(
+        loss_name="graph_w_transducer",
         lib_name="k2",
         is_available=K2_AVAILABLE,
         installation_msg=K2_INSTALLATION_MESSAGE,
