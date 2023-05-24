@@ -761,7 +761,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             enc_seq_length = inference_max_sequence_len
         elif self.encoder.input_tensor is not None:
             if self.sequence_parallel:
-                enc_seq_length = self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                enc_seq_length = (
+                    self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                )
             else:
                 enc_seq_length = self.encoder.input_tensor.size(0)
         else:
@@ -769,8 +771,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 enc_seq_length = encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
             else:
                 enc_seq_length = encoder_input.size(0)
-        
-        
+
         rotary_pos_emb = None
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
