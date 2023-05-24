@@ -54,7 +54,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
             eps_weight: weight of epsilon transitions, 0 means no penalty (default)
             last_blank_mode: allow to skip last blank in the prediction (default) or force it
             use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
-            connect_composed: Connect graph after composing unit and temporal schemes
+            connect_composed: Connect graph after composing unit and temporal schemas
                 (only for Compose-Transducer). `connect` operation is slow, it is useful for visualization,
                 but not necessary for loss computation.
             double_scores: Use calculation of loss in double precision (float64) in the lattice.
@@ -71,9 +71,9 @@ class GraphWTransducerLoss(GraphRnntLoss):
         self.eps_weight = eps_weight
         self.last_blank_mode = self.LastBlankMode(last_blank_mode)
 
-    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
+    def get_unit_schema(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
         """
-        Get unit scheme (target text) graph for W-Transducer loss (Compose-Transducer).
+        Get unit schema (target text) graph for W-Transducer loss (Compose-Transducer).
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0. Eps ids: 3, 4.
@@ -94,7 +94,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
             vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            unit scheme graph (k2.Fsa).
+            unit schema graph (k2.Fsa).
             Labels: <unit>:<unit>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
 
@@ -131,9 +131,9 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_text.unit_positions[-1] = -1
         return fsa_text
 
-    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
+    def get_temporal_schema(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
         """
-        Get temporal scheme graph for W-Transducer loss (Compose-Transducer).
+        Get temporal schema graph for W-Transducer loss (Compose-Transducer).
 
         Example graph: blank=0, num_frames=3, vocab_size=3, last_blank_mode="force_last".
         Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special eps ids `vocab_size`, `vocab_size+1`.
@@ -163,7 +163,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
             device: device for tensor to construct
 
         Returns:
-            temporal scheme graph (k2.Fsa).
+            temporal schema graph (k2.Fsa).
             Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special units (e.g., additional eps).
         """
         blank_id = self.blank

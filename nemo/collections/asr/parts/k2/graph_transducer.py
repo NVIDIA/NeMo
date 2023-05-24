@@ -35,8 +35,8 @@ class GraphTransducerLossBase(Loss):
     Implementation of the approach described in "Powerful and Extensible WFST Framework for RNN-Transducer Losses"
     https://ieeexplore.ieee.org/document/10096679
 
-    Compose-Transducer: compose the unit (target text) and temporal schemes (graphs) into lattice.
-        Subclass should implement `get_unit_scheme` and `get_temporal_scheme` methods.
+    Compose-Transducer: compose the unit (target text) and temporal schemas (graphs) into lattice.
+        Subclass should implement `get_unit_schema` and `get_temporal_schema` methods.
     Grid-Transducer: construct the RNN-T lattice (grid) directly in code.
         Subclass should implement `get_grid` method.
     """
@@ -48,7 +48,7 @@ class GraphTransducerLossBase(Loss):
 
         Args:
             use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
-            connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
+            connect_composed: Connect graph after composing unit and temporal schemas (only for Compose-Transducer).
                 `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
             double_scores: Use calculation of loss in double precision (float64) in the lattice.
                 Does not significantly affect memory usage since the lattice is ~V/2 times smaller
@@ -62,24 +62,24 @@ class GraphTransducerLossBase(Loss):
         self.cast_to_float32 = cast_to_float32
 
     @abc.abstractmethod
-    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
+    def get_unit_schema(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
         """
-        Get unit scheme (target text) graph for Compose-Transducer.
+        Get unit schema (target text) graph for Compose-Transducer.
 
         Args:
             units_tensor: tensor with target text
             vocab_size: number of labels (including blank). Needed to construct additional eps-arcs (in some cases).
 
         Returns:
-            unit scheme graph (k2.Fsa).
+            unit schema graph (k2.Fsa).
             Labels: <unit>:<unit>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
         pass
 
     @abc.abstractmethod
-    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
+    def get_temporal_schema(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
         """
-        Get temporal scheme graph for Compose-Transducer.
+        Get temporal schema graph for Compose-Transducer.
 
         Args:
             num_frames: length of the sequence (in frames)
@@ -87,7 +87,7 @@ class GraphTransducerLossBase(Loss):
             device: device for tensor to construct
 
         Returns:
-            temporal scheme graph (k2.Fsa).
+            temporal schema graph (k2.Fsa).
             Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special units (e.g., additional eps).
         """
         pass
@@ -110,7 +110,7 @@ class GraphTransducerLossBase(Loss):
 
     def get_composed_lattice(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> "k2.Fsa":
         """
-        Get composed lattice (unit and temporal schemes) for Compose-Transducer. Useful for visualization.
+        Get composed lattice (unit and temporal schemas) for Compose-Transducer. Useful for visualization.
         Should be equivalent to the lattice from `get_grid` method.
 
         Args:
@@ -119,10 +119,10 @@ class GraphTransducerLossBase(Loss):
             vocab_size: vocab size (including blank)
 
         Returns:
-            composed lattice (k2.Fsa) from unit and temporal schemes
+            composed lattice (k2.Fsa) from unit and temporal schemas
         """
-        fsa_text = self.get_unit_scheme(units_tensor, vocab_size)
-        fsa_temporal = self.get_temporal_scheme(num_frames, vocab_size, units_tensor.device)
+        fsa_text = self.get_unit_schema(units_tensor, vocab_size)
+        fsa_temporal = self.get_temporal_schema(num_frames, vocab_size, units_tensor.device)
         composed = k2.compose(fsa_text, fsa_temporal, treat_epsilons_specially=False)
         if self.connect_composed:
             composed = k2.connect(composed)
@@ -159,11 +159,11 @@ class GraphTransducerLossBase(Loss):
 
             # composed version
             text_fsas = [
-                self.get_unit_scheme(units_tensor=targets[i, : target_lengths[i].item()], vocab_size=vocab_size,)
+                self.get_unit_schema(units_tensor=targets[i, : target_lengths[i].item()], vocab_size=vocab_size,)
                 for i in range(batch_size)
             ]
             temporal_fsas = [
-                self.get_temporal_scheme(
+                self.get_temporal_schema(
                     num_frames=logits_lengths[i].item(), vocab_size=vocab_size, device=targets.device
                 )
                 for i in range(batch_size)
@@ -225,7 +225,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         Args:
             blank: blank label index
             use_grid_implementation: Whether to use the grid implementation (Grid-Transducer).
-            connect_composed: Connect graph after composing unit and temporal schemes (only for Compose-Transducer).
+            connect_composed: Connect graph after composing unit and temporal schemas (only for Compose-Transducer).
                 `connect` operation is slow, it is useful for visualization, but not necessary for loss computation.
             double_scores: Use calculation of loss in double precision (float64) in the lattice.
                 Does not significantly affect memory usage since the lattice is ~V/2 times smaller than the joint tensor.
@@ -239,9 +239,9 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         self.blank = blank
 
-    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
+    def get_unit_schema(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
         """
-        Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
+        Get unit schema (target text) graph for RNN-T loss (Compose-Transducer).
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0.
@@ -260,7 +260,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
             vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            unit scheme graph (k2.Fsa).
+            unit schema graph (k2.Fsa).
             Labels: <unit>:<unit>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
 
@@ -290,9 +290,9 @@ class GraphRnntLoss(GraphTransducerLossBase):
         fsa_text.unit_positions[-1] = -1  # last transition to final state
         return fsa_text
 
-    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
+    def get_temporal_schema(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
         """
-        Get temporal scheme graph for RNN-T loss (Compose-Transducer).
+        Get temporal schema graph for RNN-T loss (Compose-Transducer).
         Forward arc - blank, self-loops - all labels excluding blank
 
         Example graph: blank=0, num_frames=3, vocab_size=3.
@@ -315,7 +315,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
             device: device for tensor to construct
 
         Returns:
-            temporal scheme graph (k2.Fsa).
+            temporal schema graph (k2.Fsa).
             Labels: <unit>:<frame_index>. <unit> is a unit from vocab.
         """
         blank_id = self.blank

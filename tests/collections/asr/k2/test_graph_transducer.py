@@ -41,44 +41,44 @@ class TestGraphRnnt:
     @pytest.mark.parametrize("blank_first", [True, False])
     @pytest.mark.parametrize("num_frames", [1, 3, 6])
     @pytest.mark.parametrize("vocab_size", [3])
-    def test_temporal_scheme(self, device, blank_first, num_frames, vocab_size):
+    def test_temporal_schema(self, device, blank_first, num_frames, vocab_size):
         blank_id = 0 if blank_first else vocab_size - 1
         loss = GraphRnntLoss(blank=blank_id)
-        temporal_scheme = loss.get_temporal_scheme(
+        temporal_schema = loss.get_temporal_schema(
             num_frames=num_frames, vocab_size=vocab_size, device=torch.device(device)
         )
 
-        etalon_scheme_fst: List[List[int]] = []
+        etalon_schema_fst: List[List[int]] = []
         for time_i in range(num_frames):
             for label_i in range(vocab_size):
                 if label_i == blank_id:
                     # transition to the next state
-                    etalon_scheme_fst.append([time_i, time_i + 1, label_i, time_i, 0])
+                    etalon_schema_fst.append([time_i, time_i + 1, label_i, time_i, 0])
                 else:
                     # self-loop
-                    etalon_scheme_fst.append([time_i, time_i, label_i, time_i, 0])
-        etalon_scheme_fst.append([num_frames, num_frames + 1, -1, -1, 0])  # transition to final state
-        etalon_scheme_fst.append([num_frames + 1])  # final state
-        etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
-        etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
-        etalon_temporal_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, num_aux_labels=1)
+                    etalon_schema_fst.append([time_i, time_i, label_i, time_i, 0])
+        etalon_schema_fst.append([num_frames, num_frames + 1, -1, -1, 0])  # transition to final state
+        etalon_schema_fst.append([num_frames + 1])  # final state
+        etalon_schema_fst = sorted(etalon_schema_fst)  # required for k2.Fsa.from_str
+        etalon_schema_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_schema_fst])
+        etalon_temporal_schema = k2.Fsa.from_str(etalon_schema_fst_str, num_aux_labels=1)
 
-        assert temporal_scheme.num_arcs == etalon_temporal_scheme.num_arcs
-        assert temporal_scheme.shape == etalon_temporal_scheme.shape  # (num_states, None)
+        assert temporal_schema.num_arcs == etalon_temporal_schema.num_arcs
+        assert temporal_schema.shape == etalon_temporal_schema.shape  # (num_states, None)
         assert k2.is_rand_equivalent(
-            temporal_scheme, etalon_temporal_scheme, log_semiring=True, treat_epsilons_specially=False
-        ), "Temporal scheme mismatch"
+            temporal_schema, etalon_temporal_schema, log_semiring=True, treat_epsilons_specially=False
+        ), "Temporal schema mismatch"
         assert k2.is_rand_equivalent(
-            temporal_scheme.invert(),
-            etalon_temporal_scheme.invert(),
+            temporal_schema.invert(),
+            etalon_temporal_schema.invert(),
             log_semiring=True,
             treat_epsilons_specially=False,
-        ), "Temporal scheme output labels mismatch"
+        ), "Temporal schema output labels mismatch"
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
-    def test_unit_scheme(self, device, blank_first):
+    def test_unit_schema(self, device, blank_first):
         vocab_size = 3
         blank_id = 0 if blank_first else vocab_size - 1
         if blank_first:
@@ -86,44 +86,44 @@ class TestGraphRnnt:
         else:
             labels = [1, 1, 0, 1]
         loss = GraphRnntLoss(blank=blank_id)
-        unit_scheme = loss.get_unit_scheme(
+        unit_schema = loss.get_unit_schema(
             units_tensor=torch.tensor(labels, device=torch.device(device)), vocab_size=vocab_size
         )
 
-        etalon_scheme_fst: List[List[int]] = []
+        etalon_schema_fst: List[List[int]] = []
         for label_i, label in enumerate(labels):
-            etalon_scheme_fst.append([label_i, label_i + 1, label, label, label_i, 0])  # forward: label
-            etalon_scheme_fst.append([label_i, label_i, blank_id, blank_id, label_i, 0])  # self-loop: blank
-        etalon_scheme_fst.append([len(labels), len(labels), blank_id, blank_id, len(labels), 0])
-        etalon_scheme_fst.append([len(labels), len(labels) + 1, -1, -1, -1, 0])  # transition to final state
-        etalon_scheme_fst.append([len(labels) + 1])  # final state
-        etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
-        etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
-        etalon_unit_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, aux_label_names=["aux_labels", "unit_positions"])
+            etalon_schema_fst.append([label_i, label_i + 1, label, label, label_i, 0])  # forward: label
+            etalon_schema_fst.append([label_i, label_i, blank_id, blank_id, label_i, 0])  # self-loop: blank
+        etalon_schema_fst.append([len(labels), len(labels), blank_id, blank_id, len(labels), 0])
+        etalon_schema_fst.append([len(labels), len(labels) + 1, -1, -1, -1, 0])  # transition to final state
+        etalon_schema_fst.append([len(labels) + 1])  # final state
+        etalon_schema_fst = sorted(etalon_schema_fst)  # required for k2.Fsa.from_str
+        etalon_schema_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_schema_fst])
+        etalon_unit_schema = k2.Fsa.from_str(etalon_schema_fst_str, aux_label_names=["aux_labels", "unit_positions"])
 
-        assert unit_scheme.num_arcs == etalon_unit_scheme.num_arcs
-        assert unit_scheme.shape == etalon_unit_scheme.shape  # (num_states, None)
+        assert unit_schema.num_arcs == etalon_unit_schema.num_arcs
+        assert unit_schema.shape == etalon_unit_schema.shape  # (num_states, None)
         assert k2.is_rand_equivalent(
-            unit_scheme, etalon_unit_scheme, log_semiring=True, treat_epsilons_specially=False
-        ), "Unit scheme input labels mismatch"
+            unit_schema, etalon_unit_schema, log_semiring=True, treat_epsilons_specially=False
+        ), "Unit schema input labels mismatch"
         assert k2.is_rand_equivalent(
-            unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
-        ), "Unit scheme output labels mismatch"
+            unit_schema.invert(), etalon_unit_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Unit schema output labels mismatch"
 
         # swap aux_labels and unit positions to test unit_positions
-        unit_scheme.aux_labels, unit_scheme.unit_positions = unit_scheme.unit_positions, unit_scheme.aux_labels
-        etalon_unit_scheme.aux_labels, etalon_unit_scheme.unit_positions = (
-            etalon_unit_scheme.unit_positions,
-            etalon_unit_scheme.aux_labels,
+        unit_schema.aux_labels, unit_schema.unit_positions = unit_schema.unit_positions, unit_schema.aux_labels
+        etalon_unit_schema.aux_labels, etalon_unit_schema.unit_positions = (
+            etalon_unit_schema.unit_positions,
+            etalon_unit_schema.aux_labels,
         )
         assert k2.is_rand_equivalent(
-            unit_scheme.invert(), etalon_unit_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
-        ), "Unit scheme unit positions mismatch"
+            unit_schema.invert(), etalon_unit_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Unit schema unit positions mismatch"
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
-    def test_grid_scheme(self, device, blank_first):
+    def test_grid_schema(self, device, blank_first):
         vocab_size = 3
         blank_id = 0 if blank_first else vocab_size - 1
         if blank_first:
@@ -133,53 +133,53 @@ class TestGraphRnnt:
         text_length = len(labels)
         num_frames = 5
         loss = GraphRnntLoss(blank=blank_id)
-        grid_scheme = loss.get_grid(
+        grid_schema = loss.get_grid(
             units_tensor=torch.tensor(labels, device=torch.device(device)),
             num_frames=num_frames,
             vocab_size=vocab_size,
         )
 
-        etalon_scheme_fst: List[List[int]] = []
+        etalon_schema_fst: List[List[int]] = []
         for frame_i in range(num_frames):
             for label_i in range(text_length + 1):
                 state = frame_i * (text_length + 1) + label_i
                 if label_i < text_length:
                     next_state_label = state + 1
                     # next unit
-                    etalon_scheme_fst.append([state, next_state_label, labels[label_i], frame_i, label_i, 0])
+                    etalon_schema_fst.append([state, next_state_label, labels[label_i], frame_i, label_i, 0])
                 if frame_i < num_frames - 1:
                     next_state_frame = (frame_i + 1) * (text_length + 1) + label_i
                     # next time frame (blank)
-                    etalon_scheme_fst.append([state, next_state_frame, blank_id, frame_i, label_i, 0])
+                    etalon_schema_fst.append([state, next_state_frame, blank_id, frame_i, label_i, 0])
 
         last_grid_state = num_frames * (text_length + 1) - 1
-        etalon_scheme_fst.append([last_grid_state, last_grid_state + 1, blank_id, num_frames - 1, text_length, 0])
-        etalon_scheme_fst.append(
+        etalon_schema_fst.append([last_grid_state, last_grid_state + 1, blank_id, num_frames - 1, text_length, 0])
+        etalon_schema_fst.append(
             [last_grid_state + 1, last_grid_state + 2, -1, -1, -1, 0]
         )  # transition to final state
-        etalon_scheme_fst.append([last_grid_state + 2])  # final state
-        etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
-        etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
-        etalon_grid_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, aux_label_names=["aux_labels", "unit_positions"])
+        etalon_schema_fst.append([last_grid_state + 2])  # final state
+        etalon_schema_fst = sorted(etalon_schema_fst)  # required for k2.Fsa.from_str
+        etalon_schema_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_schema_fst])
+        etalon_grid_schema = k2.Fsa.from_str(etalon_schema_fst_str, aux_label_names=["aux_labels", "unit_positions"])
 
-        assert grid_scheme.num_arcs == etalon_grid_scheme.num_arcs
-        assert grid_scheme.shape == etalon_grid_scheme.shape  # (num_states, None)
+        assert grid_schema.num_arcs == etalon_grid_schema.num_arcs
+        assert grid_schema.shape == etalon_grid_schema.shape  # (num_states, None)
         assert k2.is_rand_equivalent(
-            grid_scheme, etalon_grid_scheme, log_semiring=True, treat_epsilons_specially=False
-        ), "Grid scheme input labels mismatch"
+            grid_schema, etalon_grid_schema, log_semiring=True, treat_epsilons_specially=False
+        ), "Grid schema input labels mismatch"
         assert k2.is_rand_equivalent(
-            grid_scheme.invert(), etalon_grid_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
-        ), "Grid scheme output labels mismatch"
+            grid_schema.invert(), etalon_grid_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Grid schema output labels mismatch"
 
         # swap aux_labels and unit positions to test unit_positions
-        grid_scheme.aux_labels, grid_scheme.unit_positions = grid_scheme.unit_positions, grid_scheme.aux_labels
-        etalon_grid_scheme.aux_labels, etalon_grid_scheme.unit_positions = (
-            etalon_grid_scheme.unit_positions,
-            etalon_grid_scheme.aux_labels,
+        grid_schema.aux_labels, grid_schema.unit_positions = grid_schema.unit_positions, grid_schema.aux_labels
+        etalon_grid_schema.aux_labels, etalon_grid_schema.unit_positions = (
+            etalon_grid_schema.unit_positions,
+            etalon_grid_schema.aux_labels,
         )
         assert k2.is_rand_equivalent(
-            grid_scheme.invert(), etalon_grid_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
-        ), "Grid scheme unit positions mismatch"
+            grid_schema.invert(), etalon_grid_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Grid schema unit positions mismatch"
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
