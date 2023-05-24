@@ -127,7 +127,7 @@ model:
   # These memory intensive activations are also less compute intensive which makes activation checkpointing more efficient for LLMs (20B+).
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   # 'full' will checkpoint the entire transformer layer.
-  activations_checkpoint_granularity: 'selective' # 'selective' or 'full' 
+  activations_checkpoint_granularity: null # 'selective' or 'full' 
   activations_checkpoint_method: null # 'uniform', 'block'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity. When used with 'selective', 'uniform' checkpoints all attention blocks in the model.
