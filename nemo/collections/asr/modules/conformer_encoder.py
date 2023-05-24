@@ -15,7 +15,8 @@
 import math
 import random
 from collections import OrderedDict
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List, Optional, Set
 
 import torch
 import torch.distributed
@@ -286,7 +287,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.d_model = d_model
         self.n_layers = n_layers
         self._feat_in = feat_in
-        self.scale = math.sqrt(self.d_model)
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
 
@@ -502,7 +502,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         # select a random att_context_size with the distribution specified by att_context_probs during training
         # for non-validation cases like test, validation or inference, it uses the first mode in self.att_context_size
-        if self.training:
+        if self.training and len(att_context_size_all) > 1:
             cur_att_context_size = random.choices(self.att_context_size_all, weights=self.att_context_probs)[0]
         else:
             cur_att_context_size = self.att_context_size
