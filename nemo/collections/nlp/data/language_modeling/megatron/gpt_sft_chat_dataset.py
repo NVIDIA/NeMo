@@ -26,6 +26,8 @@ IGNORE_INDEX = -100
 END_SIGNAL = "\n"
 END_NAME_SIGNAL = "\n"
 
+SCALE = 9
+
 SYSTEM_TOKEN = "<extra_id_0>System\n"
 TURN_TOKEN = "<extra_id_1>"
 
@@ -82,7 +84,7 @@ def response_value_formater(label):
     elements = []
     for key in keys:
         if key in label:
-            elements.append(f'{key}:{label[key]:.2f}')
+            elements.append(f'{key}:{int(label[key]*SCALE)}')
     return output_str + ','.join(elements) + '\n'
 
 
