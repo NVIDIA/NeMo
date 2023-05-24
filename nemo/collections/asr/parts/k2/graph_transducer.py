@@ -72,7 +72,7 @@ class GraphTransducerLossBase(Loss):
 
         Returns:
             unit scheme graph (k2.Fsa).
-            Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
+            Labels: <unit>:<unit>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
         pass
 
@@ -103,7 +103,8 @@ class GraphTransducerLossBase(Loss):
             vocab_size: number of labels (including blank)
 
         Returns:
-            transducer lattice (k2.Fsa)
+            transducer lattice (k2.Fsa).
+            Labels: <unit>:<frame_index>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
         pass
 
@@ -260,7 +261,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
         Returns:
             unit scheme graph (k2.Fsa).
-            Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
+            Labels: <unit>:<unit>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
 
         blank_id = self.blank
@@ -383,7 +384,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
             vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            transducer lattice (k2.Fsa), labels: <unit>:<frame_index>:<unit_index>
+            transducer lattice (k2.Fsa).
+            Labels: <unit>:<frame_index>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
         blank_id = self.blank
         text_length = units_tensor.shape[0]

@@ -143,13 +143,11 @@ class TestGraphWTransducerLoss:
         vocab_size = 3
         blank_id = 0 if blank_first else vocab_size - 1
         if blank_first:
-            # labels = [1, 1, 2, 1]
-            labels = [1, 2]
+            labels = [1, 1, 2, 1]
         else:
-            # labels = [1, 1, 0, 1]
-            labels = [1, 0]
+            labels = [1, 1, 0, 1]
         text_length = len(labels)
-        num_frames = 3
+        num_frames = 5
         loss = GraphWTransducerLoss(blank=blank_id, last_blank_mode=last_blank_mode)
         grid_scheme = loss.get_grid(
             units_tensor=torch.tensor(labels, device=torch.device(device)),

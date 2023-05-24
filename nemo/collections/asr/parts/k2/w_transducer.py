@@ -77,7 +77,6 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0. Eps ids: 3, 4.
-        Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
 
         graph::
 
@@ -96,7 +95,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
         Returns:
             unit scheme graph (k2.Fsa).
-            Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
+            Labels: <unit>:<unit>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
 
         blank_id = self.blank
@@ -222,7 +221,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
             vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            transducer lattice (k2.Fsa)
+            transducer lattice (k2.Fsa).
+            Labels: <unit>:<frame_index>:<unit_position> (k2.Fsa: labels, aux_labels, unit_positions)
         """
         blank_id = self.blank
         eps_id = vocab_size  # beyond vocabulary
