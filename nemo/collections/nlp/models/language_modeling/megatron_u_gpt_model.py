@@ -43,6 +43,8 @@ class MegatronUGPTModel(MegatronGPTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self._add_special_tokens_to_tokenizer()
+        self._resize_model_embeddings()
+        self._maybe_resize_output_layer()
 
     def _add_special_tokens_to_tokenizer(self):
         MegatronT5Model.add_special_tokens_to_tokenizer(
@@ -87,6 +89,7 @@ class MegatronUGPTModel(MegatronGPTModel):
 
     def _resize_model_embeddings(self):
         # Resize the model embedding layer.
+        self._model_embeddings_resized = False
         num_added_tokens = len(self.tokenizer.vocab) - self.model.word_embeddings_weight().size(0)
         if num_added_tokens > 0:
             logging.info(f"Resizing the model's embedding layer by adding {num_added_tokens} tokens.")
@@ -100,14 +103,26 @@ class MegatronUGPTModel(MegatronGPTModel):
                 new_embeddings[:-num_added_tokens] = self.model.word_embeddings_weight()
                 self.model.word_embeddings_weight().set_(new_embeddings)
                 # Broadcast the embeddings from rank 0 to all other embedding ranks.
-                torch.distributed.all_reduce(
-                    self.model.word_embeddings_weight().data,
-                    group=parallel_state.get_embedding_group(),
-                    op=torch.distributed.ReduceOp.AVG,
-                )
+                # torch.distributed.all_reduce(
+                #     self.model.word_embeddings_weight().data,
+                #     group=parallel_state.get_embedding_group(),
+                #     op=torch.distributed.ReduceOp.AVG,
+                # )
+
+                self._model_embeddings_resized = True
+
+    def _resize_model_embeddings_broadcast(self):
+        if self._model_embeddings_resized:
+            # Broadcast the embeddings from rank 0 to all other embedding ranks.
+            torch.distributed.all_reduce(
+                self.model.word_embeddings_weight().data,
+                group=parallel_state.get_embedding_group(),
+                op=torch.distributed.ReduceOp.AVG,
+            )
 
     def _maybe_resize_output_layer(self):
         # Maybe resize the output layer if using untied embeddings and output weights.
+        self._output_layer_resized = False
         if not self.cfg.get('share_embeddings_and_output_weights', True):
             # Resize the model embedding layer.
             if self.cfg.megatron_amp_O2:
@@ -138,12 +153,28 @@ class MegatronUGPTModel(MegatronGPTModel):
                     )
                     '''
 
+                    self._output_layer_resized = True
+
+    def _maybe_resize_output_layer_broadcast(self):
+        if self._output_layer_resized:
+            # TODO: Cleanup before merge
+            pass
+            # if self.cfg.megatron_amp_O2:
+            #     output_layer_weight = self.model.module.language_model.output_layer.weight
+            # else:
+            #     output_layer_weight = self.model.language_model.output_layer.weight
+            # # Broadcast the embeddings from rank 0 to all other embedding ranks.
+            # torch.distributed.all_reduce(
+            #     output_layer_weight.data, group=parallel_state.get_embedding_group(),
+            #     op=torch.distributed.ReduceOp.AVG
+            # )
+
     def setup(self, stage=None):
         super().setup()
         # Resize the model embedding layer.
-        self._resize_model_embeddings()
+        self._resize_model_embeddings_broadcast()
         # Maybe resize the output layer if using untied embeddings and output weights.
-        self._maybe_resize_output_layer()
+        self._maybe_resize_output_layer_broadcast()
 
     def build_train_valid_test_datasets(self):
         logging.info('Building U-GPT datasets.')
