@@ -900,7 +900,7 @@ class PositionalEncoding(torch.nn.Module):
         input_len = x.size(1) + cache_len
         if self.xscale:
             x = x * self.xscale
-        pos_emb = self.pe[:, : input_len]
+        pos_emb = self.pe[:, :input_len]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         x = x + pos_emb
