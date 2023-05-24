@@ -3,6 +3,7 @@
 if [ ${USE_GCSFUSE:?} -eq 0 ]; then
   echo "Mounting $GCS_BUCKET to /gcs using gcsfuse"
   gcsfuse --client-protocol ${GCSFUSE_CLIENT_PROTOCOL:?} \
+    --max-conns-per-host 65535 \
     --http-client-timeout ${GCSFUSE_CLIENT_TIMEOUT:=0} \
     ${GCS_BUCKET:?} /gcs
 fi

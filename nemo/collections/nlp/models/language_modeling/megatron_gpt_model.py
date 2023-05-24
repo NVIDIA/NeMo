@@ -17,6 +17,7 @@ import queue
 import warnings
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -59,6 +60,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero, get_rank
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -737,6 +739,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+            fwd_pass_start = datetime.now()
 
             # Get data batch
             batch = next(dataloader_iter)
@@ -791,6 +794,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     return loss_for_ub, {'avg': reduced_loss}
 
             return output_tensor, loss_func
+
+        fwd_pass_end = datetime.now()
+        rank = get_rank()
+
+        logging.info(f'[Rank {rank}] Forward pass time: {(fwd_pass_end - fwd_pass_start).total_seconds()}')
 
         return fwd_output_and_loss_func
 
