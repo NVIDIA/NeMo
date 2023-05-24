@@ -27,13 +27,17 @@ def jsonl_file(tmp_path):
     file_path = tmp_path / "data.jsonl"
 
     # Generate data to write to the JSONL file
-    data = [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}, {"name": "Bob", "age": 35}]
+    data = [
+        {"name": "John", "age": 30},
+        {"name": "Jane", "age": 25},
+        {"name": "Bob", "age": 35},
+    ]
 
     # Write data to the JSONL file
     with open(file_path, mode="w") as file:
         for item in data:
             json.dump(item, file)
-            file.write('\n')
+            file.write("\n")
 
     # Provide the file path to the test function
     yield str(file_path)
@@ -65,7 +69,9 @@ def csv_file(tmp_path):
 def test_jsonl_mem_map_dataset(jsonl_file):
     """Test for JSONL memory-mapped datasets."""
 
-    indexed_dataset = text_memmap_dataset.JSONLMemMapDataset(dataset_paths=[jsonl_file], header_lines=0)
+    indexed_dataset = text_memmap_dataset.JSONLMemMapDataset(
+        dataset_paths=[jsonl_file], header_lines=0
+    )
     assert indexed_dataset[0] == {"name": "John", "age": 30}
     assert indexed_dataset[1] == {"name": "Jane", "age": 25}
     assert indexed_dataset[2] == {"name": "Bob", "age": 35}
@@ -74,19 +80,26 @@ def test_jsonl_mem_map_dataset(jsonl_file):
 def test_csv_mem_map_dataset(csv_file):
     """Test for CSV memory-mapped datasets."""
 
-    indexed_dataset = text_memmap_dataset.CSVMemMapDataset(dataset_paths=[csv_file], data_col=1, header_lines=1)
+    indexed_dataset = text_memmap_dataset.CSVMemMapDataset(
+        dataset_paths=[csv_file], data_col=1, header_lines=1
+    )
     assert indexed_dataset[0].strip() == "John"
     assert indexed_dataset[1].strip() == "Jane"
     assert indexed_dataset[2].strip() == "Bob"
 
 
 @pytest.mark.parametrize(
-    "dataset_class", [text_memmap_dataset.JSONLMemMapDataset, text_memmap_dataset.CSVMemMapDataset]
+    "dataset_class",
+    [text_memmap_dataset.JSONLMemMapDataset, text_memmap_dataset.CSVMemMapDataset],
 )
 @pytest.mark.parametrize("use_alternative_index_mapping_dir", [True, False])
 @pytest.mark.parametrize("relative_index_fn", [True, False])
 def test_mem_map_dataset_index_mapping_dir(
-    tmp_path, dataset_class, jsonl_file, use_alternative_index_mapping_dir, relative_index_fn
+    tmp_path,
+    dataset_class,
+    jsonl_file,
+    use_alternative_index_mapping_dir,
+    relative_index_fn,
 ):
     """Test for index_mapping_dir."""
     if relative_index_fn:
@@ -108,6 +121,8 @@ def test_mem_map_dataset_index_mapping_dir(
         assert os.path.isfile(f"{idx_fn}.npy")
         assert os.path.isfile(f"{idx_fn}.info")
     else:
-        text_memmap_dataset.JSONLMemMapDataset(dataset_paths=[jsonl_file], header_lines=0)
+        text_memmap_dataset.JSONLMemMapDataset(
+            dataset_paths=[jsonl_file], header_lines=0
+        )
         assert os.path.isfile(f"{jsonl_file}.idx.npy")
         assert os.path.isfile(f"{jsonl_file}.idx.info")
