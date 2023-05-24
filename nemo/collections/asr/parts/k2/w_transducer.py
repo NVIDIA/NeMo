@@ -311,7 +311,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Forward method is similar to RNN-T Graph-Transducer forward method,
         but we need to assign eps weight to eps-transitions.
         """
-        # nemo: acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths
+        # argument names are consistent with NeMo, see RNNTLoss.forward:
+        # self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
         # logits: B x Time x Text+1 x C
