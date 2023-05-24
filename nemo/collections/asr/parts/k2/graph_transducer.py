@@ -239,7 +239,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         self.blank = blank
 
-    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> k2.Fsa:
+    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
         """
         Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
         Forward arcs represent text labels.
@@ -290,7 +290,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         fsa_text.unit_positions[-1] = -1  # last transition to final state
         return fsa_text
 
-    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> k2.Fsa:
+    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
         """
         Get temporal scheme graph for RNN-T loss (Compose-Transducer).
         Forward arc - blank, self-loops - all labels excluding blank
@@ -374,7 +374,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         return states
 
-    def get_grid(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> k2.Fsa:
+    def get_grid(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> "k2.Fsa":
         """
         Construct the RNN-T lattice directly (Grid-Transducer).
 
