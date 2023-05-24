@@ -792,13 +792,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub, {'avg': reduced_loss}
+            fwd_pass_end = datetime.now()
+            rank = get_rank()
+
+            logging.info(f'[Rank {rank}] Forward pass time: {(fwd_pass_end - fwd_pass_start).total_seconds()}')
 
             return output_tensor, loss_func
 
-        fwd_pass_end = datetime.now()
-        rank = get_rank()
-
-        logging.info(f'[Rank {rank}] Forward pass time: {(fwd_pass_end - fwd_pass_start).total_seconds()}')
 
         return fwd_output_and_loss_func
 
