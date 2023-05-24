@@ -77,7 +77,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0. Eps ids: 3, 4.
-        Labels: <text_labels>:<text_labels>:<unit_position>.
+        Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
 
         graph::
 
@@ -95,7 +95,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
             vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            k2 graph, ilabels=olabels (text labels + blank), unit_positions - text label indices
+            unit scheme graph (k2.Fsa).
+            Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
         """
 
         blank_id = self.blank
@@ -136,7 +137,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Get temporal scheme graph for W-Transducer loss (Compose-Transducer).
 
         Example graph: blank=0, num_frames=3, vocab_size=3, last_blank_mode="force_last".
-        Labels: <labels_id>:<sequence_position>. Eps ids: 3, 4.
+        Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special eps ids `vocab_size`, `vocab_size+1`.
 
         graph::
 
@@ -163,7 +164,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
             device: device for tensor to construct
 
         Returns:
-            k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
+            temporal scheme graph (k2.Fsa).
+            Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special units (e.g., additional eps).
         """
         blank_id = self.blank
         start_eps_id = vocab_size

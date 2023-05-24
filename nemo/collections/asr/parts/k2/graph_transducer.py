@@ -68,10 +68,11 @@ class GraphTransducerLossBase(Loss):
 
         Args:
             units_tensor: tensor with target text
-            vocab_size: number of labels (including blank). Needed to construct additional eps-arcs (when needed).
+            vocab_size: number of labels (including blank). Needed to construct additional eps-arcs (in some cases).
 
         Returns:
-            unit scheme graph (k2.Fsa)
+            unit scheme graph (k2.Fsa).
+            Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
         """
         pass
 
@@ -86,7 +87,8 @@ class GraphTransducerLossBase(Loss):
             device: device for tensor to construct
 
         Returns:
-            temporal scheme graph (k2.Fsa)
+            temporal scheme graph (k2.Fsa).
+            Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special units (e.g., additional eps).
         """
         pass
 
@@ -242,7 +244,6 @@ class GraphRnntLoss(GraphTransducerLossBase):
         Forward arcs represent text labels.
 
         Example graph: text [1, 2], blank=0.
-        Labels: <text_labels>:<text_labels>:<unit_position>.
 
         graph::
 
@@ -258,7 +259,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
             vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            k2 graph, ilabels=olabels (text labels + blank), unit_positions - text label indices
+            unit scheme graph (k2.Fsa).
+            Labels: <unit>:<unit>:<unit_index> (k2.Fsa: labels, aux_labels, unit_positions)
         """
 
         blank_id = self.blank
@@ -293,7 +295,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         Forward arc - blank, self-loops - all labels excluding blank
 
         Example graph: blank=0, num_frames=3, vocab_size=3.
-        Labels: <labels_id>:<sequence_position>.
+        Labels: <unit>:<frame_index>. <unit> is a unit from vocab.
 
         graph::
 
@@ -312,7 +314,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
             device: device for tensor to construct
 
         Returns:
-            k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
+            temporal scheme graph (k2.Fsa).
+            Labels: <unit>:<frame_index>. <unit> is a unit from vocab.
         """
         blank_id = self.blank
 
