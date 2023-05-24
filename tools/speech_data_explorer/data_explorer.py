@@ -1443,7 +1443,7 @@ def draw_table_with_metrics(met, hoverData, data_virt):
             'audio_filepath': True,
         },
     )  #'numwords': True,
-    fig.add_shape(type="line", x0=0, y0=0, x1=200, y1=200, line=dict(color="Red", width=1, dash="dot",))
+    fig.add_shape(type="line", x0=0, y0=0, x1=100, y1=100, line=dict(color="Red", width=1, dash="dot",))
     fig.update_layout(clickmode='event+select')
     fig.update_traces(marker_size=10)
     path = None
