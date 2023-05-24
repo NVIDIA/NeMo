@@ -68,7 +68,7 @@ class RNNTTestHelper:
 
 @dataclass
 class RnntLossSampleData:
-    num_labels: int
+    vocab_size: int
     blank_id: int
 
     logits: torch.Tensor
@@ -109,7 +109,7 @@ class RnntLossSampleData:
             ]
         )
         return RnntLossSampleData(
-            num_labels=3,
+            vocab_size=3,
             blank_id=0,
             logits=torch.from_numpy(activations).to(torch.float32),
             targets=torch.from_numpy(labels),
@@ -172,7 +172,7 @@ class RnntLossSampleData:
             ]
         )
         return RnntLossSampleData(
-            num_labels=3,
+            vocab_size=3,
             blank_id=2,
             logits=torch.from_numpy(activations).to(torch.float32),
             targets=torch.from_numpy(labels),
@@ -284,7 +284,7 @@ class RnntLossSampleData:
         expected_grads = np.array(expected_grads)
 
         return RnntLossSampleData(
-            num_labels=3,
+            vocab_size=3,
             blank_id=0,
             logits=torch.from_numpy(activations).to(torch.float32),
             targets=torch.from_numpy(labels),
@@ -296,9 +296,9 @@ class RnntLossSampleData:
 
     @classmethod
     def get_sample_small_random(cls, blank_first: bool, device=torch.device("cpu")) -> "RnntLossSampleData":
-        num_labels = 4
-        blank_id = 0 if blank_first else num_labels - 1
-        sequence_length = 4
+        vocab_size = 4
+        blank_id = 0 if blank_first else vocab_size - 1
+        num_frames = 4
         text_len = 2
         if blank_first:
             text = np.asarray([1, 3])
@@ -306,11 +306,11 @@ class RnntLossSampleData:
             text = np.asarray([0, 2])
 
         targets = torch.from_numpy(text).unsqueeze(0).to(device)
-        logits = torch.rand([1, sequence_length, text_len + 1, num_labels], requires_grad=True, device=device)
-        input_lengths = torch.tensor([sequence_length], device=device)
+        logits = torch.rand([1, num_frames, text_len + 1, vocab_size], requires_grad=True, device=device)
+        input_lengths = torch.tensor([num_frames], device=device)
         target_lengths = torch.tensor([text_len], device=device)
         return RnntLossSampleData(
-            num_labels=num_labels,
+            vocab_size=vocab_size,
             blank_id=blank_id,
             logits=logits,
             targets=targets,
@@ -320,25 +320,23 @@ class RnntLossSampleData:
 
     @classmethod
     def get_sample_medium_random_var_size(cls, blank_first: bool, device=torch.device("cpu")) -> "RnntLossSampleData":
-        num_labels = 32
-        blank_id = 0 if blank_first else num_labels - 1
-        sequence_length = 32
+        vocab_size = 32
+        blank_id = 0 if blank_first else vocab_size - 1
+        num_frames = 32
         text_len = 27
         min_symbol = 1 if blank_first else 0
-        max_symbol = num_labels if blank_first else num_labels - 1
+        max_symbol = vocab_size if blank_first else vocab_size - 1
         batch_size = 4
 
         rs = np.random.RandomState(2021)
         text = rs.randint(min_symbol, max_symbol, size=(batch_size, text_len))
         targets = torch.from_numpy(text).to(device)
 
-        logits = torch.rand([batch_size, sequence_length, text_len + 1, num_labels], requires_grad=True, device=device)
-        input_lengths = torch.tensor(
-            [sequence_length, sequence_length // 2, text_len, text_len // 2], device=device
-        ).long()
+        logits = torch.rand([batch_size, num_frames, text_len + 1, vocab_size], requires_grad=True, device=device)
+        input_lengths = torch.tensor([num_frames, num_frames // 2, text_len, text_len // 2], device=device).long()
         target_lengths = torch.tensor([text_len, text_len - 1, text_len - 3, text_len - 10], device=device)
         return RnntLossSampleData(
-            num_labels=num_labels,
+            vocab_size=vocab_size,
             blank_id=blank_id,
             logits=logits,
             targets=targets,

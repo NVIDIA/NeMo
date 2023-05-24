@@ -62,13 +62,13 @@ class GraphTransducerLossBase(Loss):
         self.cast_to_float32 = cast_to_float32
 
     @abc.abstractmethod
-    def get_unit_scheme(self, units_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
+    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
         """
         Get unit scheme (target text) graph for Compose-Transducer.
 
         Args:
             units_tensor: tensor with target text
-            num_labels: number of labels (including blank). Needed to construct additional eps-arcs (when needed).
+            vocab_size: number of labels (including blank). Needed to construct additional eps-arcs (when needed).
 
         Returns:
             unit scheme graph (k2.Fsa)
@@ -76,13 +76,13 @@ class GraphTransducerLossBase(Loss):
         pass
 
     @abc.abstractmethod
-    def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
+    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
         """
         Get temporal scheme graph for Compose-Transducer.
 
         Args:
-            sequence_length: length of the sequence (in frames)
-            num_labels: number of labels (including blank)
+            num_frames: length of the sequence (in frames)
+            vocab_size: number of labels (including blank)
             device: device for tensor to construct
 
         Returns:
@@ -91,42 +91,42 @@ class GraphTransducerLossBase(Loss):
         pass
 
     @abc.abstractmethod
-    def get_grid(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+    def get_grid(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> "k2.Fsa":
         """
         Construct the transducer lattice (grid) directly for Grid-Transducer.
 
         Args:
             units_tensor: tensor with target text
-            sequence_length: length of the sequence (in frames)
-            num_labels: number of labels (including blank)
+            num_frames: length of the sequence (in frames)
+            vocab_size: number of labels (including blank)
 
         Returns:
             transducer lattice (k2.Fsa)
         """
         pass
 
-    def get_composed_lattice(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+    def get_composed_lattice(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> "k2.Fsa":
         """
         Get composed lattice (unit and temporal schemes) for Compose-Transducer. Useful for visualization.
         Should be equivalent to the lattice from `get_grid` method.
 
         Args:
             units_tensor: tensor with target text
-            sequence_length: length of the sequence (in frames)
-            num_labels: vocab size (including blank)
+            num_frames: length of the sequence (in frames)
+            vocab_size: vocab size (including blank)
 
         Returns:
             composed lattice (k2.Fsa) from unit and temporal schemes
         """
-        fsa_text = self.get_unit_scheme(units_tensor, num_labels)
-        fsa_temporal = self.get_temporal_scheme(sequence_length, num_labels, units_tensor.device)
+        fsa_text = self.get_unit_scheme(units_tensor, vocab_size)
+        fsa_temporal = self.get_temporal_scheme(num_frames, vocab_size, units_tensor.device)
         composed = k2.compose(fsa_text, fsa_temporal, treat_epsilons_specially=False)
         if self.connect_composed:
             composed = k2.connect(composed)
         return composed
 
     def get_graphs_batched(
-        self, logits_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, num_labels: int
+        self, logits_lengths: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, vocab_size: int
     ) -> "k2.Fsa":
         """
         Get batched lattice (grid or composed) for the batch of sequences.
@@ -135,7 +135,7 @@ class GraphTransducerLossBase(Loss):
             logits_lengths: tensor with lengths of logits
             targets: tensor with target units
             target_lengths: tensor with lengths of targets
-            num_labels: vocab size (including blank)
+            vocab_size: vocab size (including blank)
 
         Returns:
             batched lattice - FsaVec (k2.Fsa)
@@ -147,8 +147,8 @@ class GraphTransducerLossBase(Loss):
                     [
                         self.get_grid(
                             units_tensor=targets[i, : target_lengths[i].item()],
-                            sequence_length=logits_lengths[i].item(),
-                            num_labels=num_labels,
+                            num_frames=logits_lengths[i].item(),
+                            vocab_size=vocab_size,
                         )
                         for i in range(batch_size)
                     ]
@@ -156,12 +156,12 @@ class GraphTransducerLossBase(Loss):
 
             # composed version
             text_fsas = [
-                self.get_unit_scheme(units_tensor=targets[i, : target_lengths[i].item()], num_labels=num_labels,)
+                self.get_unit_scheme(units_tensor=targets[i, : target_lengths[i].item()], vocab_size=vocab_size,)
                 for i in range(batch_size)
             ]
             temporal_fsas = [
                 self.get_temporal_scheme(
-                    sequence_length=logits_lengths[i].item(), num_labels=num_labels, device=targets.device
+                    num_frames=logits_lengths[i].item(), vocab_size=vocab_size, device=targets.device
                 )
                 for i in range(batch_size)
             ]
@@ -236,7 +236,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         self.blank = blank
 
-    def get_unit_scheme(self, units_tensor: torch.Tensor, num_labels: int) -> k2.Fsa:
+    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> k2.Fsa:
         """
         Get unit scheme (target text) graph for RNN-T loss (Compose-Transducer).
         Forward arcs represent text labels.
@@ -255,7 +255,7 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
         Args:
             units_tensor: 1d tensor with text units
-            num_labels: number of total labels (vocab size including blank)
+            vocab_size: number of total labels (vocab size including blank)
 
         Returns:
             k2 graph, ilabels=olabels (text labels + blank), unit_positions - text label indices
@@ -287,12 +287,12 @@ class GraphRnntLoss(GraphTransducerLossBase):
         fsa_text.unit_positions[-1] = -1  # last transition to final state
         return fsa_text
 
-    def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> k2.Fsa:
+    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> k2.Fsa:
         """
         Get temporal scheme graph for RNN-T loss (Compose-Transducer).
         Forward arc - blank, self-loops - all labels excluding blank
 
-        Example graph: blank=0, sequence_length=3, num_labels=3.
+        Example graph: blank=0, num_frames=3, vocab_size=3.
         Labels: <labels_id>:<sequence_position>.
 
         graph::
@@ -307,8 +307,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
               +-----+            +-----+            +-----+
 
         Args:
-            sequence_length: length of the sequence (in frames)
-            num_labels: number of labels (including blank)
+            num_frames: length of the sequence (in frames)
+            vocab_size: number of labels (including blank)
             device: device for tensor to construct
 
         Returns:
@@ -316,24 +316,22 @@ class GraphRnntLoss(GraphTransducerLossBase):
         """
         blank_id = self.blank
 
-        fsa_temporal_arcs = torch.zeros((sequence_length * num_labels + 1, 4), dtype=torch.int32, device=device)
-        sequence_states = torch.arange(0, sequence_length, dtype=torch.int32, device=device)
-        # for every state - num_labels arcs, [0, 1, ..., num_labels-1, 0, 1, ..., num_labels-1, ...]
-        start_states = sequence_states.expand(num_labels, sequence_length).transpose(0, 1).flatten()
+        fsa_temporal_arcs = torch.zeros((num_frames * vocab_size + 1, 4), dtype=torch.int32, device=device)
+        sequence_states = torch.arange(0, num_frames, dtype=torch.int32, device=device)
+        # for every state - vocab_size arcs, [0, 1, ..., vocab_size-1, 0, 1, ..., vocab_size-1, ...]
+        start_states = sequence_states.expand(vocab_size, num_frames).transpose(0, 1).flatten()
         # first: make all arcs - self-loops
         fsa_temporal_arcs[:-1, 0] = start_states  # from
         fsa_temporal_arcs[:-1, 1] = start_states  # to
         fsa_temporal_arcs[:-1, 2] = (
-            torch.arange(0, num_labels, dtype=torch.int32, device=device).expand(sequence_length, num_labels).flatten()
+            torch.arange(0, vocab_size, dtype=torch.int32, device=device).expand(num_frames, vocab_size).flatten()
         )
 
         # blank-arcs: forward
-        fsa_temporal_arcs[blank_id:-1:num_labels, 1] = sequence_states + 1  # blanks
+        fsa_temporal_arcs[blank_id:-1:vocab_size, 1] = sequence_states + 1  # blanks
 
         # transition to last final state
-        fsa_temporal_arcs[-1, :3] = torch.tensor(
-            (sequence_length, sequence_length + 1, -1), dtype=torch.int32, device=device
-        )
+        fsa_temporal_arcs[-1, :3] = torch.tensor((num_frames, num_frames + 1, -1), dtype=torch.int32, device=device)
 
         # output symbols: position in the sequence, same as start states for arcs
         olabels = fsa_temporal_arcs[:, 0].detach().clone()
@@ -372,24 +370,24 @@ class GraphRnntLoss(GraphTransducerLossBase):
         )
         return states
 
-    def get_grid(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> k2.Fsa:
+    def get_grid(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> k2.Fsa:
         """
         Construct the RNN-T lattice directly (Grid-Transducer).
 
         Args:
             units_tensor: 1d tensor with text units
-            sequence_length: length of the sequence (number of frames)
-            num_labels: number of total labels (vocab size including blank)
+            num_frames: length of the sequence (number of frames)
+            vocab_size: number of total labels (vocab size including blank)
 
         Returns:
-            transducer lattice (k2.Fsa)
+            transducer lattice (k2.Fsa), labels: <unit>:<frame_index>:<unit_index>
         """
         blank_id = self.blank
         text_length = units_tensor.shape[0]
         device = units_tensor.device
-        num_grid_states = sequence_length * (text_length + 1)
-        num_forward_arcs = (sequence_length - 1) * (text_length + 1)
-        num_text_arcs = text_length * sequence_length
+        num_grid_states = num_frames * (text_length + 1)
+        num_forward_arcs = (num_frames - 1) * (text_length + 1)
+        num_text_arcs = text_length * num_frames
         arcs = torch.zeros((num_forward_arcs + num_text_arcs + 2, 4), dtype=torch.int32, device=device)
         # blank transitions
         # i, i+<text_len + 1>, 0 <blank>, i / <text_len+1>, i % <text_len + 1>
@@ -402,11 +400,11 @@ class GraphRnntLoss(GraphTransducerLossBase):
         # text arcs
         from_states = (
             torch.arange(num_grid_states, dtype=torch.int32, device=device)
-            .reshape(sequence_length, text_length + 1)[:, :-1]
+            .reshape(num_frames, text_length + 1)[:, :-1]
             .flatten()
         )
         to_states = from_states + 1
-        ilabels = units_tensor.expand(sequence_length, -1).flatten()
+        ilabels = units_tensor.expand(num_frames, -1).flatten()
         arcs[num_forward_arcs:-2, 0] = from_states
         arcs[num_forward_arcs:-2, 1] = to_states
         arcs[num_forward_arcs:-2, 2] = ilabels
@@ -424,8 +422,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
         # relabel
         # instead of using top sort (extremely expensive) k2.top_sort(rnnt_graph)
-        arcs[:-2, 0] = self.relabel_states(arcs[:-2, 0], text_length + 1, sequence_length)
-        arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, sequence_length)
+        arcs[:-2, 0] = self.relabel_states(arcs[:-2, 0], text_length + 1, num_frames)
+        arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, num_frames)
 
         # sort by start state - required in k2
         # TODO: maybe it is more optimal to avoid sort, construct arcs in ascending order
@@ -456,8 +454,8 @@ class GraphRnntLoss(GraphTransducerLossBase):
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
         # logits: B x Time x Text+1 x C
-        num_labels = logits.shape[-1]
-        target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, num_labels)
+        vocab_size = logits.shape[-1]
+        target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, vocab_size)
 
         cast_context = force_float32_context() if self.cast_to_float32 else nullcontext()
         with cast_context:

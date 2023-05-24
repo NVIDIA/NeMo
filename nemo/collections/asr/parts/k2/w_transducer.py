@@ -71,7 +71,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         self.eps_weight = eps_weight
         self.last_blank_mode = self.LastBlankMode(last_blank_mode)
 
-    def get_unit_scheme(self, units_tensor: torch.Tensor, num_labels: int) -> "k2.Fsa":
+    def get_unit_scheme(self, units_tensor: torch.Tensor, vocab_size: int) -> "k2.Fsa":
         """
         Get unit scheme (target text) graph for W-Transducer loss (Compose-Transducer).
         Forward arcs represent text labels.
@@ -92,15 +92,15 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
         Args:
             units_tensor: 1d tensor with text units
-            num_labels: number of total labels (vocab size including blank)
+            vocab_size: number of total labels (vocab size including blank)
 
         Returns:
             k2 graph, ilabels=olabels (text labels + blank), unit_positions - text label indices
         """
 
         blank_id = self.blank
-        start_eps_id = num_labels
-        end_eps_id = num_labels + 1
+        start_eps_id = vocab_size
+        end_eps_id = vocab_size + 1
         device = units_tensor.device
         text_len = units_tensor.shape[0]
 
@@ -131,11 +131,11 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_text.unit_positions[-1] = -1
         return fsa_text
 
-    def get_temporal_scheme(self, sequence_length: int, num_labels: int, device: torch.device) -> "k2.Fsa":
+    def get_temporal_scheme(self, num_frames: int, vocab_size: int, device: torch.device) -> "k2.Fsa":
         """
         Get temporal scheme graph for W-Transducer loss (Compose-Transducer).
 
-        Example graph: blank=0, sequence_length=3, num_labels=3, last_blank_mode="force_last".
+        Example graph: blank=0, num_frames=3, vocab_size=3, last_blank_mode="force_last".
         Labels: <labels_id>:<sequence_position>. Eps ids: 3, 4.
 
         graph::
@@ -158,47 +158,45 @@ class GraphWTransducerLoss(GraphRnntLoss):
                       +----------------------------------------------------------+
 
         Args:
-            sequence_length: length of the sequence (in frames)
-            num_labels: number of labels (including blank)
+            num_frames: length of the sequence (in frames)
+            vocab_size: number of labels (including blank)
             device: device for tensor to construct
 
         Returns:
             k2 graph, ilabels/olabels – text labels (+ blank)/sequence_position
         """
         blank_id = self.blank
-        start_eps_id = num_labels
-        end_eps_id = num_labels + 1
+        start_eps_id = vocab_size
+        end_eps_id = vocab_size + 1
         num_eps = 2
 
-        num_sequence_arcs = sequence_length * (num_labels + num_eps)
+        num_sequence_arcs = num_frames * (vocab_size + num_eps)
         fsa_temporal_arcs = torch.zeros((num_sequence_arcs, 4), dtype=torch.int32, device=device)
-        sequence_states = torch.arange(0, sequence_length, dtype=torch.int32, device=device)
+        sequence_states = torch.arange(0, num_frames, dtype=torch.int32, device=device)
         sequence_states_next = sequence_states + 1
-        # for every state - num_labels+1 arcs, [0, 1, ..., num_labels-1, eps, 0, 1, ..., num_labels-1, eps, ...]
-        start_states = sequence_states.expand(num_labels + num_eps, sequence_length).transpose(0, 1).flatten()
+        # for every state - vocab_size+1 arcs, [0, 1, ..., vocab_size-1, eps, 0, 1, ..., vocab_size-1, eps, ...]
+        start_states = sequence_states.expand(vocab_size + num_eps, num_frames).transpose(0, 1).flatten()
 
         # self-loops - all, make forward arcs later
         fsa_temporal_arcs[:num_sequence_arcs, 0] = start_states  # from
         fsa_temporal_arcs[:num_sequence_arcs, 1] = start_states  # to
         fsa_temporal_arcs[:num_sequence_arcs, 2] = (
-            torch.arange(0, num_labels + num_eps, dtype=torch.int32, device=device)
-            .expand(sequence_length, num_labels + num_eps)
+            torch.arange(0, vocab_size + num_eps, dtype=torch.int32, device=device)
+            .expand(num_frames, vocab_size + num_eps)
             .flatten()
         )
         # forward arcs
-        fsa_temporal_arcs[blank_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states_next  # blanks
+        fsa_temporal_arcs[blank_id : num_sequence_arcs : vocab_size + num_eps, 1] = sequence_states_next  # blanks
         # eps arcs
-        fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 0] = 0
-        fsa_temporal_arcs[start_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = sequence_states + 1
-        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 0] = sequence_states
-        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : num_labels + num_eps, 1] = (
-            sequence_length - 1 if self.last_blank_mode == self.LastBlankMode.FORCE_LAST else sequence_length
+        fsa_temporal_arcs[start_eps_id : num_sequence_arcs : vocab_size + num_eps, 0] = 0
+        fsa_temporal_arcs[start_eps_id : num_sequence_arcs : vocab_size + num_eps, 1] = sequence_states + 1
+        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 0] = sequence_states
+        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 1] = (
+            num_frames - 1 if self.last_blank_mode == self.LastBlankMode.FORCE_LAST else num_frames
         )
 
         # transition to last final state
-        fsa_temporal_arcs[-1, :3] = torch.tensor(
-            (sequence_length, sequence_length + 1, -1), dtype=torch.int32, device=device
-        )
+        fsa_temporal_arcs[-1, :3] = torch.tensor((num_frames, num_frames + 1, -1), dtype=torch.int32, device=device)
 
         # need to sort arcs
         _, indices = torch.sort(fsa_temporal_arcs[:, 0], dim=0)
@@ -212,27 +210,27 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_temporal = k2.arc_sort(fsa_temporal)  # need for compose
         return fsa_temporal
 
-    def get_grid(self, units_tensor: torch.Tensor, sequence_length: int, num_labels: int) -> "k2.Fsa":
+    def get_grid(self, units_tensor: torch.Tensor, num_frames: int, vocab_size: int) -> "k2.Fsa":
         """
         Construct W-Transducer lattice directly (Grid-Transducer).
 
         Args:
             units_tensor: 1d tensor with text units
-            sequence_length: length of the sequence (number of frames)
-            num_labels: number of total labels (vocab size including blank)
+            num_frames: length of the sequence (number of frames)
+            vocab_size: number of total labels (vocab size including blank)
 
         Returns:
             transducer lattice (k2.Fsa)
         """
         blank_id = self.blank
-        eps_id = num_labels  # beyond vocabulary
+        eps_id = vocab_size  # beyond vocabulary
         text_length = units_tensor.shape[0]
         device = units_tensor.device
-        num_grid_states = sequence_length * (text_length + 1)
-        num_forward_arcs_base = (sequence_length - 1) * (text_length + 1)
-        num_forward_arcs_additional = (sequence_length - 1) * 2
+        num_grid_states = num_frames * (text_length + 1)
+        num_forward_arcs_base = (num_frames - 1) * (text_length + 1)
+        num_forward_arcs_additional = (num_frames - 1) * 2
         num_forward_arcs = num_forward_arcs_base + num_forward_arcs_additional
-        num_text_arcs = text_length * sequence_length
+        num_text_arcs = text_length * num_frames
         arcs = torch.zeros((num_forward_arcs + num_text_arcs + 2, 4), dtype=torch.int32, device=device)
         # blank transitions
         # i, i+<text_len + 1>, 0 <blank>, i / <text_len+1>, i % <text_len + 1>
@@ -244,20 +242,18 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
         from_states = torch.cat(
             [
-                torch.arange(sequence_length - 1, device=device) * (text_length + 1),
-                text_length + torch.arange(sequence_length - 1, device=device) * (text_length + 1),
+                torch.arange(num_frames - 1, device=device) * (text_length + 1),
+                text_length + torch.arange(num_frames - 1, device=device) * (text_length + 1),
             ]
         )
         to_states = from_states + (text_length + 1)
-        arcs[num_forward_arcs_base : num_forward_arcs_base + (sequence_length - 1) * 2, 0] = from_states
-        arcs[num_forward_arcs_base : num_forward_arcs_base + (sequence_length - 1) * 2, 1] = to_states
-        arcs[num_forward_arcs_base : num_forward_arcs_base + (sequence_length - 1), 2] = eps_id
-        arcs[num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 2] = (
-            eps_id + 1
-        )
+        arcs[num_forward_arcs_base : num_forward_arcs_base + (num_frames - 1) * 2, 0] = from_states
+        arcs[num_forward_arcs_base : num_forward_arcs_base + (num_frames - 1) * 2, 1] = to_states
+        arcs[num_forward_arcs_base : num_forward_arcs_base + (num_frames - 1), 2] = eps_id
+        arcs[num_forward_arcs_base + (num_frames - 1) : num_forward_arcs_base + (num_frames - 1) * 2, 2] = eps_id + 1
 
-        arcs[num_forward_arcs_base : num_forward_arcs_base + (sequence_length - 1), 0] = 0
-        arcs[num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 1] = (
+        arcs[num_forward_arcs_base : num_forward_arcs_base + (num_frames - 1), 0] = 0
+        arcs[num_forward_arcs_base + (num_frames - 1) : num_forward_arcs_base + (num_frames - 1) * 2, 1] = (
             num_grid_states - 1
         )  # if other mode - fix later
         # last eps ark - after relabel
@@ -265,11 +261,11 @@ class GraphWTransducerLoss(GraphRnntLoss):
         # text arcs
         from_states = (
             torch.arange(num_grid_states, dtype=torch.int32, device=device)
-            .reshape(sequence_length, text_length + 1)[:, :-1]
+            .reshape(num_frames, text_length + 1)[:, :-1]
             .flatten()
         )
         to_states = from_states + 1
-        ilabels = units_tensor.expand(sequence_length, -1).flatten()
+        ilabels = units_tensor.expand(num_frames, -1).flatten()
         arcs[num_forward_arcs:-2, 0] = from_states
         arcs[num_forward_arcs:-2, 1] = to_states
         arcs[num_forward_arcs:-2, 2] = ilabels
@@ -287,12 +283,12 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
         # relabel
         # instead of using top sort (extremely expensive) k2.top_sort(rnnt_graph)
-        arcs[:-2, 0] = self.relabel_states(arcs[:-2, 0], text_length + 1, sequence_length)
-        arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, sequence_length)
+        arcs[:-2, 0] = self.relabel_states(arcs[:-2, 0], text_length + 1, num_frames)
+        arcs[:-3, 1] = self.relabel_states(arcs[:-3, 1], text_length + 1, num_frames)
 
         if self.last_blank_mode == self.LastBlankMode.ALLOW_IGNORE:
             arcs[
-                num_forward_arcs_base + (sequence_length - 1) : num_forward_arcs_base + (sequence_length - 1) * 2, 1
+                num_forward_arcs_base + (num_frames - 1) : num_forward_arcs_base + (num_frames - 1) * 2, 1
             ] = num_grid_states
 
         # sort by start state - required in k2
@@ -317,8 +313,8 @@ class GraphWTransducerLoss(GraphRnntLoss):
         logits, targets, logits_lengths, target_lengths = acts, labels, act_lens, label_lens
 
         # logits: B x Time x Text+1 x C
-        num_labels = logits.shape[-1]
-        target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, num_labels)
+        vocab_size = logits.shape[-1]
+        target_fsas_vec = self.get_graphs_batched(logits_lengths, targets, target_lengths, vocab_size)
 
         cast_context = force_float32_context() if self.cast_to_float32 else nullcontext()
         with cast_context:
@@ -326,12 +322,12 @@ class GraphWTransducerLoss(GraphRnntLoss):
             with torch.no_grad():
                 indices = self.get_logits_indices(target_fsas_vec, logits.shape)
                 indices[target_fsas_vec.labels == -1] = 0
-                indices[target_fsas_vec.labels >= num_labels] = 0  # eps
+                indices[target_fsas_vec.labels >= vocab_size] = 0  # eps
 
             # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
             scores = log_probs.flatten().index_select(-1, indices)
             scores[target_fsas_vec.labels == -1] = 0
-            scores[target_fsas_vec.labels >= num_labels] = self.eps_weight  # eps
+            scores[target_fsas_vec.labels >= vocab_size] = self.eps_weight  # eps
 
             target_fsas_vec.scores = scores
             scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self.double_scores, log_semiring=True)
