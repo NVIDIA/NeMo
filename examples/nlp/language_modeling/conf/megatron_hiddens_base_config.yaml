@@ -1,5 +1,4 @@
 # this file main purpose is documentation, and it should not be used directly 
-enabled: True # set to True to enable hiddens transformations and loss [REMOVE ME]
 enc_output_name: z # name of key in hidden transforms output to pass to decoder (e.g., z for VAE/MIM)
 # the lists below are useful for adding multiple transforms and losses according to order
 # if order is not important, you can use a single dictionary in the list with multiple keys

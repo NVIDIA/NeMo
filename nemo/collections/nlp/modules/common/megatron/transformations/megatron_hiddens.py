@@ -16,19 +16,7 @@ In order to register external hidden transforms and losses please use the follow
 * register_hidden_loss(cls_name: str, class_path: str)
 * register_hidden_transform(cls_name: str, class_path: str)
 
-This will add support to corresponding config entries:
-model:
-    hiddens:
-        enabled: True
-        enc_output_name: <name of the encoder output>
-        transform:
-            name: 
-                cls_name: <cls_name>
-                ... (all related kwargs)
-        loss:
-            name: 
-                cls_name: <cls_name>
-                ... (all related kwargs)
+See example config in: examples/nlp/language_modeling/conf/megatron_hiddens_base_config.yaml
 """
 
 import functools
@@ -106,8 +94,8 @@ def register_hidden_transform(cls_name: str, class_path: str):
 
 def get_hiddens_module(cfg=None):
     """Build a MegatronHiddensModule from a configuration cfg"""
-    # check if we need to build a hiddens module - model.hiddens.enabled must be True
-    if cfg is None or not cfg.get("enabled", False):
+    # Build a hiddens module if config is provided.
+    if cfg is None:
         return None
 
     # build all hidden transforms
