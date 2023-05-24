@@ -136,9 +136,85 @@ class TestGraphWTransducerLoss:
         ), "Unit scheme unit positions mismatch"
 
     @pytest.mark.unit
-    def test_grid_scheme(self):
-        # TODO
-        pass
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("blank_first", [True, False])
+    @pytest.mark.parametrize("last_blank_mode", ["force_last", "allow_ignore"])
+    def test_grid_scheme(self, device, blank_first, last_blank_mode):
+        vocab_size = 3
+        blank_id = 0 if blank_first else vocab_size - 1
+        if blank_first:
+            # labels = [1, 1, 2, 1]
+            labels = [1, 2]
+        else:
+            # labels = [1, 1, 0, 1]
+            labels = [1, 0]
+        text_length = len(labels)
+        num_frames = 3
+        loss = GraphWTransducerLoss(blank=blank_id, last_blank_mode=last_blank_mode)
+        grid_scheme = loss.get_grid(
+            units_tensor=torch.tensor(labels, device=torch.device(device)),
+            num_frames=num_frames,
+            vocab_size=vocab_size,
+        )
+
+        etalon_scheme_fst: List[List[int]] = []
+        for frame_i in range(num_frames):
+            for label_i in range(text_length + 1):
+                state = frame_i * (text_length + 1) + label_i
+                if label_i < text_length:
+                    next_state_label = state + 1
+                    # next unit
+                    etalon_scheme_fst.append([state, next_state_label, labels[label_i], frame_i, label_i, 0])
+                if frame_i < num_frames - 1:
+                    next_state_frame = (frame_i + 1) * (text_length + 1) + label_i
+                    # next time frame (blank)
+                    etalon_scheme_fst.append([state, next_state_frame, blank_id, frame_i, label_i, 0])
+
+        # start eps-transition
+        for frame_i in range(1, num_frames):
+            etalon_scheme_fst.append([0, frame_i * (text_length + 1), vocab_size, 0, 0, 0])
+
+        last_grid_state = num_frames * (text_length + 1) - 1
+
+        # end eps-transitions
+        if last_blank_mode == "force_last":
+            last_eps_state = last_grid_state
+        else:
+            assert last_blank_mode == "allow_ignore"
+            last_eps_state = last_grid_state + 1
+
+        for frame_i in range(num_frames - 1):
+            etalon_scheme_fst.append(
+                [(frame_i + 1) * (text_length + 1) - 1, last_eps_state, vocab_size + 1, frame_i, text_length, 0]
+            )
+
+        etalon_scheme_fst.append([last_grid_state, last_grid_state + 1, blank_id, num_frames - 1, text_length, 0])
+        etalon_scheme_fst.append(
+            [last_grid_state + 1, last_grid_state + 2, -1, -1, -1, 0]
+        )  # transition to final state
+        etalon_scheme_fst.append([last_grid_state + 2])  # final state
+        etalon_scheme_fst = sorted(etalon_scheme_fst)  # required for k2.Fsa.from_str
+        etalon_scheme_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_scheme_fst])
+        etalon_grid_scheme = k2.Fsa.from_str(etalon_scheme_fst_str, aux_label_names=["aux_labels", "unit_positions"])
+
+        assert grid_scheme.num_arcs == etalon_grid_scheme.num_arcs
+        assert grid_scheme.shape == etalon_grid_scheme.shape  # (num_states, None)
+        assert k2.is_rand_equivalent(
+            grid_scheme, etalon_grid_scheme, log_semiring=True, treat_epsilons_specially=False
+        ), "Grid scheme input labels mismatch"
+        assert k2.is_rand_equivalent(
+            grid_scheme.invert(), etalon_grid_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Grid scheme output labels mismatch"
+
+        # swap aux_labels and unit positions to test unit_positions
+        grid_scheme.aux_labels, grid_scheme.unit_positions = grid_scheme.unit_positions, grid_scheme.aux_labels
+        etalon_grid_scheme.aux_labels, etalon_grid_scheme.unit_positions = (
+            etalon_grid_scheme.unit_positions,
+            etalon_grid_scheme.aux_labels,
+        )
+        assert k2.is_rand_equivalent(
+            grid_scheme.invert(), etalon_grid_scheme.invert(), log_semiring=True, treat_epsilons_specially=False
+        ), "Grid scheme unit positions mismatch"
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
