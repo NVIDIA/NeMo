@@ -516,7 +516,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             length = length.to(torch.int64)
             # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
             if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
-                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded:, :]
+                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                 length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
 
         if self.reduction_position is not None and cache_last_channel is not None:
