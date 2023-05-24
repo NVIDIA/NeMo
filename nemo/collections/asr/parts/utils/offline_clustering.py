@@ -1010,7 +1010,7 @@ class NMESC:
 
         p_hat_value = (subsample_ratio * rp_p_value).type(torch.int)
         if self.maj_vote_spk_count:
-            est_num_of_spk = torch.mode(torch.tensor(est_num_of_spk_list))[0]
+            est_num_of_spk = torch.mode(input=est_num_of_spk_list)[0]
         else:
             est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
         return est_num_of_spk, p_hat_value

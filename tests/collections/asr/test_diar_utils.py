@@ -603,12 +603,15 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("n_spks", [1, 2, 3, 4, 5, 6, 7])
     @pytest.mark.parametrize("total_sec, SSV, perturb_sigma, seed", [(30, 10, 0.1, 0)])
     @pytest.mark.parametrize("jit_script", [False, True])
-    def test_offline_speaker_clustering(self, n_spks, total_sec, SSV, perturb_sigma, seed, jit_script, cuda=True):
+    @pytest.mark.parametrize("maj_vote_spk_count", [False, True])
+    def test_offline_speaker_clustering(
+        self, n_spks, total_sec, SSV, perturb_sigma, seed, jit_script, maj_vote_spk_count, cuda=True
+    ):
         spk_dur = total_sec / n_spks
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(
             n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma, torch_seed=seed
         )
-        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
+        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=maj_vote_spk_count, cuda=cuda)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
         if jit_script:
             offline_speaker_clustering = torch.jit.script(offline_speaker_clustering)
