@@ -782,7 +782,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             or self.position_embedding_type == 'sandwich'
             or self.position_embedding_type == 'kerple'
         ):
-            enc_seq_length = enc_input_ids.size(1)
+            enc_seq_length = enc_input_ids.size(1) 
+            
+            if self.sequence_parallel:
+                enc_seq_length *= parallel_state.get_tensor_model_parallel_world_size()
+                
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
