@@ -34,6 +34,7 @@ elif [ $PROFILING_ENABLED -eq 1 ]; then
         --sample=none \
         --trace=${PROFILING_TRACE:?} \
         -o $NSIGHT_PATH/node_${NODE_RANK:?} \
+        --capture-range=cudaProfilerApi --capture-range-end=stop \
         $COMMAND
 fi
 
