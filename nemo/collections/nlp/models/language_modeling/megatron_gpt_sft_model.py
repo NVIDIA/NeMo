@@ -552,7 +552,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             del inference_config['compute_logprob']
 
             # for megatron_gpt_eval.py
-            if isinstance(batch[0], str):
+            if isinstance(batch, list):
                 inference_config['inputs'] = batch
             else:
                 # peft_eval.py
