@@ -21,6 +21,51 @@ from torch.utils.data import Dataset, IterableDataset
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
+# toggle on / off
+_CONCAT_SAMPLES = os.getenv('CONCAT_SAMPLES')
+if _CONCAT_SAMPLES is None:
+    _CONCAT_SAMPLES = False
+
+# if true, concatenated samples are counted as just one sample. 
+# otherwise, they are counted "normally", N joined
+# samples are N samples. But,  dataset length will not be observed!
+_CONCAT_SAMPLES_COUNT_AS_ONE = os.getenv('_CONCAT_SAMPLES_COUNT_AS_ONE')
+if _CONCAT_SAMPLES_COUNT_AS_ONE is None:
+    _CONCAT_SAMPLES_COUNT_AS_ONE = True
+
+_CONCAT_SAMPLES_MAX_LENGTH = os.getenv('CONCAT_SAMPLES_MAX_LENGTH')
+if _CONCAT_SAMPLES_MAX_LENGTH is None:
+    _CONCAT_SAMPLES_MAX_LENGTH = 20
+else:
+    _CONCAT_SAMPLES_MAX_LENGTH = int(_CONCAT_SAMPLES_MAX_LENGTH)
+
+
+
+_CONCAT_SAMPLES_MIN_LENGTH = os.getenv('CONCAT_SAMPLES_MIN_LENGTH')
+if _CONCAT_SAMPLES_MIN_LENGTH is None:
+    _CONCAT_SAMPLES_MIN_LENGTH = 16
+else:
+    _CONCAT_SAMPLES_MIN_LENGTH = int(_CONCAT_SAMPLES_MIN_LENGTH)
+
+_CONCAT_SAMPLES_JOINING_PAUSE_MSEC = os.getenv('CONCAT_SAMPLES_JOINING_PAUSE_MSEC')
+if _CONCAT_SAMPLES_JOINING_PAUSE_MSEC is None:
+    _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = 100
+else:
+    _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = int(_CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
+
+# sizes of tokenizers in the aggregate tokenizer
+# 256,256,256,256,256,256,256,256,256,256
+AGG_TOK_SIZES = os.getenv('AGGREGATE_TOKENIZER_SIZES')
+if AGG_TOK_SIZES is not None:
+    AGG_TOK_SIZES = AGG_TOK_SIZES.split(',')
+# would need to be able to compute the token id of the space based on some token id.
+SPACE_ID_LOOKUP_TABLE = {}
+_offset = 0
+for c in AGG_TOK_SIZES:
+    for i in range(c):
+        # the space token id is the first one in the tokenizer.
+        SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
+
 
 class ConcatDataset(IterableDataset):
     """
@@ -133,19 +178,93 @@ class ConcatDataset(IterableDataset):
         n = 0
         ind_gen = self.index_generator(self.datasets, **self.sampling_kwargs)
         while n < max_elements:
-            n += 1
+
+            if _CONCAT_SAMPLES:
+                samp, incr = self.pull_concatenated_sample(ind_gen)
+            else:
+                samp, incr = self.pull_sample(ind_gen)
+
+            if samp is not None:
+                n += incr
+                yield samp
+            else:
+                if incr is None: # ind gen iterator ended... hmm
+                    return
+                # otherwise we do nothing and just retry
+                # this means we are restarting one of the datasets
+
+# The original logic
+#            n += 1
+#            try:
+#                ind = next(ind_gen)
+#            except StopIteration:
+#                return
+#            try:
+#                val = next(self.iterables[ind])
+#                if self.kind == 'map':
+#                    val = self.datasets[ind][val]
+#                yield val
+#            except StopIteration:
+#                self.iterables[ind] = self.get_iterable(self.datasets[ind])
+#                n -= 1
+
+    def pull_concatenated_sample(self, ind_gen):
+        """
+        Return a concatenated sample as well the number of samples pulled
+        Merge a bunch of samples into one.
+        """
+        # f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        # features, features length, tokens, tokens length
+        # need a spectrogram of random noise.. 
+        # need also a space token from each sample
+        # we can artifically add a space token to each manifest sample. then here we just need to learn to delete the last token of a sample.
+        # the spectrogram though.. has shape of torch.Size([16 , 80, 1063]),
+        # which one am i using? use that!
+
+        # SPACE_ID_LOOKUP_TABLE
+        _f = None
+        _fl = 0
+        _t = None
+        _tl = 0
+        
+        while _fl < _CONCAT_SAMPLES_MIN_LENGTH:
+            f, fl, t, tl = self.pull_sample()
+            if _fl + fl > _CONCAT_SAMPLES_MAX_LENGTH:  # need to check if these are compatible lengths obviously.
+                # just try another sample if this one is too long.
+                continue
+
+            # the length needs to be converted because of the sampling.. ughhh 
+            _f, _fl = self.concat_with_pause(_f, _fl, f, fl, _CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
+            _space_id = SPACE_ID_LOOKUP_TABLE[t[-1]] # careful here because it is a tensor.. 
+            _t = _t + _space_id + t  # likely needs to be concat
+            _tl += tl + 1 # adding the space token in the language of last sample.
+
+        return _f, _fl, _t, _tl
+
+
+    def pull_sample(self, ind_gen):
+        """
+        Return a sample as well the number of samples pulled
+        If the index generator ended, we return None, None
+        If one of the dataset iterators ended, we return None, 0
+        """
+        _sample = None
+
+        while _sample is None:
             try:
                 ind = next(ind_gen)
             except StopIteration:
-                return
+                return None, None
+
             try:
-                val = next(self.iterables[ind])
+                _sample = next(self.iterables[ind])
                 if self.kind == 'map':
-                    val = self.datasets[ind][val]
-                yield val
+                    _sample = self.datasets[ind][val]
+
             except StopIteration:
                 self.iterables[ind] = self.get_iterable(self.datasets[ind])
-                n -= 1
+
+        return _sample, 1
 
     def __len__(self):
         return self.length
