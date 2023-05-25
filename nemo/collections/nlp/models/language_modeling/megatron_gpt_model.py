@@ -795,7 +795,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fwd_pass_end = datetime.now()
             rank = get_rank()
 
-            logging.info(f'[Rank {rank}] Forward pass time: {(fwd_pass_end - fwd_pass_start).total_seconds()}')
+            # logging.info(f'[Rank {rank}] Forward pass time megatron_gpt_model.py: {(fwd_pass_end - fwd_pass_start).total_seconds()}')
+            print(f'[Rank {rank}] Forward pass time megatron_gpt_model.py: {(fwd_pass_end - fwd_pass_start).total_seconds()}')
 
             return output_tensor, loss_func
 
