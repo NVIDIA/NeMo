@@ -16,9 +16,11 @@
 This file implemented unit tests for loading all pretrained FastPitch NGC checkpoints and generating Mel-spectrograms.
 The test duration breakdowns are shown below. In general, each test for a single model is ~25 seconds on an NVIDIA RTX A6000.
 """
+import random
+
 import pytest
 import torch
-import random
+
 from nemo.collections.tts.models import FastPitchModel
 
 available_models = [model.pretrained_model_name for model in FastPitchModel.list_available_models()]
