@@ -111,7 +111,10 @@ def extract_questions(data, include_topic, sft_format, split):
                     continue
 
                 if sft_format:
-                    example_json = {"input": f"User: Context:{context} Question:{question}\n\nAssistant:", "output": answers}
+                    example_json = {
+                        "input": f"User: Context:{context} Question:{question}\n\nAssistant:",
+                        "output": answers,
+                    }
                 else:
                     example_json = {"taskname": "squad", "context": context, "question": question, "answer": answers}
 
