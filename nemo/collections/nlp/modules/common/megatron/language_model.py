@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     ALiBiRelativePositionEmbedding,
     KERPLERelativePositionEmbedding,
     RotaryEmbedding,
-    SandwitchRelativePositionEmbedding,
+    SandwichRelativePositionEmbedding,
 )
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -583,7 +583,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
 
         elif position_embedding_type == 'sandwich':
-            self.encoder_relative_position_embedding = SandwitchRelativePositionEmbedding(
+            self.encoder_relative_position_embedding = SandwichRelativePositionEmbedding(
                 bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
                 layer_type=LayerType.encoder,

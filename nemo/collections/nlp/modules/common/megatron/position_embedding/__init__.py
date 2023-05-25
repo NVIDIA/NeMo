@@ -13,19 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import (
-    ALiBiRelativePositionEmbedding,
-)
-from nemo.collections.nlp.modules.common.megatron.position_embedding.kerple_relative_position_embedding import (
-    KERPLERelativePositionEmbedding,
-)
+from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import ALiBiRelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding.kerple_relative_position_embedding import KERPLERelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding.sandwich_relative_position_embedding import SandwichRelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding.t5_relative_position_embedding import T5RelativePositionEmbedding
 from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import RotaryEmbedding
-from nemo.collections.nlp.modules.common.megatron.position_embedding.sandwich_relative_position_embedding import (
-    SandwitchRelativePositionEmbedding,
-)
-from nemo.collections.nlp.modules.common.megatron.position_embedding.t5_relative_position_embedding import (
-    T5RelativePositionEmbedding,
-)
-from nemo.collections.nlp.modules.common.megatron.position_embedding.xpos_relative_position_embedding import (
-    XPOSRelativePositionEmbedding,
-)
+from nemo.collections.nlp.modules.common.megatron.position_embedding.xpos_rotary_position_embedding import XPOSRotaryPositionEmbedding
