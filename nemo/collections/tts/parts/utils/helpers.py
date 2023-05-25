@@ -831,7 +831,7 @@ def sample_tts_input(
 @deprecated(
     explanation="But it will not be removed until a further notice. G2P object root directory "
     "`nemo_text_processing.g2p` has been replaced with `nemo.collections.tts.g2p`. "
-    "Please use the latter instead since NeMo 1.18.0."
+    "Please use the latter instead as of NeMo 1.18.0."
 )
 def g2p_backward_compatible_support(g2p_target: str) -> str:
     # for backward compatibility
