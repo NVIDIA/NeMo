@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import logging
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
-from nemo.collections.asr.models.asr_model import ASRModel
+# from nemo.collections.asr.models.asr_model import ASRModel
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
@@ -61,11 +62,13 @@ if AGG_TOK_SIZES is not None:
     AGG_TOK_SIZES = AGG_TOK_SIZES.split(',')
 # would need to be able to compute the token id of the space based on some token id.
 SPACE_ID_LOOKUP_TABLE = {}
-_offset = 0
-for c in AGG_TOK_SIZES:
-    for i in range(c):
-        # the space token id is the first one in the tokenizer.
-        SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
+
+if _CONCAT_SAMPLES: 
+    _offset = 0
+    for c in AGG_TOK_SIZES:
+        for i in range(c):
+            # the space token id is the first one in the tokenizer.
+            SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
 
 _SAMPLING_RATE = 16000
 _PREPROCESSOR_DICT = {
