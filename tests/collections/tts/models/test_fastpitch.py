@@ -46,10 +46,10 @@ def test_inference(pretrained_model, language_specific_text_example):
     speaker_id = None
     reference_spec = None
     reference_spec_lens = None
-    
+
     if hasattr(model.fastpitch, 'speaker_emb'):
         speaker_id = 0
-        
+
     if hasattr(model.fastpitch, 'speaker_encoder'):
         if hasattr(model.fastpitch.speaker_encoder, 'lookup_module'):
             speaker_id = 0
@@ -57,10 +57,7 @@ def test_inference(pretrained_model, language_specific_text_example):
             bs, lens, t_spec = parsed_text.shape[0], random.randint(50, 100), model.cfg.n_mel_channels
             reference_spec = torch.rand(bs, lens, t_spec)
             reference_spec_lens = torch.tensor([lens]).long().expand(bs)
-    
+
     _ = model.generate_spectrogram(
-        tokens=parsed_text,
-        speaker=speaker_id,
-        reference_spec=reference_spec,
-        reference_spec_lens=reference_spec_lens
+        tokens=parsed_text, speaker=speaker_id, reference_spec=reference_spec, reference_spec_lens=reference_spec_lens
     )
