@@ -97,7 +97,6 @@ extra_css:
   - assets/stylesheets/extra.css
 
 extra_javascript:
-  - docs/assets/javascript/mathjax.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
@@ -155,5 +154,8 @@ nav:
       - techblog/techblog-2023.md
       - techblog/techblog-2022.md
   # NeMo Blog Posts
-  - 2022:
-    - blogs/2022/2022-08-introduction.md
+  - Posts:
+    - 2023:
+      - blogs/2023/2023-05-28-fast-conformer.md
+    - 2022:
+      - blogs/2022/2022-08-introduction.md
