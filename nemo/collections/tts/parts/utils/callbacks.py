@@ -66,11 +66,13 @@ def _load_vocoder(model_name: Optional[str], checkpoint_path: Optional[str], typ
         raise ValueError(f"Unknown vocoder type '{type}'")
 
     if model_name is not None:
-        vocoder = model_type.from_pretrained(model_name).eval()
+        vocoder = model_type.from_pretrained(model_name)
+    elif checkpoint_path.endswith(".nemo"):
+        vocoder = model_type.restore_from(checkpoint_path)
     else:
-        vocoder = model_type.load_from_checkpoint(checkpoint_path).eval()
+        vocoder = model_type.load_from_checkpoint(checkpoint_path)
 
-    return vocoder
+    return vocoder.eval()
 
 
 @dataclass
