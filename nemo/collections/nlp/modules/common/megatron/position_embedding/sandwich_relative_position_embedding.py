@@ -50,7 +50,7 @@ class SandwichRelativePositionEmbedding(torch.nn.Module):
             relative_position = build_relative_position(max_seq_len, full=True)
         else:
             relative_position = self.relative_position
-            
+
         # shape (query_seq_length, key_seq_length)
         relative_position = relative_position[-query_seq_length:, -key_seq_length:]
         # if not bidirectional, mask out the future positions
