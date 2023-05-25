@@ -1150,28 +1150,33 @@ def compute_tdt_betas_kernel(
                             betas[offset + t * maxU + U - 1],
                             betas[
                                 offset + (t + durations[i]) * maxU + U - 1
-                            ]  # beta[t, U - 1] uses the value beta[t + duration, U - 1] here.
-                            + logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_)
-                            + logp_duration(duration_acts, maxT, maxU, num_durations, b, t, U - 1, i)
-                            - sigma,
+                            ]  # beta[t, U - 1] depends on the value beta[t + duration, U - 1] here.
+                            + logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_)  # log prob of blank
+                            + logp_duration(
+                                duration_acts, maxT, maxU, num_durations, b, t, U - 1, i
+                            )  # log prob of duration (durations[i])
+                            - sigma,  # for logit undernormalization
                         )
                     elif t + durations[i] == T:
                         betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
                             betas[offset + t * maxU + U - 1],
-                            # we could see this as having "0" here as beta[t + duration, U - 1], which isn't defined since t + duration is out of bound.
-                            logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_)
-                            + logp_duration(duration_acts, maxT, maxU, num_durations, b, t, U - 1, i)
-                            - sigma,
+                            # here we have one fewer term than the "if" block above. This could be seen as having "0" here since
+                            # beta[t + duration, U - 1] isn't defined because t + duration is out of bound.
+                            logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_)  # log prob of blank
+                            + logp_duration(
+                                duration_acts, maxT, maxU, num_durations, b, t, U - 1, i
+                            )  # log prob of duration (durations[i])
+                            - sigma,  # for logit undernormalization. Basically every time sigma shows up is because of logit undernormalization.
                         )
 
         elif u < U - 1:
             if t == T - 1:
-                # t == T - 1, so we only consider non-blank with duration 0.
+                # t == T - 1, so we only consider non-blank with duration 0. (Note, we can't have blank emissions with duration = 0)
                 betas[offset + (T - 1) * maxU + u] = (
                     betas[offset + (T - 1) * maxU + u + 1]
-                    + logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u])
-                    + logp_duration(duration_acts, maxT, maxU, num_durations, b, T - 1, u, 0)
-                    - sigma
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u])  # non-blank log prob
+                    + logp_duration(duration_acts, maxT, maxU, num_durations, b, T - 1, u, 0)  # log prob of duration 0
+                    - sigma,
                 )
 
             elif t >= 0 and t < T - 1:
@@ -1198,6 +1203,7 @@ def compute_tdt_betas_kernel(
                             - sigma,
                         )
 
+                # combining all blank emissions and all non-blank emissions.
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
 
         # sync across all B=b and U=u
@@ -1333,8 +1339,8 @@ def compute_tdt_grad_kernel(
                     if t + durations[i] < T:
                         fastemit_grad += fastemit_lambda * math.exp(
                             alphas[col]  # alphas(t, u)
-                            + (denom[col] + acts[col * alphabet_size + labels[u]])
-                            + duration_acts[col * num_durations + i]
+                            + (denom[col] + acts[col * alphabet_size + labels[u]])  # log prob of token emission
+                            + duration_acts[col * num_durations + i]  # duration log-prob
                             + betas[col + 1 + durations[i] * maxU]  # betas(t, u+1)
                             + logpk  # log Pr(k|t, u)
                             - sigma  # for logit under-normalization
@@ -1356,7 +1362,7 @@ def compute_tdt_grad_kernel(
                         )
 
             # grad of blank across t < T;
-            # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
+            # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - sigma + logp_duration - logll[b] + betas[b, t + duration, u]) for all non-zero durations
             if idx == blank_:
                 for i in range(1, num_durations):
                     if t < T - durations[i]:
@@ -1370,7 +1376,7 @@ def compute_tdt_grad_kernel(
                         )
 
             # grad of correct token across u < U;
-            # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
+            # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - sigma + logp_duration - logll[b] + betas[b, t + duration, u + 1]) for all blank durations.
             # Scale the gradient by (1.0 + FastEmit_lambda) in log space, then exponentiate
             if u < U - 1 and idx == labels[u]:
                 # exp(log(1 + fastemit_lambda) + ...) is numerically more stable than
@@ -1388,14 +1394,14 @@ def compute_tdt_grad_kernel(
                         )
 
             # update grads[b, t, u, v] = grad
-            label_grads[col * (alphabet_size) + idx] = grad
+            label_grads[col * alphabet_size + idx] = grad
 
             # clamp gradient (if needed)
             if clamp > 0.0:
-                g = label_grads[col * (alphabet_size) + idx]
+                g = label_grads[col * alphabet_size + idx]
                 g = min(g, clamp)
                 g = max(g, -clamp)
-                label_grads[col * (alphabet_size) + idx] = g
+                label_grads[col * alphabet_size + idx] = g
 
             # update internal index through the thread_buffer;
             # until idx < V + 1, such that entire vocabulary has been updated.
