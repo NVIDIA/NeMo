@@ -730,8 +730,12 @@ class CoreAttention(MegatronModule):
         print("flash attention", use_flash_attention)
 
         self.precision = precision
-        self.fp16 = precision == 16
-        self.bf16 = precision == 'bf16'
+        self.fp16 = False
+        self.bf16 = False
+        if precision == 'bf16':
+            self.bf16 = True
+        elif int(precision) == 16:
+            self.fp16 = True
         self.multi_query_attention = multi_query_attention
         self.position_embedding_type = position_embedding_type
 

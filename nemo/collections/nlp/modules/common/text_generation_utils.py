@@ -655,18 +655,20 @@ def sample_sequence_batch(
 
         maxlen = inference_strategy.clip_max_len(maxlen)
 
+
+
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length
             )
+
             output = inference_strategy.forward_step(batch, tensor_shape)
 
             if parallel_state.is_pipeline_last_stage():
-                output = output[0]['logits'] #.float()
+                output = output[0]['logits']
                 output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
-                # output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 # make sure it will generate at least min_length

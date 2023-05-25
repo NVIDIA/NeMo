@@ -262,17 +262,17 @@ class Float16Module(MegatronModule):
         super().__init__()
         self.precision = precision
 
-        if precision == 16:
-            self.add_module('module', module.half())
-
-            def float16_converter(val):
-                return val.half()
-
-        elif precision == 'bf16':
+        if precision == 'bf16':
             self.add_module('module', module.bfloat16())
 
             def float16_converter(val):
                 return val.bfloat16()
+
+        elif int(precision) == 16:
+            self.add_module('module', module.half())
+
+            def float16_converter(val):
+                return val.half()
 
         else:
             raise Exception(
@@ -290,8 +290,8 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        # if parallel_state.is_pipeline_last_stage():
-        #     outputs = float16_to_fp32(outputs)
+        if parallel_state.is_pipeline_last_stage() and self.training:
+            outputs = float16_to_fp32(outputs)
         return outputs
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
