@@ -74,6 +74,7 @@ class HifiGanModel(Vocoder, Exportable):
 
         self.log_audio = cfg.get("log_audio", False)
         self.log_config = cfg.get("log_config", None)
+        self.lr_schedule_interval = None
         self.automatic_optimization = False
 
     @property
@@ -144,7 +145,16 @@ class HifiGanModel(Vocoder, Exportable):
             optimizer=optim_d, scheduler_config=sched_config, train_dataloader=self._train_dl
         )
 
+        self.lr_schedule_interval = scheduler_g["interval"]
+
         return [optim_g, optim_d], [scheduler_g, scheduler_d]
+
+    def update_lr(self, interval="step"):
+        schedulers = self.lr_schedulers()
+        if schedulers is not None and self.lr_schedule_interval == interval:
+            sch1, sch2 = schedulers
+            sch1.step()
+            sch2.step()
 
     @typecheck()
     def forward(self, *, spec):
@@ -199,12 +209,7 @@ class HifiGanModel(Vocoder, Exportable):
         self.manual_backward(loss_g)
         optim_g.step()
 
-        # Run schedulers
-        schedulers = self.lr_schedulers()
-        if schedulers is not None:
-            sch1, sch2 = schedulers
-            sch1.step()
-            sch2.step()
+        self.update_lr()
 
         metrics = {
             "g_loss_fm_mpd": loss_fm_mpd,
@@ -220,6 +225,9 @@ class HifiGanModel(Vocoder, Exportable):
         }
         self.log_dict(metrics, on_step=True, sync_dist=True)
         self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
+
+    def training_epoch_end(self, outputs) -> None:
+        self.update_lr("epoch")
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, audio_mel, audio_mel_len = self._process_batch(batch)
