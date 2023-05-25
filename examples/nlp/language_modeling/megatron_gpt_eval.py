@@ -194,6 +194,8 @@ def main(cfg) -> None:
         with open_dict(pretrained_cfg):
             pretrained_cfg.sequence_parallel = False
             pretrained_cfg.activations_checkpoint_granularity = None
+            pretrained_cfg.encoder_seq_length = cfg.model.encoder_seq_length
+            pretrained_cfg.use_flash_attention = cfg.model.use_flash_attention
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
             if trainer.precision == "16":
@@ -253,14 +255,14 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    )
+    # # First method of running text generation, call model.generate method
+    # response = model.generate(
+    #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    # )
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Second method of running text generation, call trainer.predict
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
@@ -269,9 +271,9 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Third method of running text generation, use inference server
     if cfg.server:
