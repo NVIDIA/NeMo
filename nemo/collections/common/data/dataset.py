@@ -18,6 +18,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
+from nemo.collections.asr.models.asr_model import ASRModel
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
@@ -66,6 +67,20 @@ for c in AGG_TOK_SIZES:
         # the space token id is the first one in the tokenizer.
         SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
 
+_SAMPLING_RATE = 16000
+_PREPROCESSOR_DICT = {
+    '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+    'sample_rate': _SAMPLING_RATE,
+    'normalize': 'per_feature',
+    'window_size': 0.025,
+    'window_stride': 0.01,
+    'window': "hann",
+    'features': 80,
+    'n_fft': 512,
+    'frame_splicing': 1,
+    'dither': 0.00001,
+    'pad_to': 0,
+}
 
 class ConcatDataset(IterableDataset):
     """
@@ -142,6 +157,10 @@ class ConcatDataset(IterableDataset):
             self.length = int(self.length * self.sampling_scale)
             logging.info(f'applying {sampling_scale} sampling scale, concat ds len: {self.length}')
 
+
+        if _CONCAT_SAMPLES:
+            self.preprocessor = ASRModel.from_config_dict(_PREPROCESSOR_DICT)
+
     def get_iterable(self, dataset):
         if isinstance(dataset, IterableDataset):
             return dataset.__iter__()
@@ -181,6 +200,8 @@ class ConcatDataset(IterableDataset):
 
             if _CONCAT_SAMPLES:
                 samp, incr = self.pull_concatenated_sample(ind_gen)
+                if _CONCAT_SAMPLES_COUNT_AS_ONE:
+                    incr = 1 # :P
             else:
                 samp, incr = self.pull_sample(ind_gen)
 
@@ -216,16 +237,14 @@ class ConcatDataset(IterableDataset):
         # f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
         # features, features length, tokens, tokens length
         # need a spectrogram of random noise.. 
-        # need also a space token from each sample
-        # we can artifically add a space token to each manifest sample. then here we just need to learn to delete the last token of a sample.
-        # the spectrogram though.. has shape of torch.Size([16 , 80, 1063]),
+        # the spectrogram though.. has shape of torch.Size([16 , 80, 1063]), 16 is B, 80 is features, 1063 is , who knows.
         # which one am i using? use that!
 
-        # SPACE_ID_LOOKUP_TABLE
         _f = None
         _fl = 0
         _t = None
         _tl = 0
+        _num_concatenated_samples = 0
         
         while _fl < _CONCAT_SAMPLES_MIN_LENGTH:
             f, fl, t, tl = self.pull_sample()
@@ -238,9 +257,17 @@ class ConcatDataset(IterableDataset):
             _space_id = SPACE_ID_LOOKUP_TABLE[t[-1]] # careful here because it is a tensor.. 
             _t = _t + _space_id + t  # likely needs to be concat
             _tl += tl + 1 # adding the space token in the language of last sample.
+            _num_concatenated_samples += 1
 
-        return _f, _fl, _t, _tl
+        return (_f, _fl, _t, _tl), _num_concatenated_samples
 
+    def concat_with_pause(self, f1, fl1, f2, fl2, concat_pause):
+        fl = f1l + fl2l + concat_pause # very suspiscious, not gonna work
+        # get a blank samlple blank
+        _blank = np.zeros(int(pause_join_msec * _SAMPLING_RATE / 1000))
+        b, bl = self.preprocessor(_blank)
+        f = f1 + b + f2
+        return f, fl
 
     def pull_sample(self, ind_gen):
         """
