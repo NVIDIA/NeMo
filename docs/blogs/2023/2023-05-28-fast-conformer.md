@@ -92,7 +92,7 @@ For ASR alone, we obtain a 2.8x speedup as compared to Conformer encoder of simi
 
 ## ASR Results
 
-Below, we list some of our results on Fast Conformer on LibriSpeech test-other. We compare against the original Conformer and other recent efficient architectures. We compare against the Efficient Conformer from [Burchi2021](https://arxiv.org/abs/2109.01163) which uses a progressive downsampling of the Conformer architecture. We also compare against [Kim2022 SqueezeFormer](https://arxiv.org/abs/2206.00888) which uses a U-Net like architecture to progressively downsample the input and upsample it to 40 ms resolution prior to applying the decoder. 
+Below, we list some of our results on Fast Conformer on LibriSpeech test-other. We compare against the original Conformer and other recent efficient architectures. We compare against the [Efficient Conformer from Burchi2021](https://arxiv.org/abs/2109.01163) which uses a progressive downsampling of the Conformer architecture. We also compare against [Kim2022 SqueezeFormer](https://arxiv.org/abs/2206.00888) which uses a U-Net like architecture to progressively downsample the input and upsample it to 40 ms resolution prior to applying the decoder. 
 
 We find that Fast Conformer is able to achieve the same accuracy as the Conformer while being 2.8x faster and using fewer parameters. 
 
