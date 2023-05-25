@@ -227,7 +227,7 @@ def get_args():
         '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
-    group.add_argument('--files-filter', type=str, default='**/*.json*', help='files filter str')
+    group.add_argument('--files-filter', type=str, default='**/*.*', help='files filter str')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
     group.add_argument('--append-eod', action='store_true', help='Append an <eod> token to the end of a document.')
@@ -272,14 +272,24 @@ def main():
     args = get_args()
     startup_start = time.time()
     if args.preproc_folder:
-        print('Searching folder for .json or .json.gz files...')
+        if args.text_file:
+            print('Searching folder for .txt files...')
+        else:
+            print('Searching folder for .json or .json.gz files...')
         assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
         json_files = (str(f) for f in pathlib.Path(args.input).glob(args.files_filter))
-        json_files = [f for f in json_files if f.endswith('.json') or f.endswith('.json.gz')]
-        if len(json_files) == 0:
-            raise FileNotFoundError('No .json or .json.gz files found in folder.')
+        if args.text_file:
+            json_files = [f for f in json_files if f.endswith('.txt')]
+            if len(json_files) == 0:
+                raise FileNotFoundError('No .txt files found in folder.')
+            else:
+                print(f'Found {len(json_files)} .txt files.')
         else:
-            print(f'Found {len(json_files)} .json or .json.gz files.')
+            json_files = [f for f in json_files if f.endswith('.json') or f.endswith('.json.gz')]
+            if len(json_files) == 0:
+                raise FileNotFoundError('No .json or .json.gz files found in folder.')
+            else:
+                print(f'Found {len(json_files)} .json or .json.gz files.')
     else:
         assert os.path.exists(args.input), f'File does not exist: {args.input}'
         json_files = [args.input]
@@ -327,7 +337,7 @@ def main():
         if json_file.endswith('.gz'):
             fin = gzip.open(json_file, 'r')
         else:
-            fin = open(args.input, 'r', encoding='utf-8')
+            fin = open(json_file, 'r', encoding='utf-8')
 
         encoded_docs = pool.imap(encoder.encode, fin, 25)
 
