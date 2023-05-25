@@ -71,9 +71,7 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
         self.relative_position = (
-            build_relative_position(max_seq_len, full=True)
-            .unsqueeze(0)
-            .expand(num_attention_heads, -1, -1)
+            build_relative_position(max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
         )
 
     def forward(self, query_seq_length, key_seq_length):
