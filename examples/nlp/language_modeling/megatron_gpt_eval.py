@@ -196,6 +196,8 @@ def main(cfg) -> None:
             pretrained_cfg.encoder_seq_length = cfg.model.encoder_seq_length
             print(pretrained_cfg.encoder_seq_length)
             pretrained_cfg.activations_checkpoint_granularity = None
+            pretrained_cfg.encoder_seq_length = cfg.model.encoder_seq_length
+            pretrained_cfg.use_flash_attention = cfg.model.use_flash_attention
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
             if trainer.precision == "16":
