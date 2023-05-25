@@ -654,11 +654,15 @@ def sample_sequence_batch(
 
         maxlen = inference_strategy.clip_max_len(maxlen)
 
+
+
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length
             )
+
+            print(context_tokens.sha, "context_tokens")
             output = inference_strategy.forward_step(batch, tensor_shape)
 
             if parallel_state.is_pipeline_last_stage():
