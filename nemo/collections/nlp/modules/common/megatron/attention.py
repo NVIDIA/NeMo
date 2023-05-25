@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.position_embedding import XPOSRelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding import XPOSRotaryPositionEmbedding
 from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import (
     apply_rotary_pos_emb,
 )
@@ -243,7 +243,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.layer_type = layer_type
 
         if position_embedding_type.lower() == 'xpos':
-            self.xpos = XPOSRelativePositionEmbedding(kv_channels)
+            self.xpos = XPOSRotaryPositionEmbedding(kv_channels)
 
     def _checkpointed_attention_forward(
         self,
