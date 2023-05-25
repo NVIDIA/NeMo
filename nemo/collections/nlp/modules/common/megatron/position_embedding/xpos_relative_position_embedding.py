@@ -1,7 +1,6 @@
 # Copyright (c) 2022 Microsoft
 # Licensed under The MIT License [see LICENSE for details]
 
-import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
