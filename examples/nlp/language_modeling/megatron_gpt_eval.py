@@ -271,9 +271,9 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Third method of running text generation, use inference server
     if cfg.server:
