@@ -638,6 +638,7 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
+        print("context_length: ", context_length)
         inference_strategy.init_batch(context_tokens, context_length)
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
@@ -659,10 +660,11 @@ def sample_sequence_batch(
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length
             )
+
             output = inference_strategy.forward_step(batch, tensor_shape)
 
             if parallel_state.is_pipeline_last_stage():
-                output = output[0]['logits'] #.float()
+                output = output[0]['logits']  # .float()
                 output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 # output = output.float()
