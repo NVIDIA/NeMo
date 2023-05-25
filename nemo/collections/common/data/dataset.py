@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 import os
 import logging
 from typing import Any, List, Optional, Tuple
@@ -19,7 +20,6 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
-# from nemo.collections.asr.models.asr_model import ASRModel
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
@@ -31,7 +31,7 @@ if _CONCAT_SAMPLES is None:
 # if true, concatenated samples are counted as just one sample. 
 # otherwise, they are counted "normally", N joined
 # samples are N samples. But,  dataset length will not be observed!
-_CONCAT_SAMPLES_COUNT_AS_ONE = os.getenv('_CONCAT_SAMPLES_COUNT_AS_ONE')
+_CONCAT_SAMPLES_COUNT_AS_ONE = os.getenv('CONCAT_SAMPLES_COUNT_AS_ONE')
 if _CONCAT_SAMPLES_COUNT_AS_ONE is None:
     _CONCAT_SAMPLES_COUNT_AS_ONE = True
 
@@ -66,24 +66,11 @@ SPACE_ID_LOOKUP_TABLE = {}
 if _CONCAT_SAMPLES: 
     _offset = 0
     for c in AGG_TOK_SIZES:
-        for i in range(c):
+        for i in range(int(c)):
             # the space token id is the first one in the tokenizer.
             SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
 
 _SAMPLING_RATE = 16000
-_PREPROCESSOR_DICT = {
-    '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
-    'sample_rate': _SAMPLING_RATE,
-    'normalize': 'per_feature',
-    'window_size': 0.025,
-    'window_stride': 0.01,
-    'window': "hann",
-    'features': 80,
-    'n_fft': 512,
-    'frame_splicing': 1,
-    'dither': 0.00001,
-    'pad_to': 0,
-}
 
 class ConcatDataset(IterableDataset):
     """
@@ -161,9 +148,6 @@ class ConcatDataset(IterableDataset):
             logging.info(f'applying {sampling_scale} sampling scale, concat ds len: {self.length}')
 
 
-        if _CONCAT_SAMPLES:
-            self.preprocessor = ASRModel.from_config_dict(_PREPROCESSOR_DICT)
-
     def get_iterable(self, dataset):
         if isinstance(dataset, IterableDataset):
             return dataset.__iter__()
@@ -237,11 +221,6 @@ class ConcatDataset(IterableDataset):
         Return a concatenated sample as well the number of samples pulled
         Merge a bunch of samples into one.
         """
-        # f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
-        # features, features length, tokens, tokens length
-        # need a spectrogram of random noise.. 
-        # the spectrogram though.. has shape of torch.Size([16 , 80, 1063]), 16 is B, 80 is features, 1063 is , who knows.
-        # which one am i using? use that!
 
         _f = None
         _fl = 0
@@ -249,27 +228,65 @@ class ConcatDataset(IterableDataset):
         _tl = 0
         _num_concatenated_samples = 0
         
-        while _fl < _CONCAT_SAMPLES_MIN_LENGTH:
-            f, fl, t, tl = self.pull_sample()
-            if _fl + fl > _CONCAT_SAMPLES_MAX_LENGTH:  # need to check if these are compatible lengths obviously.
+        while _fl < _CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE:
+
+            (f, fl, t, tl), _ = self.pull_sample(ind_gen)
+
+            print(f'pulled f: {f.type()} {f.size()}')
+            print(f'pulled fl:{fl.type()}  {fl}')
+            print(f'pulled t: {t.type() } {t}')
+            print(f'pulled tl: {tl.type()}  {tl}')
+
+            if _fl + fl > _CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE:  
                 # just try another sample if this one is too long.
+                print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
                 continue
 
-            # the length needs to be converted because of the sampling.. ughhh 
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, _CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
-            _space_id = SPACE_ID_LOOKUP_TABLE[t[-1]] # careful here because it is a tensor.. 
-            _t = _t + _space_id + t  # likely needs to be concat
-            _tl += tl + 1 # adding the space token in the language of last sample.
+
+            if _t is not None:
+                last_token_id = _t[-1].item()
+                _space_id = SPACE_ID_LOOKUP_TABLE[last_token_id] 
+                print(f'space id: {_space_id}')
+                if last_token_id != _space_id:
+                    print('appending space token')
+                    _space_id = torch.tensor(_space_id, dtype=torch.float)
+                    if _t is not None:
+                        print(f'concatenating space {_space_id} to _t {_t}')
+                        _t = torch.concat((_t, _space_id))  # likely needs to be concat
+                    else:
+                        _t = _space_id
+                    _tl += 1
+
+            if _t is not None:
+                _t = torch.concat((_t,t))
+            else:
+                _t = t
+            _tl += tl 
+
             _num_concatenated_samples += 1
+            print(f'eofi: tl: {_tl}, fl: {_fl}, nums: {_num_concatenated_samples}')
+            print(f'returning _f: {_f.type()} {_f.size()}')
+            print(f'returning _fl:{_fl.type()}  {_fl}')
+            print(f'returning _t: {_t.type()} {_t}')
+            print(f'returning _tl: {_tl.type()}  {_tl}')
+
 
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
     def concat_with_pause(self, f1, fl1, f2, fl2, concat_pause):
-        fl = f1l + fl2l + concat_pause # very suspiscious, not gonna work
-        # get a blank samlple blank
-        _blank = np.zeros(int(pause_join_msec * _SAMPLING_RATE / 1000))
-        b, bl = self.preprocessor(_blank)
-        f = f1 + b + f2
+
+        pause_len = int(concat_pause * _SAMPLING_RATE / 1000)
+
+        fl = fl1 + fl2 + pause_len
+        fl = torch.tensor(fl, dtype=torch.long)
+        # get a blank sample 
+        # _blank = torch.from_numpy(np.zeros(pause_len))
+        _blank = torch.zeros(pause_len, dtype=torch.float)
+        if f1 is not None:
+            f = torch.concat((f1, _blank, f2))
+        else:
+            f = torch.concat((_blank, f2))
         return f, fl
 
     def pull_sample(self, ind_gen):
