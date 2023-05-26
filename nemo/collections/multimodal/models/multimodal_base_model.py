@@ -441,10 +441,14 @@ class MegatronMultimodalModel(MultimodalModel):
         stages, the grad sync is deferred until the bubble overhead.
 
         """
+        if self.with_distributed_adam and self._optimizer.overlap_grad_sync:
+            if params is None:
+                params = self._optimizer.parameters()
+            self._optimizer.try_grad_sync(params)
+
+    def sync_overlap_parameters(self, params=None):
         if self.with_distributed_adam:
-            self._optimizer.try_grad_sync(
-                p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
-            )
+            self._optimizer._try_start_bucket_param_sync(params)
 
     def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
@@ -489,23 +493,33 @@ class MegatronMultimodalModel(MultimodalModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate grads since we are storing between microbatches
+            # Allocate contiguous buffers to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
+            optim_kwargs['contiguous_param_buffer'] = True
 
-            if self.megatron_amp_O2:
-                # Match param allgather with model dtype
-                if hasattr(self, 'autocast_dtype'):
-                    optim_kwargs['param_sync_dtype'] = self.autocast_dtype
-                    if self.autocast_dtype == torch.float:
-                        optim_kwargs['store_params'] = False
-                    elif self.autocast_dtype == torch.float16:
-                        optim_kwargs['store_params'] = True
-                    elif self.autocast_dtype == torch.bfloat16:
-                        optim_kwargs['store_params'] = False
-                        optim_kwargs['store_param_remainders'] = True
-            else:
-                # Assume FP32 params, so no need to store main params
+            # Make sure optimizer state is in FP32
+            optim_dtype = torch.float32
+            optim_kwargs['dtype'] = optim_dtype
+
+            # Make sure embedding grad reductions are in FP32
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name:
+                    param._with_fp32_optimizer = True
+
+            # Match param allgather with model dtype
+            model_dtype = torch.float32
+            if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
+                model_dtype = self.autocast_dtype
+            optim_kwargs['param_sync_dtype'] = model_dtype
+
+            # Determine whether to store master params in optimizer
+            if optim_dtype == model_dtype:
                 optim_kwargs['store_params'] = False
+            elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
+                optim_kwargs['store_params'] = False
+                optim_kwargs['store_param_remainders'] = True
+            else:
+                optim_kwargs['store_params'] = True
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -562,12 +576,28 @@ class MegatronMultimodalModel(MultimodalModel):
 
         # Configure distributed optimizer
         if self.with_distributed_adam:
-            # Initialize params so that main grads are available
+
+            # Initialize param buckets if explicitly provided
+            if hasattr(self, 'distributed_adam_buckets'):
+                for bucket in self.distributed_adam_buckets:
+                    self._optimizer.init_params_bucket(bucket)
+                del self.distributed_adam_buckets
+
+            # Make sure all params are initialized so main grads are
+            # available
             # Note: Consolidate grads without overlap
-            self._optimizer.init_params(
-                p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False)
-            )
-            self._optimizer.init_params(self.parameters())
+            overlap_params = []
+            no_overlap_params = []
+            for p in self.parameters():
+                if getattr(p, '_disable_overlap_grad_sync', False):
+                    no_overlap_params.append(p)
+                else:
+                    overlap_params.append(p)
+            self._optimizer.init_params(reversed(overlap_params))
+            self._optimizer.init_params(reversed(no_overlap_params))
+
+            # Initialize contiguous parameter buffer
+            self._optimizer.init_param_buffer()
 
         if self._scheduler is None:
             return self._optimizer
