@@ -53,7 +53,7 @@ def test_inference(pretrained_model, language_specific_text_example):
     if hasattr(model.fastpitch, 'speaker_encoder'):
         if hasattr(model.fastpitch.speaker_encoder, 'lookup_module'):
             speaker_id = 0
-        elif hasattr(model.fastpitch.speaker_encoder, 'gst_module'):
+        if hasattr(model.fastpitch.speaker_encoder, 'gst_module'):
             bs, lens, t_spec = parsed_text.shape[0], random.randint(50, 100), model.cfg.n_mel_channels
             reference_spec = torch.rand(bs, lens, t_spec)
             reference_spec_lens = torch.tensor([lens]).long().expand(bs)
