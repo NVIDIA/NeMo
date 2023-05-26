@@ -14,41 +14,27 @@
 
 
 """
-This script contains an example on how to train a SpellcheckingAsrCustomizationModel for ASR customization.
-
-This script uses the `/examples/nlp/spellchecking_asr_customization/conf/spellchecking_asr_customization_config.yaml`
+This script contains an example on how to train SpellMapper (SpellcheckingAsrCustomizationModel).
+It uses the `examples/nlp/spellchecking_asr_customization/conf/spellchecking_asr_customization_config.yaml`
 config file by default. The other option is to set another config file via command
 line arguments by `--config-name=CONFIG_FILE_PATH'. Probably it is worth looking
 at the example config file to see the list of parameters used for training.
 
 USAGE Example:
-1. Obtain a processed dataset
-2. Run:
-    python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/spellchecking_asr_customization_train.py \
-      lang=${LANG} \
-      data.validation_ds.data_path=${DATA_PATH}/valid.tsv \
-      data.train_ds.data_path=${DATA_PATH}/train.tsv \
-      data.train_ds.batch_size=128 \
-      data.train_ds.num_workers=8 \
-      model.language_model.pretrained_model_name=${LANGUAGE_MODEL} \
-      model.label_map=${DATA_PATH}/label_map.txt \
-      model.optim.lr=3e-5 \
-      trainer.devices=[1] \
-      trainer.num_nodes=1 \
-      trainer.accelerator=gpu \
-      trainer.strategy=ddp \
-      trainer.max_epochs=5
+    See `examples/nlp/spellchecking_asr_customization/run_training.sh` for training on non-tarred data.
+    and
+    `examples/nlp/spellchecking_asr_customization/run_training_tarred.sh` for training on tarred data.
 
-Information on the arguments:
-
-Most arguments in the example config file are quite self-explanatory (e.g.,
-`model.optim.lr` refers to the learning rate for training the model).
-
-Some arguments we want to mention are:
-
-+ lang: The language of the dataset.
-+ model.language_model.pretrained_model_name: This is the backbone BERT model (depends on the language)
-e.g. bert-base-uncased (English), DeepPavlov/rubert-base-cased (Russian)
+One (non-tarred) training example should consist of 4 tab-separated columns:
+    1. text of ASR-hypothesis
+    2. texts of 10 candidates separated by semicolon
+    3. 1-based ids of correct candidates, or 0 if none
+    4. start/end coordinates of correct candidates (correspond to ids in third column)
+Example (in one line):
+    a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o
+    d i d i e r _ s a u m o n;a s t r o n o m i e;t r i s t a n _ g u i l l o t;t r i s t e s s e;m o n a d e;c h r i s t i a n;a s t r o n o m e r;s o l o m o n;d i d i d i d i d i;m e r c y
+    1 3
+    CUSTOM 12 23;CUSTOM 28 41
 """
 
 from helpers import MODEL, instantiate_model_and_trainer

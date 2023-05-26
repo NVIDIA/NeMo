@@ -12,34 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+## TRAIN WITH TARRED DATA
 
-NEMO_PATH=/home/aleksandraa/nemo
+# Path to NeMo repository
+NEMO_PATH=NeMo
 
 DATA_PATH=data_folder
-
-## TRAIN WITH TARRED DATA
-python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/spellchecking_asr_customization_train.py \
-lang="en" \
-data.validation_ds.data_path=${DATA_PATH}/test.tsv \
-data.train_ds.data_path=${DATA_PATH}/train_tarred/part_OP_1..100_CL_.tar \
-data.train_ds.batch_size=32 \
-data.train_ds.num_workers=16 \
-+data.train_ds.use_tarred_dataset=true \
-data.train_ds.shuffle=false \
-data.validation_ds.batch_size=16 \
-model.max_sequence_len=256 \
-model.language_model.pretrained_model_name=huawei-noah/TinyBERT_General_6L_768D \
-model.language_model.config_file=${DATA_PATH}/config.json \
-model.label_map=${DATA_PATH}/label_map.txt \
-model.semiotic_classes=${DATA_PATH}/semiotic_classes.txt \
-model.optim.sched.name=CosineAnnealing \
-+model.optim.sched.max_steps=195313 \
-trainer.devices=8 \
-trainer.num_nodes=1 \
-trainer.accelerator=gpu \
-trainer.strategy=ddp \
-trainer.max_epochs=5
-
 
 ## data_folder_example
 ##   ├── train_tarred
@@ -61,3 +39,25 @@ trainer.max_epochs=5
 ##   1 step consumes 128 examples (32(bs) * 4(gpus))
 ##   1 epoch makes 2000000/128=15625 steps (updates)
 ##   5 epochs make 5*15625=78125 steps
+
+python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/spellchecking_asr_customization_train.py \
+  lang="en" \
+  data.validation_ds.data_path=${DATA_PATH}/test.tsv \
+  data.train_ds.data_path=${DATA_PATH}/train_tarred/part_OP_1..100_CL_.tar \
+  data.train_ds.batch_size=32 \
+  data.train_ds.num_workers=16 \
+  +data.train_ds.use_tarred_dataset=true \
+  data.train_ds.shuffle=false \
+  data.validation_ds.batch_size=16 \
+  model.max_sequence_len=512 \
+  model.language_model.pretrained_model_name=huawei-noah/TinyBERT_General_6L_768D \
+  model.language_model.config_file=${DATA_PATH}/config.json \
+  model.label_map=${DATA_PATH}/label_map.txt \
+  model.semiotic_classes=${DATA_PATH}/semiotic_classes.txt \
+  model.optim.sched.name=CosineAnnealing \
+  +model.optim.sched.max_steps=195313 \
+  trainer.devices=8 \
+  trainer.num_nodes=1 \
+  trainer.accelerator=gpu \
+  trainer.strategy=ddp \
+  trainer.max_epochs=5

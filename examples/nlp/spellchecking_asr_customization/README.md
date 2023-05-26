@@ -13,7 +13,7 @@ The task of our final neural model is to predict which fragments in the ASR hypo
 The pipeline consists of multiple steps:
 
 1. Download or generate training data. 
-   See `https://github.com/bene-ges/nemo_compatible/tree/main/scripts/nlp/en_spellmapper`
+   See `https://github.com/bene-ges/nemo_compatible/tree/main/scripts/nlp/en_spellmapper/dataset_preparation`
 
 2. [Optional] Convert training dataset to tarred files.
    `convert_dataset_to_tarred.sh`
@@ -24,6 +24,9 @@ The pipeline consists of multiple steps:
    `run_training_tarred.sh`
 
 4. Run evaluation.
-   See `https://github.com/bene-ges/nemo_compatible/tree/main/scripts/nlp/en_spellmapper`
+   - [test_on_kensho.sh](https://github.com/bene-ges/nemo_compatible/blob/main/scripts/nlp/en_spellmapper/evaluation/test_on_kensho.sh)
+   - [test_on_userlibri.sh](https://github.com/bene-ges/nemo_compatible/blob/main/scripts/nlp/en_spellmapper/evaluation/test_on_kensho.sh)
+   - [test_on_spoken_wikipedia.sh](https://github.com/bene-ges/nemo_compatible/blob/main/scripts/nlp/en_spellmapper/evaluation/test_on_kensho.sh)
 
 5. Run inference.
+   `python run_infer.sh`

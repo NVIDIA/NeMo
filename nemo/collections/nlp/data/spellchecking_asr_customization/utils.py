@@ -49,8 +49,15 @@ def replace_diacritics(text):
     return text
 
 
-def load_ngram_mappings(input_name: str, max_dst_freq: int = 1000000000) -> Tuple[defaultdict, Set]:
-    """Loads vocab from file
+def load_ngram_mappings(input_name: str, max_misspelled_freq: int = 1000000000) -> Tuple[defaultdict, Set]:
+    """Loads n-gram mapping vocabularies in form required by dynamic programming
+    Args:
+        input_name: file with n-gram mappings
+        max_misspelled_freq: threshold on misspelled n-gram frequency
+    Returns:
+        vocab: dict {key=original_ngram, value=dict{key=misspelled_ngram, value=frequency}}
+        ban_ngram: set of banned misspelled n-grams
+
     Input format:
         u t o	u+i t o	49	8145	114
         u t o	<DELETE> t e	63	8145	16970
@@ -61,19 +68,28 @@ def load_ngram_mappings(input_name: str, max_dst_freq: int = 1000000000) -> Tupl
 
     with open(input_name, "r", encoding="utf-8") as f:
         for line in f:
-            src, dst, joint_freq, src_freq, dst_freq = line.strip().split("\t")
-            assert src != "" and dst != "", "src=" + src + "; dst=" + dst
-            dst = dst.replace("<DELETE>", "=")
-            if dst.replace("=", "").strip() == "":  # skip if resulting ngram doesn't contain any real character
+            orig, misspelled, joint_freq, orig_freq, misspelled_freq = line.strip().split("\t")
+            if orig == "" or misspelled == "":
+                raise ValueError("Empty n-gram: orig=" + orig + "; misspelled=" + misspelled)
+            misspelled = misspelled.replace("<DELETE>", "=")
+            if misspelled.replace("=", "").strip() == "":  # skip if resulting ngram doesn't contain any real character
                 continue
-            if int(dst_freq) > max_dst_freq:
-                ban_ngram.add(dst + " ")  # space at the end is required within get_index function
-            vocab[src][dst] = int(joint_freq) / int(src_freq)
+            if int(misspelled_freq) > max_misspelled_freq:
+                ban_ngram.add(misspelled + " ")  # space at the end is required within get_index function
+            vocab[orig][misspelled] = int(joint_freq) / int(orig_freq)
     return vocab, ban_ngram
 
 
 def load_ngram_mappings_for_dp(input_name: str) -> Tuple[defaultdict, defaultdict, defaultdict, int]:
-    """Loads vocab from file
+    """Loads n-gram mapping vocabularies in form required by dynamic programming
+    Args:
+        input_name: file with n-gram mappings
+    Returns:
+        joint_vocab: dict where key=(original_ngram, misspelled_ngram), value=frequency
+        orig_vocab: dict where key=original_ngram, value=frequency
+        misspelled_vocab: dict where key=misspelled_ngram, value=frequency
+        max_len: maximum n-gram length seen in vocabulary
+
     Input format: original \t misspelled \t joint_freq \t original_freq \t misspelled_freq
         u t o	u+i t o	49	8145	114
         u t o	<DELETE> t e	63	8145	16970
@@ -102,6 +118,28 @@ def load_ngram_mappings_for_dp(input_name: str) -> Tuple[defaultdict, defaultdic
 def get_alignment_by_dp(
     ref_phrase: str, hyp_phrase: str, dp_data: Tuple[defaultdict, defaultdict, defaultdict, int]
 ) -> List[Tuple[str, str, float, float, int, int, int]]:
+    """Get best alignment path between a reference and (possibly) misspelled phrase using n-gram mappings vocabulary.
+    Args:
+        ref_phrase: candidate reference phrase (letters separated by space, real space replaced by underscore) 
+        hyp_phrase: (possibly) misspelled phrase (letters separated by space, real space replaced by underscore)
+        dp_data: n-gram mapping vocabularies used by dynamic programming
+    Returns:
+        list of tuples (hyp_ngram, ref_ngram, logprob, sum_logprob, joint_freq, orig_freq, misspelled_freq)
+            This is best alignment path.
+
+    Example:
+        ref_phrase: "a n h y d r i d e"
+        hyp_phrase: "a n d _ h y d r o d"
+
+    Result:
+	    [("*", "*", 0.0, 0.0, 0, 0, 0)
+	     ("a n d _ h", "a n h", -2.34, -2.34, 226, 2338, 2203)
+	     ("y d r o", "y d r i", -2.95, -5.29, 11, 211, 1584)
+	     ("d", "d e", -1.99, -7.28, 60610, 444714, 2450334)
+        ]
+    Final path score is in path[-1][3]:  -7.28
+    Note that the order of ref_phrase and hyp_phrase matters, because n-gram mappings vocabulary is not symmetrical.
+    """
     joint_vocab, orig_vocab, misspelled_vocab, max_len = dp_data
     hyp_letters = ["*"] + hyp_phrase.split()
     ref_letters = ["*"] + ref_phrase.split()
@@ -213,8 +251,8 @@ def get_index(
 
     Args:
         custom_phrases: list of all custom phrases, characters should be split by space,  real space replaced to underscore.
-        vocab: n-gram mappings vocabulary,
-        ban_ngram_global: set of banned n-grams,
+        vocab: n-gram mappings vocabulary - dict {key=original_ngram, value=dict{key=misspelled_ngram, value=frequency}}
+        ban_ngram_global: set of banned misspelled n-grams
         min_log_prob: minimum log probability, after which we stop growing this n-gram.
         max_phrases_per_ngram: maximum phrases that we allow to store per one n-gram. N-grams exceeding that quantity get banned.
 
@@ -284,6 +322,11 @@ def get_index(
 
 def load_index(input_name: str) -> Tuple[List[str], Dict[str, List[Tuple[int, int, int, float]]]]:
     """ Load index from file
+    Args:
+        input_name: file with index
+    Returns:
+        phrases: List of all phrases in custom vocabulary. Position corresponds to phrase_id.
+        ngram2phrases: dict where key=ngram, value=list of tuples (phrase_id, begin_pos, size, logprob)
     """
     phrases = []  # id to phrase
     phrase2id = {}  # phrase to id
@@ -425,7 +468,7 @@ def get_candidates(
     # no need to process this sentence further if it does not contain any real candidates
     if len(candidates) == 0:
         print("WARNING: no real candidates", candidates)
-        return None
+        return []
 
     while len(candidates) < 10:
         dummy = random.choice(pool_for_random_candidates)
@@ -436,16 +479,19 @@ def get_candidates(
     random.shuffle(candidates)
     if len(candidates) != 10:
         print("WARNING: cannot get 10 candidates", candidates)
-        return None
+        return []
 
     return candidates
 
 
-def read_spellmapper_predictions(
-    filename: str,
-) -> List[Tuple[str, List[str], List[Tuple[int, int, str, float]], List[int]]]:
-    # results is a list of (sent, list of candidates, list of fragment predictions, list of letter predictions)
-    # fragment prediction is (begin, end, str, prob)
+def read_spellmapper_predictions(filename: str) -> List[Tuple[str, List[Tuple[int, int, str, float]], List[int]]]:
+    """Read results of SpellMapper inference from file.
+    Args:
+        filename: file with SpellMapper results
+    Returns:
+        list of tuples (sent, list of fragment predictions, list of letter predictions)
+    One fragment prediction is a tuple (begin, end, replacement_text, prob)
+    """
     results = []
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
@@ -475,8 +521,15 @@ def read_spellmapper_predictions(
 def substitute_replacements_in_text(
     text: str, replacements: List[Tuple[int, int, str, float]], replace_hyphen_to_space: bool
 ) -> str:
-    # Apply replacements to the input text, iterating from end to beginning, so that indexing does not change.
-    # Note that we expect intersecting replacements to be filtered earlier.
+    """Substitute replacements to the input text, iterating from end to beginning, so that indexing does not change.
+       Note that we expect intersecting replacements to be already filtered.
+    Args:
+        text: sentence;
+        replacements: list of replacements, each is a tuple (begin, end, text, probability);
+        replace_hyphen_to_space: if True, hyphens in replacements will be converted to spaces;
+    Returns:
+        corrected sentence
+    """
     replacements.sort()
     last_begin = len(text) + 1
     corrected_text = text
@@ -495,10 +548,21 @@ def apply_replacements_to_text(
     text: str,
     replacements: List[Tuple[int, int, str, float]],
     min_prob: float = 0.5,
-    replace_hyphen_to_space=False,
+    replace_hyphen_to_space: bool = False,
     dp_data: Tuple[defaultdict, defaultdict, defaultdict, int] = None,
     min_dp_score_per_symbol: float = -99.9,
-):
+) -> str:
+    """Filter and apply replacements to the input sentence.
+    Args:
+        text: input sentence;
+        replacements: list of proposed replacements (probably intersecting), each is a tuple (begin, end, text, probability);
+        min_prob: threshold on replacement probability;
+        replace_hyphen_to_space: if True, hyphens in replacements will be converted to spaces;
+        dp_data: n-gram mapping vocabularies used by dynamic programming, if None - dynamic programming is not used;
+        min_dp_score_per_symbol: threshold on dynamic programming sum score averaged by hypothesis length
+    Returns:
+        corrected sentence
+    """
     # sort replacements by positions
     replacements.sort()
     # filter replacements
@@ -538,38 +602,114 @@ def apply_replacements_to_text(
     return substitute_replacements_in_text(text, filtered_replacements, replace_hyphen_to_space)
 
 
-def update_json_with_spellmapper_corrections(
-    input_name: str,
-    output_name: str,
-    spellmapper_results: List[Tuple[str, List[str], List[Tuple[int, int, int, float]], List[int]]],
+def update_manifest_with_spellmapper_corrections(
+    input_manifest_name: str,
+    short2full_name: str,
+    output_manifest_name: str,
+    spellmapper_results_name: str,
     min_prob: float = 0.5,
-    replace_hyphen_to_space=True,
+    replace_hyphen_to_space: bool = True,
+    field_name: str = "pred_text",
+    use_dp: bool = True,
+    ngram_mappings: Union[str, None] = None,
+    min_dp_score_per_symbol: float = -1.5,
 ) -> None:
-    out = open(output_name, "w", encoding="utf-8")
-    input_lines = []
-    with open(input_name, "r", encoding="utf-8") as f:
-        input_lines = f.readlines()
-    if len(input_lines) != len(spellmapper_results):
-        out.close()
-        raise IndexError(
-            "len(input_lines)=", len(input_lines), "; len(spellmapper_results)=", len(spellmapper_results)
-        )
-    for i in range(len(input_lines)):
-        text, replacements, _ = spellmapper_results[i]
-        data = json.loads(input_lines[i].strip())
-        if text != data["pred_text"]:
-            out.close()
-            raise IndexError("Line mismatch: text=", text, "data[\"pred_text\"]", data["pred_text"])
-        # store old predicted text in another field
-        data["pred_text_before_correction"] = data["pred_text"]
-        data["pred_text"] = apply_replacements_to_text(
-            text, replacements, min_prob=min_prob, replace_hyphen_to_space=replace_hyphen_to_space
-        )
-        out.write(json.dumps(data) + "\n")
+    """Post-process SpellMapper predictions and write corrected sentence to the specified field of nemo manifest.
+    The previous content of this field will be copied to "*_before_correction" field.
+    If the sentence was split into fragments before running SpellMapper, all replacements will be first gathered together and then applied to the original long sentence.
+    Args:
+        input_manifest_name: input nemo manifest;
+        short2full_name: text file with two columns: short_sent \t full_sent;
+        output_manifest_name: output nemo manifest;
+        spellmapper_results_name: text file with SpellMapper inference results;
+        min_prob: threshold on replacement probability;
+        replace_hyphen_to_space: if True, hyphens in replacements will be converted to spaces;
+        field_name: name of json field whose text we want to correct;
+        use_dp: bool = If True, additional replacement filtering will be applied using dynamic programming (works slow);
+        ngram_mappings: file with n-gram mappings, only needed if use_dp=True
+        min_dp_score_per_symbol: threshold on dynamic programming sum score averaged by hypothesis length
+    """
+    short2full_sent = defaultdict(list)
+    sent2corrections = defaultdict(dict)
+    with open(short2full_name, "r", encoding="utf-8") as f:
+        for line in f:
+            s = line.strip()
+            short_sent, full_sent = s.split("\t")
+            short2full_sent[short_sent].append(full_sent)
+            sent2corrections[full_sent] = []
+
+    spellmapper_results = read_spellmapper_predictions(spellmapper_results_name)
+    dp_data = None
+    if use_dp:
+        dp_data = load_ngram_mappings_for_dp(ngram_mappings)
+
+    for text, replacements, _ in spellmapper_results:
+        short_sent = text
+        if short_sent not in short2full_sent:
+            continue
+        # it can happen that one short sentence occurred in multiple full sentences
+        for full_sent in short2full_sent[short_sent]:
+            offset = full_sent.find(short_sent)
+            for begin, end, candidate, prob in replacements:
+                sent2corrections[full_sent].append((begin + offset, end + offset, candidate, prob))
+
+    out = open(output_manifest_name, "w", encoding="utf-8")
+    with open(input_manifest_name, "r", encoding="utf-8") as f:
+        for line in f:
+            record = json.loads(line.strip())
+            sent = record[field_name]
+            record[field_name + "_before_correction"] = record[field_name]
+            if sent in sent2corrections:
+                record[field_name] = apply_replacements_to_text(
+                    sent,
+                    sent2corrections[sent],
+                    min_prob=min_prob,
+                    replace_hyphen_to_space=replace_hyphen_to_space,
+                    dp_data=dp_data,
+                    min_dp_score_per_symbol=min_dp_score_per_symbol,
+                )
+            out.write(json.dumps(record) + "\n")
     out.close()
 
 
-def check_banned_replacements(src, dst):
+def extract_and_split_text_from_manifest(
+    input_name: str, output_name: str, field_name: str = "pred_text", len_in_words: int = 16, step_in_words: int = 8
+) -> None:
+    """Extract text of the specified field in nemo manifest and split it into fragments (possibly with intersection).
+    The result is saved to a text file with two columns: short_sent \t full_sent.
+    This is useful if we want to process shorter sentences and then apply the results to the original long sentence.
+    Args:
+        input_name: input nemo manifest,
+        output_name: output text file,
+        field_name: name of json field from which we extract the sentence text,
+        len_in_words: maximum number of words in a fragment,
+        step_in_words: on how many words we move at each step.
+    For example, if the len_in_words=16 and step_in_words=8 the fragments will be intersected by half.
+    """
+    short2full_sent = set()
+    with open(input_name, "r", encoding="utf-8") as f:
+        for line in f:
+            record = json.loads(line.strip())
+            sent = record[field_name]
+            if "  " in sent:
+                raise ValueError("found multiple space in: " + sent)
+            words = sent.split()
+            for i in range(0, len(words), step_in_words):
+                short_sent = " ".join(words[i : i + len_in_words])
+                short2full_sent.add((short_sent, sent))
+
+    with open(output_name, "w", encoding="utf-8") as out:
+        for short_sent, full_sent in short2full_sent:
+            out.write(short_sent + "\t" + full_sent + "\n")
+
+
+def check_banned_replacements(src: str, dst: str) -> bool:
+    """This function is used to check is a pair of words/phrases is matching some common template that we don't want to replace with one another.
+    Args:
+        src: first phrase
+        dst: second phrase
+    Returns True if this replacement should be banned.
+    """
     # customers' => customer's
     if src.endswith("s'") and dst.endswith("'s") and src[0:-2] == dst[0:-2]:
         return True

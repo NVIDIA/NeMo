@@ -12,30 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+## TRAIN WITH NON-TARRED DATA 
+
 # Path to NeMo repository
 NEMO_PATH=NeMo
 
 DATA_PATH=data_folder
-
-## TRAIN WITH NON-TARRED DATA 
-python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/spellchecking_asr_customization_train.py \
-lang="en" \
-data.validation_ds.data_path=${DATA_PATH}/test.tsv \
-data.train_ds.data_path=${DATA_PATH}/train.tsv \
-data.train_ds.batch_size=32 \
-data.train_ds.num_workers=8 \
-model.max_sequence_len=512 \
-model.language_model.pretrained_model_name=huawei-noah/TinyBERT_General_6L_768D \
-model.language_model.config_file=${DATA_PATH}/config.json \
-model.label_map=${DATA_PATH}/label_map.txt \
-model.semiotic_classes=${DATA_PATH}/semiotic_classes.txt \
-model.optim.lr=3e-5 \
-trainer.devices=[1] \
-trainer.num_nodes=1 \
-trainer.accelerator=gpu \
-trainer.strategy=ddp \
-trainer.max_epochs=5
-
 
 ## Example of all files needed to run training with non-tarred data:
 ## data_folder_example
@@ -50,3 +32,21 @@ trainer.max_epochs=5
 ## For data preparation see https://github.com/bene-ges/nemo_compatible/blob/main/scripts/nlp/en_spellmapper/dataset_preparation/build_training_data.sh
 
 ## Note that training with non-tarred data only works on single gpu. It makes sense if you use 1-2 million examples or less.
+
+python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/spellchecking_asr_customization_train.py \
+  lang="en" \
+  data.validation_ds.data_path=${DATA_PATH}/test.tsv \
+  data.train_ds.data_path=${DATA_PATH}/train.tsv \
+  data.train_ds.batch_size=32 \
+  data.train_ds.num_workers=8 \
+  model.max_sequence_len=512 \
+  model.language_model.pretrained_model_name=huawei-noah/TinyBERT_General_6L_768D \
+  model.language_model.config_file=${DATA_PATH}/config.json \
+  model.label_map=${DATA_PATH}/label_map.txt \
+  model.semiotic_classes=${DATA_PATH}/semiotic_classes.txt \
+  model.optim.lr=3e-5 \
+  trainer.devices=[1] \
+  trainer.num_nodes=1 \
+  trainer.accelerator=gpu \
+  trainer.strategy=ddp \
+  trainer.max_epochs=5
