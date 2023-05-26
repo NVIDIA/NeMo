@@ -220,19 +220,12 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                         module = self.model[0]  # only the first virtual rank has the embeddings
                     else:
                         module = self.model
-                    # if module.share_token_embeddings:
-                    #     param = module.word_embeddings_weight()
-                    #     param._disable_greedy_grad_copy = not self.megatron_amp_O2
-                    #     param._disable_overlap_grad_sync = True
+
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     if isinstance(self.model, list):
                         module = self.model[-1]  # only the last virtual rank has the embeddings
                     else:
                         module = self.model
-                    # if module.share_token_embeddings:
-                    #     param = module.word_embeddings_weight()
-                    #     param._disable_greedy_grad_copy = not self.megatron_amp_O2
-                    #     param._disable_overlap_grad_sync = True
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
@@ -240,6 +233,43 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                 if getattr(param, 'sequence_parallel_enabled', False):
                     param._disable_greedy_grad_copy = not self.megatron_amp_O2
                     param._disable_overlap_grad_sync = True
+
+            # KJJ - Copied this entire block, up to "return" here blindly from megatron_gpt_model.py
+
+            # Initialize parameter buckets for overlapped grad and param syncs
+            # Note: Params with disabled overlapping are put in the
+            # last param bucket
+            buckets = []
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                # Initialize a bucket for each virtual pipeline stage
+                for module in self.model:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    stage_bucket = []
+                    #for layer in module.language_model.encoder.layers:
+                    for layer in module.backbone.transformer.layers:
+                        stage_bucket.extend(
+                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                        )
+                    buckets.append(stage_bucket)
+            else:
+                # Initialize a bucket for each Transformer layer
+                modules = self.model if isinstance(self.model, list) else [self.model]
+                for module in modules:
+                    if isinstance(module, Float16Module):
+                        module = module.module
+                    #for layer in module.language_model.encoder.layers:
+                    for layer in module.backbone.transformer.layers:
+
+                        buckets.append(
+                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                        )
+            buckets.reverse()
+            used_params = set()
+            for bucket in buckets:
+                used_params.update(bucket)
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
+            self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
 
@@ -294,6 +324,15 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
+            # KJJ - Added this block from megatron_gpt_model.  It says it's not necessary
+            #  and it's not clear if the remaining "if not" logic is still needed.
+            #  keeping it for now, but might need to delete one or both of these.
+
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
+
             # launch grad reductions
             # Note: grads in first pipeline stage have already been
             # reduced

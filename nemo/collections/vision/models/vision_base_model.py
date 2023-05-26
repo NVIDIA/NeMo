@@ -168,12 +168,13 @@ class MegatronVisionModel(VisionModel):
     It does the following things:
     1. Initialize the model parallel for nemo given the model parallel parameters.
     2. Turn on all the nvidia optimizations.
-    3. If using distributed optimizer, configure to be compatible with
+    3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
+    4. If using distributed optimizer, configure to be compatible with
        O2-level optimizations and/or model parallelism.
-    4. Perform gradient clipping: `grad_clip_pl_default` triggers the
+    5. Perform gradient clipping: `grad_clip_pl_default` triggers the
        PyTorch Lightning default implementation, `with_distributed_adam`
        triggers the distributed optimizer's implementation,
-       `megatron_amp_O2` triggers gradient clipping on the main grads,
+       `megatron_amp_o2` triggers gradient clipping on the main grads,
        and otherwise gradient clipping is performed on the model grads.
     """
 
@@ -188,8 +189,6 @@ class MegatronVisionModel(VisionModel):
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
 
         super().__init__(cfg, trainer=trainer)
-
-        self._validate_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
@@ -228,6 +227,9 @@ class MegatronVisionModel(VisionModel):
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
+
+        # This must be called after initialize model parallel since it needs to know the data parallel size
+        self._validate_and_override_config()
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
@@ -344,10 +346,14 @@ class MegatronVisionModel(VisionModel):
         stages, the grad sync is deferred until the bubble overhead.
 
         """
+        if self.with_distributed_adam and self._optimizer.overlap_grad_sync:
+            if params is None:
+                params = self._optimizer.parameters()
+            self._optimizer.try_grad_sync(params)
+
+    def sync_overlap_parameters(self, params=None):
         if self.with_distributed_adam:
-            self._optimizer.try_grad_sync(
-                p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
-            )
+            self._optimizer._try_start_bucket_param_sync(params)
 
     def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
@@ -392,23 +398,33 @@ class MegatronVisionModel(VisionModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate grads since we are storing between microbatches
+            # Allocate contiguous buffers to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
+            optim_kwargs['contiguous_param_buffer'] = True
 
-            if self.megatron_amp_O2:
-                # Match param allgather with model dtype
-                if hasattr(self, 'autocast_dtype'):
-                    optim_kwargs['param_sync_dtype'] = self.autocast_dtype
-                    if self.autocast_dtype == torch.float:
-                        optim_kwargs['store_params'] = False
-                    elif self.autocast_dtype == torch.float16:
-                        optim_kwargs['store_params'] = True
-                    elif self.autocast_dtype == torch.bfloat16:
-                        optim_kwargs['store_params'] = False
-                        optim_kwargs['store_param_remainders'] = True
-            else:
-                # Assume FP32 params, so no need to store main params
+            # Make sure optimizer state is in FP32
+            optim_dtype = torch.float32
+            optim_kwargs['dtype'] = optim_dtype
+
+            # Make sure embedding grad reductions are in FP32
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name:
+                    param._with_fp32_optimizer = True
+
+            # Match param allgather with model dtype
+            model_dtype = torch.float32
+            if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
+                model_dtype = self.autocast_dtype
+            optim_kwargs['param_sync_dtype'] = model_dtype
+
+            # Determine whether to store master params in optimizer
+            if optim_dtype == model_dtype:
                 optim_kwargs['store_params'] = False
+            elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
+                optim_kwargs['store_params'] = False
+                optim_kwargs['store_param_remainders'] = True
+            else:
+                optim_kwargs['store_params'] = True
 
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
@@ -465,12 +481,28 @@ class MegatronVisionModel(VisionModel):
 
         # Configure distributed optimizer
         if self.with_distributed_adam:
-            # Initialize params so that main grads are available
+
+            # Initialize param buckets if explicitly provided
+            if hasattr(self, 'distributed_adam_buckets'):
+                for bucket in self.distributed_adam_buckets:
+                    self._optimizer.init_params_bucket(bucket)
+                del self.distributed_adam_buckets
+
+            # Make sure all params are initialized so main grads are
+            # available
             # Note: Consolidate grads without overlap
-            self._optimizer.init_params(
-                p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False)
-            )
-            self._optimizer.init_params(self.parameters())
+            overlap_params = []
+            no_overlap_params = []
+            for p in self.parameters():
+                if getattr(p, '_disable_overlap_grad_sync', False):
+                    no_overlap_params.append(p)
+                else:
+                    overlap_params.append(p)
+            self._optimizer.init_params(reversed(overlap_params))
+            self._optimizer.init_params(reversed(no_overlap_params))
+
+            # Initialize contiguous parameter buffer
+            self._optimizer.init_param_buffer()
 
         if self._scheduler is None:
             return self._optimizer
@@ -494,8 +526,11 @@ class MegatronVisionModel(VisionModel):
 
         return init_consumed_samples
 
-    def _validate_config(self):
-        """ Certain configurations might be incompatible or discouraged. We can check for them here."""
+    def _validate_and_override_config(self):
+        """ Certain configurations might be incompatible or discouraged.
+            We can check for them here and override if necessary.
+        """
+        app_state = AppState()
 
         if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
             logging.info(
@@ -504,18 +539,36 @@ class MegatronVisionModel(VisionModel):
             with open_dict(self.cfg):
                 self.cfg.sequence_parallel = False
 
-        if (
-            self.cfg.get('gradient_accumulation_fusion', False)
-            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
-        ):
-            logging.info("Gradient accumulation fusion can only be used with pipeline parallel size > 1.")
-            with open_dict(self.cfg):
-                self.cfg.gradient_accumulation_fusion = False
+        # Gradient accumulation fusion does not work with our baseline implementaiton of
+        # async grad allreduce. This should be fixed!
+        # For now we must disable it whenever using the baseline implementaion.
+        # The distributed adam from apex does work with gradient accumulation fusion.
+        distributed_fused_adam = self.cfg.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
+        pipeline_model_parallel_size = self.cfg.get('pipeline_model_parallel_size', 1)
+        data_parallel_size = app_state.data_parallel_size
+
+        if self.cfg.get('gradient_accumulation_fusion', False):
+            if data_parallel_size > 1 and pipeline_model_parallel_size == 1 and not distributed_fused_adam:
+                logging.info(
+                    "When not using pipeline model parallel, gradient accumulation fusion can only be used with distributed_fused_adam."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
 
         if self.cfg.get('gradient_accumulation_fusion', False) and not self.cfg.get('megatron_amp_O2', False):
             logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
             with open_dict(self.cfg):
                 self.cfg.gradient_accumulation_fusion = False
+
+        if self.cfg.get('use_emha', False):
+            raise ValueError('use_emha is not yet supported please set to False')
+
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+            assert (
+                self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+            ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
+                'Make sure the number of model chunks is the same across all pipeline stages.'
+            )
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
