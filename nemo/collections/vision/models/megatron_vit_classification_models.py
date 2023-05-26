@@ -246,7 +246,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                     if isinstance(module, Float16Module):
                         module = module.module
                     stage_bucket = []
-                    #for layer in module.language_model.encoder.layers:
+                    # for layer in module.language_model.encoder.layers:
                     for layer in module.backbone.transformer.layers:
                         stage_bucket.extend(
                             p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
@@ -258,7 +258,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                 for module in modules:
                     if isinstance(module, Float16Module):
                         module = module.module
-                    #for layer in module.language_model.encoder.layers:
+                    # for layer in module.language_model.encoder.layers:
                     for layer in module.backbone.transformer.layers:
 
                         buckets.append(
