@@ -90,6 +90,7 @@ RNNT_LOSS_RESOLVER = {
         lib_name="warprnnt_pytorch",
         is_available=WARP_RNNT_AVAILABLE,
         installation_msg=WARP_RNNT_INSTALLATION_MESSAGE,
+        force_float32=True,
     ),
     "warprnnt_numba": RNNTLossConfig(
         loss_name="warprnnt_numba",
@@ -97,6 +98,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
+        force_float32=True,
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -104,6 +106,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.0',
         is_available=True,
         installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
+        force_float32=True,
     ),
     "multiblank_rnnt": RNNTLossConfig(
         loss_name="multiblank_rnnt",
@@ -111,6 +114,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
+        force_float32=True,
     ),
     "multiblank_rnnt_pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -118,6 +122,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.0',
         is_available=True,
         installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
+        force_float32=True,
     ),
     "graph_w_transducer": RNNTLossConfig(
         loss_name="graph_w_transducer",
