@@ -232,13 +232,14 @@ class ConcatDataset(IterableDataset):
 
             (f, fl, t, tl), _ = self.pull_sample(ind_gen)
 
-            logging.info(f'pulled f: {f.type()} {f.size()}')
-            logging.info(f'pulled fl:{fl.type()}  {fl}')
-            logging.info(f'pulled t: {t.type() } {t}')
-            logging.info(f'pulled tl: {tl.type()}  {tl}')
+            logging.debug(f'pulled f: {f.type()} {f.size()}')
+            logging.debug(f'pulled fl:{fl.type()}  {fl}')
+            logging.debug(f'pulled t: {t.type() } {t}')
+            logging.debug(f'pulled tl: {tl.type()}  {tl}')
 
             if _fl + fl > _CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE:  
                 # just try another sample if this one is too long.
+                # print(f'sample too big: we are at {_fl}, new sample is {fl}, more than {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}, min: {_CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE}')
                 # print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
                 continue
 
@@ -246,11 +247,11 @@ class ConcatDataset(IterableDataset):
             _t, _tl = self.concat_with_space(_t, _tl, t, tl)
             _num_concatenated_samples += 1
             
-        logging.info(f'returning _f: {_f.type()} {_f.size()}')
-        logging.info(f'returning _fl:{_fl.type()}  {_fl}')
-        logging.info(f'returning _t: {_t.type()} {_t}')
-        logging.info(f'returning _tl: {_tl.type()}  {_tl}')
-        logging.info(f'returning num concat samples: {_num_concatenated_samples}')
+        logging.debug(f'returning _f: {_f.type()} {_f.size()}')
+        logging.debug(f'returning _fl:{_fl.type()}  {_fl}')
+        logging.debug(f'returning _t: {_t.type()} {_t}')
+        logging.debug(f'returning _tl: {_tl.type()}  {_tl}')
+        logging.debug(f'returning num concat samples: {_num_concatenated_samples}')
 
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
@@ -258,13 +259,15 @@ class ConcatDataset(IterableDataset):
         if t1 is None: # no need to add space etc
             return t2, tl2
 
+        tl = tl1
+        t = t1
         last_token_id = t1[-1].item()
         space_id = SPACE_ID_LOOKUP_TABLE[last_token_id] 
         if last_token_id != space_id:
-            space_id = torch.tensor(space_id, dtype=torch.float)
-            logging.info(f'concatenating space {space_id} to t {t1}')
+            space_id = torch.tensor([space_id], dtype=torch.long)
+            logging.debug(f'concatenating space {space_id} to t {t1}')
             t = torch.concat((t1, space_id))  # likely needs to be concat
-            tl = tl1 + 1 # space
+            tl += 1 # space
 
         t = torch.concat((t,t2))
         tl += tl2
@@ -303,7 +306,7 @@ class ConcatDataset(IterableDataset):
             try:
                 _sample = next(self.iterables[ind])
                 if self.kind == 'map':
-                    _sample = self.datasets[ind][val]
+                    _sample = self.datasets[ind][_sample]
 
             except StopIteration:
                 self.iterables[ind] = self.get_iterable(self.datasets[ind])
