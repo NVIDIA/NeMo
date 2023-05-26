@@ -144,6 +144,11 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
 
+        TOKEN = "<extra_id_1>"
+        context_idx = context.index(TOKEN)
+        question = TOKEN + context[:context_idx]
+        context_only = context[context_idx + len(TOKEN):]
+        
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
             assert '{output}' in self.prompt_template
@@ -166,10 +171,16 @@ class GPTSFTDataset(Dataset):
             pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
         else:
             pre_pad = []
+        
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
         context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
+        question_ids = self.tokenizer.text_to_ids(question)
         total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
+
+        context_ids_only = self.tokenizer.text_to_ids(context_only)
+        context_ids = context_ids_only 
+
         if self.add_bos:
             total_ids += 1
         if self.add_sep:
@@ -184,6 +195,7 @@ class GPTSFTDataset(Dataset):
                 answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
             elif self.truncation_field == "context":
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+                context_ids = context_ids[: -len(question_ids)] + question_ids
 
         if len(context_ids) > self.max_seq_length:
             context_ids = context_ids[: self.max_seq_length]
@@ -207,7 +219,7 @@ class GPTSFTDataset(Dataset):
 
         if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
             input_ids = input_ids[: self.max_seq_length]
-        print(">>>> context_ids: ", len(context_ids))
+        # print(">>>> context_ids: ", len(context_ids))
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
