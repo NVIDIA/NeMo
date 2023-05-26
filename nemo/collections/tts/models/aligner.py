@@ -104,7 +104,11 @@ class AlignerModel(ModelPT):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
             # for backward compatibility
-            if self._is_model_being_restored():
+            if (
+                self._is_model_being_restored()
+                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+            ):
                 cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
                     cfg.text_tokenizer.g2p["_target_"]
                 )
