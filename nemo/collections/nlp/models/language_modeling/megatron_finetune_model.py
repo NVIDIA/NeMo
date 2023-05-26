@@ -13,10 +13,11 @@
 # limitations under the License.
 import itertools
 import json
+from typing import Dict, List
+
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from typing import Dict, List
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
