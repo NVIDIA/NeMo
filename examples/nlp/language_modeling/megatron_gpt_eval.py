@@ -240,6 +240,7 @@ def main(cfg) -> None:
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,
+        "max_sequence_length": cfg.inference.max_sequence_length,
     }
 
     sampling_params: SamplingParam = {
@@ -254,24 +255,24 @@ def main(cfg) -> None:
     }
 
     # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    )
+    # response = model.generate(
+    #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    # )
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Second method of running text generation, call trainer.predict
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, batch_size=2)
+    request_dl = DataLoader(dataset=ds, batch_size=1)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
-    print("***************************")
-    print(response)
-    print("***************************")
+    # print("***************************")
+    # print(response)
+    # print("***************************")
 
     # Third method of running text generation, use inference server
     if cfg.server:

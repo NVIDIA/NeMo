@@ -53,7 +53,7 @@ class TextGenerationStrategy:
 
     def forward_step(self, batch, tensor_shape):
         fwd_bwd_function = get_forward_backward_func()
-
+        torch.cuda.empty_cache()
         output_tensor = fwd_bwd_function(
             forward_step_func=self.model.get_forward_output_only_func(),
             data_iterator=iter([batch,]),
@@ -82,6 +82,11 @@ class TextGenerationStrategy:
             context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
+        if self.model.get_inference_config().get("max_sequence_length", None) is not None:
+            res = []
+            for s in context_tokens:
+                res.append(s[:self.model.get_inference_config()["max_sequence_length"]])
+            context_tokens = res
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
@@ -181,8 +186,9 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
-        if maxlen > self.model.cfg.encoder_seq_length + 1:
-            maxlen = self.model.cfg.encoder_seq_length + 1
+        if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
+            if maxlen > self.model.cfg.encoder_seq_length + 1:
+                maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
