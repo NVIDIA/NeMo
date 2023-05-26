@@ -232,47 +232,44 @@ class ConcatDataset(IterableDataset):
 
             (f, fl, t, tl), _ = self.pull_sample(ind_gen)
 
-            print(f'pulled f: {f.type()} {f.size()}')
-            print(f'pulled fl:{fl.type()}  {fl}')
-            print(f'pulled t: {t.type() } {t}')
-            print(f'pulled tl: {tl.type()}  {tl}')
+            logging.info(f'pulled f: {f.type()} {f.size()}')
+            logging.info(f'pulled fl:{fl.type()}  {fl}')
+            logging.info(f'pulled t: {t.type() } {t}')
+            logging.info(f'pulled tl: {tl.type()}  {tl}')
 
             if _fl + fl > _CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE:  
                 # just try another sample if this one is too long.
-                print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
+                # print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
                 continue
 
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, _CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
-
-            if _t is not None:
-                last_token_id = _t[-1].item()
-                _space_id = SPACE_ID_LOOKUP_TABLE[last_token_id] 
-                print(f'space id: {_space_id}')
-                if last_token_id != _space_id:
-                    print('appending space token')
-                    _space_id = torch.tensor(_space_id, dtype=torch.float)
-                    if _t is not None:
-                        print(f'concatenating space {_space_id} to _t {_t}')
-                        _t = torch.concat((_t, _space_id))  # likely needs to be concat
-                    else:
-                        _t = _space_id
-                    _tl += 1
-
-            if _t is not None:
-                _t = torch.concat((_t,t))
-            else:
-                _t = t
-            _tl += tl 
-
+            _t, _tl = self.concat_with_space(_t, _tl, t, tl)
             _num_concatenated_samples += 1
-            print(f'eofi: tl: {_tl}, fl: {_fl}, nums: {_num_concatenated_samples}')
-            print(f'returning _f: {_f.type()} {_f.size()}')
-            print(f'returning _fl:{_fl.type()}  {_fl}')
-            print(f'returning _t: {_t.type()} {_t}')
-            print(f'returning _tl: {_tl.type()}  {_tl}')
-
+            
+        logging.info(f'returning _f: {_f.type()} {_f.size()}')
+        logging.info(f'returning _fl:{_fl.type()}  {_fl}')
+        logging.info(f'returning _t: {_t.type()} {_t}')
+        logging.info(f'returning _tl: {_tl.type()}  {_tl}')
+        logging.info(f'returning num concat samples: {_num_concatenated_samples}')
 
         return (_f, _fl, _t, _tl), _num_concatenated_samples
+
+    def concat_with_space(self, t1, tl1, t2, tl2):
+        if t1 is None: # no need to add space etc
+            return t2, tl2
+
+        last_token_id = t1[-1].item()
+        space_id = SPACE_ID_LOOKUP_TABLE[last_token_id] 
+        if last_token_id != space_id:
+            space_id = torch.tensor(space_id, dtype=torch.float)
+            logging.info(f'concatenating space {space_id} to t {t1}')
+            t = torch.concat((t1, space_id))  # likely needs to be concat
+            tl = tl1 + 1 # space
+
+        t = torch.concat((t,t2))
+        tl += tl2
+        return t, tl
+
 
     def concat_with_pause(self, f1, fl1, f2, fl2, concat_pause):
 
