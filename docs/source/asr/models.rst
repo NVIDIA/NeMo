@@ -154,6 +154,7 @@ This allows using the model on longer audio (up to 70 minutes with Fast Conforme
 can be used with limited context attention even if trained with full context. However, if you also want to use global tokens,
 which help aggregate information from outside the limited context, then training is required.
 
+You may find more examples under ``<NeMo_git_root>/examples/asr/conf/fastconformer/``.
 
 Cache-aware Streaming Conformer
 -------------------------------
@@ -211,6 +212,8 @@ at ``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_ctc_bpe.yam
 To simulate cache-aware streaming, you may use the script at ``<NeMo_git_root>/examples/asr/asr_cache_aware_streaming/speech_to_text_cache_aware_streaming_infer.py``. It can simulate streaming in single stream or multi-stream mode (in batches) for an ASR model.
 This script can be used for models trained offline with full-context but the accuracy would not be great unless the chunk size is large enough which would result in high latency.
 It is recommended to train a model in streaming model with limited context for this script. More info can be found in the script.
+
+You may find FastConformer variants of cache-aware streaming models under ``<NeMo_git_root>/examples/asr/conf/fastconformer/``.
 
 .. _LSTM-Transducer_model:
 
@@ -284,6 +287,9 @@ You may find the example config files of Conformer variant of such hybrid models
 ``<NeMo_git_root>/examples/asr/conf/conformer/hybrid_transducer_ctc/conformer_hybrid_transducer_ctc_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/hybrid_transducer_ctc/conformer_hybrid_transducer_ctc_bpe.yaml``.
 
+Similar example configs for FastConformer variants of Hybrid models can be found here:
+``<NeMo_git_root>/examples/asr/conf/fastconformer/hybrid_transducer_ctc/``
+``<NeMo_git_root>/examples/asr/conf/fastconformer/hybrid_cache_aware_streaming/``
 
 .. _Conformer-HAT_model:
 
@@ -309,6 +315,33 @@ with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/hat/conf
 By default, the decoding for HAT model works in the same way as for Conformer-Transducer.
 In the case of external ngram LM fusion you can use ``<NeMo_git_root>/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py``.
 To enable HAT internal LM subtraction set ``hat_subtract_ilm=True`` and find more appropriate couple of ``beam_alpha`` and ``hat_ilm_weight`` values in terms of the best recognition accuracy.
+
+
+.. _Hybrid-ASR-TTS_model:
+
+Hybrid ASR-TTS Model
+--------------------
+
+Hybrid ASR-TTS Model (``ASRWithTTSModel``) is a transparent wrapper for the ASR model with a frozen pretrained text-to-spectrogram model. The approach is described in the paper
+`Text-only domain adaptation for end-to-end ASR using integrated text-to-mel-spectrogram generator <https://arxiv.org/abs/2302.14036>`_.
+This allows using text-only data for training and finetuning, mixing it with audio-text pairs if necessary.
+
+The model consists of three models:
+
+* ASR model (``EncDecCTCModelBPE`` or ``EncDecRNNTBPEModel``)
+* Frozen TTS Mel Spectrogram Generator (currently, only :ref:`FastPitch <FastPitch_model>` model is supported)
+* Optional frozen :ref:`Spectrogram Enhancer model <SpectrogramEnhancer_model>` model trained to mitigate mismatch between real and generated mel spectrogram
+
+    .. image:: images/hybrid_asr_tts_model.png
+        :align: center
+        :alt: Hybrid ASR-TTS Model
+        :scale: 50%
+
+For the detailed information see:
+
+* :ref:`Text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>` preparation
+* :ref:`Configs and training <Hybrid-ASR-TTS_model__Config>`
+
 
 References
 ----------

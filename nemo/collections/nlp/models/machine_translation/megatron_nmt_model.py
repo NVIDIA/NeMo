@@ -314,8 +314,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             tensor_shape=tensor_shape,
             decoder_seq_length=decoder_seq_length,
             dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
@@ -430,7 +431,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     pin_memory=cfg.get("pin_memory", False),
                     drop_last=cfg.get("drop_last", False),
                     shuffle=False,
-                    persistent_workers=True,
+                    persistent_workers=True if cfg.get("num_workers", 0) > 0 else False,
                 )
             )
 
@@ -592,7 +593,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             collate_fn=collate_fn,
             num_workers=cfg.num_workers,
             pin_memory=cfg.pin_memory,
-            persistent_workers=True,
+            persistent_workers=True if cfg.num_workers > 0 else False,
         )
 
     def process_global_batch_for_text_translation_datasets(self, batch):
