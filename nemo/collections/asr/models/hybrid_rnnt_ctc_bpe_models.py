@@ -14,7 +14,7 @@
 
 import copy
 import os
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -124,7 +124,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
 
         # setting the RNNT decoder as the default one
-        self.use_rnnt_decoder = True
+        self.cur_decoder = "rnnt"
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -375,7 +375,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             logging.info(f"Changed tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
         """
         Changes decoding strategy used during RNNT decoding process.
         Args:
@@ -415,6 +415,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
 
+            self.joint.temperature = decoding_cfg.get('temperature', 1.0)
+
             # Update config
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding = decoding_cfg
@@ -442,11 +444,13 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 dist_sync_on_step=True,
             )
 
+            self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
+
             # Update config
             with open_dict(self.cfg.aux_ctc.decoding):
                 self.cfg.aux_ctc.decoding = decoding_cfg
 
-            self.use_rnnt_decoder = False
+            self.cur_decoder = "ctc"
             logging.info(
                 f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
             )
@@ -454,7 +458,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             raise ValueError(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
@@ -462,4 +466,61 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             List of available pre-trained models.
         """
         results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_pc/versions/1.18.0/files/stt_en_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_fastconformer_hybrid_large_pc/versions/1.18.0/files/stt_de_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_it_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_it_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_it_fastconformer_hybrid_large_pc/versions/1.18/files/stt_it_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_es_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_fastconformer_hybrid_large_pc/versions/1.18.0/files/stt_es_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_hr_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_hr_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_hr_fastconformer_hybrid_large_pc/versions/1.18.0/files/FastConformer-Hybrid-Transducer-CTC-BPE-v256-averaged.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_ua_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ua_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ua_fastconformer_hybrid_large_pc/versions/1.18.0/files/stt_ua_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_pl_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_pl_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_pl_fastconformer_hybrid_large_pc/versions/1.18.0/files/stt_pl_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_by_fastconformer_hybrid_large_pc",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_by_fastconformer_hybrid_large_pc",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_by_fastconformer_hybrid_large_pc/versions/1.18.0/files/stt_by_fastconformer_hybrid_large_pc.nemo",
+        )
+        results.append(model)
+
         return results

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, List, Optional, Union
+import queue
+from functools import partial
+from typing import Any, Iterator, List, Optional, Union
 
 import numpy as np
 import torch
@@ -67,6 +69,9 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    # TODO @tmoon: Use once available in Megatron-LM
+    # from megatron.core.pipeline_parallel.schedules import DataIteratorList
 
     HAVE_MEGATRON_CORE = True
 
@@ -143,7 +148,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
+                self.model = converted_model
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
 
@@ -155,6 +160,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
 
         self.transformer_engine = cfg.get('transformer_engine', False)
 
@@ -204,6 +213,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
+            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
             ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
@@ -330,6 +340,68 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_o2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=self._make_data_iterator_list(dataloader_iter),
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=self.enable_autocast,
+            no_sync_func=no_sync_func,
+            grad_sync_func=grad_sync_func,
+            param_sync_func=param_sync_func,
+        )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.concat(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                loss_sum_tensors_list = [
+                    loss_sum['loss_sum_and_ub_size']
+                    for loss_sum in losses_reduced_per_micro_batch
+                    if loss_sum['loss_sum_and_ub_size'][1] > 0
+                ]
+                loss_sum = (
+                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                    if len(loss_sum_tensors_list) > 0
+                    else torch.tensor([0.0, 0.0]).cuda()
+                )
+                return loss_sum
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
@@ -358,33 +430,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-        )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            loss_mean = torch.tensor(0.0).cuda()
+        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -416,7 +462,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        # (@adithyare) we need to check for the _scaler attribute to enable pp>1 for adapter training
+        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
@@ -527,44 +574,88 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         grad = word_embeddings_weight.grad
                     torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
+    def _make_data_iterator_list(self, data_iterator: Iterator) -> List[Iterator]:
+        """ Convert data iterator into form expected by Megatron
+
+            With interleaved pipeline parallelism, Megatron expects a
+            list of one data iterator per model chunk. Each model
+            chunk independently gets data from its data iterator, so
+            we need to interact with the data iterator multiple times
+            for each microbatch step. Instead of incorporating this
+            logic into the data loader, we cache the iterator's output
+            to the first model chunk and reuse it in the other model
+            chunks.
+        """
+
+        if not isinstance(self.model, list) or len(self.model) == 1:
+            return data_iterator  # TODO @tmoon: Remove
+            # TODO @tmoon: Use once available in Megatron-LM
+            # return DataIteratorList([data_iterator])
+
+        class CachingIterator:
+            """Iterator wrapper that caches values"""
+
+            class Proxy:
+                """Returns values from caching iterator wrapper
+
+                Assumed to never advance past the caching iterator.
+                """
+
+                def __init__(self):
+                    self.cache = queue.Queue()
+
+                def __iter__(self):
+                    return self
+
+                def __next__(self):
+                    return self.cache.get_nowait()
+
+            def __init__(self, iterator: Iterator):
+                self.iterator = iterator
+                self.proxies = []
+
+            def make_proxy(self):
+                self.proxies.append(CachingIterator.Proxy())
+                return self.proxies[-1]
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                val = next(self.iterator)
+                for proxy in self.proxies:
+                    proxy.cache.put(val)
+                return val
+
+        # Make list of iterator wrappers
+        iters = [CachingIterator(data_iterator)]
+        while len(iters) < len(self.model):
+            iters.append(iters[0].make_proxy())
+        return iters  # TODO @tmoon: Remove
+        # TODO @tmoon: Use once available in Megatron-LM
+        # return DataIteratorList(iters)
+
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch = next(dataloader_iter)
-                for k in batch.keys():
-                    if self.get_attention_mask_from_fusion:
-                        batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
-                    else:
-                        batch[k] = batch[k].cuda(non_blocking=True)
-            else:
-                if parallel_state.is_pipeline_first_stage():
-                    batch = next(dataloader_iter)
-                    # First pipeline stage needs tokens, position_ids, and attention_mask
-                    for k in batch.keys():
-                        if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids'] else None
-                        else:
-                            batch[k] = (
-                                batch[k].cuda(non_blocking=True)
-                                if k in ['tokens', 'position_ids', 'attention_mask']
-                                else None
-                            )
-                elif parallel_state.is_pipeline_last_stage():
-                    batch = next(dataloader_iter)
-                    # Last pipeline stage needs the labels, loss_mask, and attention_mask
-                    for k in batch.keys():
-                        if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
-                        else:
-                            batch[k] = (
-                                batch[k].cuda(non_blocking=True)
-                                if k in ['labels', 'loss_mask', 'attention_mask']
-                                else None
-                            )
-                else:
-                    # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels']}
 
+            # Get data batch
+            batch = next(dataloader_iter)
+
+            # Transfer needed data to GPU
+            required_keys = set()
+            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+                required_keys.update(batch.keys())
+            else:
+                required_keys.add('attention_mask')
+                if parallel_state.is_pipeline_first_stage():
+                    required_keys.update(('tokens', 'position_ids'))
+                if parallel_state.is_pipeline_last_stage():
+                    required_keys.update(('labels', 'loss_mask'))
+            if self.get_attention_mask_from_fusion:
+                required_keys.remove('attention_mask')
+            batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+
+            # Model forward pass
             output_tensor = model(
                 batch['tokens'],
                 batch['position_ids'],
@@ -604,7 +695,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -640,46 +732,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.eval()
 
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
-        # run forward passes for an entire global batch
-        # we do this inside validation_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.train()
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-        )
-
-        # only the last stage of the pipeline returns losses
-        if losses_reduced_per_micro_batch:
-            if self.cfg.data.get('validation_drop_last', True):
-                # average loss across micro batches
-                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-                return torch.concat(loss_tensors_list).mean()
-            else:
-                # Get the total loss since micro batches sizes are not uniform
-                loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_ub_size']
-                    for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_ub_size'][1] > 0
-                ]
-                loss_sum = (
-                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
-                    if len(loss_sum_tensors_list) > 0
-                    else torch.tensor([0.0, 0.0]).cuda()
-                )
-                return loss_sum
-        else:
-            # we're not on the last pipeline stage so no losses
-            return []
+        return loss
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
@@ -1051,8 +1114,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return self.model.parameters()
 
     def _reset_activation_checkpointing_args(self):
-        """ Disables activation checkpointing completely and saves the values so that 
-            _restore_activation_checkpointing_args can restore them later. This function must always be 
+        """ Disables activation checkpointing completely and saves the values so that
+            _restore_activation_checkpointing_args can restore them later. This function must always be
             called before _restore_activation_checkpointing_args.
         """
         # Store values to restore them later.
@@ -1075,8 +1138,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
-        """ Restores the activation checkpointing parameters using the values saved by  
-            _reset_activation_checkpointing_args. This function must never be called before 
+        """ Restores the activation checkpointing parameters using the values saved by
+            _reset_activation_checkpointing_args. This function must never be called before
             _reset_activation_checkpointing_args.
         """
         # Restore config values.
@@ -1095,8 +1158,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
     def _reset_sequence_parallelism_args(self):
-        """ Disables sequence parallelism completely and saves the values so that 
-            _restore_sequence_parallelism_args can restore them later. This function must always be 
+        """ Disables sequence parallelism completely and saves the values so that
+            _restore_sequence_parallelism_args can restore them later. This function must always be
             called before _restore_sequence_parallelism_args.
         """
         # Store values to restore them later.
@@ -1111,8 +1174,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.language_model.encoder.sequence_parallel = None
 
     def _restore_sequence_parallelism_args(self):
-        """ Restores the sequence parallelism parameters using the values saved by  
-            _reset_sequence_parallelism_args. This function must never be called before 
+        """ Restores the sequence parallelism parameters using the values saved by
+            _reset_sequence_parallelism_args. This function must never be called before
             _reset_sequence_parallelism_args.
         """
         # Restore config values.
