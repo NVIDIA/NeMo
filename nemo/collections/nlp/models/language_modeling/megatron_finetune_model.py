@@ -13,11 +13,10 @@
 # limitations under the License.
 import itertools
 import json
-from typing import Dict, List
-
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from typing import Dict, List
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
@@ -48,7 +47,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
 
 __all__ = ['MegatronT5FinetuneModel']
 
@@ -204,7 +202,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return super().on_train_epoch_start()
 
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
-        if metric_name == 'exact_string_match':
+        if metric_name == 'exact_string_match' or 'rouge':
             return pred, label
         pred = pred.replace(' ', '')
         label = label.replace(' ', '')
@@ -445,6 +443,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
             )
             metric = metric_object.compute()
+            if metric_name == 'rouge':
+                metric = metric['rouge1_fmeasure']
             # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
             if isinstance(metric, dict):
                 # GLUE case:
@@ -458,7 +458,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         if k != 'acc' and 'total' not in k:
                             self.log(metric_log_key + f'_{k}', v, batch_size=1)
                             logging.info(f"{mode} {metric_name} lang {k} : {v}")
-                    metric = metric['acc']
+                    if metric_name != 'rouge':
+                        metric = metric['acc']
             else:
                 self.log(metric_log_key, metric, batch_size=1)
                 logging.info(f"{metric_log_key}: {metric}")
