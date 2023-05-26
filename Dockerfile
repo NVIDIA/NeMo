@@ -100,6 +100,7 @@ RUN pip install nvidia-pyindex &&\
   pip install nvidia-dlprof[pytorch] &&\
   pip install nvtx
 
+ARG FORCE_REBUILD=unknown
 RUN git clone https://github.com/crankshaw-google/Megatron-LM.git \
   && cd Megatron-LM \
   && pip install -e .

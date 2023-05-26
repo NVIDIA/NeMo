@@ -7,6 +7,6 @@ TAG=$(git rev-parse --short HEAD)
 
 IMAGE_FULL=$IMAGE:$TAG
 
-DOCKER_BUILDKIT=1 docker build -f Dockerfile -t $IMAGE_FULL .
+DOCKER_BUILDKIT=1 docker build --build-arg FORCE_REBUILD="2" -f Dockerfile -t $IMAGE_FULL .
 
 docker push $IMAGE_FULL
