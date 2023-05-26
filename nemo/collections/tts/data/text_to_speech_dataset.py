@@ -25,7 +25,6 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import Bas
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
 from nemo.collections.tts.parts.preprocessing.features import Featurizer
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
     filter_dataset_by_duration,
     get_abs_rel_paths,
@@ -55,12 +54,6 @@ class DatasetSample:
     speaker_index: int = None
 
 
-@dataclass
-class AlignPriorConfig:
-    hop_length: int
-    use_beta_binomial_interpolator: bool = False
-
-
 @experimental
 class TextToSpeechDataset(Dataset):
     """
@@ -78,8 +71,8 @@ class TextToSpeechDataset(Dataset):
         featurizers: Optional, list of featurizers to load feature data from. Should be the same config provided
             when running scripts.dataset_processing.tts.compute_features.py before training.
         feature_processors: Optional, list of feature processors to run on training examples.
-        align_prior_config: Optional, if provided alignment prior will be calculated and included in
-            batch output.
+        align_prior_hop_length: Optional int, hop length of audio features.
+            If provided alignment prior will be calculated and included in batch output.
         min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
             will be ignored.
         max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
@@ -95,7 +88,7 @@ class TextToSpeechDataset(Dataset):
         speaker_path: Optional[Path] = None,
         featurizers: Optional[Dict[str, Featurizer]] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
-        align_prior_config: Optional[Dict] = None,
+        align_prior_hop_length: Optional[int] = None,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
     ):
@@ -104,6 +97,8 @@ class TextToSpeechDataset(Dataset):
         self.sample_rate = sample_rate
         self.text_tokenizer = text_tokenizer
         self.weighted_sample_steps = weighted_sample_steps
+        self.align_prior_hop_length = align_prior_hop_length
+        self.include_align_prior = self.align_prior_hop_length is not None
 
         if speaker_path:
             self.include_speaker = True
@@ -124,16 +119,6 @@ class TextToSpeechDataset(Dataset):
             self.feature_processors = list(feature_processors.values())
         else:
             self.feature_processors = []
-
-        if align_prior_config:
-            self.align_prior_config = AlignPriorConfig(**align_prior_config)
-            if self.align_prior_config.use_beta_binomial_interpolator:
-                self.beta_binomial_interpolator = BetaBinomialInterpolator()
-            else:
-                self.beta_binomial_interpolator = None
-        else:
-            self.align_prior_config = None
-            self.beta_binomial_interpolator = None
 
         self.data_samples = []
         self.sample_weights = []
@@ -224,15 +209,10 @@ class TextToSpeechDataset(Dataset):
             example["speaker"] = data.speaker
             example["speaker_index"] = data.speaker_index
 
-        if self.align_prior_config:
+        if self.include_align_prior:
             text_len = len(tokens)
-            spec_len = 1 + librosa.core.samples_to_frames(
-                audio.shape[0], hop_length=self.align_prior_config.hop_length
-            )
-            if self.beta_binomial_interpolator:
-                align_prior = self.beta_binomial_interpolator(w=spec_len, h=text_len)
-            else:
-                align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=spec_len)
+            spec_len = 1 + librosa.core.samples_to_frames(audio.shape[0], hop_length=self.align_prior_hop_length)
+            align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=spec_len)
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
 
@@ -270,7 +250,7 @@ class TextToSpeechDataset(Dataset):
             if self.include_speaker:
                 speaker_list.append(example["speaker_index"])
 
-            if self.align_prior_config:
+            if self.include_align_prior:
                 prior_list.append(example["align_prior"])
 
         batch_audio_len = torch.IntTensor(audio_len_list)
@@ -293,7 +273,7 @@ class TextToSpeechDataset(Dataset):
         if self.include_speaker:
             batch_dict["speaker_id"] = torch.IntTensor(speaker_list)
 
-        if self.align_prior_config:
+        if self.include_align_prior:
             spec_max_len = max([prior.shape[0] for prior in prior_list])
             text_max_len = max([prior.shape[1] for prior in prior_list])
             batch_dict["align_prior_matrix"] = stack_tensors(prior_list, max_lens=[text_max_len, spec_max_len],)

@@ -44,6 +44,7 @@ model:
   dur_loss_scale: 0.1
   pitch_loss_scale: 0.1
   energy_loss_scale: 0.1
+  aligner_loss_scale: 0.1
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -93,10 +94,6 @@ model:
     field: energy
     stats_path: ${feature_stats_path}
 
-  align_prior_config:
-    hop_length: ${feature.hop_length}
-    use_beta_binomial_interpolator: false
-
   train_ds:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset
@@ -104,11 +101,11 @@ model:
       weighted_sample_steps: ${weighted_sample_steps}
       sample_rate: ${feature.sample_rate}
       speaker_path: ${speaker_path}
+      align_prior_hop_length: ${feature.hop_length}
       featurizers: ${feature.featurizers}
       feature_processors:
         pitch: ${model.pitch_processor}
         energy: ${model.energy_processor}
-      align_prior_config: ${model.align_prior_config}
       min_duration: 0.1
       max_duration: 10.0
 
@@ -122,11 +119,11 @@ model:
       dataset_meta: ${val_ds_meta}
       sample_rate: ${feature.sample_rate}
       speaker_path: ${speaker_path}
+      align_prior_hop_length: ${feature.hop_length}
       featurizers: ${feature.featurizers}
       feature_processors:
         pitch: ${model.pitch_processor}
         energy: ${model.energy_processor}
-      align_prior_config: ${model.align_prior_config}
 
     dataloader_params:
       batch_size: ${batch_size}
@@ -155,7 +152,7 @@ model:
       text_tokenizer: ${model.text_tokenizer}
       sample_rate: ${feature.sample_rate}
       speaker_path: ${speaker_path}
-      align_prior_config: ${model.align_prior_config}
+      align_prior_hop_length: ${feature.hop_length}
       featurizers: ${feature.featurizers}
 
       feature_processors:
