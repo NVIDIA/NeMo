@@ -20,7 +20,7 @@
 # with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
 # With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
-name: "Conformer-SSL-RQ"
+name: "Conformer-SSL-RQ-MaC"
 
 model:
   sample_rate: 16000
@@ -85,7 +85,7 @@ model:
     _target_: nemo.collections.asr.modules.RandomBlockMasking
     block_size: 40
     mask_prob: 0.1
-    feat_in: ${model.preprocessor.features}
+    feat_in: ${model.encoder.d_model}
     freeze: true
     allow_overlap: true
 
@@ -143,7 +143,7 @@ model:
 
   loss:
     _target_: nemo.collections.asr.losses.MultiMLMLoss
-    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio
+    combine_time_steps: 1  # no subsampling after masking
     mask_threshold: 0.8
     num_decoders: ${model.num_books}
     squeeze_single: ${model.squeeze_single}

@@ -9,9 +9,9 @@ dev_manifests="${data_dir}/dev_clean_cleaned.json"
 batch_size=8
 num_workers=8
 
-CUDA_VISIBLE_DEVICES="0" python speech_pretrain.py \
+CUDA_VISIBLE_DEVICES="0" python speech_pretrain_mac.py \
     --config-path="configs/" \
-    --config-name="conformer_large_ssl_rq" \
+    --config-name="conformer_large_ssl_rq_mac" \
     model.train_ds.manifest_filepath=$train_manifests \
     model.validation_ds.manifest_filepath=$dev_manifests \
     model.train_ds.batch_size=$batch_size \
