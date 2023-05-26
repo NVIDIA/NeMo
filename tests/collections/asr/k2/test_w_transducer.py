@@ -56,7 +56,7 @@ class TestGraphWTransducerLoss:
 
         # eps transitions from the first state
         eps_from_first_state = vocab_size
-        for time_i in range(1, num_frames + 1):
+        for time_i in range(1, num_frames):
             etalon_schema_fst.append([0, time_i, eps_from_first_state, 0, 0])
 
         # eps transitions to the last state

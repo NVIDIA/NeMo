@@ -171,7 +171,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         end_eps_id = vocab_size + 1
         num_eps = 2
 
-        num_sequence_arcs = num_frames * (vocab_size + num_eps)
+        num_sequence_arcs = num_frames * vocab_size + (num_frames - 1) * num_eps + 1
         fsa_temporal_arcs = torch.zeros((num_sequence_arcs, 4), dtype=torch.int32, device=device)
         sequence_states = torch.arange(0, num_frames, dtype=torch.int32, device=device)
         sequence_states_next = sequence_states + 1
@@ -179,19 +179,19 @@ class GraphWTransducerLoss(GraphRnntLoss):
         start_states = sequence_states.expand(vocab_size + num_eps, num_frames).transpose(0, 1).flatten()
 
         # self-loops - all, make forward arcs later
-        fsa_temporal_arcs[:num_sequence_arcs, 0] = start_states  # from
-        fsa_temporal_arcs[:num_sequence_arcs, 1] = start_states  # to
+        fsa_temporal_arcs[:num_sequence_arcs, 0] = start_states[:-1]  # from
+        fsa_temporal_arcs[:num_sequence_arcs, 1] = start_states[:-1]  # to
         fsa_temporal_arcs[:num_sequence_arcs, 2] = (
             torch.arange(0, vocab_size + num_eps, dtype=torch.int32, device=device)
             .expand(num_frames, vocab_size + num_eps)
-            .flatten()
+            .flatten()[:-1]
         )
         # forward arcs
         fsa_temporal_arcs[blank_id : num_sequence_arcs : vocab_size + num_eps, 1] = sequence_states_next  # blanks
         # eps arcs
         fsa_temporal_arcs[start_eps_id : num_sequence_arcs : vocab_size + num_eps, 0] = 0
         fsa_temporal_arcs[start_eps_id : num_sequence_arcs : vocab_size + num_eps, 1] = sequence_states + 1
-        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 0] = sequence_states
+        fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 0] = sequence_states[:-1]
         fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 1] = (
             num_frames - 1 if self.last_blank_mode == self.LastBlankMode.FORCE_FINAL else num_frames
         )
