@@ -11,9 +11,9 @@
   - `nemo.collections.asr.losses.ssl_losses.mlm.MultiMLMLoss` 
 - Random Block Masking (RBM)
   - `nemo.collections.asr.modules.ssl_modules.masking.RandomBlockMasking`
-- Speech MLM Model with Masking after Convolutional sub-sampling (MAC)
+- Speech MLM Model with Masking-after-Convolutional (MAC) sub-sampling (similar to Wav2Vec-BERT)
   - `nemo.collections.asr.models.slm_models.SelfSupervisedConvMLMModel`
   - `./speech_pretrain_mac.py`
-- BEST-RQ Model
+- Speech MLM Model with Masking log-mel spectrogram (BEST-RQ)
   - `nemo.collections.asr.models.slm_models.SelfSupervisedRandomQuantizationModel`
   - `./speech_pretrain.py`
