@@ -83,8 +83,8 @@ model:
 
   masking:
     _target_: nemo.collections.asr.modules.RandomBlockMasking
-    block_size: 40
-    mask_prob: 0.1
+    block_size: 40  # 10ms per frame, 400ms per block with block_size=40
+    mask_prob: 0.01  # for allow_overlap=True, this means the mask prob for each frame, otherwise it means the overall masked proportion
     feat_in: ${model.preprocessor.features}
     freeze: true
     allow_overlap: true
