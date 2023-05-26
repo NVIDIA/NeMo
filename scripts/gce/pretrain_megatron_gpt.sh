@@ -25,7 +25,7 @@ cd /workspace/nemo
 for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
 
-   OMP_NUM_THREADS=12 RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
+   RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
      python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
       --config-path=/workspace/nemo/examples/nlp/language_modeling/conf \
       --config-name=megatron_gpt_config \
