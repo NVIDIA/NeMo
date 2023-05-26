@@ -757,7 +757,7 @@ class SpeakerEncoder(NeuralModule):
         if self.lookup_module is not None and speaker is not None:
             embs = self.lookup_module(speaker)
 
-        # Get GST based speaker embedding    
+        # Get GST based speaker embedding
         if reference_spec is not None and reference_spec_lens is not None:
             if self.gst_module is not None:
                 out = self.gst_module(reference_spec, reference_spec_lens)
