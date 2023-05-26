@@ -505,7 +505,7 @@ class _TarredAudioLabelDataset(IterableDataset):
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
                 available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
                 The benefit of replication is that it allows each node to sample data points from the entire
-                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+                dataset independently of other nodes, and reduces dependence on the value of `shuffle_n`.
 
                 .. warning::
                     Replicated strategy allows every node to sample the entire set of available tarfiles,
@@ -894,7 +894,7 @@ class AudioToMultiLabelDataset(Dataset):
             Defaults to False.
         cal_labels_occurrence (bool): Whether to calculate occurrence of labels
             Defaults to False.
-        delimiter (Optional[str]): Delimiter to use when spliting the label string, default to None.
+        delimiter (Optional[str]): Delimiter to use when splitting the label string, default to None.
         normalize_audio_db (Optional[float]):  normalize audio signal to a target db, default to None.
     """
 
@@ -1100,7 +1100,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
                     or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
-        delimiter (Optional[str]): Delimiter to use when spliting the label string, default to None.
+        delimiter (Optional[str]): Delimiter to use when splitting the label string, default to None.
         normalize_audio_db (Optional[float]):  normalize audio signal to a target db, default to None.
     """
 
