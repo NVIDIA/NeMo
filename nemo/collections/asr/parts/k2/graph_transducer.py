@@ -469,10 +469,13 @@ class GraphRnntLoss(GraphTransducerLossBase):
             log_probs = F.log_softmax(logits, dim=-1)
             with torch.no_grad():
                 indices = self.get_logits_indices(target_fsas_vec, logits.shape)
+                # transition to the last state
+                # use 0 index (for valid index_select) and manually assign score after index_select for this case
                 indices[target_fsas_vec.labels == -1] = 0
 
             # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
             scores = log_probs.flatten().index_select(-1, indices)
+            # fix weights for the arcs to the last state
             scores[target_fsas_vec.labels == -1] = 0
 
             target_fsas_vec.scores = scores

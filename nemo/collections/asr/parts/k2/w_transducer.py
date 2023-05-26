@@ -138,7 +138,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         Example graph: blank=0, num_frames=3, vocab_size=3, last_blank_mode="force_final".
         Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special eps ids `vocab_size`, `vocab_size+1`.
 
-        graph::
+        graph for force_final::
 
                                                          4:0
                        +--------------------------------------------+
@@ -150,12 +150,12 @@ class GraphWTransducerLoss(GraphRnntLoss):
             +--------------+  0:0  +------------+  0:1   +------------+  0:2   +---+  -1:-1   #===#
             |    0         | ----> |    1       | -----> |    2       | -----> | 3 | -------> H 4 H
             +--------------+       +------------+        +------------+        +---+          #===#
-              ^ 2:0 | | | |         ^ 2:1 |  ^            ^ 2:2 |  ^             ^
-              +-----+ | | |         +-----+  |            +-----+  |             |
-                      | | |     3:0          |                     |             |
-                      | | +------------------+     3:0             |             |
-                      | +------------------------------------------+    3:0      |
-                      +----------------------------------------------------------+
+              ^ 2:0 |  |  |         ^ 2:1 |  ^            ^ 2:2 |  ^
+              +-----+  |  |         +-----+  |            +-----+  |
+                       |  |     3:0          |                     |
+                       |  +------------------+     3:0             |
+                       +-------------------------------------------+
+
 
         Args:
             num_frames: length of the sequence (in frames)
@@ -324,11 +324,14 @@ class GraphWTransducerLoss(GraphRnntLoss):
             log_probs = F.log_softmax(logits, dim=-1)
             with torch.no_grad():
                 indices = self.get_logits_indices(target_fsas_vec, logits.shape)
+                # transition to the last state + eps-transitions
+                # use 0 index (for valid index_select) and manually assign score after index_select for this case
                 indices[target_fsas_vec.labels == -1] = 0
                 indices[target_fsas_vec.labels >= vocab_size] = 0  # eps
 
             # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
             scores = log_probs.flatten().index_select(-1, indices)
+            # fix weights for the arcs to the last state + eps-transitions
             scores[target_fsas_vec.labels == -1] = 0
             scores[target_fsas_vec.labels >= vocab_size] = self.eps_weight  # eps
 
