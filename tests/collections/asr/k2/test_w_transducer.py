@@ -36,7 +36,7 @@ class TestGraphWTransducerLoss:
     @pytest.mark.parametrize("blank_first", [True, False])
     @pytest.mark.parametrize("num_frames", [1, 3, 6])
     @pytest.mark.parametrize("vocab_size", [3])
-    @pytest.mark.parametrize("last_blank_mode", ["force_last", "allow_ignore"])
+    @pytest.mark.parametrize("last_blank_mode", ["force_final", "allow_ignore"])
     def test_temporal_schema(self, device, blank_first, num_frames, vocab_size, last_blank_mode):
         blank_id = 0 if blank_first else vocab_size - 1
         loss = GraphWTransducerLoss(blank=blank_id, last_blank_mode=last_blank_mode)
@@ -61,7 +61,7 @@ class TestGraphWTransducerLoss:
 
         # eps transitions to the last state
         eps_to_last_state = vocab_size + 1
-        last_state_eps = num_frames - 1 if last_blank_mode == "force_last" else num_frames
+        last_state_eps = num_frames - 1 if last_blank_mode == "force_final" else num_frames
         for time_i in range(0, num_frames - 1):
             etalon_schema_fst.append([time_i, last_state_eps, eps_to_last_state, time_i, 0])
 
@@ -138,7 +138,7 @@ class TestGraphWTransducerLoss:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
-    @pytest.mark.parametrize("last_blank_mode", ["force_last", "allow_ignore"])
+    @pytest.mark.parametrize("last_blank_mode", ["force_final", "allow_ignore"])
     def test_grid_schema(self, device, blank_first, last_blank_mode):
         vocab_size = 3
         blank_id = 0 if blank_first else vocab_size - 1
@@ -175,7 +175,7 @@ class TestGraphWTransducerLoss:
         last_grid_state = num_frames * (text_length + 1) - 1
 
         # end eps-transitions
-        if last_blank_mode == "force_last":
+        if last_blank_mode == "force_final":
             last_eps_state = last_grid_state
         else:
             assert last_blank_mode == "allow_ignore"
@@ -217,7 +217,7 @@ class TestGraphWTransducerLoss:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
-    @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_last"])
+    @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_final"])
     def test_small_random_grid_compose_equivalent(
         self, device: torch.device, blank_first: bool, last_blank_mode, rnn_loss_sample_data
     ):
@@ -238,7 +238,7 @@ class TestGraphWTransducerLoss:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
-    @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_last"])
+    @pytest.mark.parametrize("last_blank_mode", ["allow_ignore", "force_final"])
     @pytest.mark.parametrize("use_grid_implementation", [True, False])
     def test_small_grid_transducer_inf_penalty(
         self, device, last_blank_mode, use_grid_implementation, rnnt_test_helper, rnn_loss_sample_data

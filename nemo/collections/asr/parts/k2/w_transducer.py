@@ -34,13 +34,13 @@ class GraphWTransducerLoss(GraphRnntLoss):
 
     class LastBlankMode(PrettyStrEnum):
         ALLOW_IGNORE = "allow_ignore"
-        FORCE_LAST = "force_last"
+        FORCE_FINAL = "force_final"
 
     def __init__(
         self,
         blank: int,
         eps_weight: float = 0.0,
-        last_blank_mode: Union[LastBlankMode, str] = LastBlankMode.FORCE_LAST,
+        last_blank_mode: Union[LastBlankMode, str] = LastBlankMode.FORCE_FINAL,
         use_grid_implementation=True,
         connect_composed=False,
         double_scores=False,
@@ -135,7 +135,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         """
         Get temporal schema graph for W-Transducer loss (Compose-Transducer).
 
-        Example graph: blank=0, num_frames=3, vocab_size=3, last_blank_mode="force_last".
+        Example graph: blank=0, num_frames=3, vocab_size=3, last_blank_mode="force_final".
         Labels: <unit>:<frame_index>. <unit> is a unit from vocab + special eps ids `vocab_size`, `vocab_size+1`.
 
         graph::
@@ -193,7 +193,7 @@ class GraphWTransducerLoss(GraphRnntLoss):
         fsa_temporal_arcs[start_eps_id : num_sequence_arcs : vocab_size + num_eps, 1] = sequence_states + 1
         fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 0] = sequence_states
         fsa_temporal_arcs[end_eps_id : num_sequence_arcs : vocab_size + num_eps, 1] = (
-            num_frames - 1 if self.last_blank_mode == self.LastBlankMode.FORCE_LAST else num_frames
+            num_frames - 1 if self.last_blank_mode == self.LastBlankMode.FORCE_FINAL else num_frames
         )
 
         # transition to last final state
