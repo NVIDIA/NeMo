@@ -72,6 +72,11 @@ if _CONCAT_SAMPLES:
 
 _SAMPLING_RATE = 16000
 
+CONCAT_SAMPLES_SERVED_CNT = 0 
+CONCAT_SAMPLES_PULLED_CNT = 0 
+CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING = 0 
+
+
 class ConcatDataset(IterableDataset):
     """
     A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
@@ -222,6 +227,10 @@ class ConcatDataset(IterableDataset):
         Merge a bunch of samples into one.
         """
 
+        global CONCAT_SAMPLES_SERVED_CNT
+        global CONCAT_SAMPLES_PULLED_CNT
+        global CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING
+
         _f = None
         _fl = 0
         _t = None
@@ -231,6 +240,7 @@ class ConcatDataset(IterableDataset):
         while _fl < _CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE:
 
             (f, fl, t, tl), _ = self.pull_sample(ind_gen)
+            CONCAT_SAMPLES_PULLED_CNT += 1
 
             logging.debug(f'pulled f: {f.type()} {f.size()}')
             logging.debug(f'pulled fl:{fl.type()}  {fl}')
@@ -241,6 +251,10 @@ class ConcatDataset(IterableDataset):
                 # just try another sample if this one is too long.
                 # print(f'sample too big: we are at {_fl}, new sample is {fl}, more than {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}, min: {_CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE}')
                 # print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
+                CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING += 1
+                if CONCAT_SAMPLES_PULLED_CNT % 1000 == 0:
+                    fr = CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING / CONCAT_SAMPLES_PULLED_CNT
+                    logging.info(f'concat samples retried: {fr:.2f} out of pulled: {CONCAT_SAMPLES_PULLED_CNT}')
                 continue
 
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, _CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
@@ -253,6 +267,10 @@ class ConcatDataset(IterableDataset):
         logging.debug(f'returning _tl: {_tl.type()}  {_tl}')
         logging.debug(f'returning num concat samples: {_num_concatenated_samples}')
 
+        CONCAT_SAMPLES_SERVED_CNT += 1
+        if CONCAT_SAMPLES_PULLED_CNT % 1000 == 0:
+            fr = (CONCAT_SAMPLES_PULLED_CNT - CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING) / CONCAT_SAMPLES_SERVED_CNT
+            logging.info(f'concat samples ratio: {fr:.2f} out of served: {CONCAT_SAMPLES_SERVED_CNT}')
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
     def concat_with_space(self, t1, tl1, t2, tl2):
