@@ -127,9 +127,18 @@ def main(cfg) -> None:
         cfg.inference.tokens_to_generate = peft_model_cfg.data.test_ds.tokens_to_generate
 
     if cfg.model.peft.restore_from_path:
-        save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
-        )
+        if cfg.model.peft.restore_from_path.endswith(".nemo"):
+            save_restore_connector = PEFTSaveRestoreConnector(
+                peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
+            )
+        else:
+            # attempting to load a ckpt peft model.
+            assert "restore_from_ckpt_name" in cfg.model.peft and cfg.model.peft.restore_from_ckpt_name is not None
+            save_restore_connector = PEFTSaveRestoreConnector(
+                peft_model_nemo_path=None, 
+                peft_model_ckpt_path=cfg.model.peft.restore_from_path, 
+                peft_model_ckpt_name=cfg.model.peft.restore_from_ckpt_name
+            )
     else:
         save_restore_connector = NLPSaveRestoreConnector()
 
