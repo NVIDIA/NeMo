@@ -3393,11 +3393,11 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
         model.global_batch_size=4 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_50.jsonl] \
         model.data.train_ds.concat_sampling_probabilities=[1.0] \
         model.data.train_ds.num_workers=0 \
         model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_50.jsonl] \
         model.data.validation_ds.names=[quarel]"
         sh "rm -rf examples/nlp/language_modeling/gpt_lora_results"
       }
