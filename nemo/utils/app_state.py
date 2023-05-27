@@ -55,7 +55,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_group = None
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
-        self._init_mpi_proc_gruop = False
+        self._init_mpi_proc_group = False
 
         self._random_seed = None
 
