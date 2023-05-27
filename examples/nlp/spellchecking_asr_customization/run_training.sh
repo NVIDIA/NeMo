@@ -17,10 +17,13 @@
 # Path to NeMo repository
 NEMO_PATH=NeMo
 
-DATA_PATH=data_folder
+## Download repo with training data (very small example)
+git clone https://huggingface.co/datasets/bene-ges/spellmapper_en_train_micro
+
+DATA_PATH=spellmapper_en_train_micro
 
 ## Example of all files needed to run training with non-tarred data:
-## data_folder_example
+## spellmapper_en_train_micro
 ##   ├── config.json
 ##   ├── label_map.txt
 ##   ├── semiotic_classes.txt

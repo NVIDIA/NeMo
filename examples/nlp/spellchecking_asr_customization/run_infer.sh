@@ -17,11 +17,21 @@
 ## Path to NeMo repository
 NEMO_PATH=NeMo
 
-## Files to be provided by user
+## Download model repo from Hugging Face
+git clone https://huggingface.co/bene-ges/spellmapper_asr_customization_en
+## Download repo with test data
+git clone https://huggingface.co/datasets/bene-ges/spellmapper_en_evaluation
+
+## Files in model repo
+PRETRAINED_MODEL=spellmapper_asr_customization_en/training_10m_5ep.nemo
+NGRAM_MAPPINGS=spellmapper_asr_customization_en/replacement_vocab_filt.txt
+BIG_SAMPLE=spellmapper_asr_customization_en/big_sample.txt
+
+## Override these two files if you want to test on your own data
 ## File with input nemo ASR manifest
-INPUT_MANIFEST="manifest.json"
+INPUT_MANIFEST=spellmapper_en_evaluation/medical_manifest_ctc.json
 ## File containing custom words and phrases (plain text)
-CUSTOM_VOCAB="custom_vocab.txt"
+CUSTOM_VOCAB=spellmapper_en_evaluation/medical_custom_vocab.json
 
 ## Other files will be created 
 ## File with index of custom vocabulary
@@ -35,13 +45,6 @@ SPELLMAPPER_OUTPUT="spellmapper_output.txt"
 ## File with output nemo ASR manifest
 OUTPUT_MANIFEST="out_manifest.json"
 
-## Download model repo from Hugging Face
-git clone https://huggingface.co/bene-ges/spellmapper_asr_customization_en
-
-## Files in model repo
-PRETRAINED_MODEL=spellmapper_asr_customization_en/training_10m_5ep.nemo
-NGRAM_MAPPINGS=spellmapper_asr_customization_en/replacement_vocab_filt.txt
-BIG_SAMPLE=spellmapper_asr_customization_en/big_sample.txt
 
 # Create index of custom vocabulary
 python ${NEMO_PATH}/examples/nlp/spellchecking_asr_customization/create_custom_vocab_index.py \
