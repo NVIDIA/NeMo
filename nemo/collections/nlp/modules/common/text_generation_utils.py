@@ -605,9 +605,11 @@ def switch(val1, val2, boolean):
     boolean = boolean.type_as(val1)
     return (1 - boolean) * val1 + boolean * val2
 
+
 def _convert_to_float(model):
     # enable conversion to float when inference is done via model.generate() and PP > 1 (could results in larger memory consumption)
     return model.cfg.get('pipeline_model_parallel_size', 1) > 1 and model._inference_config is None
+
 
 def sample_sequence_batch(
     model,
@@ -673,7 +675,7 @@ def sample_sequence_batch(
                 output = output[0]['logits']
                 if _convert_to_float(model):
                     output = output.float()
-               
+
                 output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 logits = output[:, -1].view(batch_size, -1).contiguous()
