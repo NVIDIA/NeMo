@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'pytorch_23.04:tp-overlap'
+          image 'nvcr.io/nvidia/pytorch:23.04-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1'
         }
   }
