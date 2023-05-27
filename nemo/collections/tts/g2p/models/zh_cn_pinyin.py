@@ -14,7 +14,7 @@
 
 import pathlib
 from collections import defaultdict
-from typing import Optional, Union, Dict, List
+from typing import Dict, List, Optional, Union
 
 from nemo.collections.tts.g2p.models.base import BaseG2p
 from nemo.utils import logging
@@ -53,6 +53,11 @@ class ChineseG2p(BaseG2p):
             None,
             'jieba',
         ], f"{word_segmenter} is not supported now. Please choose correct word_segmenter."
+
+        if phoneme_prefix is None:
+            phoneme_prefix = ""
+        if tone_prefix is None:
+            tone_prefix = ""
 
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict, phoneme_prefix)
@@ -103,7 +108,9 @@ class ChineseG2p(BaseG2p):
         self._Style = Style
 
     @staticmethod
-    def _parse_as_pinyin_dict(phoneme_dict_path: Union[str, pathlib.Path], phoneme_prefix: str) -> Dict[str, List[str]]:
+    def _parse_as_pinyin_dict(
+        phoneme_dict_path: Union[str, pathlib.Path], phoneme_prefix: str
+    ) -> Dict[str, List[str]]:
         """Loads pinyin dict file, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
         with open(phoneme_dict_path, 'r') as file:
