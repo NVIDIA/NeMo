@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -74,8 +75,8 @@ def word_error_rate_detail(
 ) -> Tuple[float, int, float, float, float]:
     """
     Computes Average Word Error Rate with details (insertion rate, deletion rate, substitution rate)
-    between two texts represented as corresponding lists of string. 
-    
+    between two texts represented as corresponding lists of string.
+
     Hypotheses and references must have same length.
     Args:
       hypotheses (list): list of hypotheses
@@ -87,7 +88,7 @@ def word_error_rate_detail(
       ins_rate (float): average insertion error rate
       del_rate (float): average deletion error rate
       sub_rate (float): average substitution error rate
-      
+
     """
     scores = 0
     words = 0
@@ -113,6 +114,8 @@ def word_error_rate_detail(
             if len(h_list) != 0:
                 errors = len(h_list)
                 ops_count['insertions'] += errors
+            else:
+                errors = 0
         else:
             if use_cer:
                 measures = jiwer.cer(r, h, return_dict=True)
@@ -539,6 +542,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 hypothesis = (decoded_prediction, token_lengths, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(decoded_prediction)
+
+                # TODO: remove
+                # collapse leading spaces before . , ? for PC models
+                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
 
             # Preserve this wrapped hypothesis or decoded text tokens.
             hypotheses_list[ind].text = hypothesis
@@ -1215,5 +1222,8 @@ class CTCDecodingConfig:
     # beam decoding config
     beam: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=4)
 
-    #  confidence config
+    # confidence config
     confidence_cfg: ConfidenceConfig = ConfidenceConfig()
+
+    # can be used to change temperature for decoding
+    temperature: float = 1.0
