@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedSc
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
@@ -90,6 +91,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         layer_type=None,
@@ -113,6 +115,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.multi_query_attention = multi_query_attention
 
         self.megatron_legacy = megatron_legacy
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types(
             [
@@ -150,6 +153,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 gather_output=False,
                 init_method=init_method,
                 use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -162,6 +166,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 projection_size,
                 gather_output=False,
                 init_method=init_method,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -173,6 +179,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 2 * projection_size,
                 gather_output=False,
                 init_method=init_method,
+                use_cpu_initialization=use_cpu_initialization,
+                params_dtype=self.dtype,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
@@ -203,6 +211,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            params_dtype=self.dtype,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
@@ -534,6 +543,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
@@ -556,6 +566,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
@@ -705,8 +716,12 @@ class CoreAttention(MegatronModule):
         super(CoreAttention, self).__init__()
 
         self.precision = precision
-        self.fp16 = precision == 16
-        self.bf16 = precision == 'bf16'
+        self.fp16 = False
+        self.bf16 = False
+        if precision == 'bf16':
+            self.bf16 = True
+        elif int(precision) == 16:
+            self.fp16 = True
         self.multi_query_attention = multi_query_attention
 
         self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
