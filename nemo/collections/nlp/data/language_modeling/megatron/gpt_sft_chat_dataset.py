@@ -79,6 +79,8 @@ def cannonical_form_formater(cannoical_form):
 
 
 def response_value_formater(label):
+    if isinstance(label, str):
+        return '<extra_id_2>' + label + '\n'
     keys = ['quality', 'toxicity', 'humor', 'creativity', 'violence', 'helpfulness', 'not_appropriate']
     output_str = '<extra_id_2>'
     elements = []
@@ -165,7 +167,8 @@ def preprocess(
     # add end signal and concatenate together
     conversation = source['system']
     if data_type is not None:
-        conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
+        if TYPE_INSTRUCTION[data_type] != '':
+            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
     header = f"{SYSTEM_TOKEN}{conversation}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type)
