@@ -1150,9 +1150,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Restore model parameters.
         for module in self.get_gpt_module_list():
-            module.language_model.encoder.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
+            module.language_model.encoder.activations_checkpoint_granularity = (
+                self.last_activations_checkpoint_granularity
+            )
             module.language_model.encoder.activations_checkpoint_method = self.last_activations_checkpoint_method
-            module.language_model.encoder.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
+            module.language_model.encoder.activations_checkpoint_num_layers = (
+                self.last_activations_checkpoint_num_layers
+            )
             module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
                 self.last_activations_checkpoint_layers_per_pipeline
             )
