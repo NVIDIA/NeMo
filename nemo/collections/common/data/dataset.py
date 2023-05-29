@@ -69,6 +69,7 @@ if _CONCAT_SAMPLES:
         for i in range(int(c)):
             # the space token id is the first one in the tokenizer.
             SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
+        _offset += int(c)
 
 _SAMPLING_RATE = 16000
 
