@@ -275,7 +275,7 @@ class ConcatDataset(IterableDataset):
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
     def concat_with_space(self, t1, tl1, t2, tl2):
-        if t1 is None: # no need to add space etc
+        if t1 is None or t1.size()[0] == 0: # no need to add space etc
             return t2, tl2
 
         tl = tl1
