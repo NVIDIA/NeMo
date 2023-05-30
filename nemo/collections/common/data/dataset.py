@@ -24,63 +24,6 @@ from nemo.collections.common import tokenizers
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
-# toggle on / off
-# _CONCAT_SAMPLES = os.getenv('CONCAT_SAMPLES')
-# if _CONCAT_SAMPLES is None:
-#     _CONCAT_SAMPLES = False
-
-# if true, concatenated samples are counted as just one sample. 
-# otherwise, they are counted "normally", N joined
-# samples are N samples. But,  dataset length will not be observed!
-# _CONCAT_SAMPLES_COUNT_AS_ONE = os.getenv('CONCAT_SAMPLES_COUNT_AS_ONE')
-# if _CONCAT_SAMPLES_COUNT_AS_ONE is None:
-#     _CONCAT_SAMPLES_COUNT_AS_ONE = True
-
-# _CONCAT_SAMPLES_MAX_LENGTH = os.getenv('CONCAT_SAMPLES_MAX_LENGTH')
-# if _CONCAT_SAMPLES_MAX_LENGTH is None:
-#     _CONCAT_SAMPLES_MAX_LENGTH = 20
-# else:
-#     _CONCAT_SAMPLES_MAX_LENGTH = int(_CONCAT_SAMPLES_MAX_LENGTH)
-
-
-
-# _CONCAT_SAMPLES_MIN_LENGTH = os.getenv('CONCAT_SAMPLES_MIN_LENGTH')
-# if _CONCAT_SAMPLES_MIN_LENGTH is None:
-#     _CONCAT_SAMPLES_MIN_LENGTH = 16
-# else:
-#     _CONCAT_SAMPLES_MIN_LENGTH = int(_CONCAT_SAMPLES_MIN_LENGTH)
-
-# _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = os.getenv('CONCAT_SAMPLES_JOINING_PAUSE_MSEC')
-# if _CONCAT_SAMPLES_JOINING_PAUSE_MSEC is None:
-#     _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = 100
-# else:
-#     _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = int(_CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
-
-# sizes of tokenizers in the aggregate tokenizer
-# 256,256,256,256,256,256,256,256,256,256
-# AGG_TOK_SIZES = os.getenv('AGGREGATE_TOKENIZER_SIZES')
-# if AGG_TOK_SIZES is not None:
-#     AGG_TOK_SIZES = AGG_TOK_SIZES.split(',')
-# would need to be able to compute the token id of the space based on some token id.
-# SPACE_ID_LOOKUP_TABLE = {}
-
-# if _CONCAT_SAMPLES: 
-#    _offset = 0
-#    for c in AGG_TOK_SIZES:
-#        for i in range(int(c)):
-#            # the space token id is the first one in the tokenizer.
-#            SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
-#        _offset += int(c)
-
-
-# this needs to be gotten from each individual dataset.
-# featurizer.sample_rate
-# _SAMPLING_RATE = 16000
-
-# CONCAT_SAMPLES_SERVED_CNT = 0 
-# CONCAT_SAMPLES_PULLED_CNT = 0 
-# CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING = 0 
-
 
 class ConcatDataset(IterableDataset):
     """
@@ -278,7 +221,15 @@ class ConcatDataset(IterableDataset):
 
             pause_len = int(self.concat_samples_joining_pause * sample_rate)
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, pause_len)
-            _t, _tl = self.concat_with_space(_t, _tl, t, tl)
+            # _t, _tl = self.concat_with_space(_t, _tl, t, tl)
+
+            if _t is None or _t.size()[0] == 0::
+                _t = t
+                _tl = tl
+            else:
+                _t = torch.concat((_t,t))
+                _tl += tl 
+
             _num_concatenated_samples += 1
             
         logging.debug(f'returning _f: {_f.type()} {_f.size()}')
@@ -355,7 +306,8 @@ class ConcatDataset(IterableDataset):
                 if self.kind == 'map':
                     _sample = self.datasets[ind][_sample]
 
-                _sample_rate = self.datasets[ind].featurizer.sample_rate 
+                if self.concat_samples: ## AttributeError: 'Subset' object has no attribute 'featurizer' ?
+                    _sample_rate = self.datasets[ind].featurizer.sample_rate 
 
             except StopIteration:
                 self.iterables[ind] = self.get_iterable(self.datasets[ind])
