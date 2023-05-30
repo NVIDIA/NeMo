@@ -223,7 +223,7 @@ class ConcatDataset(IterableDataset):
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, pause_len)
             # _t, _tl = self.concat_with_space(_t, _tl, t, tl)
 
-            if _t is None or _t.size()[0] == 0::
+            if _t is None or _t.size()[0] == 0:
                 _t = t
                 _tl = tl
             else:
