@@ -20,62 +20,66 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
+from nemo.collections.common import tokenizers
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
 # toggle on / off
-_CONCAT_SAMPLES = os.getenv('CONCAT_SAMPLES')
-if _CONCAT_SAMPLES is None:
-    _CONCAT_SAMPLES = False
+# _CONCAT_SAMPLES = os.getenv('CONCAT_SAMPLES')
+# if _CONCAT_SAMPLES is None:
+#     _CONCAT_SAMPLES = False
 
 # if true, concatenated samples are counted as just one sample. 
 # otherwise, they are counted "normally", N joined
 # samples are N samples. But,  dataset length will not be observed!
-_CONCAT_SAMPLES_COUNT_AS_ONE = os.getenv('CONCAT_SAMPLES_COUNT_AS_ONE')
-if _CONCAT_SAMPLES_COUNT_AS_ONE is None:
-    _CONCAT_SAMPLES_COUNT_AS_ONE = True
+# _CONCAT_SAMPLES_COUNT_AS_ONE = os.getenv('CONCAT_SAMPLES_COUNT_AS_ONE')
+# if _CONCAT_SAMPLES_COUNT_AS_ONE is None:
+#     _CONCAT_SAMPLES_COUNT_AS_ONE = True
 
-_CONCAT_SAMPLES_MAX_LENGTH = os.getenv('CONCAT_SAMPLES_MAX_LENGTH')
-if _CONCAT_SAMPLES_MAX_LENGTH is None:
-    _CONCAT_SAMPLES_MAX_LENGTH = 20
-else:
-    _CONCAT_SAMPLES_MAX_LENGTH = int(_CONCAT_SAMPLES_MAX_LENGTH)
+# _CONCAT_SAMPLES_MAX_LENGTH = os.getenv('CONCAT_SAMPLES_MAX_LENGTH')
+# if _CONCAT_SAMPLES_MAX_LENGTH is None:
+#     _CONCAT_SAMPLES_MAX_LENGTH = 20
+# else:
+#     _CONCAT_SAMPLES_MAX_LENGTH = int(_CONCAT_SAMPLES_MAX_LENGTH)
 
 
 
-_CONCAT_SAMPLES_MIN_LENGTH = os.getenv('CONCAT_SAMPLES_MIN_LENGTH')
-if _CONCAT_SAMPLES_MIN_LENGTH is None:
-    _CONCAT_SAMPLES_MIN_LENGTH = 16
-else:
-    _CONCAT_SAMPLES_MIN_LENGTH = int(_CONCAT_SAMPLES_MIN_LENGTH)
+# _CONCAT_SAMPLES_MIN_LENGTH = os.getenv('CONCAT_SAMPLES_MIN_LENGTH')
+# if _CONCAT_SAMPLES_MIN_LENGTH is None:
+#     _CONCAT_SAMPLES_MIN_LENGTH = 16
+# else:
+#     _CONCAT_SAMPLES_MIN_LENGTH = int(_CONCAT_SAMPLES_MIN_LENGTH)
 
-_CONCAT_SAMPLES_JOINING_PAUSE_MSEC = os.getenv('CONCAT_SAMPLES_JOINING_PAUSE_MSEC')
-if _CONCAT_SAMPLES_JOINING_PAUSE_MSEC is None:
-    _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = 100
-else:
-    _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = int(_CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
+# _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = os.getenv('CONCAT_SAMPLES_JOINING_PAUSE_MSEC')
+# if _CONCAT_SAMPLES_JOINING_PAUSE_MSEC is None:
+#     _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = 100
+# else:
+#     _CONCAT_SAMPLES_JOINING_PAUSE_MSEC = int(_CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
 
 # sizes of tokenizers in the aggregate tokenizer
 # 256,256,256,256,256,256,256,256,256,256
-AGG_TOK_SIZES = os.getenv('AGGREGATE_TOKENIZER_SIZES')
-if AGG_TOK_SIZES is not None:
-    AGG_TOK_SIZES = AGG_TOK_SIZES.split(',')
+# AGG_TOK_SIZES = os.getenv('AGGREGATE_TOKENIZER_SIZES')
+# if AGG_TOK_SIZES is not None:
+#     AGG_TOK_SIZES = AGG_TOK_SIZES.split(',')
 # would need to be able to compute the token id of the space based on some token id.
-SPACE_ID_LOOKUP_TABLE = {}
+# SPACE_ID_LOOKUP_TABLE = {}
 
-if _CONCAT_SAMPLES: 
-    _offset = 0
-    for c in AGG_TOK_SIZES:
-        for i in range(int(c)):
-            # the space token id is the first one in the tokenizer.
-            SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
-        _offset += int(c)
+# if _CONCAT_SAMPLES: 
+#    _offset = 0
+#    for c in AGG_TOK_SIZES:
+#        for i in range(int(c)):
+#            # the space token id is the first one in the tokenizer.
+#            SPACE_ID_LOOKUP_TABLE[_offset + i] = _offset
+#        _offset += int(c)
 
-_SAMPLING_RATE = 16000
 
-CONCAT_SAMPLES_SERVED_CNT = 0 
-CONCAT_SAMPLES_PULLED_CNT = 0 
-CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING = 0 
+# this needs to be gotten from each individual dataset.
+# featurizer.sample_rate
+# _SAMPLING_RATE = 16000
+
+# CONCAT_SAMPLES_SERVED_CNT = 0 
+# CONCAT_SAMPLES_PULLED_CNT = 0 
+# CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING = 0 
 
 
 class ConcatDataset(IterableDataset):
@@ -100,11 +104,17 @@ class ConcatDataset(IterableDataset):
     def __init__(
         self,
         datasets: List[Any],
+        tokenizer: 'TokenizerSpec',
         shuffle: bool = True,
         sampling_technique: str = 'temperature',
         sampling_temperature: int = 5,
         sampling_scale: int = 1,
         sampling_probabilities: List[float] = None,
+        concat_samples: bool = False,
+        concat_samples_count_as_one = True,
+        concat_samples_max_length = 20,
+        concat_samples_min_length = 16,
+        concat_samples_joining_pause = 0.1,
         seed: Optional[int] = None,
         global_rank: int = 0,
         world_size: int = 1,
@@ -113,12 +123,19 @@ class ConcatDataset(IterableDataset):
 
         supported_sampling_techniques = ['temperature', 'random', 'round-robin']
         self.datasets = datasets
+        self.tokenizer = tokenizer
         self.iterables = [None] * len(datasets)
         self.shuffle = shuffle
         self.global_rank = global_rank
         self.world_size = world_size
         self.sampling_kwargs = {}
         self.sampling_scale = sampling_scale
+
+        self.concat_samples = concat_samples
+        self.concat_samples_count_as_one = concat_samples_count_as_one 
+        self.concat_samples_min_length = concat_samples_min_length
+        self.concat_samples_max_length = concat_samples_max_length
+        self.concat_samples_joining_pause = concat_samples_joining_pause
 
         if sampling_technique == 'temperature':
             self.index_generator = ConcatDataset.temperature_generator
@@ -153,6 +170,9 @@ class ConcatDataset(IterableDataset):
             self.length = int(self.length * self.sampling_scale)
             logging.info(f'applying {sampling_scale} sampling scale, concat ds len: {self.length}')
 
+        self.samples_served = 0 
+        self.samples_pulled = 0
+        self.samples_retried = 0
 
     def get_iterable(self, dataset):
         if isinstance(dataset, IterableDataset):
@@ -191,12 +211,12 @@ class ConcatDataset(IterableDataset):
         ind_gen = self.index_generator(self.datasets, **self.sampling_kwargs)
         while n < max_elements:
 
-            if _CONCAT_SAMPLES:
+            if self.concat_samples:
                 samp, incr = self.pull_concatenated_sample(ind_gen)
-                if _CONCAT_SAMPLES_COUNT_AS_ONE:
-                    incr = 1 # :P
+                if self.concat_samples_count_as_one:
+                    incr = 1
             else:
-                samp, incr = self.pull_sample(ind_gen)
+                samp, _, incr = self.pull_sample(ind_gen)
 
             if samp is not None:
                 n += incr
@@ -228,37 +248,36 @@ class ConcatDataset(IterableDataset):
         Merge a bunch of samples into one.
         """
 
-        global CONCAT_SAMPLES_SERVED_CNT
-        global CONCAT_SAMPLES_PULLED_CNT
-        global CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING
-
         _f = None
         _fl = 0
         _t = None
         _tl = 0
         _num_concatenated_samples = 0
-        
-        while _fl < _CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE:
 
-            (f, fl, t, tl), _ = self.pull_sample(ind_gen)
-            CONCAT_SAMPLES_PULLED_CNT += 1
+        sample_rate = 16000 # placeholder just to get in the loop
+        
+        while _fl < self.concat_samples_min_length * sample_rate:
+
+            (f, fl, t, tl), sample_rate, _ = self.pull_sample(ind_gen)
+            self.samples_pulled += 1
 
             logging.debug(f'pulled f: {f.type()} {f.size()}')
             logging.debug(f'pulled fl:{fl.type()}  {fl}')
             logging.debug(f'pulled t: {t.type() } {t}')
             logging.debug(f'pulled tl: {tl.type()}  {tl}')
 
-            if _fl + fl > _CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE:  
+            if _fl + fl > self.concat_samples_max_length * sample_rate:  
                 # just try another sample if this one is too long.
                 # print(f'sample too big: we are at {_fl}, new sample is {fl}, more than {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}, min: {_CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE}')
                 # print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
-                CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING += 1
-                if CONCAT_SAMPLES_PULLED_CNT % 1000 == 0:
-                    fr = CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING / CONCAT_SAMPLES_PULLED_CNT
-                    logging.info(f'concat samples retried: {fr:.2f} out of pulled: {CONCAT_SAMPLES_PULLED_CNT}')
+                self.samples_retried += 1
+                if self.samples_pulled % 1000 == 0:
+                    fr = self.samples_retried / self.samples_pulled 
+                    logging.info(f'concat samples retried: {fr:.2f} out of pulled: {self.samples_pulled}')
                 continue
 
-            _f, _fl = self.concat_with_pause(_f, _fl, f, fl, _CONCAT_SAMPLES_JOINING_PAUSE_MSEC)
+            pause_len = int(self.concat_samples_joining_pause * sample_rate)
+            _f, _fl = self.concat_with_pause(_f, _fl, f, fl, pause_len)
             _t, _tl = self.concat_with_space(_t, _tl, t, tl)
             _num_concatenated_samples += 1
             
@@ -268,10 +287,11 @@ class ConcatDataset(IterableDataset):
         logging.debug(f'returning _tl: {_tl.type()}  {_tl}')
         logging.debug(f'returning num concat samples: {_num_concatenated_samples}')
 
-        CONCAT_SAMPLES_SERVED_CNT += 1
-        if CONCAT_SAMPLES_PULLED_CNT % 1000 == 0:
-            fr = (CONCAT_SAMPLES_PULLED_CNT - CONCAT_SAMPLES_RETRIED_DUE_TO_STITCHING) / CONCAT_SAMPLES_SERVED_CNT
-            logging.info(f'concat samples ratio: {fr:.2f} out of served: {CONCAT_SAMPLES_SERVED_CNT}')
+        self.samples_served += 1
+        if self.samples_pulled % 1000 == 0:
+            fr = (self.samples_pulled - self.samples_retried) / self.samples_served 
+            logging.info(f'concat samples ratio: {fr:.2f} out of served: {self.samples_served}')
+
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
     def concat_with_space(self, t1, tl1, t2, tl2):
@@ -281,7 +301,14 @@ class ConcatDataset(IterableDataset):
         tl = tl1
         t = t1
         last_token_id = t1[-1].item()
-        space_id = SPACE_ID_LOOKUP_TABLE[last_token_id] 
+
+        if isinstance(self.tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+            # space_id = SPACE_ID_LOOKUP_TABLE[last_token_id]
+            space_id = last_token_id - self.tokenizer.offset_token_ids_by_token_id(last_token_id)
+            logging.debug(f'last token id: {last_token_id}, space id: {space_id}')
+        else:
+            space_id = 0
+
         if last_token_id != space_id:
             space_id = torch.tensor([space_id], dtype=torch.long)
             logging.debug(f'concatenating space {space_id} to t {t1}')
@@ -293,9 +320,7 @@ class ConcatDataset(IterableDataset):
         return t, tl
 
 
-    def concat_with_pause(self, f1, fl1, f2, fl2, concat_pause):
-
-        pause_len = int(concat_pause * _SAMPLING_RATE / 1000)
+    def concat_with_pause(self, f1, fl1, f2, fl2, pause_len):
 
         fl = fl1 + fl2 + pause_len
         fl = torch.tensor(fl, dtype=torch.long)
@@ -315,22 +340,25 @@ class ConcatDataset(IterableDataset):
         If one of the dataset iterators ended, we return None, 0
         """
         _sample = None
+        _sample_rate = None 
 
         while _sample is None:
             try:
                 ind = next(ind_gen)
             except StopIteration:
-                return None, None
+                return None, None, None 
 
             try:
                 _sample = next(self.iterables[ind])
                 if self.kind == 'map':
                     _sample = self.datasets[ind][_sample]
 
+                _sample_rate = self.datasets[ind].featurizer.sample_rate 
+
             except StopIteration:
                 self.iterables[ind] = self.get_iterable(self.datasets[ind])
 
-        return _sample, 1
+        return _sample, _sample_rate, 1
 
     def __len__(self):
         return self.length
