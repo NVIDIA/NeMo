@@ -26,6 +26,6 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding.sandwich_re
 from nemo.collections.nlp.modules.common.megatron.position_embedding.t5_relative_position_embedding import (
     T5RelativePositionEmbedding,
 )
-from nemo.collections.nlp.modules.common.megatron.position_embedding.xpos_rotary_position_embedding import (
-    XPOSRotaryPositionEmbedding,
+from nemo.collections.nlp.modules.common.megatron.position_embedding.xpos_position_embedding import (
+    XPOSPositionEmbedding,
 )

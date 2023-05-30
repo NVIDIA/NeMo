@@ -37,7 +37,7 @@ def apply_rotary_pos_emb(x, sin, cos, scale=1):
     return (x * cos) + (rotate_every_two(x) * sin)
 
 
-class XPOSRotaryPositionEmbedding(nn.Module):
+class XPOSPositionEmbedding(nn.Module):
     def __init__(self, head_dim, scale_base=2048):
         super().__init__()
         self.head_dim = head_dim
