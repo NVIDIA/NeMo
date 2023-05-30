@@ -775,7 +775,7 @@ class CoreAttention(MegatronModule):
         self.attention_dropout_p = attention_dropout
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
         self.use_flash_attention = use_flash_attention
-        
+
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOSPositionEmbedding(kv_channels)
 
@@ -834,11 +834,9 @@ class CoreAttention(MegatronModule):
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
-            
+
         if self.position_embedding_type.lower() == 'xpos':
-            query_layer = self.xpos(
-                query_layer, offset=key_layer.shape[-2] - query_layer.shape[-2], downscale=False
-            )
+            query_layer = self.xpos(query_layer, offset=key_layer.shape[-2] - query_layer.shape[-2], downscale=False)
             key_layer = self.xpos(key_layer, offset=0, downscale=True)
 
         # ==================================================
