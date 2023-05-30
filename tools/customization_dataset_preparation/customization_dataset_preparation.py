@@ -397,7 +397,12 @@ if __name__ == "__main__":
     parser.add_argument("--completion_template", "-ct", default="{completion}")
     parser.add_argument("--drop_duplicates", "-dd", action="store_true")
     parser.add_argument("--split_train_validation", "-stv", action="store_true")
-    parser.add_argument("--short_context_model", "-scm", action="store_true", help="Specifies if using models with shorter context length of 2048 tokens e.g. 5B and 20B models")
+    parser.add_argument(
+        "--short_context_model",
+        "-scm",
+        action="store_true",
+        help="Specifies if using models with shorter context length of 2048 tokens e.g. 5B and 20B models",
+    )
     parser.add_argument(
         "--val_proportion",
         "-vp",
@@ -411,7 +416,6 @@ if __name__ == "__main__":
     messages = []
     messages.append(str(args))
 
-    
     if args.short_context_model:
         MAX_TOKEN_LENGTH = 2048
     else:
