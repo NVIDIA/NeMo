@@ -305,11 +305,11 @@ class ConcatDataset(IterableDataset):
         if isinstance(self.tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
             # space_id = SPACE_ID_LOOKUP_TABLE[last_token_id]
             lid = self.tokenizer.langs_by_token_id[last_token_id]
-            space_id = self.tokenizer.token_to_id(' ', lid)
+            space_id = self.tokenizer.token_to_id('▁', lid)
             # space_id = last_token_id - self.tokenizer.offset_token_ids_by_token_id[last_token_id]
             logging.debug(f'last token id: {last_token_id}, space id: {space_id}')
         else:
-            space_id = self.tokenizer.token_to_id(' ')
+            space_id = self.tokenizer.token_to_id('▁')
 
         if last_token_id != space_id:
             space_id = torch.tensor([space_id], dtype=torch.long)
