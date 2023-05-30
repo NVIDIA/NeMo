@@ -493,15 +493,14 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if get_key_value:
             present = (key_layer, value_layer)
-             
+
         import pdb
+
         pdb.set_trace()
 
         if self.position_embedding_type.lower() == 'xpos':
             query_layer = self.xpos(
-                query_layer, 
-                offset=0 if inference_max_sequence_len is None else end - 1, 
-                downscale=False
+                query_layer, offset=0 if inference_max_sequence_len is None else end - 1, downscale=False
             )
             key_layer = self.xpos(key_layer, offset=0, downscale=True)
 
