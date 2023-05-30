@@ -309,7 +309,7 @@ class ConcatDataset(IterableDataset):
             # space_id = last_token_id - self.tokenizer.offset_token_ids_by_token_id[last_token_id]
             logging.debug(f'last token id: {last_token_id}, space id: {space_id}')
         else:
-            space_id = 0
+            space_id = self.tokenizer.token_to_id(' ')
 
         if last_token_id != space_id:
             space_id = torch.tensor([space_id], dtype=torch.long)
