@@ -1173,9 +1173,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.sequence_parallel = False
 
         # Reset model parameters.
-
-        for module in self.get_gpt_module_list():
-            module.language_model.encoder.sequence_parallel = False
+        for module in self.model.modules():
+            if hasattr(module, "sequence_parallel"):
+                module.sequence_parallel = False
 
     def _restore_sequence_parallelism_args(self):
         """ Restores the sequence parallelism parameters using the values saved by
@@ -1186,5 +1186,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.cfg.sequence_parallel = self.last_sequence_parallel
 
         # Restore model parameters.
-        for module in self.get_gpt_module_list():
-            module.language_model.encoder.sequence_parallel = self.last_sequence_parallel
+        for module in self.model.modules():
+            if hasattr(module, "sequence_parallel"):
+                module.sequence_parallel = self.last_sequence_parallel
