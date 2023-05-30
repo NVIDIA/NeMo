@@ -50,8 +50,8 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
 
 def build_relative_position(max_seq_len, full=True):
     """
-    full=True: shape (max_seq_len)
-    full=False: shape (max_seq_len, max_seq_len)
+    full=True:  shape (max_seq_len, max_seq_len)
+    full=False: shape (max_seq_len)
     """
     relative_position = torch.arange(1 - max_seq_len, 1)[None, :].cuda().mul(-1)  # (1, max_seq_len)
 
