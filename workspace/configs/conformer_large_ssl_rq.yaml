@@ -98,6 +98,7 @@ model:
     dist_fn: "l2"  # choices=["l2", "cosine"]
     freeze: true
     squeeze_single: ${model.squeeze_single}
+    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio
   
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -143,7 +144,7 @@ model:
 
   loss:
     _target_: nemo.collections.asr.losses.MultiMLMLoss
-    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio
+    combine_time_steps: 1
     mask_threshold: 0.8
     num_decoders: ${model.num_books}
     squeeze_single: ${model.squeeze_single}

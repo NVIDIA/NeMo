@@ -98,7 +98,8 @@ model:
     dist_fn: "l2"  # choices=["l2", "cosine"]
     freeze: true
     squeeze_single: ${model.squeeze_single}
-  
+    combine_time_steps: 1  # no subsampling after masking
+
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}

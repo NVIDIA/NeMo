@@ -20,6 +20,7 @@ class RandomProjectionVectorQuantizer(NeuralModule):
         time_ahead: bool = False,
         freeze: bool = True,
         squeeze_single: bool = False,
+        combine_time_steps: int = 1,
     ):
         """Vector quantization using random projection
 
@@ -45,9 +46,12 @@ class RandomProjectionVectorQuantizer(NeuralModule):
         self.dist_fn = dist_fn
         self.time_ahead = time_ahead
         self.squeeze_single = squeeze_single
+        self.combine_time_steps = combine_time_steps
 
         # (B, T, D) -> (B, T, num_books, code_dim)
-        self.proj = nn.Linear(self.feat_in, self.num_books * self.code_dim, bias=False).requires_grad_(not freeze)
+        self.proj = nn.Linear(
+            self.feat_in * combine_time_steps, self.num_books * self.code_dim, bias=False
+        ).requires_grad_(not freeze)
         torch.nn.init.xavier_normal_(self.proj.weight)
 
         # (num_books, num_classes, hid_dim)
@@ -102,6 +106,9 @@ class RandomProjectionVectorQuantizer(NeuralModule):
             input_signal = input_signal.transpose(1, 2)
 
         B, T, _ = input_signal.size()
+
+        if self.combine_time_steps > 1:
+            input_signal = input_signal.view(B, T // self.combine_time_steps, -1)
 
         # (B, T, D) -> (B, T, num_books*code_dim)
         x = self.proj(input_signal)
