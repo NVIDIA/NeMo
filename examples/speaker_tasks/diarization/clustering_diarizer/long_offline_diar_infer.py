@@ -21,20 +21,12 @@ from nemo.utils import logging
 
 import torch
 
-"""
-This script demonstrates how to use run speaker diarization.
-Usage:
-  python offline_diar_infer.py \
-    diarizer.manifest_filepath=<path to manifest file> \
-    diarizer.out_dir='demo_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.vad.model_path='vad_marblenet' \
-    diarizer.speaker_embeddings.parameters.save_embeddings=False
-
-Check out whole parameters in ./conf/offline_diarization.yaml and their meanings.
-For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
-"""
 seed_everything(42)
+
+# no need for arguments
+# for diarizing, write arguments in input_path and num_speakers
+# if number of speakers is not known (oracle_num_speakers not known): num_speakers = None
+# otherwise provide a natural number
 
 @hydra_runner(config_path="../conf/inference", config_name="diar_infer_meeting.yaml")
 def main(cfg):
@@ -46,7 +38,7 @@ def main(cfg):
     
 
     input_path = '/home/gabi/NOSFE_Gojira_Podcast_16khz_mono.wav'
-    num_speakers = 2
+    num_speakers = None 
 
     sd_model = LongClusteringDiarizer(cfg=cfg)
     sd_model.diarize(input_path= input_path,
