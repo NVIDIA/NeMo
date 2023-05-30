@@ -657,14 +657,25 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         print("prompt_length", context_length)
         while context_length < maxlen:
+            if torch.distributed.get_rank() == 0:
+                print("###step,", counter)
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
+            if torch.distributed.get_rank() == 0:
+                print("after forward, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
+
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
+                if torch.distributed.get_rank() == 0:
+                    print("after output.float(), ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
                 output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
+
+        
+                if torch.distributed.get_rank() == 0:
+                    print("after output gather, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
@@ -708,6 +719,9 @@ def sample_sequence_batch(
 
                 if output_logits is None:
                     output = F.log_softmax(output[:, :context_length, :], 2)
+
+                    if torch.distributed.get_rank() == 0:
+                        print("after logsoftmax, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
                     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
                     output_logits = torch.gather(output, 2, indices).squeeze(2)
                     all_generated_indices = indices[:, :, 0]
@@ -715,6 +729,8 @@ def sample_sequence_batch(
                         full_logits = output
                 else:
                     output = F.log_softmax(output, 2)
+                    if torch.distributed.get_rank() == 0:
+                        print("after logsoftmax, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
                     indices = torch.unsqueeze(new_tokens, 1).unsqueeze(2)
                     new_output_logits = torch.gather(output, 2, indices).squeeze(2)
 

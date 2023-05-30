@@ -11,6 +11,14 @@ inference:
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
 
 
+nsys_profile:
+  enabled: False
+  start_step: 0  # Global batch to start profiling
+  end_step: 1 # Global batch to end profiling
+  ranks: [0] # Global rank IDs to profile
+  gen_shape: False # Generate model and kernel details including input shapes
+
+
 trainer:
   devices: 1
   num_nodes: 1
