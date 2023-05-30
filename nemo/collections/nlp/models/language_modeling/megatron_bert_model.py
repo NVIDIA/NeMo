@@ -304,9 +304,8 @@ class MegatronBertModel(MegatronBaseModel):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-
         if self.cfg.data.dataloader_type == "LDDL":
-            #this is of type bert dataset
+            # this is of type bert dataset
             seq_length = dataloader_iter.iterator.loaders.get_seqlen()
             tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
@@ -417,7 +416,7 @@ class MegatronBertModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def validation_step(self, dataloader_iter, batch_idx):
-        
+
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = dataloader_iter.iterator.get_seqlen()
             tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -529,60 +528,59 @@ class MegatronBertModel(MegatronBaseModel):
             start_epoch=0,
             sequence_length_alignment=8,
             ignore_index=-1,
-            samples_seen = samples_consumed_dploader,
-            micro_batch_size = self.cfg.micro_batch_size
+            samples_seen=samples_consumed_dploader,
+            micro_batch_size=self.cfg.micro_batch_size,
         )
         logging.info(f'Completed build train LDDL Dataloader')
         if len(self.cfg.data.data_prefix) > 1:
             val_lddl_data_path = self.cfg.data.data_prefix[1]
             self._validation_dl = get_bert_pretrain_data_loader(
-            val_lddl_data_path,
-            dp_rank=parallel_state.get_data_parallel_rank(),
-            local_rank=self.local_rank,
-            shuffle_buffer_size=16384,
-            shuffle_buffer_warmup_factor=16,
-            vocab_file=self.cfg.tokenizer.vocab_file,
-            data_loader_kwargs={
-                'batch_size': global_batch_size_on_this_data_parallel_rank,
-                'num_workers': self.cfg.data.num_workers,
-                'prefetch_factor': 2,
-            },
-            mlm_probability=0.15,
-            base_seed=self.cfg.seed,
-            log_level=logging.CRITICAL,
-            log_dir="/tmp/log",
-            return_raw_samples=False, 
-            start_epoch=0,
-            sequence_length_alignment=8,
-            ignore_index=-1,
-            micro_batch_size = self.cfg.micro_batch_size
-        )
+                val_lddl_data_path,
+                dp_rank=parallel_state.get_data_parallel_rank(),
+                local_rank=self.local_rank,
+                shuffle_buffer_size=16384,
+                shuffle_buffer_warmup_factor=16,
+                vocab_file=self.cfg.tokenizer.vocab_file,
+                data_loader_kwargs={
+                    'batch_size': global_batch_size_on_this_data_parallel_rank,
+                    'num_workers': self.cfg.data.num_workers,
+                    'prefetch_factor': 2,
+                },
+                mlm_probability=0.15,
+                base_seed=self.cfg.seed,
+                log_level=logging.CRITICAL,
+                log_dir="/tmp/log",
+                return_raw_samples=False,
+                start_epoch=0,
+                sequence_length_alignment=8,
+                ignore_index=-1,
+                micro_batch_size=self.cfg.micro_batch_size,
+            )
         if len(self.cfg.data.data_prefix) > 2:
             test_lddl_data_path = self.cfg.data.data_prefix[2]
             self._test_dl = get_bert_pretrain_data_loader(
-            test_lddl_data_path,
-            dp_rank=parallel_state.get_data_parallel_rank(),
-            local_rank=self.local_rank,
-            shuffle_buffer_size=16384,
-            shuffle_buffer_warmup_factor=16,
-            vocab_file=self.cfg.tokenizer.vocab_file,
-            data_loader_kwargs={
-                'batch_size': global_batch_size_on_this_data_parallel_rank,
-                'num_workers': self.cfg.data.num_workers,
-                'prefetch_factor': 2,
-            },
-            mlm_probability=0.15,
-            base_seed=self.cfg.seed,
-            log_level=logging.CRITICAL,
-            log_dir="/tmp/log",
-            return_raw_samples=False,
-            start_epoch=0,
-            sequence_length_alignment=8,
-            ignore_index=-1,
-            micro_batch_size = self.cfg.micro_batch_size
-        )
+                test_lddl_data_path,
+                dp_rank=parallel_state.get_data_parallel_rank(),
+                local_rank=self.local_rank,
+                shuffle_buffer_size=16384,
+                shuffle_buffer_warmup_factor=16,
+                vocab_file=self.cfg.tokenizer.vocab_file,
+                data_loader_kwargs={
+                    'batch_size': global_batch_size_on_this_data_parallel_rank,
+                    'num_workers': self.cfg.data.num_workers,
+                    'prefetch_factor': 2,
+                },
+                mlm_probability=0.15,
+                base_seed=self.cfg.seed,
+                log_level=logging.CRITICAL,
+                log_dir="/tmp/log",
+                return_raw_samples=False,
+                start_epoch=0,
+                sequence_length_alignment=8,
+                ignore_index=-1,
+                micro_batch_size=self.cfg.micro_batch_size,
+            )
         logging.info(f'Finished building LDDL Dataloaders')
-
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
