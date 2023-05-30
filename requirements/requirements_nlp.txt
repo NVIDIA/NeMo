@@ -2,6 +2,7 @@ boto3
 einops
 faiss-cpu
 fasttext
+flash-attn>=1.0.4
 flask_restful
 ftfy
 gdown
