@@ -304,7 +304,7 @@ class ConcatDataset(IterableDataset):
 
         if isinstance(self.tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
             # space_id = SPACE_ID_LOOKUP_TABLE[last_token_id]
-            space_id = last_token_id - self.tokenizer.offset_token_ids_by_token_id(last_token_id)
+            space_id = last_token_id - self.tokenizer.offset_token_ids_by_token_id[last_token_id]
             logging.debug(f'last token id: {last_token_id}, space id: {space_id}')
         else:
             space_id = 0
