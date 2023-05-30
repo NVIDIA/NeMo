@@ -242,9 +242,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # relative position embedding
         self.layer_type = layer_type
 
-        if position_embedding_type.lower() == 'xpos':
-            self.xpos = XPOSPositionEmbedding(kv_channels)
-
     def _checkpointed_attention_forward(
         self,
         query_layer,
@@ -493,16 +490,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if get_key_value:
             present = (key_layer, value_layer)
-
-        import pdb
-
-        pdb.set_trace()
-
-        if self.position_embedding_type.lower() == 'xpos':
-            query_layer = self.xpos(
-                query_layer, offset=0 if inference_max_sequence_len is None else end - 1, downscale=False
-            )
-            key_layer = self.xpos(key_layer, offset=0, downscale=True)
 
         if checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
@@ -788,6 +775,9 @@ class CoreAttention(MegatronModule):
         self.attention_dropout_p = attention_dropout
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
         self.use_flash_attention = use_flash_attention
+        
+        if position_embedding_type.lower() == 'xpos':
+            self.xpos = XPOSPositionEmbedding(kv_channels)
 
     def forward(
         self,
@@ -844,6 +834,12 @@ class CoreAttention(MegatronModule):
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
+            
+        if self.position_embedding_type.lower() == 'xpos':
+            query_layer = self.xpos(
+                query_layer, offset=key_layer.shape[-2] - query_layer.shape[-2], downscale=False
+            )
+            key_layer = self.xpos(key_layer, offset=0, downscale=True)
 
         # ==================================================
         # Rearrange query_layer, key_layer, value_layer
