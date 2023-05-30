@@ -92,6 +92,7 @@ model:
     merge_file: null 
     delimiter: null # only used for tabular tokenizer
     sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+    use_fast: True
 
   # Mixed precision
   native_amp_init_scale: 4294967296 # 2 ** 32
