@@ -18,7 +18,7 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relat
     build_relative_position,
 )
 
-__all__ = ['SandwitchRelativePositionEmbedding']
+__all__ = ['SandwichRelativePositionEmbedding']
 
 
 class SandwichRelativePositionEmbedding(torch.nn.Module):
