@@ -499,6 +499,7 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
             )
+        logging.info(f'Starting building LDDL Dataloaders')
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
@@ -580,7 +581,7 @@ class MegatronBertModel(MegatronBaseModel):
             ignore_index=-1,
             micro_batch_size = self.cfg.micro_batch_size
         )
-        logging.info(f'Completed build LDDL Dataloaders')
+        logging.info(f'Finished building LDDL Dataloaders')
 
 
     def build_train_valid_test_datasets(self):
