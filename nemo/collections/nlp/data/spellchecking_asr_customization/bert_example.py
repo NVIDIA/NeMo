@@ -144,7 +144,7 @@ class BertExampleBuilder(object):
                 if infer==False, string of labels (each label is 1-based index of correct candidate) or 0.
                 if infer==True, it can be None or string of labels (each label is 1-based index of some candidate). In inference this can be used to get corresponding fragments to fragment_indices.
             span_info:
-                string of format "CUSTOM 6 20;CUSTOM 40 51", number of parts corresponds to number of targets.
+                string of format "CUSTOM 6 20;CUSTOM 40 51", number of parts corresponds to number of targets. Can be empty if target is 0.
                 If infer==False, numbers are correct start and end(exclusive) positions of the corresponding target candidate in the text.
                 If infer==True, numbers are EXPECTED positions in the text. In inference this can be used to get corresponding fragments to fragment_indices.
             infer: inference mode
@@ -163,7 +163,7 @@ class BertExampleBuilder(object):
         span_info_parts = []
         targets = []
 
-        if len(target) > 0:
+        if len(target) > 0 and target != "0":
             span_info_parts = span_info.split(";")
             targets = list(map(int, target.split(" ")))
             if len(span_info_parts) != len(targets):
