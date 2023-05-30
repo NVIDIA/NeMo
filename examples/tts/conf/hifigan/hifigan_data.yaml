@@ -5,9 +5,9 @@
 name: "HifiGan"
 
 defaults:
+  - feature: ???
   - sample: ???
-  - feature: feature_${sample}
-  - model/generator: v1_${sample}
+  - model/generator: ???
 
 max_epochs: ???
 batch_size: 16
@@ -36,7 +36,7 @@ model:
     pad_to: 0
     pad_value: 0
     exact_pad: true
-    sample_rate: ${sample.sample_rate}
+    sample_rate: ${feature.sample_rate}
     window: hann
     normalize: null
     preemph: null
@@ -53,8 +53,8 @@ model:
     dataset:
       _target_: nemo.collections.tts.data.vocoder_dataset.VocoderDataset
       weighted_sample_steps: ${weighted_sample_steps}
-      sample_rate: ${sample.sample_rate}
-      n_segments: ${sample.train_n_segments}
+      sample_rate: ${feature.sample_rate}
+      n_samples: ${sample.train_n_samples}
       min_duration: 0.4
       max_duration: null
       dataset_meta: ${train_ds_meta}
@@ -66,8 +66,8 @@ model:
   validation_ds:
     dataset:
       _target_: nemo.collections.tts.data.vocoder_dataset.VocoderDataset
-      sample_rate: ${sample.sample_rate}
-      n_segments: ${sample.val_n_segments}
+      sample_rate: ${feature.sample_rate}
+      n_samples: ${sample.val_n_samples}
       min_duration: 3.0
       max_duration: null
       dataset_meta: ${val_ds_meta}
@@ -88,8 +88,8 @@ model:
 
     dataset:
       _target_: nemo.collections.tts.data.vocoder_dataset.VocoderDataset
-      sample_rate: ${sample.sample_rate}
-      n_segments: null
+      sample_rate: ${feature.sample_rate}
+      n_samples: null
       min_duration: null
       max_duration: null
       dataset_meta: ${log_ds_meta}

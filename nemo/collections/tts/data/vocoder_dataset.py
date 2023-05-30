@@ -56,7 +56,7 @@ class VocoderDataset(Dataset):
         dataset_meta: Dict of dataset names (string) to dataset metadata.
         sample_rate: Sample rate to load audio as. If the audio is stored at a different sample rate, then it will
             be resampled.
-        n_segments: Optional int, if provided then n_segments samples will be randomly sampled from the full
+        n_samples: Optional int, if provided then n_samples samples will be randomly sampled from the full
             audio file.
         weighted_sample_steps: Optional int, If provided, then data will be sampled (with replacement) based on
             the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
@@ -73,7 +73,7 @@ class VocoderDataset(Dataset):
         self,
         dataset_meta: Dict,
         sample_rate: int,
-        n_segments: Optional[int] = None,
+        n_samples: Optional[int] = None,
         weighted_sample_steps: Optional[int] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
         min_duration: Optional[float] = None,
@@ -83,7 +83,7 @@ class VocoderDataset(Dataset):
         super().__init__()
 
         self.sample_rate = sample_rate
-        self.n_segments = n_segments
+        self.n_samples = n_samples
         self.weighted_sample_steps = weighted_sample_steps
         self.num_audio_retries = num_audio_retries
         self.load_precomputed_mel = False
@@ -118,7 +118,7 @@ class VocoderDataset(Dataset):
         for _ in range(self.num_audio_retries):
             try:
                 audio_segment = AudioSegment.segment_from_file(
-                    audio_filepath, target_sr=self.sample_rate, n_segments=self.n_segments,
+                    audio_filepath, target_sr=self.sample_rate, n_segments=self.n_samples,
                 )
                 return audio_segment
             except Exception:
@@ -127,7 +127,7 @@ class VocoderDataset(Dataset):
         raise ValueError(f"Failed to read audio {audio_filepath}")
 
     def _sample_audio(self, audio_filepath: Path) -> Tuple[torch.Tensor, torch.Tensor]:
-        if not self.n_segments:
+        if not self.n_samples:
             audio_array, _ = librosa.load(audio_filepath, sr=self.sample_rate)
         else:
             audio_segment = self._segment_audio(audio_filepath)
