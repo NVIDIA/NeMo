@@ -156,7 +156,8 @@ class BasePromptLearningDataset(Dataset):
         ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
         # Check if input example has fields not present in template
-        keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
+        keys_not_in_template = list(set(prompt_template_fields) - set(doc.keys()) - set(['taskname']))
+        print(f"keys_not_in_template {keys_not_in_template}")
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."

@@ -21,8 +21,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5PromptLearningDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -61,10 +60,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ['MegatronT5PromptLearningModel']
+__all__ = ['MegatronT5SpeechLMModel']
 
 
-class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
+class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
 
@@ -301,6 +300,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        print(f'global_step {self.trainer.global_step}')
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
         return loss_mean
 
@@ -425,10 +425,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
-        # dataset = T5SpeechLMDataset(
-        dataset = T5PromptLearningDataset(
+        dataset = T5SpeechLMDataset(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,
+            sample_rate=self.cfg.data.get('sample_rate', 24000),
             virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
             pseudo_tokens=self.pseudo_tokens,
@@ -442,6 +442,16 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             add_sentinel_to_input=self.cfg.data.get('add_sentinel_to_input', True),
             ul2_prompt_token=self.cfg.data.get('ul2_prompt_token', None),
             for_train=for_train,
+            segment_max_duration=self.cfg.data.get('segment_max_duration', None),
+            trim=self.cfg.data.get('trim', None),
+            trim_ref=self.cfg.data.get('trim_ref', None),
+            trim_top_db=self.cfg.data.get('trim_top_db', None),
+            trim_frame_length=self.cfg.data.get('trim_frame_length', None),
+            trim_hop_length=self.cfg.data.get('trim_hop_length', None),
+            pad_multiple=self.cfg.data.get('pad_multiple', 1),
+            pitch_augment=self.cfg.data.get('pitch_augment', None),
+            sup_data_path=self.cfg.data.get('sup_data_path', '/sup_data_path'),
+            speech_offset=self.cfg.data.get('speech_offset', None)
         )
 
         rank = parallel_state.get_data_parallel_rank()

@@ -66,8 +66,8 @@ model:
   task_templates: 
   - taskname: "squad" 
     prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
-    total_virtual_tokens: 100
-    virtual_token_splits: [100] 
+    total_virtual_tokens: 5
+    virtual_token_splits: [5] 
     truncate_field: context
     answer_field: answer
 
@@ -81,8 +81,10 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/data/squad_train_1k.jsonl"]
-    validation_ds: ["/data/squad_train_1k.jsonl"]
+    train_ds: ["/data/speech/LibriTTS2/LibriTTS/train_clean_100_normalized_speechlm.json"]
+    validation_ds: ["/data/speech/LibriTTS2/LibriTTS/dev_clean_normalized_speechlm.json"]
+    max_seq_length: 512
+    sample_rate: 24000
     add_eos: true
     add_bos: false
     decoder_starts_with_pad: False
@@ -92,6 +94,7 @@ model:
     shuffle: true
     num_workers: 4
     pin_memory: true
+    sup_data_path: ???
 
   optim:
     name: fused_adam
