@@ -134,10 +134,14 @@ def main(cfg) -> None:
         else:
             # attempting to load a ckpt peft model.
             assert "restore_from_ckpt_name" in cfg.model.peft and cfg.model.peft.restore_from_ckpt_name is not None
+            if cfg.model.peft.restore_from_ckpt_name:
+                ckpt_name = cfg.model.peft.restore_from_ckpt_name
+            else:
+                ckpt_name = "model_weights.ckpt"
             save_restore_connector = PEFTSaveRestoreConnector(
                 peft_model_nemo_path=None, 
                 peft_model_ckpt_path=cfg.model.peft.restore_from_path, 
-                peft_model_ckpt_name=cfg.model.peft.restore_from_ckpt_name
+                peft_model_ckpt_name=ckpt_name,
             )
     else:
         save_restore_connector = NLPSaveRestoreConnector()
