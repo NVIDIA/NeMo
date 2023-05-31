@@ -215,7 +215,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         Used for generate method only for now.
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,
@@ -397,6 +398,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
         if component_cfg.adapter_tuning.type == "parallel_adapter":
             adapter_cfg = ParallelLinearAdapterConfig(
                 in_features=component_cfg.hidden_size,
+                out_features=component_cfg.hidden_size,
                 dim=component_cfg.adapter_tuning.adapter_dim,
                 norm_position=component_cfg.adapter_tuning.get('norm_position', 'pre'),
                 norm_type=component_cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),

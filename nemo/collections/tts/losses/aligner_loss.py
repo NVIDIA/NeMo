@@ -22,11 +22,12 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class ForwardSumLoss(Loss):
-    def __init__(self, blank_logprob=-1):
+    def __init__(self, blank_logprob=-1, loss_scale=1.0):
         super().__init__()
         self.log_softmax = torch.nn.LogSoftmax(dim=-1)
         self.ctc_loss = torch.nn.CTCLoss(zero_infinity=True)
         self.blank_logprob = blank_logprob
+        self.loss_scale = loss_scale
 
     @property
     def input_types(self):
@@ -58,9 +59,7 @@ class ForwardSumLoss(Loss):
         # Convert to log probabilities
         # Note: Mask out probs beyond key_len
         key_inds = torch.arange(max_key_len + 1, device=attn_logprob.device, dtype=torch.long)
-        attn_logprob.masked_fill_(
-            key_inds.view(1, 1, -1) > key_lens.view(1, -1, 1), -float("inf")  # key_inds >= key_lens+1
-        )
+        attn_logprob.masked_fill_(key_inds.view(1, 1, -1) > key_lens.view(1, -1, 1), -1e15)  # key_inds >= key_lens+1
         attn_logprob = self.log_softmax(attn_logprob)
 
         # Target sequences
@@ -69,13 +68,15 @@ class ForwardSumLoss(Loss):
 
         # Evaluate CTC loss
         cost = self.ctc_loss(attn_logprob, target_seqs, input_lengths=query_lens, target_lengths=key_lens)
+        cost *= self.loss_scale
 
         return cost
 
 
 class BinLoss(Loss):
-    def __init__(self):
+    def __init__(self, loss_scale=1.0):
         super().__init__()
+        self.loss_scale = loss_scale
 
     @property
     def input_types(self):
@@ -93,4 +94,6 @@ class BinLoss(Loss):
     @typecheck()
     def forward(self, hard_attention, soft_attention):
         log_sum = torch.log(torch.clamp(soft_attention[hard_attention == 1], min=1e-12)).sum()
-        return -log_sum / hard_attention.sum()
+        loss = -log_sum / hard_attention.sum()
+        loss *= self.loss_scale
+        return loss
