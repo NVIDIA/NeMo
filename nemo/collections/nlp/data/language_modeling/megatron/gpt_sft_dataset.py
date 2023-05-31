@@ -175,7 +175,8 @@ class GPTSFTDataset(Dataset):
             pre_pad = []
         
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        answer_ids = tokenized_text[len(context_ids) :]
+        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+        answer_ids = tokenized_text[len(context_ids):]
         question_ids = self.tokenizer.text_to_ids(question)
         context_ids_only = self.tokenizer.text_to_ids(context_only)
         context_ids = pre_pad + context_ids_only
