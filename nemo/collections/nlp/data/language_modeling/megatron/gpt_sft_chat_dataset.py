@@ -26,7 +26,7 @@ IGNORE_INDEX = -100
 END_SIGNAL = "\n"
 END_NAME_SIGNAL = "\n"
 
-SCALE = 7
+SCALE = 6
 
 SYSTEM_TOKEN = "<extra_id_0>System\n"
 TURN_TOKEN = "<extra_id_1>"
