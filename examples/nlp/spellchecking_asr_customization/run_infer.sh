@@ -17,7 +17,7 @@
 ## Path to NeMo repository
 NEMO_PATH=NeMo
 
-## Download model repo from Hugging Face
+## Download model repo from Hugging Face (if clone doesn't work, run "git lfs install" and try again)
 git clone https://huggingface.co/bene-ges/spellmapper_asr_customization_en
 ## Download repo with test data
 git clone https://huggingface.co/datasets/bene-ges/spellmapper_en_evaluation

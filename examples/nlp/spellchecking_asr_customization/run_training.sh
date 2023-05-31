@@ -18,6 +18,7 @@
 NEMO_PATH=NeMo
 
 ## Download repo with training data (very small example)
+## If clone doesn't work, run "git lfs install" and try again
 git clone https://huggingface.co/datasets/bene-ges/spellmapper_en_train_micro
 
 DATA_PATH=spellmapper_en_train_micro
