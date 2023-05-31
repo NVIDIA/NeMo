@@ -73,7 +73,15 @@ AmberNet is an end-to-end neural network for language identification moden based
 It can reach state-of-the art performance on the `Voxlingua107 dataset <http://bark.phon.ioc.ee/voxlingua107/>`_ while having significantly fewer parameters than similar models.
 AmberNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
 
+.. _PearlNet_model:
 
+PearlNet (Lang ID) 
+------------------
+
+PearlNet is an end-to-end neural network for language identification using linear probing of pretrained `SSL Conformer <../ssl/models.html>`__ layers.
+
+It achieves high performance on the `Voxlingua107 dataset <http://bark.phon.ioc.ee/voxlingua107/>`_ while having significantly fewer parameters than other Conformer based models.
+PearlNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
 
 References
 ----------------
