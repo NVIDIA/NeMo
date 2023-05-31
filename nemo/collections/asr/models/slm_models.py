@@ -121,9 +121,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
             log_probs, encoded_len, masks, tokens = self.forward(
                 input_signal=input_signal, input_signal_length=input_signal_length, apply_mask=True
             )
-        import ipdb
 
-        ipdb.set_trace()
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
 
         tensorboard_logs = {

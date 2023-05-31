@@ -108,7 +108,8 @@ class RandomProjectionVectorQuantizer(NeuralModule):
         B, T, _ = input_signal.size()
 
         if self.combine_time_steps > 1:
-            input_signal = input_signal.view(B, T // self.combine_time_steps, -1)
+            input_signal = input_signal.contiguous().reshape(B, T // self.combine_time_steps, -1)
+            T = T // self.combine_time_steps
 
         # (B, T, D) -> (B, T, num_books*code_dim)
         x = self.proj(input_signal)

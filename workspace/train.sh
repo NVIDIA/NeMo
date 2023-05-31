@@ -6,7 +6,7 @@ data_dir="/media/data/datasets/LibriSpeech"
 train_manifests="[${data_dir}/train_clean_360_cleaned.json,${data_dir}/train_clean_100_cleaned.json,${data_dir}/train_other_500_cleaned.json]"
 # train_manifests="[${data_dir}/test_clean.json]"
 dev_manifests="${data_dir}/dev_clean_cleaned.json"
-batch_size=8
+batch_size=4
 num_workers=8
 
 CUDA_VISIBLE_DEVICES="0" python speech_pretrain.py \
@@ -19,6 +19,6 @@ CUDA_VISIBLE_DEVICES="0" python speech_pretrain.py \
     model.train_ds.num_workers=$num_workers \
     model.validation_ds.num_workers=$num_workers \
     exp_manager.create_wandb_logger=False \
-    exp_manager.wandb_logger_kwargs.name="conformer_ssl_rq_debug_r2" \
+    exp_manager.wandb_logger_kwargs.name="conformer_ssl_rq_debug_r3" \
     exp_manager.wandb_logger_kwargs.project="ssl_debug" \
 
