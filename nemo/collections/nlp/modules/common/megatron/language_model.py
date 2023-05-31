@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     ALiBiRelativePositionEmbedding,
     KERPLERelativePositionEmbedding,
     RotaryEmbedding,
-    SandwitchRelativePositionEmbedding,
+    SandwichRelativePositionEmbedding,
 )
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -583,7 +583,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
 
         elif position_embedding_type == 'sandwich':
-            self.encoder_relative_position_embedding = SandwitchRelativePositionEmbedding(
+            self.encoder_relative_position_embedding = SandwichRelativePositionEmbedding(
                 bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
                 num_attention_heads=num_attention_heads,
                 layer_type=LayerType.encoder,
@@ -757,32 +757,30 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             pass
 
         # enc_attn_mask: [1, 1, s, s]
+        if inference_max_sequence_len is not None:
+            enc_seq_length = inference_max_sequence_len
+        elif self.encoder.input_tensor is not None:
+            if self.sequence_parallel:
+                enc_seq_length = (
+                    self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                )
+            else:
+                enc_seq_length = self.encoder.input_tensor.size(0)
+        else:
+            if self.sequence_parallel:
+                enc_seq_length = encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+            else:
+                enc_seq_length = encoder_input.size(0)
 
         rotary_pos_emb = None
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
-            if inference_max_sequence_len is not None:
-                rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
-            elif self.encoder.input_tensor is not None:
-                if self.sequence_parallel:
-                    rotary_pos_emb = self.rotary_pos_emb(
-                        self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
-                    )
-                else:
-                    rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
-            else:
-                if self.sequence_parallel:
-                    rotary_pos_emb = self.rotary_pos_emb(
-                        encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
-                    )
-                else:
-                    rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
+            rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
         elif (
             self.position_embedding_type == 'alibi'
             or self.position_embedding_type == 'sandwich'
             or self.position_embedding_type == 'kerple'
         ):
-            enc_seq_length = enc_input_ids.size(1)
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
