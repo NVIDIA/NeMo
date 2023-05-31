@@ -78,16 +78,13 @@ def bert_example_builder():
     return builder
 
 
+@pytest.mark.with_downloads
 @pytest.mark.unit
 def test_creation(bert_example_builder):
     assert bert_example_builder._tokenizer is not None
 
 
-@pytest.mark.unit
-def test_creation(bert_example_builder):
-    assert bert_example_builder._tokenizer is not None
-
-
+@pytest.mark.with_downloads
 @pytest.mark.unit
 def test_builder_get_spans(bert_example_builder):
     span_info_parts = ["CUSTOM 37 41", "CUSTOM 47 52", "CUSTOM 42 46", "CUSTOM 0 7"]
@@ -97,6 +94,7 @@ def test_builder_get_spans(bert_example_builder):
     assert spans == gold_sorted_spans
 
 
+@pytest.mark.with_downloads
 @pytest.mark.unit
 def test_builder_get_fragment_indices(bert_example_builder):
     hyp = "a b o u t _ o u r _ s h i p e r s _ b u t _ y o u _ k n o w"
@@ -118,6 +116,7 @@ def test_builder_get_fragment_indices(bert_example_builder):
     assert fragment_indices == gold_sorted_fragment_indices        
 
 
+@pytest.mark.with_downloads
 @pytest.mark.unit
 def test_builder_get_input_features(bert_example_builder):
     hyp = "a s t r o n o m e r s _ d i d i e _ s o m o n _ a n d _ t r i s t i a n _ g l l o"
