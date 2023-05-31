@@ -266,7 +266,7 @@ class BertExampleBuilder(object):
 
     def _get_fragment_indices(
         self, hyp: str, targets: List[int], span_info_parts: List[str]
-    ) -> Tuple[List[int], List[Tuple[int, int, int]]]:
+    ) -> Tuple[List[Tuple[int, int, int]]]:
         """ Build fragment indices for real candidates.
             This is used only at inference.
             After external candidate retrieval we know approximately, where the candidate is located in the text (from the positions of matched n-grams).
@@ -348,6 +348,7 @@ class BertExampleBuilder(object):
             Example:
                 input_ids: [101, 1037, 1055, 1056, 1054, 1051, 1050, ..., 1051, 102, 1040, ..., 1050, 102, 1037, ..., 1041, 102, ..., 102]
                 input_ids_for_subwords: [101, 26357, 2106, 2666, 2061, 8202, 1998, 13012, 16643, 2319, 1043, 7174, 102, 2106, 3771, 7842, 2819, 2239, 102, ..., 102]
+                result: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, ... , 45, 46, 46, 46, 46, 46, 47]
         """
         character_pos_to_subword_pos = [0 for _ in input_ids]
 
