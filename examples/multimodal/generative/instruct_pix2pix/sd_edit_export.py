@@ -79,14 +79,18 @@ def main(cfg):
     model_wrap_cfg = CFGDenoiser(model_wrap)
     null_token = model.get_learned_conditioning([""])
 
-    input_image = Image.open(edit_cfg.input).convert("RGB")
-    width, height = input_image.size
-    factor = edit_cfg.resolution / max(width, height)
-    factor = math.ceil(min(width, height) * factor / 64) * 64 / min(width, height)
-    width = int((width * factor) // 64) * 64
-    height = int((height * factor) // 64) * 64
-    input_image = ImageOps.fit(input_image, (width, height), method=Image.Resampling.LANCZOS)
+    # input_image = Image.open(edit_cfg.input).convert("RGB")
+    # width, height = input_image.size
+    # factor = edit_cfg.resolution / max(width, height)
+    # factor = math.ceil(min(width, height) * factor / 64) * 64 / min(width, height)
+    # width = int((width * factor) // 64) * 64
+    # height = int((height * factor) // 64) * 64
+    # input_image = ImageOps.fit(input_image, (width, height), method=Image.Resampling.LANCZOS)
+    input_image = np.random.rand(edit_cfg.resolution, edit_cfg.resolution, 3) * 255
+    input_image = Image.fromarray(input_image.astype('uint8')).convert('RGB')
     batch_size = edit_cfg.get("num_images_per_prompt", 1)
+    height = edit_cfg.resolution
+    width = edit_cfg.resolution
 
     output_dir = edit_cfg.out_path
 
