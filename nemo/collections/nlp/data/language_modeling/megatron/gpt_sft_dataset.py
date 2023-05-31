@@ -144,6 +144,7 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
 
+        # TODO to make configurabel via config
         TOKEN_START = "<extra_id_1>"
         TOKEN_END = "<extra_id_2>"
         context_idx = context.index(TOKEN_START)
@@ -174,13 +175,11 @@ class GPTSFTDataset(Dataset):
             pre_pad = []
         
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
         question_ids = self.tokenizer.text_to_ids(question)
-        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
-
         context_ids_only = self.tokenizer.text_to_ids(context_only)
-        context_ids = pre_pad + context_ids_only 
+        context_ids = pre_pad + context_ids_only
+        total_ids = len(context_ids) + len(question_ids) + max(len(answer_ids), self.tokens_to_generate)
 
         if self.add_bos:
             total_ids += 1
