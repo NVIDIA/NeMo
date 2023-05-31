@@ -350,6 +350,20 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+        self.enable_autocast = (
+            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
+
+        self.transformer_engine = cfg.get('transformer_engine', False)
+
+        # Convert the global-batch-based profile index to micro-batch index
+        if hasattr(self, '_nsys_profile_enabled'):
+            mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // mp_size
+            grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
+            self._nsys_profile_start_step *= grad_accum_steps
+            self._nsys_profile_end_step *= grad_accum_steps
+
     def get_module_list(self):
         if isinstance(self.model, list):
             return [model.module if isinstance(model, Float16Module) else model for model in self.model]
@@ -457,6 +471,58 @@ class MegatronCLIPModel(MegatronMultimodalModel):
         output_tensor = self.model(image, text)
         return output_tensor
 
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        tensor_shape = None
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=self.enable_autocast,
+            no_sync_func=no_sync_func,
+            grad_sync_func=grad_sync_func,
+            param_sync_func=param_sync_func,
+        )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.stack(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -488,34 +554,7 @@ class MegatronCLIPModel(MegatronMultimodalModel):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        # TODO (yuya): fix this shape
-        tensor_shape = None
-
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.stack(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            loss_mean = torch.tensor(0.0).cuda()
+        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -709,35 +748,8 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.        """
 
-        tensor_shape = None  # Placeholder
-
-        # run forward passes for an entire global batch
-        # we do this inside validation_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        def _get_metric(metric_key):
-            # only the last stage of the pipeline returns losses
-            if losses_reduced_per_micro_batch:
-                loss_tensors_list = [loss_reduced[metric_key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.vstack(loss_tensors_list)
-                loss_mean = loss_tensor.mean(axis=0)
-            else:
-                loss_mean = torch.tensor([0.0]).cuda()
-            return loss_mean[0]
-
-        return _get_metric('loss')
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        return loss
 
     def validation_epoch_end(self, outputs):
         # TODO (yuya): need fix later, check with Sean
