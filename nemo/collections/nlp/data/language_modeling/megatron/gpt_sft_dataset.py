@@ -144,10 +144,11 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
 
-        TOKEN = "<extra_id_1>"
-        context_idx = context.index(TOKEN)
-        question = TOKEN + context[:context_idx]
-        context_only = context[context_idx + len(TOKEN):]
+        TOKEN_START = "<extra_id_1>"
+        TOKEN_END = "<extra_id_2>"
+        context_idx = context.index(TOKEN_START)
+        question = TOKEN_START + context[:context_idx] + TOKEN_END
+        context_only = context[context_idx + len(TOKEN_START):]
         
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
@@ -199,8 +200,7 @@ class GPTSFTDataset(Dataset):
         else:
             context_ids += question_ids
 
-        if len(context_ids) > self.max_seq_length:
-            raise ValueError("LENGTH TOO LONG")
+        # if len(context_ids) > self.max_seq_length:
             # context_ids = context_ids[: self.max_seq_length]
 
         assert len(context_ids) <= self.max_seq_length
@@ -220,9 +220,6 @@ class GPTSFTDataset(Dataset):
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
-        # if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
-        #     input_ids = input_ids[: self.max_seq_length]
-        # print(">>>> context_ids: ", len(context_ids))
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
