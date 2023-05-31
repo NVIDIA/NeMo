@@ -85,7 +85,7 @@ class TextGenerationStrategy:
         if self.model.get_inference_config().get("max_sequence_length", None) is not None:
             res = []
             for s in context_tokens:
-                res.append(s[:self.model.get_inference_config()["max_sequence_length"]])
+                res.append(s[: self.model.get_inference_config()["max_sequence_length"]])
             context_tokens = res
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)

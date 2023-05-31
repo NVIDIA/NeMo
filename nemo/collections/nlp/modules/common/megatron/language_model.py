@@ -695,7 +695,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # Embeddings.
         print()
         if torch.distributed.get_rank() == 0:
-            print("before embedding, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
+            print("before embedding, ", torch.cuda.memory_allocated() // (1024 ** 2), "MB")
         if self.pre_process and encoder_input is None:
 
             encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
@@ -717,7 +717,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             pass
 
         if torch.distributed.get_rank() == 0:
-            print("after embedding, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
+            print("after embedding, ", torch.cuda.memory_allocated() // (1024 ** 2), "MB")
         # enc_attn_mask: [1, 1, s, s]
 
         if self.position_embedding_type == 'rope':

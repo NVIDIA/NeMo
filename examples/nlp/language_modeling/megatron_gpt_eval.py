@@ -269,7 +269,7 @@ def main(cfg) -> None:
     request_dl = DataLoader(dataset=ds, batch_size=1)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
-    
+
     response = trainer.predict(model, request_dl)
 
     # print("***************************")

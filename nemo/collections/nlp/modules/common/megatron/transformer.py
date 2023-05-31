@@ -1510,10 +1510,9 @@ class ParallelTransformer(MegatronModule):
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
-                            
 
                             if torch.distributed.get_rank() == 0:
-                                print(f"after layer {index}, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
+                                print(f"after layer {index}, ", torch.cuda.memory_allocated() // (1024 ** 2), "MB")
 
         # Skip counter update for eval and activation checkpointing
         if torch.is_grad_enabled() and self.training:

@@ -669,20 +669,19 @@ def sample_sequence_batch(
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
             if torch.distributed.get_rank() == 0:
-                print("after forward, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
-
+                print("after forward, ", torch.cuda.memory_allocated() // (1024 ** 2), "MB")
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
                 if torch.distributed.get_rank() == 0:
-                    print("after output.float(), ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
-                logits = output[:, -1] # .view(batch_size, -1).contiguous() # last pos torch.Size([1, 256000])
+                    print("after output.float(), ", torch.cuda.memory_allocated() // (1024 ** 2), "MB")
+                logits = output[:, -1]  # .view(batch_size, -1).contiguous() # last pos torch.Size([1, 256000])
                 logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
 
                 if torch.distributed.get_rank() == 0:
-                    print("after output gather, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
+                    print("after output gather, ", torch.cuda.memory_allocated() // (1024 ** 2), "MB")
                 assert logits is not None
-                logits = logits.view(batch_size, -1).contiguous().float() # torch.Size([1, 16000, 256000])
+                logits = logits.view(batch_size, -1).contiguous().float()  # torch.Size([1, 16000, 256000])
 
                 # if output_logits is None:
                 #     output = F.log_softmax(output[:, :context_length, :], 2)
@@ -705,9 +704,9 @@ def sample_sequence_batch(
 
                 # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
 
-                started = context_lengths <= context_length # tensor([True])
+                started = context_lengths <= context_length  # tensor([True])
                 if extra.get('greedy', False):
-                    prev = torch.argmax(logits, dim=-1).view(-1) # torch.Size([1]), tensor([291], device='cuda:0')
+                    prev = torch.argmax(logits, dim=-1).view(-1)  # torch.Size([1]), tensor([291], device='cuda:0')
                 # else:
                 #     logits = logits.float()
                 #     logits /= temperature
@@ -721,7 +720,9 @@ def sample_sequence_batch(
 
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-                new_tokens = switch(tokens[:, context_length].view(-1), prev, started) # tokens: torch.Size([1, 16003])
+                new_tokens = switch(
+                    tokens[:, context_length].view(-1), prev, started
+                )  # tokens: torch.Size([1, 16003])
 
                 # Replace sampled tokens w/ done token if EOD has already been sampled
                 new_tokens = switch(new_tokens, eod_id, is_done)
@@ -730,7 +731,7 @@ def sample_sequence_batch(
                 inference_strategy.post_process(tokens, new_tokens, context_length)
 
                 # Insert either new predicted or next prompt token
-                tokens[:, context_length] = new_tokens # tokens: torch.Size([1, 16003])
+                tokens[:, context_length] = new_tokens  # tokens: torch.Size([1, 16003])
 
                 # if output_logits is None:
                 #     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
