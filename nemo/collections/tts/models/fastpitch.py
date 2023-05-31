@@ -31,6 +31,7 @@ from nemo.collections.tts.parts.mixins import FastPitchAdapterModelMixin
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import (
     batch_from_ragged,
+    g2p_backward_compatible_support,
     plot_alignment_to_numpy,
     plot_spectrogram_to_numpy,
     process_batch,
@@ -138,9 +139,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
         self.aligner = None
         if self.learn_alignment:
+            aligner_loss_scale = cfg.aligner_loss_scale if "aligner_loss_scale" in cfg else 1.0
             self.aligner = instantiate(self._cfg.alignment_module)
-            self.forward_sum_loss_fn = ForwardSumLoss()
-            self.bin_loss_fn = BinLoss()
+            self.forward_sum_loss_fn = ForwardSumLoss(loss_scale=aligner_loss_scale)
+            self.bin_loss_fn = BinLoss(loss_scale=aligner_loss_scale)
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
         input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
@@ -230,13 +232,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         text_tokenizer_kwargs = {}
 
         if "g2p" in cfg.text_tokenizer:
-
             # for backward compatibility
-            if self._is_model_being_restored() and cfg.text_tokenizer.g2p.get('_target_', None):
-                cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
-                    "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+            if (
+                self._is_model_being_restored()
+                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+            ):
+                cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
+                    cfg.text_tokenizer.g2p["_target_"]
                 )
-                logging.warning("This checkpoint support will be dropped after NeMo 1.18.0.")
 
             g2p_kwargs = {}
 

@@ -14,8 +14,9 @@
 
 import itertools
 import queue
+import warnings
 from functools import partial
-from typing import Any, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
 import torch
@@ -36,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
+    get_ltor_masks_and_position_ids,
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -53,7 +55,9 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 try:
@@ -86,6 +90,99 @@ try:
 
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
+
+
+class MegatronGPTExportableModel(torch.nn.Module, Exportable):
+    """
+    Megatron GPT Wrapper for ONNX export
+    """
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+        self.fp8_enabled = model.cfg.get('fp8', False)
+        self.fp8_recipe = None
+        if self.fp8_enabled and HAVE_TE:
+            self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
+            )
+
+        self.dtype = None
+        if model.cfg['precision'] == 'bf16':
+            self.dtype = torch.bfloat16
+        elif int(model.cfg['precision']) == 32:
+            self.dtype = torch.float
+        elif int(model.cfg['precision']) == 16:
+            self.dtype = torch.float16
+        else:
+            raise ValueError(f"precision: {model.cfg['precision']} is not supported.")
+
+    def forward(self, tokens, position_ids, attention_mask):
+        if self.fp8_enabled and HAVE_TE:
+            with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
+                enabled=self.fp8_enabled, fp8_recipe=self.fp8_recipe
+            ), torch.no_grad(), torch.inference_mode(), torch.autocast(
+                'cuda', dtype=self.dtype
+            ), warnings.catch_warnings():
+                warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
+                assert tokens.shape == position_ids.shape
+                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+                output_tensor = self.model.forward(
+                    tokens=tokens.cuda(),
+                    text_position_ids=position_ids.cuda(),
+                    attention_mask=attention_mask.cuda(),
+                    labels=None,
+                )
+        else:
+            with torch.no_grad(), torch.inference_mode(), torch.autocast(
+                'cuda', dtype=self.dtype
+            ), warnings.catch_warnings():
+                warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning, module=r'.*')
+                assert tokens.shape == position_ids.shape
+                assert attention_mask.shape[2] == attention_mask.shape[3] == tokens.shape[1] == position_ids.shape[1]
+                output_tensor = self.model.forward(
+                    tokens=tokens.cuda(),
+                    text_position_ids=position_ids.cuda(),
+                    attention_mask=attention_mask.cuda(),
+                    labels=None,
+                )
+
+        return output_tensor
+
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def input_example(self, max_batch=1, max_dim=768, seq_len=6):
+        ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on           Sunday"]]
+        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
+        masks_and_position_ids = [
+            get_ltor_masks_and_position_ids(id_tensor, self.model.tokenizer.eos_id, False, False, False)
+            for id_tensor in id_tensors
+        ]
+        for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+            attn_mask, _, pos_ids = attn_mask_and_pos_ids
+            return tokens, pos_ids, attn_mask
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "position_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('D', 'D', 'T', 'T'), ChannelType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"logits": NeuralType(('B', 'T', 'D'), ChannelType())}
+
+    @property
+    def input_names(self) -> List[str]:
+        return ['input_ids', 'position_ids', 'attention_mask']
+
+    @property
+    def output_names(self) -> List[str]:
+        return ['logits']
 
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
@@ -1113,6 +1210,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             return self.model.parameters()
 
+    @property
+    def mgpt_wrapper(self):
+        return MegatronGPTExportableModel(self)
+
+    def list_export_subnets(self):
+        return ['mgpt_wrapper']
+
     def _reset_activation_checkpointing_args(self):
         """ Disables activation checkpointing completely and saves the values so that
             _restore_activation_checkpointing_args can restore them later. This function must always be
@@ -1143,16 +1247,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             _reset_activation_checkpointing_args.
         """
         # Restore config values.
-        self.cfg.activations_checkpoint_granularity = self.last_checkpointing_granularity
-        self.cfg.activations_checkpoint_method = self.last_checkpointing_method
-        self.cfg.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+        self.cfg.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
+        self.cfg.activations_checkpoint_method = self.last_activations_checkpoint_method
+        self.cfg.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
         self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
 
         # Restore model parameters.
         for module in self.get_gpt_module_list():
-            module.language_model.encoder.activations_checkpoint_granularity = self.last_checkpointing_granularity
-            module.language_model.encoder.activations_checkpoint_method = self.last_checkpointing_method
-            module.language_model.encoder.activations_checkpoint_num_layers = self.last_checkpointing_num_layers
+            module.language_model.encoder.activations_checkpoint_granularity = (
+                self.last_activations_checkpoint_granularity
+            )
+            module.language_model.encoder.activations_checkpoint_method = self.last_activations_checkpoint_method
+            module.language_model.encoder.activations_checkpoint_num_layers = (
+                self.last_activations_checkpoint_num_layers
+            )
             module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
                 self.last_activations_checkpoint_layers_per_pipeline
             )
