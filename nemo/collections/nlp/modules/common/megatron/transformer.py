@@ -510,6 +510,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
+                #torch.save(residual, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_norm_input_nemo.pt")
+                #torch.save(hidden_states, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_norm_output_nemo.pt")
+                #torch.save(self.input_layernorm.weight, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_norm_weight_nemo.pt")
+                #import sys
+                #sys.exit()
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -636,6 +641,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
         # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
+        #torch.save(output, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_output_nemo.pt")
+        #import sys
+        #sys.exit()
 
         if self.transformer_block_type == 'post_ln':
             output = self.post_attention_layernorm(output)
@@ -1538,6 +1546,8 @@ class ParallelTransformer(MegatronModule):
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
+                            #print(f'layer {index}')
+                            #torch.save(hidden_states, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_input_nemo.pt")
                             hidden_states = layer(
                                 hidden_states,
                                 attention_mask,
