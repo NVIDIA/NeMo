@@ -1,7 +1,6 @@
 # Copyright (c) 2022 Microsoft
 # Licensed under The MIT License [see LICENSE for details]
 
-import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -38,7 +37,7 @@ def apply_rotary_pos_emb(x, sin, cos, scale=1):
     return (x * cos) + (rotate_every_two(x) * sin)
 
 
-class XPOSRelativePositionEmbedding(nn.Module):
+class XPOSPositionEmbedding(nn.Module):
     def __init__(self, head_dim, scale_base=2048):
         super().__init__()
         self.head_dim = head_dim

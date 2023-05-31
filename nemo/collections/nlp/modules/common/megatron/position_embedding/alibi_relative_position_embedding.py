@@ -48,11 +48,15 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
     return slopes.unsqueeze(-1).unsqueeze(-1)
 
 
-def build_relative_position(query_length, key_length, full=True):
-    relative_position = torch.arange(1 - query_length, 1)[None, :].cuda().mul(-1)  # (1, max_seq_len)
+def build_relative_position(max_seq_len, full=True):
+    """
+    full=True:  shape (max_seq_len, max_seq_len)
+    full=False: shape (max_seq_len)
+    """
+    relative_position = torch.arange(1 - max_seq_len, 1)[None, :].cuda().mul(-1)  # (1, max_seq_len)
 
     if full:
-        memory_position = torch.arange(1 - key_length, 1)[:, None].cuda().mul(-1)
+        memory_position = torch.arange(1 - max_seq_len, 1)[:, None].cuda().mul(-1)
         relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
 
     return relative_position
@@ -101,9 +105,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
         self.relative_position = (
-            build_relative_position(max_seq_len, max_seq_len, full=bidirectional)
-            .unsqueeze(0)
-            .expand(num_attention_heads, -1, -1)
+            build_relative_position(max_seq_len, full=bidirectional).unsqueeze(0).expand(num_attention_heads, -1, -1)
         )
 
     def forward(self, query_seq_length, key_seq_length):
@@ -111,17 +113,17 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
             relative_position = (
-                build_relative_position(max_seq_len, max_seq_len, full=self.bidirectional)
+                build_relative_position(max_seq_len, full=self.bidirectional)
                 .unsqueeze(0)
                 .expand(self.num_attention_heads, -1, -1)
             )
         else:
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)
-        # relative_position = relative_position[:, :query_seq_length, :key_seq_length]
+        relative_position = relative_position[:, -query_seq_length:, -key_seq_length:]
         # if not bidirectional, mask out the future positions
-        if not self.bidirectional:
-            relative_position = torch.tril(relative_position)
+        # if not self.bidirectional:
+        #    relative_position = torch.tril(relative_position)
 
         # shape (1, num_heads, query_length, key_length)
         return -relative_position.unsqueeze(0) * self.slopes
