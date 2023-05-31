@@ -290,8 +290,8 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        # if parallel_state.is_pipeline_last_stage():
-        #     outputs = float16_to_fp32(outputs)
+        if parallel_state.is_pipeline_last_stage() and self.training:
+            outputs = float16_to_fp32(outputs)
         return outputs
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
