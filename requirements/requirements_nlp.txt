@@ -19,3 +19,4 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
+git+https://github.com/NVIDIA/lddl.git
