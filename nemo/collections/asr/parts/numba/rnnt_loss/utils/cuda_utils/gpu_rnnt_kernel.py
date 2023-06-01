@@ -1176,7 +1176,7 @@ def compute_tdt_betas_kernel(
                     betas[offset + (T - 1) * maxU + u + 1]
                     + logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u])  # non-blank log prob
                     + logp_duration(duration_acts, maxT, maxU, num_durations, b, T - 1, u, 0)  # log prob of duration 0
-                    - sigma,
+                    - sigma
                 )
 
             elif t >= 0 and t < T - 1:
