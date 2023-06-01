@@ -293,7 +293,7 @@ def send_generate_info(
         context_tokens_tensor.size(1),  # seq_len
         tokens_to_generate,
         all_probs,
-        compute_logprob,
+        compute_logprob, # whether to compute log probabilities matrix 
         temperature,
         top_k,
         top_p,
@@ -329,7 +329,7 @@ def receive_generate_info():
     seq_len = int(input_info_tensor[1].item())
     tokens_to_generate = int(input_info_tensor[2].item())
     all_probs = bool(input_info_tensor[3].item())
-    compute_logprob = bool(input_info_tensor[4].item())
+    compute_logprob = bool(input_info_tensor[4].item()) # whether to compute log probabilities matrix 
     temperature = float(input_info_tensor[5].item())
     top_k = int(input_info_tensor[6].item())
     top_p = float(input_info_tensor[7].item())
