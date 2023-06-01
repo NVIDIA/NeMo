@@ -21,5 +21,4 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
-flash-attn
 triton==2.0.0.dev20221202
