@@ -53,7 +53,6 @@ class TextGenerationStrategy:
 
     def forward_step(self, batch, tensor_shape):
         fwd_bwd_function = get_forward_backward_func()
-
         output_tensor = fwd_bwd_function(
             forward_step_func=self.model.get_forward_output_only_func(),
             data_iterator=iter([batch,]),
@@ -67,7 +66,7 @@ class TextGenerationStrategy:
 
         return output_tensor
 
-    def tokenize_batch(self, sentences, max_len, add_BOS):
+    def tokenize_batch(self, sentences, max_len, add_BOS, truncate_prompt_length):
         """
         convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
         Args:
@@ -82,6 +81,11 @@ class TextGenerationStrategy:
             context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
+        if truncate_prompt_length != -1:
+            res = []
+            for s in context_tokens:
+                res.append(s[:truncate_prompt_length])
+            context_tokens = res
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
@@ -181,14 +185,17 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
+<<<<<<< HEAD
 
         # for positional embedding types that allow length extrapolation, don't clip the max length
+=======
+>>>>>>> ce8ddebb9704d4ad0bce45cb66d7c5fba3493e6a
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
             if maxlen > self.model.cfg.encoder_seq_length + 1:
                 maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
 
-    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokenizer = self.model.tokenizer
@@ -200,10 +207,17 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
             self.model.cfg.get('reset_position_ids', False),
             self.model.cfg.get('reset_attention_mask', False),
             self.model.cfg.get('eod_mask_loss', False),
+            compute_attention_mask=compute_attention_mask,
         )
 
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
@@ -227,7 +241,9 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
         """Prepare batch for each of the inference steps"""
-        attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+        attention_mask_repeat = None
+        if compute_attention_mask:
+            attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
         setkey_value_array = torch.tensor(
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
