@@ -410,7 +410,12 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
     If neither are provided, PEFT params are initialized at random (not loaded from any external source).
     """
 
-    def __init__(self, peft_model_nemo_path: Optional[str] = None, peft_model_ckpt_path: Optional[str] = None, peft_model_ckpt_name: Optional[str] = "model_weights.ckpt") -> None:
+    def __init__(
+        self,
+        peft_model_nemo_path: Optional[str] = None,
+        peft_model_ckpt_path: Optional[str] = None,
+        peft_model_ckpt_name: Optional[str] = "model_weights.ckpt",
+    ) -> None:
         super().__init__()
         self.peft_model_ckpt_name = peft_model_ckpt_name
         if peft_model_ckpt_path:
