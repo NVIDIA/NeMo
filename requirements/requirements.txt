@@ -1,4 +1,3 @@
-flash-attn
 huggingface_hub
 numba
 numpy>=1.22
