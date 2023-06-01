@@ -849,8 +849,11 @@ class ModelPT(LightningModule, Model):
         if self._test_dl is not None:
             return self._test_dl
 
+    #TODO: Confirm if outputs default vals are required
     def on_validation_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]] = [{'val_loss':torch.tensor(0.), 'val_wer_num':torch.tensor(0.), 'val_wer_denom':torch.tensor(0.),
+                                    'val_final_loss': torch.tensor(0.), 'val_inter_ctc_loss_l2': torch.tensor(0.), 'val_inter_ctc_loss_l4': torch.tensor(0.), 'val_inter_wer_l2': torch.tensor(0.)}]
+        #[[torch.tensor(0)], [torch.tensor(0)]]
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
         Default DataLoader for Validation set which automatically supports multiple data loaders

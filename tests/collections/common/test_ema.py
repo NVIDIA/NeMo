@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os.path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 import pytest
 import pytorch_lightning as pl
@@ -105,7 +105,7 @@ class ExampleModel(ModelPT):
     def setup_test_data(self, val_data_config: Union[DictConfig, Dict]):
         pass
 
-    def on_validation_epoch_end(self, loss):
+    def on_validation_epoch_end(self, loss: torch.tensor = [torch.tensor([0.0])]):
         self.log("val_loss", torch.stack(loss).mean())
 
 
