@@ -202,11 +202,17 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
             self.model.cfg.get('reset_position_ids', False),
             self.model.cfg.get('reset_attention_mask', False),
             self.model.cfg.get('eod_mask_loss', False),
-            compute_attention_mask=compute_attention_mask
+            compute_attention_mask=compute_attention_mask,
         )
 
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int, compute_attention_mask: bool = True
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps

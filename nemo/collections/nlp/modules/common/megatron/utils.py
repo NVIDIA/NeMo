@@ -179,7 +179,9 @@ def average_losses_across_data_parallel_group(losses):
     return averaged_losses
 
 
-def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss, compute_attention_mask=True):
+def get_ltor_masks_and_position_ids(
+    data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss, compute_attention_mask=True
+):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
@@ -190,8 +192,8 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
         att_mask_batch = micro_batch_size
     else:
         att_mask_batch = 1
-    
-    attention_mask=None
+
+    attention_mask = None
     if compute_attention_mask:
         attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
             att_mask_batch, 1, seq_length, seq_length
