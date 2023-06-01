@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 from einops import rearrange
-
+from nemo.utils.decorators import experimental
 
 def fixed_pos_embedding(x):
     seq_len, dim = x.shape
@@ -36,7 +36,7 @@ def apply_rotary_pos_emb(x, sin, cos, scale=1):
     # einsum notation for lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (d j)", j=2)
     return (x * cos) + (rotate_every_two(x) * sin)
 
-
+@experimental
 class XPOSPositionEmbedding(nn.Module):
     def __init__(self, head_dim, scale_base=2048):
         super().__init__()
