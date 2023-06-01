@@ -26,6 +26,7 @@ else:
 class LengthParam(TypedDict):
     max_length: int  # The maximum length of the sequence to be generated.
     min_length: int  # The minimum length of the sequence to be generated.
+    truncate_prompt_length: int # The length the prompt is truncated to. If -1 no truncation.
 
 
 class SamplingParam(TypedDict):
