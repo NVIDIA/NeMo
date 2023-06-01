@@ -719,8 +719,12 @@ class CoreAttention(MegatronModule):
         super(CoreAttention, self).__init__()
 
         self.precision = precision
-        self.fp16 = precision == 16
-        self.bf16 = precision == 'bf16'
+        self.fp16 = False
+        self.bf16 = False
+        if precision == 'bf16':
+            self.bf16 = True
+        elif int(precision) == 16:
+            self.fp16 = True
         self.multi_query_attention = multi_query_attention
         self.position_embedding_type = position_embedding_type
 
@@ -927,12 +931,14 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def reset_fa_causal(self, query_length, key_length, causal):
-        if query_length != key_length: 
+        if query_length != key_length:
             if query_length == 1:
                 return False
-            raise NotImplementedError("Flash attention does not support query and key with different number of tokens, unless number of query tokens is 1.") 
+            raise NotImplementedError(
+                "Flash attention does not support query and key with different number of tokens, unless number of query tokens is 1."
+            )
         return causal
-    
+
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask):
         batch_size, seqlen, nheads, _ = query_layer.shape
 
@@ -952,7 +958,9 @@ class CoreAttention(MegatronModule):
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-        causal = self.reset_fa_causal(query_layer.shape[1], key_layer.shape[1], self.attn_mask_type == AttnMaskType.causal)
+        causal = self.reset_fa_causal(
+            query_layer.shape[1], key_layer.shape[1], self.attn_mask_type == AttnMaskType.causal
+        )
         context_layer = flash_attn_unpadded_func(
             q,
             k,
@@ -982,11 +990,11 @@ class CoreAttention(MegatronModule):
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
             attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
             attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
-            
-        causal = self.reset_fa_causal(query_layer.shape[1], key_layer.shape[1], self.attn_mask_type == AttnMaskType.causal)
-        context_layer = flash_attn_func(
-            query_layer, key_layer, value_layer, attention_bias, causal
+
+        causal = self.reset_fa_causal(
+            query_layer.shape[1], key_layer.shape[1], self.attn_mask_type == AttnMaskType.causal
         )
+        context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, causal)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
