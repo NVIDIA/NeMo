@@ -82,8 +82,6 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronGPTModel(cfg.model, trainer)
-    
-    
 
     trainer.fit(model)
 
