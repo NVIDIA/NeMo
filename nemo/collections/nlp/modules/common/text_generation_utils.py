@@ -381,7 +381,6 @@ def synced_generate(
     compute_logprob=False,
     repetition_penalty=1.2,
     min_tokens_to_generate=0,
-    
     end_strings=[],
 ):
     context_length = context_length_tensor.min().item()
@@ -422,7 +421,7 @@ def synced_generate(
     if parallel_state.is_pipeline_last_stage():
         src = parallel_state.get_pipeline_model_parallel_last_rank()
         group = parallel_state.get_embedding_group()
-        if compute_logprob: 
+        if compute_logprob:
             torch.distributed.broadcast(output_logits, src, group)
         if all_probs:
             src = parallel_state.get_pipeline_model_parallel_last_rank()
@@ -685,7 +684,6 @@ def sample_sequence_batch(
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
 
-
             if parallel_state.is_pipeline_last_stage():
 
                 if compute_logprob:
@@ -712,9 +710,9 @@ def sample_sequence_batch(
 
                 # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
 
-                started = context_lengths <= context_length 
+                started = context_lengths <= context_length
                 if extra.get('greedy', False):
-                    prev = torch.argmax(logits, dim=-1).view(-1) 
+                    prev = torch.argmax(logits, dim=-1).view(-1)
                 else:
                     logits = logits.float()
                     logits /= temperature
@@ -738,7 +736,6 @@ def sample_sequence_batch(
 
                 # Insert either new predicted or next prompt token
                 tokens[:, context_length] = new_tokens
-
 
                 if compute_logprob:
                     if output_logits is None:

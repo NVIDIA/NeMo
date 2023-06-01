@@ -34,8 +34,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_sp
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     LengthParam,
     SamplingParam,
-    get_computeprob_response,
     generate,
+    get_computeprob_response,
     megatron_gpt_generate,
 )
 from nemo.utils import AppState, logging

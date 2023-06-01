@@ -160,7 +160,7 @@ def main(cfg) -> None:
                 for batch in response:
                     batch_sentences = [s for s in batch['sentences']]
                     batch_tokens = [s for s in batch['tokens']]
-                    if cfg.inference.compute_logprob: 
+                    if cfg.inference.compute_logprob:
                         batch_logprob = [s.tolist() for s in batch['logprob']]
                         for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
                             if cfg.inference.get("verbose", False):
