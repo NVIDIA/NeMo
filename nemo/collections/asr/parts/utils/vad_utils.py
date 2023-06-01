@@ -1496,6 +1496,7 @@ def align_labels_to_frames(probs, labels, threshold=0.2):
     labels_len = len(labels)
     probs = torch.tensor(probs).float()
     labels = torch.tensor(labels).long()
+
     if frames_len < labels_len:
         # pad labels with zeros until labels_len is a multiple of frames_len
         ratio = labels_len / frames_len
