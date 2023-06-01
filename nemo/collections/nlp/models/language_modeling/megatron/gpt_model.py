@@ -78,18 +78,12 @@ def post_language_model_processing(
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
 
-    if torch.distributed.get_rank() == 0:
-        print("after decoder embedding, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
-
     if get_key_value:
         output = [output, presents]
 
     if labels is None:
         # [s b h] -> [b s h]
         return output.transpose(0, 1).contiguous()
-    
-        if torch.distributed.get_rank() == 0:
-            print("after output.transpose, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
     else:
         # [b s] -> [s b]
         labels = labels.transpose(0, 1).contiguous()
@@ -99,10 +93,6 @@ def post_language_model_processing(
             loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
-        
-        
-        if torch.distributed.get_rank() == 0:
-            print("after cross entropy, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
 
         # [s b] -> [b, s]
         loss = loss.transpose(0, 1).contiguous()

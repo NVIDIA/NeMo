@@ -684,8 +684,6 @@ def sample_sequence_batch(
                 tokens, maxlen, micro_batch_size, counter, context_length
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
-            if torch.distributed.get_rank() == 0:
-                print("after forward, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
 
 
             if parallel_state.is_pipeline_last_stage():
@@ -700,9 +698,6 @@ def sample_sequence_batch(
                 else:
                     logits = output[0]['logits'][:, -1].float()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
-
-                    if torch.distributed.get_rank() == 0:
-                        print("after output gather, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
                     assert logits is not None
                     logits = logits.view(batch_size, -1).float().contiguous()
 
@@ -733,7 +728,7 @@ def sample_sequence_batch(
 
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-                new_tokens = switch(tokens[:, context_length].view(-1), prev, started) # tokens: torch.Size([1, 16003])
+                new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
                 # Replace sampled tokens w/ done token if EOD has already been sampled
                 new_tokens = switch(new_tokens, eod_id, is_done)
@@ -742,15 +737,12 @@ def sample_sequence_batch(
                 inference_strategy.post_process(tokens, new_tokens, context_length)
 
                 # Insert either new predicted or next prompt token
-                tokens[:, context_length] = new_tokens # tokens: torch.Size([1, 16003])
+                tokens[:, context_length] = new_tokens
 
 
                 if compute_logprob:
                     if output_logits is None:
                         output = F.log_softmax(output[:, :context_length, :], 2)
-
-                        if torch.distributed.get_rank() == 0:
-                            print("after logsoftmax, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
 
                         indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
                         output_logits = torch.gather(output, 2, indices).squeeze(2)
@@ -759,8 +751,6 @@ def sample_sequence_batch(
                             full_logits = output
                     else:
                         output = F.log_softmax(output, 2)
-                        if torch.distributed.get_rank() == 0:
-                            print("after logsoftmax, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
                         indices = torch.unsqueeze(new_tokens, 1).unsqueeze(2)
                         new_output_logits = torch.gather(output, 2, indices).squeeze(2)
 

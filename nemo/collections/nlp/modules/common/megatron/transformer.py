@@ -1268,9 +1268,6 @@ class ParallelTransformer(MegatronModule):
 
             return custom_forward
 
-        # Make sure memory is freed.
-        tensor_parallel.reset_checkpointed_activations_memory_buffer()
-
         if self.activations_checkpoint_method == 'uniform':
             # Uniformly divide the total number of Transformer layers and checkpoint
             # the input activation of each divided chunk.
@@ -1510,10 +1507,6 @@ class ParallelTransformer(MegatronModule):
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
-                            
-
-                            if torch.distributed.get_rank() == 0:
-                                print(f"after layer {index}, ", torch.cuda.memory_allocated()//(1024 ** 2), "MB")
 
         # Skip counter update for eval and activation checkpointing
         if torch.is_grad_enabled() and self.training:
