@@ -103,7 +103,7 @@ class AlignerModel(ModelPT):
                 cfg.text_tokenizer.g2p['_target_'] = cfg.text_tokenizer.g2p['_target_'].replace(
                     "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
                 )
-                logging.warning("This checkpoint support will be dropped after r1.18.0.")
+                logging.warning("This checkpoint support will be dropped after NeMo 1.18.0.")
 
             g2p_kwargs = {}
 
@@ -126,7 +126,7 @@ class AlignerModel(ModelPT):
             attn_soft, attn_logprob = self.alignment_encoder(
                 queries=spec,
                 keys=self.embed(text).transpose(1, 2),
-                mask=get_mask_from_lengths(text_len).unsqueeze(-1),
+                mask=get_mask_from_lengths(text_len).unsqueeze(-1) == 0,
                 attn_prior=attn_prior,
             )
 
