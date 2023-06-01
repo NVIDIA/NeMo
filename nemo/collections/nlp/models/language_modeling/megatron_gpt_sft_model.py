@@ -549,13 +549,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
             return compute_prob_response
         else:
-
-            # for megatron_gpt_eval.py
-            if isinstance(batch, list):
-                inference_config['inputs'] = batch
-            else:
-                # peft_eval.py
-                inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
+            inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
             return generate(self, **inference_config)
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):

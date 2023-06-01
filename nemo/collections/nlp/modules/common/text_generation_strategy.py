@@ -185,11 +185,8 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
-<<<<<<< HEAD
 
         # for positional embedding types that allow length extrapolation, don't clip the max length
-=======
->>>>>>> ce8ddebb9704d4ad0bce45cb66d7c5fba3493e6a
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
             if maxlen > self.model.cfg.encoder_seq_length + 1:
                 maxlen = self.model.cfg.encoder_seq_length + 1
