@@ -299,7 +299,7 @@ class Float16Module(MegatronModule):
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-    
+
     def word_embeddings_weight(self):
         if self.module.pre_process:
             if hasattr(self.module, 'language_model'):
