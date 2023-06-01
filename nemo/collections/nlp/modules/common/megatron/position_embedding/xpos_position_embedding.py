@@ -6,6 +6,7 @@ import torch.nn as nn
 from einops import rearrange
 from nemo.utils.decorators import experimental
 
+
 def fixed_pos_embedding(x):
     seq_len, dim = x.shape
     inv_freq = 1.0 / (10000 ** (torch.arange(0, dim) / dim))
@@ -35,6 +36,7 @@ def apply_rotary_pos_emb(x, sin, cos, scale=1):
     sin, cos = map(lambda t: duplicate_interleave(t * scale), (sin, cos))
     # einsum notation for lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (d j)", j=2)
     return (x * cos) + (rotate_every_two(x) * sin)
+
 
 @experimental
 class XPOSPositionEmbedding(nn.Module):
