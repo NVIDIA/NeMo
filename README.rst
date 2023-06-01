@@ -265,7 +265,6 @@ packaging is also needed:
 
   pip install -y packaging
 
-
 Transformer Engine
 ~~~~~~~~~~~~~~~~~~
 NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
@@ -279,6 +278,15 @@ Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Transformer Engine or any other dependencies.
 
 Transformer Engine requires PyTorch to be built with CUDA 11.8.
+
+
+Flash Attention
+~~~~~~~~~~~~~~~~~~~~
+Install flash-attn <https://github.com/HazyResearch/flash-attention> if you want to use Flash Attention to reduce memory overhead. 
+.. code-block:: bash
+
+  pip install flash-attn
+  pip install triton==2.0.0.dev20221202
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~

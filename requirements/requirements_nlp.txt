@@ -2,7 +2,6 @@ boto3
 einops
 faiss-cpu
 fasttext
-flash-attn
 flask_restful
 ftfy
 gdown
@@ -22,4 +21,3 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
-triton==2.0.0.dev20221202

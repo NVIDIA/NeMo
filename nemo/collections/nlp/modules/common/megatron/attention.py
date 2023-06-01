@@ -66,7 +66,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     logging.warning(
         "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
-        "If you use flash_attn with triton. Please see the installation instructions: https://github.com/openai/triton/."
+        "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
     )
     flash_attn_unpadded_func, flash_attn_func = None, None
     unpad_input, pad_input = None, None
