@@ -290,7 +290,7 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        if parallel_state.is_pipeline_last_stage() and self.training:
+        if parallel_state.is_pipeline_last_stage():
             outputs = float16_to_fp32(outputs)
         return outputs
 
@@ -299,6 +299,7 @@ class Float16Module(MegatronModule):
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+
 
     def word_embeddings_weight(self):
         if self.module.pre_process:
