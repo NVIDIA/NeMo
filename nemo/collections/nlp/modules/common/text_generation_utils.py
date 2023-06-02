@@ -421,8 +421,16 @@ def synced_generate(
         if parallel_state.is_pipeline_first_stage():
             src = parallel_state.get_pipeline_model_parallel_last_rank()
             group = parallel_state.get_embedding_group()
+
+            precision = model._trainer.precision
+            if precision in [16, "16"]:
+                dtype = torch.float16
+            elif precision == "bf16":
+                dtype = torch.bfloat16
+            else:
+                dtype = torch.float32
             output_logits = torch.empty(
-                tokens.size(0), context_length - 1, dtype=torch.float32, device=torch.device("cuda")
+                tokens.size(0), context_length - 1, dtype=dtype, device=torch.device("cuda")
             )
             torch.distributed.broadcast(output_logits, src, group)
 
@@ -433,7 +441,7 @@ def synced_generate(
                     tokens.size(0),
                     context_length - 1,
                     model.padded_vocab_size,
-                    dtype=torch.float32,
+                    dtype=dtype,
                     device=torch.device("cuda"),
                 )
                 torch.distributed.broadcast(full_logits, src, group)
@@ -606,11 +614,6 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
-def _convert_to_float(model):
-    # enable conversion to float when inference is done via model.generate() and PP > 1 (could results in larger memory consumption)
-    return model.cfg.get('pipeline_model_parallel_size', 1) > 1 and model._inference_config is None
-
-
 def sample_sequence_batch(
     model,
     inference_strategy,
@@ -673,8 +676,6 @@ def sample_sequence_batch(
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits']
-                if _convert_to_float(model):
-                    output = output.float()
 
                 output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
