@@ -439,7 +439,9 @@ def synced_generate(
                     dtype = torch.bfloat16
                 else:
                     dtype = torch.float32
-                output_logits = torch.empty(tokens.size(0), context_length - 1, dtype=dtype, device=torch.device("cuda"))
+                output_logits = torch.empty(
+                    tokens.size(0), context_length - 1, dtype=dtype, device=torch.device("cuda")
+                )
                 torch.distributed.broadcast(output_logits, src, group)
 
             if all_probs:
