@@ -943,7 +943,7 @@ if comparison_mode:
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
     import editdistance
-    from jiwer import wer as _wer
+    
 
     def _wer_(grnd, pred):
         grnd_words = grnd.split()
@@ -962,10 +962,10 @@ if comparison_mode:
         gt = da['text']
         tt_1 = da[Ox]
         tt_2 = da[Oy]
-        # logging.error("CODE 4", str(gt))
+        
         wer_tt1_c, cer_tt1_c = [], []
         wer_tt2_c, cer_tt2_c = [], []
-        # logging.error("CODE 1 | ", str(da))
+        
         for j in range(len(gt)):
             wer_tt1, cer_tt1 = metric(gt[j], tt_1[j])  # first model
             wer_tt2, cer_tt2 = metric(gt[j], tt_2[j])  # second model
