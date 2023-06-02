@@ -800,9 +800,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 rotary_pos_emb=(rotary_pos_emb, None, None)
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
-                self_attention_relative_position_bias=encoder_self_attention_relative_position_bias
-                if encoder_self_attention_relative_position_bias is not None
-                else None,
+                self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
