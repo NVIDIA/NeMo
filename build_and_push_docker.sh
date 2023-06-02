@@ -11,6 +11,6 @@ cd -
 
 IMAGE_FULL=$IMAGE:$TAG
 
-DOCKER_BUILDKIT=1 docker build --build-arg FORCE_REBUILD=$MEGATRON_VER -f Dockerfile -t $IMAGE_FULL .
+DOCKER_BUILDKIT=1 docker build --build-arg MEGATRON_VER=$MEGATRON_VER -f Dockerfile -t $IMAGE_FULL .
 
 docker push $IMAGE_FULL

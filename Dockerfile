@@ -100,9 +100,10 @@ RUN pip install nvidia-pyindex &&\
   pip install nvidia-dlprof[pytorch] &&\
   pip install nvtx
 
-ARG FORCE_REBUILD=unknown
+ARG MEGATRON_VER=unknown
 RUN git clone https://github.com/crankshaw-google/Megatron-LM.git \
   && cd Megatron-LM \
+  && git checkout $MEGATRON_VER \
   && pip install -e .
 
 # # install k2, skip if installation fails
