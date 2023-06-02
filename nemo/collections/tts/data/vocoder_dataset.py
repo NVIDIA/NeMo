@@ -58,7 +58,7 @@ class VocoderDataset(Dataset):
             be resampled.
         n_samples: Optional int, if provided then n_samples samples will be randomly sampled from the full
             audio file.
-        weighted_sample_steps: Optional int, If provided, then data will be sampled (with replacement) based on
+        weighted_sampling_steps_per_epoch: Optional int, If provided, then data will be sampled (with replacement) based on
             the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
         feature_processors: Optional, list of feature processors to run on training examples.
         min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
@@ -74,7 +74,7 @@ class VocoderDataset(Dataset):
         dataset_meta: Dict,
         sample_rate: int,
         n_samples: Optional[int] = None,
-        weighted_sample_steps: Optional[int] = None,
+        weighted_sampling_steps_per_epoch: Optional[int] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -84,7 +84,7 @@ class VocoderDataset(Dataset):
 
         self.sample_rate = sample_rate
         self.n_samples = n_samples
-        self.weighted_sample_steps = weighted_sample_steps
+        self.weighted_sampling_steps_per_epoch = weighted_sampling_steps_per_epoch
         self.num_audio_retries = num_audio_retries
         self.load_precomputed_mel = False
 
@@ -105,11 +105,11 @@ class VocoderDataset(Dataset):
             self.sample_weights += weights
 
     def get_sampler(self, batch_size: int) -> Optional[torch.utils.data.Sampler]:
-        if not self.weighted_sample_steps:
+        if not self.weighted_sampling_steps_per_epoch:
             return None
 
         sampler = get_weighted_sampler(
-            sample_weights=self.sample_weights, batch_size=batch_size, num_steps=self.weighted_sample_steps
+            sample_weights=self.sample_weights, batch_size=batch_size, num_steps=self.weighted_sampling_steps_per_epoch
         )
         return sampler
 

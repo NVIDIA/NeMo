@@ -9,7 +9,7 @@ defaults:
 
 max_epochs: ???
 batch_size: 32
-weighted_sample_steps: null
+weighted_sampling_steps_per_epoch: null
 
 n_speakers: ???
 speaker_path: null
@@ -98,7 +98,7 @@ model:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset
       dataset_meta: ${train_ds_meta}
-      weighted_sample_steps: ${weighted_sample_steps}
+      weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
       sample_rate: ${feature.sample_rate}
       speaker_path: ${speaker_path}
       align_prior_hop_length: ${feature.hop_length}

@@ -64,7 +64,7 @@ class TextToSpeechDataset(Dataset):
         sample_rate: Sample rate to load audio as. If the audio is stored at a different sample rate, then it will
             be resampled.
         text_tokenizer: Tokenizer to apply to the text field.
-        weighted_sample_steps: Optional int, If provided, then data will be sampled (with replacement) based on
+        weighted_sampling_steps_per_epoch: Optional int, If provided, then data will be sampled (with replacement) based on
             the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
         speaker_path: Optional, path to JSON file with speaker indices, for multi-speaker training. Can be created with
             scripts.dataset_processing.tts.create_speaker_map.py
@@ -72,7 +72,8 @@ class TextToSpeechDataset(Dataset):
             when running scripts.dataset_processing.tts.compute_features.py before training.
         feature_processors: Optional, list of feature processors to run on training examples.
         align_prior_hop_length: Optional int, hop length of audio features.
-            If provided alignment prior will be calculated and included in batch output.
+            If provided alignment prior will be calculated and included in batch output. Must match hop length
+            of audio features used for training.
         min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
             will be ignored.
         max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
@@ -84,7 +85,7 @@ class TextToSpeechDataset(Dataset):
         dataset_meta: Dict,
         sample_rate: int,
         text_tokenizer: BaseTokenizer,
-        weighted_sample_steps: Optional[int] = None,
+        weighted_sampling_steps_per_epoch: Optional[int] = None,
         speaker_path: Optional[Path] = None,
         featurizers: Optional[Dict[str, Featurizer]] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
@@ -96,7 +97,7 @@ class TextToSpeechDataset(Dataset):
 
         self.sample_rate = sample_rate
         self.text_tokenizer = text_tokenizer
-        self.weighted_sample_steps = weighted_sample_steps
+        self.weighted_sampling_steps_per_epoch = weighted_sampling_steps_per_epoch
         self.align_prior_hop_length = align_prior_hop_length
         self.include_align_prior = self.align_prior_hop_length is not None
 
@@ -135,11 +136,11 @@ class TextToSpeechDataset(Dataset):
             self.sample_weights += weights
 
     def get_sampler(self, batch_size: int) -> Optional[torch.utils.data.Sampler]:
-        if not self.weighted_sample_steps:
+        if not self.weighted_sampling_steps_per_epoch:
             return None
 
         sampler = get_weighted_sampler(
-            sample_weights=self.sample_weights, batch_size=batch_size, num_steps=self.weighted_sample_steps
+            sample_weights=self.sample_weights, batch_size=batch_size, num_steps=self.weighted_sampling_steps_per_epoch
         )
         return sampler
 

@@ -11,7 +11,7 @@ defaults:
 
 max_epochs: ???
 batch_size: 16
-weighted_sample_steps: null
+weighted_sampling_steps_per_epoch: null
 
 train_ds_meta: ???
 val_ds_meta: ???
@@ -22,7 +22,7 @@ log_dir: ???
 model:
 
   max_epochs: ${max_epochs}
-  steps_per_epoch: ${weighted_sample_steps}
+  steps_per_epoch: ${weighted_sampling_steps_per_epoch}
   l1_loss_factor: 60
 
   preprocessor:
@@ -52,7 +52,7 @@ model:
   train_ds:
     dataset:
       _target_: nemo.collections.tts.data.vocoder_dataset.VocoderDataset
-      weighted_sample_steps: ${weighted_sample_steps}
+      weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
       sample_rate: ${feature.sample_rate}
       n_samples: ${sample.train_n_samples}
       min_duration: 0.4
