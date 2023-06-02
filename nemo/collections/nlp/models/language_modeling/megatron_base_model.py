@@ -482,12 +482,16 @@ class MegatronBaseModel(NLPModel):
 
         if self.rampup_batch_size:
             from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
             current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'current_global_batch_size', 1)
             consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
         else:
             consumed_samples = (
                 self.init_consumed_samples
-                + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+                + steps_since_resume
+                * app_state.data_parallel_size
+                * self.cfg.micro_batch_size
+                * get_num_microbatches()
             )
         return int(consumed_samples)
 

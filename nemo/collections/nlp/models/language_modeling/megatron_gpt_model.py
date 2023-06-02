@@ -515,7 +515,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             logging.info(current_global_batch_size)
-            # do validation and save the checkpoint when gbs is changed  
+            # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
                 self.trainer.should_stop = True
 
@@ -596,7 +596,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.prev_consumed_samples = consumed_samples
             num_microbatch_calculator.update(
                 consumed_samples=consumed_samples, consistency_check=False,
-            )          
+            )
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             self.log('global_batch_size', current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1)
             self.if_first_step = 1
