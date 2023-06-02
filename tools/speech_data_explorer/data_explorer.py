@@ -942,10 +942,8 @@ if comparison_mode:
 
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
-    from jiwer import wer as _wer
-
     import editdistance
-
+    from jiwer import wer as _wer
 
     def _wer_(grnd, pred):
         grnd_words = grnd.split()
@@ -953,9 +951,6 @@ if comparison_mode:
         edit_distance = editdistance.eval(grnd_words, pred_words)
         wer = edit_distance / len(grnd_words)
         return wer
-
-   
-
 
     def metric(a, b, met=None):
         cer = editdistance.distance(a, b) / len(a)
