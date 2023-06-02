@@ -1107,7 +1107,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
         blank_id = len(vocabulary) + joint.num_extra_outputs
 
-        if decoding_cfg.model_type == 'tdt':
+        if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'tdt':
             blank_id = len(vocabulary)
 
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])

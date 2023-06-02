@@ -199,7 +199,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         blank_id = tokenizer.tokenizer.vocab_size  # RNNT or TDT models.
 
         # multi-blank RNNTs
-        if decoding_cfg.model_type == 'multiblank':
+        if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'multiblank':
             blank_id = tokenizer.tokenizer.vocab_size + joint.num_extra_outputs
 
         self.tokenizer = tokenizer
