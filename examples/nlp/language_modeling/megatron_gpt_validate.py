@@ -60,8 +60,6 @@ from nemo.utils.model_utils import inject_model_parallel_rank
         checkpoint_name='megatron_gpt--val_loss=7.78-step=100-consumed_samples=6336.0-last.ckpt' \
         hparams_file='/path/to/experiment/hparams.yaml
 
-
-
 """
 
 
