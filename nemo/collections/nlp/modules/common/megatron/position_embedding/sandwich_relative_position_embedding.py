@@ -59,7 +59,7 @@ class SandwichRelativePositionEmbedding(torch.nn.Module):
         if not self.bidirectional:
             relative_position = torch.tril(relative_position)
 
-        inv_freq = 1.0 / (10000 ** (2 * torch.arange(1, self.hidden_size / 2 + 1) / self.hidden_size, device=relative_position.device))
+        inv_freq = 1.0 / (10000 ** (2 * torch.arange(1, self.hidden_size / 2 + 1, device=relative_position.device) / self.hidden_size))
             
         _bias = torch.sum((relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq).cos(), axis=2)
         bias = _bias.repeat(self.num_attention_heads, 1, 1)
