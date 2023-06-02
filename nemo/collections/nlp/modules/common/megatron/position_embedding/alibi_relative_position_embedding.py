@@ -44,8 +44,12 @@ def build_slopes(num_attention_heads, num_attention_heads_alibi):
     """
     slopes = torch.Tensor(
         get_slopes(num_attention_heads_alibi) + [0] * (num_attention_heads - num_attention_heads_alibi)
-    ).cuda()
-    return slopes.unsqueeze(-1).unsqueeze(-1)
+    ).unsqueeze(-1).unsqueeze(-1)
+    
+    if torch.cuda.is_available():
+        slopes = slopes.to(torch.cuda.current_device())
+        
+    return slopes
 
 
 def build_relative_position(max_seq_len, full=True):
@@ -53,12 +57,15 @@ def build_relative_position(max_seq_len, full=True):
     full=True:  shape (max_seq_len, max_seq_len)
     full=False: shape (max_seq_len)
     """
-    relative_position = torch.arange(1 - max_seq_len, 1)[None, :].cuda().mul(-1)  # (1, max_seq_len)
+    relative_position = torch.arange(1 - max_seq_len, 1)[None, :].mul(-1)  # (1, max_seq_len)
 
     if full:
-        memory_position = torch.arange(1 - max_seq_len, 1)[:, None].cuda().mul(-1)
+        memory_position = torch.arange(1 - max_seq_len, 1)[:, None].mul(-1)
         relative_position = torch.abs(memory_position - relative_position)  # (max_seq_len, max_seq_len)
-
+        
+    if torch.cuda.is_available():
+        relative_position = relative_position.to(torch.cuda.current_device())
+        
     return relative_position
 
 
