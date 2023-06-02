@@ -1321,7 +1321,7 @@ if args.show_statistics is not None:
                 {'display': 'none'},
                 {'display': 'none'},
             )
-        if visibility_state == 'utterance level':
+        else:
             return (
                 {'width': '100%', 'display': 'none', 'float': 'middle'},
                 {'width': '100%', 'display': 'inline-block', 'float': 'middle'},
@@ -1371,7 +1371,7 @@ if args.show_statistics is None:
                 {'width': '50%', 'display': 'none', 'float': 'middle'},
                 {'display': 'none'},
             )
-        if visibility_state == 'utterance level':
+        else:
             return (
                 {'width': '100%', 'display': 'none', 'float': 'middle'},
                 {'width': '100%', 'display': 'inline-block', 'float': 'middle'},
