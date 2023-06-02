@@ -190,10 +190,8 @@ class ConcatDataset(IterableDataset):
     def weighted_generator(datasets, **kwargs):
         weights = kwargs.get('sampling_weights')
         if not weights:
-            raise ValueError(
-                "Weighted generator expects a 'sampling_weights' keyword argument for sampling weights."
-            )
-            
+            raise ValueError("Weighted generator expects a 'sampling_weights' keyword argument for sampling weights.")
+
         num = len(datasets)
         ids = np.repeat(np.arange(num), weights)
         while True:
