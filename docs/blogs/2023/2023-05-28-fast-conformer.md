@@ -83,6 +83,19 @@ Some languages we currently support for ASR are :
 - [Croatian](https://huggingface.co/nvidia/stt_hr_fastconformer_hybrid_large_pc)
 - [Polish](https://huggingface.co/nvidia/stt_pl_fastconformer_hybrid_large_pc)
 - [Ukranian](https://huggingface.co/nvidia/stt_ua_fastconformer_hybrid_large_pc)
+- [Russian](https://huggingface.co/nvidia/stt_ru_fastconformer_hybrid_large_pc)
+
+## Data Processing
+
+When constructing datasets with support for Punctuation and Capitalization, dataset preparation is an important piece of the puzzle. When training a model with Punctuation and Capitalization, you may face the following issues:
+
+1) During training, there may be the case the standard evaluation benchmarks do not have punctuation or capitalization, but the model still predicts them, providing an incorrect evaluation of model training. 
+
+2) Not all training data may have punctuation or capitalization, so you may want to filter out such samples to prevent confusing the model about whether it should predict punctuation or capitalization.
+
+In order to provide a consistent and reproducible way to process such dataset, we will begin providing the dataset preprocessing strategies in [Speech Data Processor](https://github.com/NVIDIA/NeMo-speech-data-processor).
+
+Speech Dataset Processor will initially host dataset processing recipies for Spanish, and we will add more languages in the future.
 
 # Results
 
