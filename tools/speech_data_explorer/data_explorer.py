@@ -933,8 +933,7 @@ samples_layout += [
 wordstable_columns_tool = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
 wordstable_columns_tool.append({'name': 'Accuracy_1, %', 'id': 'accuracy_1'})
 wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
-# wordstable_columns_tool.append({'name': 'Accuracy_' + name_1 + ', %', 'id': 'accuracy_1'})
-# wordstable_columns_tool.append({'name': 'Accuracy_' + name_2 + ', %', 'id': 'accuracy_2'})
+
 
 
 if comparison_mode:
