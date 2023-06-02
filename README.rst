@@ -265,6 +265,7 @@ packaging is also needed:
 
   pip install -y packaging
 
+
 Transformer Engine
 ~~~~~~~~~~~~~~~~~~
 NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
