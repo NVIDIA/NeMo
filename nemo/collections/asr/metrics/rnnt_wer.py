@@ -15,7 +15,7 @@
 import copy
 import re
 from abc import abstractmethod
-from dataclasses import dataclass, field, is_dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
