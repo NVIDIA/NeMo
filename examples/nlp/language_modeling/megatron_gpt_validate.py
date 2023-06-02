@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import tempfile
 
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -63,6 +64,22 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 """
 
 
+def modify_pretrained_cfg(pretrained_cfg, trainer, cfg):
+    with open_dict(pretrained_cfg):
+        OmegaConf.set_struct(pretrained_cfg, True)
+        pretrained_cfg.sequence_parallel = False
+        pretrained_cfg.activations_checkpoint_granularity = None
+        pretrained_cfg.activations_checkpoint_method = None
+        pretrained_cfg.precision = trainer.precision
+        if cfg.micro_batch_size is not None:
+            pretrained_cfg.micro_batch_size = cfg.micro_batch_size
+        if cfg.global_batch_size is not None:
+            pretrained_cfg.global_batch_size = cfg.global_batch_size
+        if trainer.precision == "16":
+            pretrained_cfg.megatron_amp_O2 = False
+    return pretrained_cfg
+
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_validate_config")
 def main(cfg) -> None:
 
@@ -85,14 +102,7 @@ def main(cfg) -> None:
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
-        OmegaConf.set_struct(pretrained_cfg, True)
-        with open_dict(pretrained_cfg):
-            pretrained_cfg.sequence_parallel = False
-            pretrained_cfg.activations_checkpoint_granularity = None
-            pretrained_cfg.activations_checkpoint_method = None
-            pretrained_cfg.precision = trainer.precision
-            if trainer.precision == "16":
-                pretrained_cfg.megatron_amp_O2 = False
+        pretrained_cfg = modify_pretrained_cfg(pretrained_cfg, trainer, cfg)
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -125,9 +135,18 @@ def main(cfg) -> None:
                 virtual_pipeline_model_parallel_size_=cfg.virtual_pipeline_model_parallel_size,
             )
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+        pretrained_cfg = OmegaConf.load(cfg.hparams_file)
+        pretrained_cfg = modify_pretrained_cfg(pretrained_cfg.cfg, trainer, cfg)
+        with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
+            OmegaConf.save(config=pretrained_cfg, f=f.name)
+            model = MegatronGPTModel.load_from_checkpoint(
+                checkpoint_path=checkpoint_path, trainer=trainer, hparams_file=f.name,
+            )
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
+
+    logging.info("\n\n**************  Model configuration ***********")
+    logging.info(f'\n{OmegaConf.to_yaml(model.cfg)}')
 
     trainer.validate(model=model)
 
