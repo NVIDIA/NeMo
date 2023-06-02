@@ -182,6 +182,8 @@ model:
     # if omega is 0; even if omega is non-zero, greedy-batch results are still going to be inaccurate.
     strategy: "greedy"
 
+    model_type: "tdt"
+
     # this must not be None in order to use the TDT specific decoding method.
     durations: ${model.model_defaults.tdt_durations}
 

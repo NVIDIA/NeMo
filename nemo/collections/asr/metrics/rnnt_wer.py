@@ -15,7 +15,7 @@
 import copy
 import re
 from abc import abstractmethod
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import editdistance
@@ -1107,7 +1107,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
         blank_id = len(vocabulary) + joint.num_extra_outputs
 
-        if decoding_cfg.durations is not None:  # this means it's a TDT model.
+        if decoding_cfg.model_type == 'tdt':
             blank_id = len(vocabulary)
 
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
@@ -1288,7 +1288,9 @@ class RNNTWER(Metric):
 
 @dataclass
 class RNNTDecodingConfig:
+    model_type: str = "rnnt"  # one of "rnnt", "multiblank" or "tdt"
     strategy: str = "greedy_batch"
+
     compute_hypothesis_token_set: bool = False
 
     # preserve decoding alignments
@@ -1320,6 +1322,3 @@ class RNNTDecodingConfig:
 
     # can be used to change temperature for decoding
     temperature: float = 1.0
-
-    big_blank_durations: Optional[List] = None
-    durations: Optional[List] = None
