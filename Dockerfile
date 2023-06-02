@@ -100,6 +100,8 @@ RUN pip install nvidia-pyindex &&\
   pip install nvidia-dlprof[pytorch] &&\
   pip install nvtx
 
+RUN pip install --upgrade git+https://github.com/NVIDIA/TransformerEngine.git@stable
+
 ARG MEGATRON_VER=unknown
 RUN git clone https://github.com/crankshaw-google/Megatron-LM.git \
   && cd Megatron-LM \
