@@ -18,6 +18,7 @@ from contextlib import nullcontext
 from typing import Any, Callable, Optional
 
 import torch
+import torch.nn as nn
 from einops import rearrange
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
@@ -33,7 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     dropout_add,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
+from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P, LPLayerNorm
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -188,7 +189,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 'bias_dropout_add_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
             )
 
-        if normalization not in ['layernorm', 'layernorm1p', 'rmsnorm']:
+        if normalization not in ['layernorm', 'layernorm1p', 'rmsnorm', 'low_precision_layernorm']:
             raise ValueError(f'normalization must be "layernorm", "layernorm1p" or "rmsnorm", found {normalization}')
 
         if transformer_block_type not in ['pre_ln', 'post_ln', 'normformer']:
@@ -213,8 +214,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.input_layernorm = LayerNorm1P(
                     hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
+            elif normalization == 'low_precision_layernorm':
+                self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            if not bias:
+                for module in self.input_layernorm.modules():
+                    if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
+                        module.register_parameter('bias', None)
 
             self.self_attention = ParallelAttention(
                 init_method=init_method,
@@ -263,8 +270,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     self.post_attention_layernorm = LayerNorm1P(
                         hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                     )
+                elif normalization == 'low_precision_layernorm':
+                    self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
                 else:
                     self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                if not bias:
+                    for module in self.post_attention_layernorm.modules():
+                        if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
+                            module.register_parameter('bias', None)
 
         if self.layer_type == LayerType.decoder_pre_mlp:
             # skip MLP and cross attention
@@ -282,8 +295,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.post_attention_layernorm = LayerNorm1P(
                     hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
+            elif normalization == 'low_precision_layernorm':
+                self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            if not bias:
+                for module in self.post_attention_layernorm.modules():
+                    if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
+                        module.register_parameter('bias', None)
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
             self.inter_attention = ParallelAttention(
@@ -1158,8 +1177,14 @@ class ParallelTransformer(MegatronModule):
                 self.final_layernorm = LayerNorm1P(
                     hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
+            elif normalization == 'low_precision_layernorm':
+                self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            if not bias:
+                for module in self.final_layernorm.modules():
+                    if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
+                        module.register_parameter('bias', None)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]

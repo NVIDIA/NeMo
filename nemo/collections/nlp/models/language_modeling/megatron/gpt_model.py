@@ -151,6 +151,7 @@ class GPTModel(MegatronModule):
         gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
+        megatron_legacy=False,
         onnx_safe=False,
         sequence_parallel=False,
         transformer_engine=False,
@@ -233,6 +234,7 @@ class GPTModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
             transformer_engine=transformer_engine,
             fp8=fp8,
@@ -321,8 +323,10 @@ class GPTModel(MegatronModule):
             )
         return state_dict_
 
-    def load_state_dict(self, state_dict, strict=True):
+    def load_state_dict(self, state_dict, strict=True, bypass=False):
         """Customized load."""
+        if bypass:
+            return super(GPTModel, self).load_state_dict(state_dict, strict=strict)
 
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
