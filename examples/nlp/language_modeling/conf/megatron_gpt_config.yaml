@@ -157,7 +157,7 @@ model:
 
   ## Transformer Engine
   transformer_engine: False
-  fp8: True # enables fp8 in TransformerLayer forward
+  fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3 
   fp8_hybrid: True # sets fp8_format = recipe.Format.HYBRID
   fp8_margin: 0 # scaling margin 
