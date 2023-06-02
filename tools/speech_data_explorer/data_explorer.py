@@ -944,9 +944,22 @@ if comparison_mode:
         vocabulary_1[i].update(vocabulary_2[i])
     from jiwer import wer as _wer
 
+    import editdistance
+
+
+    def _wer_(grnd, pred):
+        grnd_words = grnd.split()
+        pred_words = pred.split()
+        edit_distance = editdistance.eval(grnd_words, pred_words)
+        wer = edit_distance / len(grnd_words)
+        return wer
+
+   
+
+
     def metric(a, b, met=None):
         cer = editdistance.distance(a, b) / len(a)
-        wer = _wer(a, b)
+        wer = _wer_(a, b)
         return round(float(wer) * 100, 2), round(float(cer) * 100, 2)
 
     def write_metrics(data, Ox, Oy):
