@@ -935,7 +935,6 @@ wordstable_columns_tool.append({'name': 'Accuracy_1, %', 'id': 'accuracy_1'})
 wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
 
 
-
 if comparison_mode:
     model_name_1, model_name_2 = name_1, name_2
 
