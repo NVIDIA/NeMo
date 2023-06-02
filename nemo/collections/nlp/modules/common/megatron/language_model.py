@@ -293,6 +293,9 @@ class Embedding(MegatronModule):
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
+        elif self.position_embedding_type == 'nope':
+            self.position_embeddings = None
+            self._position_embeddings_key = None
 
         # Token type embedding.
         # Add this as an optional field that can be added through
