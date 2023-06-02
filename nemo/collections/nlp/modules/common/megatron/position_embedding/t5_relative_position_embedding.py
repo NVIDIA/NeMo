@@ -43,9 +43,7 @@ class T5RelativePositionEmbedding(torch.nn.Module):
 
         # Relative position Embedding
         # Relative Position embedding (all attention layers).
-        self.relative_position_embedding = torch.nn.Embedding(
-            self.relative_position_num_buckets, num_attention_heads
-        )
+        self.relative_position_embedding = torch.nn.Embedding(self.relative_position_num_buckets, num_attention_heads)
         self._relative_position_embedding_key = 'relative_position_embedding'
         init_method(self.relative_position_embedding.weight)
 
