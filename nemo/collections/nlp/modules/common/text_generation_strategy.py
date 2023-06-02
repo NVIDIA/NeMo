@@ -66,14 +66,13 @@ class TextGenerationStrategy:
 
         return output_tensor
 
-    def tokenize_batch(self, sentences, max_len, add_BOS, truncate_prompt_length=-1):
+    def tokenize_batch(self, sentences, max_len, add_BOS):
         """
         convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
         Args:
             sentences (List[str]): list of input sentences in str format.
             max_len (int): max number of tokens to generate.
             add_BOS (bool): whether to add the BOS token at the beginning
-            truncate_prompt_length (int): if not -1 truncates sentences to this length
         Returns:
             Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
         """
@@ -82,11 +81,6 @@ class TextGenerationStrategy:
             context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
-        if truncate_prompt_length != -1:
-            res = []
-            for s in context_tokens:
-                res.append(s[:truncate_prompt_length])
-            context_tokens = res
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)

@@ -206,7 +206,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             self.length_params: LengthParam = {
                 "max_length": self.cfg.inference.get('tokens_to_generate', 30),
                 "min_length": self.cfg.inference.get('min_tokens_to_generate', 0),
-                "truncate_prompt_length": self.cfg.inference.get('truncate_prompt_length', -1),
             }
 
             self.sampling_params: SamplingParam = {
@@ -743,7 +742,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             length_params: LengthParam = {
                 "max_length": inference_config["tokens_to_generate"],
                 "min_length": inference_config["min_tokens_to_generate"],
-                "truncate_prompt_length": inference_config.get("truncate_prompt_length", -1),
             }
 
             sampling_params: SamplingParam = {

@@ -76,7 +76,7 @@ def get_default_sampling_params():
 
 def get_default_length_params():
     # default do greedy sampling
-    length_params: LengthParam = {"min_length": 0, "max_length": 30, "truncate_prompt_length": -1}
+    length_params: LengthParam = {"min_length": 0, "max_length": 30}
 
     return length_params
 
@@ -96,7 +96,6 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             model,
             inputs=inputs,
             tokens_to_generate=length_params['max_length'],
-            truncate_prompt_length=length_params.get('truncate_prompt_length', -1),
             all_probs=sampling_params['all_probs'],
             compute_logprob=sampling_params['compute_logprob'],
             temperature=sampling_params['temperature'],
@@ -117,7 +116,6 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 model,
                 inputs=inputs,
                 tokens_to_generate=length_params['max_length'],
-                truncate_prompt_length=length_params['truncate_prompt_length'],
                 all_probs=sampling_params['all_probs'],
                 compute_logprob=sampling_params['compute_logprob'],
                 temperature=sampling_params['temperature'],
@@ -466,7 +464,6 @@ def generate(
     compute_logprob=False,
     repetition_penalty=1.0,
     min_tokens_to_generate=0,
-    truncate_prompt_length=-1,
     end_strings=['<|endoftext|>'],
     **strategy_args,
 ) -> OutputType:
@@ -504,7 +501,7 @@ def generate(
             context_tokens_tensor, context_length_tensor = inputs
         else:
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
-                inputs, tokens_to_generate, add_BOS, truncate_prompt_length
+                inputs, tokens_to_generate, add_BOS
             )
 
         send_generate_info(

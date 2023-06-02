@@ -238,11 +238,9 @@ def main(cfg) -> None:
     except AttributeError:
         pass
 
-    assert cfg.inference.truncate_prompt_length == -1 or cfg.inference.truncate_prompt_length >= 0
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,
-        "truncate_prompt_length": cfg.inference.truncate_prompt_length,
     }
 
     sampling_params: SamplingParam = {
@@ -267,10 +265,9 @@ def main(cfg) -> None:
 
     # Second method of running text generation, call trainer.predict
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, batch_size=1)
+    request_dl = DataLoader(dataset=ds, batch_size=2)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
-
     response = trainer.predict(model, request_dl)
 
     print("***************************")
