@@ -942,7 +942,7 @@ if comparison_mode:
 
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
-    import editdistance
+    
 
     def _wer_(grnd, pred):
         grnd_words = grnd.split()
