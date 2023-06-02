@@ -61,14 +61,18 @@ class SandwichRelativePositionEmbedding(torch.nn.Module):
 
         inv_freq = 1.0 / (
             10000
-            ** (2 * torch.arange(1, self.hidden_size / 2 + 1, device=torch.cuda.current_device()) / self.hidden_size)
+            ** (2 * torch.arange(1, self.hidden_size / 2 + 1) / self.hidden_size)
         )
 
         _bias = torch.sum((relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq).cos(), axis=2)
         bias = _bias.repeat(self.num_attention_heads, 1, 1)
 
-        _bias_scales = torch.arange(1, self.num_attention_heads + 1, 1, device=torch.cuda.current_device())
+        _bias_scales = torch.arange(1, self.num_attention_heads + 1, 1)
         bias_scales = _bias_scales[:, None, None]
 
-        scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads)
-        return scaled_bias.unsqueeze(0)
+        scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads).unsqueeze(0)
+        
+        if torch.cuda.is_available():
+            scaled_bias = scaled_bias.to(torch.cuda.current_device())
+        
+        return scaled_bias
