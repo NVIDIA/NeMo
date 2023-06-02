@@ -1107,7 +1107,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
         blank_id = len(vocabulary) + joint.num_extra_outputs
 
-        if 'durations' in decoding_cfg and decoding_cfg['durations'] is not None:  # this means it's a TDT model.
+        if decoding_cfg.durations is not None:  # this means it's a TDT model.
             blank_id = len(vocabulary)
 
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
@@ -1320,3 +1320,6 @@ class RNNTDecodingConfig:
 
     # can be used to change temperature for decoding
     temperature: float = 1.0
+
+    big_blank_durations: Optional[List] = None
+    durations: Optional[List] = None
