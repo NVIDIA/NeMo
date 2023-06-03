@@ -75,7 +75,7 @@ Below we is the code snippet of Audio Translator application.
     # Spectrogram generator which takes text as an input and produces spectrogram
     spectrogram_generator = nemo_tts.models.FastPitchModel.from_pretrained(model_name="tts_en_fastpitch").cuda()
     # Vocoder model which takes spectrogram and produces actual audio
-    vocoder = nemo_tts.models.HifiGanModel.from_pretrained(model_name="tts_hifigan").cuda()
+    vocoder = nemo_tts.models.HifiGanModel.from_pretrained(model_name="tts_en_hifigan").cuda()
     # Transcribe an audio file
     # IMPORTANT: The audio must be mono with 16Khz sampling rate
     # Get example from: https://nemo-public.s3.us-east-2.amazonaws.com/mcv-samples-ru/common_voice_ru_19034087.wav
@@ -148,6 +148,37 @@ If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTo
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
+
+.. _mac-installation:
+
+Mac computers with Apple silicon
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To install NeMo on Mac with Apple M-Series GPU:
+
+- install `Homebrew <https://brew.sh>`_ package manager
+
+- create a new Conda environment
+
+- install PyTorch 2.0 or higher
+
+- run the following code:
+
+.. code-block:: shell
+
+    # install mecab using Homebrew, required for sacrebleu for NLP collection
+    brew install mecab
+
+    # install pynini using Conda, required for text normalization
+    conda install -c conda-forge pynini
+
+    # install Cython manually
+    pip install cython
+
+    # clone the repo and install in development mode
+    git clone https://github.com/NVIDIA/NeMo
+    cd NeMo
+    ./reinstall.sh
+
 
 
 `FAQ <https://github.com/NVIDIA/NeMo/discussions>`_

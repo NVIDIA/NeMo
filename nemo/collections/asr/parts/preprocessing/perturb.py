@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import copy
+import inspect
 import io
 import os
 import random
@@ -44,10 +45,10 @@ import librosa
 import numpy as np
 import soundfile as sf
 from scipy import signal
-from torch.utils.data import IterableDataset
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.parts.preprocessing import collections, parsers
+from nemo.core.classes import IterableDataset
 from nemo.utils import logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
@@ -69,20 +70,17 @@ except (ImportError, ModuleNotFoundError):
     HAVE_NUMBA = False
 
 
-def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_dataset=None):
-
+def read_one_audiosegment(manifest, target_sr, tarred_audio=False, audio_dataset=None):
     if tarred_audio:
         if audio_dataset is None:
             raise TypeError("Expected augmentation dataset but got None")
-        audio_file, file_id = next(audio_dataset)
-        manifest_idx = manifest.mapping[file_id]
-        manifest_entry = manifest[manifest_idx]
+        audio_file, file_id, manifest_entry = next(audio_dataset)
 
         offset = 0 if manifest_entry.offset is None else manifest_entry.offset
         duration = 0 if manifest_entry.duration is None else manifest_entry.duration
 
     else:
-        audio_record = rng.sample(manifest.data, 1)[0]
+        audio_record = random.sample(manifest.data, 1)[0]
         audio_file = audio_record.audio_file
         offset = 0 if audio_record.offset is None else audio_record.offset
         duration = 0 if audio_record.duration is None else audio_record.duration
@@ -126,7 +124,7 @@ class SpeedPerturbation(Perturbation):
             augmentation and increase computation time. Effective augmentation chance
             in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
             where `prob` is the global probability of a sample being augmented.
-        rng: Random seed number.
+        rng: Random seed. Default is None
     """
 
     def __init__(self, sr, resample_type, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, rng=None):
@@ -145,7 +143,7 @@ class SpeedPerturbation(Perturbation):
         if num_rates > 0:
             self._rates = np.linspace(self._min_rate, self._max_rate, self._num_rates, endpoint=True)
         self._res_type = resample_type
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
 
     def max_augmentation_length(self, length):
         return length * self._max_rate
@@ -153,9 +151,9 @@ class SpeedPerturbation(Perturbation):
     def perturb(self, data):
         # Select speed rate either from choice or random sample
         if self._num_rates < 0:
-            speed_rate = self._rng.uniform(self._min_rate, self._max_rate)
+            speed_rate = random.uniform(self._min_rate, self._max_rate)
         else:
-            speed_rate = self._rng.choice(self._rates)
+            speed_rate = random.choice(self._rates)
 
         # Skip perturbation in case of identity speed rate
         if speed_rate == 1.0:
@@ -197,7 +195,7 @@ class TimeStretchPerturbation(Perturbation):
             in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
             where `prob` is the global probability of a sample being augmented.
         n_fft: Number of fft filters to be computed.
-        rng: Random seed number.
+        rng: Random seed. Default is None
     """
 
     def __init__(self, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, n_fft=512, rng=None):
@@ -211,7 +209,7 @@ class TimeStretchPerturbation(Perturbation):
         self._num_rates = num_rates
         if num_rates > 0:
             self._rates = np.linspace(self._min_rate, self._max_rate, self._num_rates, endpoint=True)
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
 
         # Pre-compute constants
         self._n_fft = int(n_fft)
@@ -230,9 +228,9 @@ class TimeStretchPerturbation(Perturbation):
     def perturb(self, data):
         # Select speed rate either from choice or random sample
         if self._num_rates < 0:
-            speed_rate = self._rng.uniform(self._min_rate, self._max_rate)
+            speed_rate = random.uniform(self._min_rate, self._max_rate)
         else:
-            speed_rate = self._rng.choice(self._rates)
+            speed_rate = random.choice(self._rates)
 
         # Skip perturbation in case of identity speed rate
         if speed_rate == 1.0:
@@ -284,7 +282,7 @@ class SilencePerturbation(Perturbation):
         max_start_silence_secs (float): Max start silence level in secs
         min_end_silence_secs (float): Min end silence level in secs
         max_end_silence_secs (float): Max end silence level in secs
-        rng: Random number generator
+        rng (int): Random seed. Default is None
         value: (float): value representing silence to be added to audio array.
     """
 
@@ -294,7 +292,7 @@ class SilencePerturbation(Perturbation):
         max_start_silence_secs: float = 0,
         min_end_silence_secs: float = 0,
         max_end_silence_secs: float = 0,
-        rng: Optional[Any] = None,
+        rng: int = None,
         value: float = 0,
     ):
         self._min_start_silence_secs = min_start_silence_secs
@@ -302,12 +300,12 @@ class SilencePerturbation(Perturbation):
         self._min_end_silence_secs = min_end_silence_secs
         self._max_end_silence_secs = max_end_silence_secs
 
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
         self._value = value
 
     def perturb(self, data):
-        start_silence_len = self._rng.uniform(self._min_start_silence_secs, self._max_start_silence_secs)
-        end_silence_len = self._rng.uniform(self._min_end_silence_secs, self._max_end_silence_secs)
+        start_silence_len = random.uniform(self._min_start_silence_secs, self._max_start_silence_secs)
+        end_silence_len = random.uniform(self._min_end_silence_secs, self._max_end_silence_secs)
         start = np.full((int(start_silence_len * data.sample_rate),), self._value)
         end = np.full((int(end_silence_len * data.sample_rate),), self._value)
 
@@ -321,17 +319,16 @@ class GainPerturbation(Perturbation):
     Args:
         min_gain_dbfs (float): Min gain level in dB
         max_gain_dbfs (float): Max gain level in dB
-        rng: Random number generator
+        rng (int): Random seed. Default is None
     """
 
     def __init__(self, min_gain_dbfs=-10, max_gain_dbfs=10, rng=None):
         self._min_gain_dbfs = min_gain_dbfs
         self._max_gain_dbfs = max_gain_dbfs
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
 
     def perturb(self, data):
-        gain = self._rng.uniform(self._min_gain_dbfs, self._max_gain_dbfs)
-        # logging.debug("gain: %d", gain)
+        gain = random.uniform(self._min_gain_dbfs, self._max_gain_dbfs)
         data._samples = data._samples * (10.0 ** (gain / 20.0))
 
 
@@ -343,13 +340,24 @@ class ImpulsePerturbation(Perturbation):
         manifest_path (list): Manifest file for RIRs
         audio_tar_filepaths (list): Tar files, if RIR audio files are tarred
         shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
+        normalize_impulse (bool): Normalize impulse response to zero mean and amplitude 1
         shift_impulse (bool): Shift impulse response to adjust for delay at the beginning
+        rng (int): Random seed. Default is None
     """
 
-    def __init__(self, manifest_path=None, rng=None, audio_tar_filepaths=None, shuffle_n=128, shift_impulse=False):
+    def __init__(
+        self,
+        manifest_path=None,
+        audio_tar_filepaths=None,
+        shuffle_n=128,
+        normalize_impulse=False,
+        shift_impulse=False,
+        rng=None,
+    ):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
         self._tarred_audio = False
+        self._normalize_impulse = normalize_impulse
         self._shift_impulse = shift_impulse
         self._data_iterator = None
 
@@ -358,33 +366,39 @@ class ImpulsePerturbation(Perturbation):
             self._audiodataset = AugmentationDataset(manifest_path, audio_tar_filepaths, shuffle_n)
             self._data_iterator = iter(self._audiodataset)
 
-        self._rng = random.Random() if rng is None else rng
+        self._rng = rng
+        random.seed(self._rng) if rng else None
 
     def perturb(self, data):
         impulse = read_one_audiosegment(
-            self._manifest,
-            data.sample_rate,
-            self._rng,
-            tarred_audio=self._tarred_audio,
-            audio_dataset=self._data_iterator,
+            self._manifest, data.sample_rate, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator,
         )
-        if not self._shift_impulse:
-            impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
-            data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
-            data._samples = data._samples / max(
-                abs(data._samples)
-            )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
-        else:
-            # Find peak and shift peak to left
-            impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
-            max_ind = np.argmax(np.abs(impulse_norm))
 
-            impulse_resp = impulse_norm[max_ind:]
-            delay_after = len(impulse_resp)
-            data._samples = signal.fftconvolve(data._samples, impulse_resp, "full")[:-delay_after]
-            data._samples = data._samples / max(
-                abs(data._samples)
-            )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
+        # normalize if necessary
+        if self._normalize_impulse:
+            # normalize the impulse response to zero mean and amplitude 1
+            impulse_norm = impulse.samples - np.mean(impulse.samples)
+            impulse_norm /= max(abs(impulse_norm))
+        else:
+            impulse_norm = impulse.samples
+
+        # len of input data samples
+        len_data = len(data._samples)
+
+        # convolve with the full impulse response
+        data._samples = signal.fftconvolve(data._samples, impulse_norm, "full")
+
+        # compensate the dominant path propagation delay
+        if self._shift_impulse:
+            # Find the peak of the IR and shift the output to the left
+            max_ind = np.argmax(np.abs(impulse_norm))
+            data._samples = data._samples[max_ind:]
+
+        # trim to match the input data length
+        data._samples = data._samples[:len_data]
+
+        # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
+        data._samples = data._samples / max(abs(data._samples))
 
 
 class ShiftPerturbation(Perturbation):
@@ -396,16 +410,16 @@ class ShiftPerturbation(Perturbation):
     Args:
         min_shift_ms (float): Minimum time in milliseconds by which audio will be shifted
         max_shift_ms (float): Maximum time in milliseconds by which audio will be shifted
-        rng: Random number generator
+        rng (int): Random seed. Default is None
     """
 
     def __init__(self, min_shift_ms=-5.0, max_shift_ms=5.0, rng=None):
         self._min_shift_ms = min_shift_ms
         self._max_shift_ms = max_shift_ms
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
 
     def perturb(self, data):
-        shift_ms = self._rng.uniform(self._min_shift_ms, self._max_shift_ms)
+        shift_ms = random.uniform(self._min_shift_ms, self._max_shift_ms)
         if abs(shift_ms) / 1000 > data.duration:
             # TODO: do something smarter than just ignore this condition
             return
@@ -431,7 +445,7 @@ class NoisePerturbation(Perturbation):
         audio_tar_filepaths (list) : Tar files, if noise audio files are tarred
         shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
         orig_sr (int): Original sampling rate of the noise files
-        rng: Random number generator
+        rng (int): Random seed. Default is None
     """
 
     def __init__(
@@ -456,7 +470,9 @@ class NoisePerturbation(Perturbation):
             self._audiodataset = AugmentationDataset(manifest_path, audio_tar_filepaths, shuffle_n)
             self._data_iterator = iter(self._audiodataset)
 
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
+        self._rng = rng
+
         self._min_snr_db = min_snr_db
         self._max_snr_db = max_snr_db
         self._max_gain_db = max_gain_db
@@ -467,7 +483,7 @@ class NoisePerturbation(Perturbation):
 
     def get_one_noise_sample(self, target_sr):
         return read_one_audiosegment(
-            self._manifest, target_sr, self._rng, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
+            self._manifest, target_sr, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
         )
 
     def perturb(self, data, ref_mic=0):
@@ -477,11 +493,7 @@ class NoisePerturbation(Perturbation):
             ref_mic (int): reference mic index for scaling multi-channel audios
         """
         noise = read_one_audiosegment(
-            self._manifest,
-            data.sample_rate,
-            self._rng,
-            tarred_audio=self._tarred_audio,
-            audio_dataset=self._data_iterator,
+            self._manifest, data.sample_rate, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator,
         )
         self.perturb_with_input_noise(data, noise, ref_mic=ref_mic)
 
@@ -503,7 +515,7 @@ class NoisePerturbation(Perturbation):
                 f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
             )
 
-        snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
+        snr_db = random.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
             data_rms = data.rms_db
 
@@ -514,7 +526,7 @@ class NoisePerturbation(Perturbation):
         noise_gain_db = min(noise_gain_db, self._max_gain_db)
 
         # calculate noise segment to use
-        start_time = self._rng.uniform(0.0, noise.duration - data.duration)
+        start_time = random.uniform(0.0, noise.duration - data.duration)
         if noise.duration > (start_time + data.duration):
             noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
 
@@ -522,7 +534,7 @@ class NoisePerturbation(Perturbation):
         noise.gain_db(noise_gain_db)
 
         if noise._samples.shape[0] < data._samples.shape[0]:
-            noise_idx = self._rng.randint(0, data._samples.shape[0] - noise._samples.shape[0])
+            noise_idx = random.randint(0, data._samples.shape[0] - noise._samples.shape[0])
             data._samples[noise_idx : noise_idx + noise._samples.shape[0]] += noise._samples
 
         else:
@@ -548,7 +560,7 @@ class NoisePerturbation(Perturbation):
                 f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
             )
 
-        snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
+        snr_db = random.uniform(self._min_snr_db, self._max_snr_db)
         if not data_rms:
             data_rms = data.rms_db
 
@@ -558,11 +570,11 @@ class NoisePerturbation(Perturbation):
             noise_gain_db = data_rms - noise.rms_db - snr_db
         noise_gain_db = min(noise_gain_db, self._max_gain_db)
 
-        n_additions = self._rng.randint(1, max_additions)
+        n_additions = random.randint(1, max_additions)
 
         for i in range(n_additions):
-            noise_dur = self._rng.uniform(0.0, max_noise_dur)
-            start_time = self._rng.uniform(0.0, noise.duration)
+            noise_dur = random.uniform(0.0, max_noise_dur)
+            start_time = random.uniform(0.0, noise.duration)
             start_sample = int(round(start_time * noise.sample_rate))
             end_sample = int(round(min(noise.duration, (start_time + noise_dur)) * noise.sample_rate))
             noise_samples = np.copy(noise._samples[start_sample:end_sample])
@@ -572,8 +584,225 @@ class NoisePerturbation(Perturbation):
             if noise_samples.shape[0] > data._samples.shape[0]:
                 noise_samples = noise_samples[0 : data._samples.shape[0]]
 
-            noise_idx = self._rng.randint(0, data._samples.shape[0] - noise_samples.shape[0])
+            noise_idx = random.randint(0, data._samples.shape[0] - noise_samples.shape[0])
             data._samples[noise_idx : noise_idx + noise_samples.shape[0]] += noise_samples
+
+
+class NoisePerturbationWithNormalization(Perturbation):
+    """
+    Perturbation that adds noise to input audio, with normalisation to specific decibel level.
+    Also tiles shorter noise samples up to their corresponding clean audio length.
+
+    Args:
+        manifest_path (str or list): Manifest file with paths to noise files, can be list if using multiple noise sources
+        min_snr_db (float): Minimum SNR of audio after noise is added
+        max_snr_db (float): Maximum SNR of audio after noise is added
+        snr_samples (list): A discrete list of SNRs DBs to sample from when mixing, will be used instead of [min_snr_db,max_snr_db]
+        norm_to_db (float): Will normalise clean, noise, and mixed samples to this DB
+        audio_tar_filepaths (str or list) : Tar files, if noise audio files are tarred, can be list for multiple sources
+        shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
+        orig_sr (int): Original sampling rate of the noise files
+        rng (int): Random seed. Default is None
+        shard_strategy (str): if you're using tarred audio and wish to scatter instead of replicate, set this to 'scatter'
+        epsilon (float): minimum value for RMS DB normalisation to avoid divide by zero
+    """
+
+    def __init__(
+        self,
+        manifest_path=None,
+        min_snr_db=10,
+        max_snr_db=50,
+        snr_samples=None,
+        norm_to_db=None,
+        rng=None,
+        audio_tar_filepaths=None,
+        shuffle_n=128,
+        orig_sr=16000,
+        global_rank=0,
+        world_size=1,
+        shard_strategy='replicate',
+        epsilon=0.01,
+    ):
+        # import here to avoid circular import error
+        from nemo.collections.asr.data.audio_to_text import RandomizedChainDataset
+
+        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+        self._audiodataset = None
+        self._tarred_audio = False
+        self._orig_sr = orig_sr
+        self._data_iterator = None
+
+        random.seed(rng) if rng else None
+        self._rng = rng
+
+        if audio_tar_filepaths:
+            self._tarred_audio = True
+            if isinstance(manifest_path, str):
+                manifest_path = [manifest_path]
+            if isinstance(audio_tar_filepaths, str):
+                audio_tar_filepaths = [audio_tar_filepaths]
+            datasets = []
+            for tarred_audio_filepath, manifest_filepath in zip(audio_tar_filepaths, manifest_path):
+                dataset = AugmentationDataset(
+                    manifest_filepath,
+                    tarred_audio_filepath,
+                    shuffle_n,
+                    rank=global_rank,
+                    world_size=world_size,
+                    shard_strategy=shard_strategy,
+                )
+                datasets.append(dataset)
+            self._audiodataset = RandomizedChainDataset(
+                datasets, rnd_seed=(rng if rng else random.randint(0, 30000)) + global_rank
+            )
+            if len(self._audiodataset) == 0:
+                raise RuntimeError(
+                    "NoisePerturbationWithNormalization detected a zero length RandomizedChainDataset, should never happen"
+                )
+            self._data_iterator = iter(self._audiodataset)
+
+        self._min_snr_db = min_snr_db
+        self._max_snr_db = max_snr_db
+        self._norm_to_db = norm_to_db
+        self._snr_samples = snr_samples if isinstance(snr_samples, list) and len(snr_samples) > 0 else None
+        self._epsilon = epsilon
+
+    @property
+    def orig_sr(self):
+        return self._orig_sr
+
+    def read_one_audiosegment(self, target_sr):
+        if self._tarred_audio:
+            if self._data_iterator is None:
+                raise TypeError("Expected valid iterator but got None")
+            try:
+                audio_file, file_id, manifest_entry = next(self._data_iterator)
+            except StopIteration:
+                self._data_iterator = iter(self._audiodataset)
+                audio_file, file_id, manifest_entry = next(self._data_iterator)
+
+            offset = 0 if manifest_entry.offset is None else manifest_entry.offset
+            duration = 0 if manifest_entry.duration is None else manifest_entry.duration
+
+        else:
+            audio_record = random.sample(self._manifest.data, 1)[0]
+            audio_file = audio_record.audio_file
+            offset = 0 if audio_record.offset is None else audio_record.offset
+            duration = 0 if audio_record.duration is None else audio_record.duration
+
+        return AudioSegment.from_file(audio_file, target_sr=target_sr, offset=offset, duration=duration)
+
+    def perturb(self, data, ref_mic=0):
+        """
+        Args:
+            data (AudioSegment): audio data
+            ref_mic (int): reference mic index for scaling multi-channel audios
+        """
+
+        noise = self.read_one_audiosegment(data.sample_rate)
+
+        # noise samples need to be at least 1 second long to avoid strange oddities
+        # in the RMS SNR mixing, so we have a fail-safe here to ensure at least 1 sec duration
+        while noise.duration < 1:
+            noise = self.read_one_audiosegment(data.sample_rate)
+
+        self.perturb_with_input_noise(data, noise, ref_mic=ref_mic, norm_to_db=self._norm_to_db)
+
+    def snr_mixer(self, clean, noise, snr, norm_to_db=-25.0):
+        """
+        Mixes the clean audio with the noise
+        Args:
+            clean (numpy array): the clean audio data
+            noise (numpy array): the noise audio data
+            snr (float): the SNR value for the mixing
+            norm_to_db (float): the DB value to normalise to before mixing
+        """
+        clean = self.norm_audio_to_db(clean, norm_to_db)
+        noise = self.norm_audio_to_db(noise, norm_to_db)
+
+        # Set the noise level for a given SNR
+        # note that if your noise doesn't overlap with your audio then your target SNR
+        # may not be achievable. Consider using an rms-threshold in the future
+        noisescalar = 10 ** (-snr / 20.0)
+        noisenewlevel = noise * noisescalar
+        noisyspeech = clean + noisenewlevel
+
+        return clean, noisenewlevel, noisyspeech
+
+    def norm_audio_to_db(self, x, norm_to_db):
+        """
+        Normalises audio signal to particular db, with some epsilon in-case of divide by zero
+        Args:
+            x (numpy array): input audio signal
+            norm_to_db (float): the db to normalise to
+        """
+        rms = (x ** 2).mean(axis=0) ** 0.5
+        rms = np.where(np.isclose(rms, 0), self._epsilon, rms)
+        scalar = 10 ** (norm_to_db / 20.0) / rms
+        return x * scalar
+
+    def concatenate_noise_sample(self, clean, noise, fs, silence_length=0.25):
+        """
+        Tiles the noise array to match the clean audio array, with small silence between the joins
+        Args:
+            clean (numpy array): clean audio data
+            noise (numpy array): noise audio data
+            fs (int): sample rate used by both clean and noise audio data
+            silence_length (float): the amount of silence (in secs) to insert before tiling
+        """
+        while len(noise) < len(clean):
+            if noise.ndim > 1:
+                zeros = np.zeros((int(fs * silence_length), noise.shape[-1]))
+            else:
+                zeros = np.zeros((int(fs * silence_length),))
+            noiseconcat = np.append(noise, zeros, axis=0)
+            noise = np.append(noiseconcat, noise, axis=0)
+
+        return noise
+
+    def perturb_with_input_noise(self, data, noise, data_rms=None, ref_mic=0, norm_to_db=-25.0):
+        """
+        Args:
+            data (AudioSegment): audio data
+            noise (AudioSegment): noise data
+            data_rms (Union[float, List[float]): rms_db for data input
+            ref_mic (int): reference mic index for scaling multi-channel audio, if set to None then
+                           each channel will be scaled independently
+            norm_to_db (float): will normalise all audio to this DB
+        """
+        if data.num_channels != noise.num_channels:
+            raise ValueError(
+                f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
+            )
+
+        if not (0 <= ref_mic < data.num_channels):
+            raise ValueError(
+                f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
+            )
+
+        if self._snr_samples:
+            snr_db = random.sample(self._snr_samples, 1)[0]
+        else:
+            snr_db = random.uniform(self._min_snr_db, self._max_snr_db)
+        if data_rms is None:
+            data_rms = data.rms_db if ref_mic is None else data.rms_db[ref_mic]
+
+        if norm_to_db is None:
+            norm_to_db = data_rms
+
+        data_norm = data._samples
+        noise_norm = noise._samples
+
+        if len(data_norm) == 0:
+            return
+
+        if len(noise_norm) < len(data_norm):
+            noise_norm = self.concatenate_noise_sample(data_norm, noise_norm, data.sample_rate)
+        noise_norm = noise_norm[0 : len(data_norm)]
+
+        _, _, noisy_snr = self.snr_mixer(clean=data_norm, noise=noise_norm, snr=snr_db, norm_to_db=norm_to_db)
+
+        data._samples = noisy_snr
 
 
 class WhiteNoisePerturbation(Perturbation):
@@ -583,17 +812,17 @@ class WhiteNoisePerturbation(Perturbation):
     Args:
         min_level (int): Minimum level in dB at which white noise should be added
         max_level (int): Maximum level in dB at which white noise should be added
-        rng: Random number generator
+        rng (int): Random seed. Default is None
     """
 
     def __init__(self, min_level=-90, max_level=-46, rng=None):
         self.min_level = int(min_level)
         self.max_level = int(max_level)
-        self._rng = np.random.RandomState() if rng is None else rng
+        np.random.seed(rng) if rng else None
 
     def perturb(self, data):
-        noise_level_db = self._rng.randint(self.min_level, self.max_level, dtype='int32')
-        noise_signal = self._rng.randn(data._samples.shape[0]) * (10.0 ** (noise_level_db / 20.0))
+        noise_level_db = np.random.randint(self.min_level, self.max_level, dtype='int32')
+        noise_signal = np.random.randn(data._samples.shape[0]) * (10.0 ** (noise_level_db / 20.0))
         data._samples += noise_signal
 
 
@@ -625,6 +854,7 @@ class RirAndNoisePerturbation(Perturbation):
             bg_max_snr_db: Max SNR for background noise
             bg_noise_tar_filepaths: Tar files, if noise files are tarred
             bg_orig_sample_rate: Original sampling rate of background noise audio
+            rng: Random seed. Default is None
 
     """
 
@@ -633,6 +863,7 @@ class RirAndNoisePerturbation(Perturbation):
         rir_manifest_path=None,
         rir_prob=0.5,
         noise_manifest_paths=None,
+        noise_prob=1.0,
         min_snr_db=0,
         max_snr_db=50,
         rir_tar_filepaths=None,
@@ -643,24 +874,28 @@ class RirAndNoisePerturbation(Perturbation):
         max_additions=5,
         max_duration=2.0,
         bg_noise_manifest_paths=None,
+        bg_noise_prob=1.0,
         bg_min_snr_db=10,
         bg_max_snr_db=50,
         bg_noise_tar_filepaths=None,
         bg_orig_sample_rate=None,
+        rng=None,
     ):
 
-        logging.info("Called Rir aug init")
         self._rir_prob = rir_prob
-        self._rng = random.Random()
+        self._noise_prob = noise_prob
+        self._bg_noise_prob = bg_noise_prob
+        random.seed(rng) if rng else None
         self._rir_perturber = ImpulsePerturbation(
             manifest_path=rir_manifest_path,
             audio_tar_filepaths=rir_tar_filepaths,
             shuffle_n=rir_shuffle_n,
             shift_impulse=True,
         )
-        self._fg_noise_perturbers = {}
-        self._bg_noise_perturbers = {}
+        self._fg_noise_perturbers = None
+        self._bg_noise_perturbers = None
         if noise_manifest_paths:
+            self._fg_noise_perturbers = {}
             for i in range(len(noise_manifest_paths)):
                 if orig_sample_rate is None:
                     orig_sr = 16000
@@ -676,6 +911,7 @@ class RirAndNoisePerturbation(Perturbation):
         self._max_additions = max_additions
         self._max_duration = max_duration
         if bg_noise_manifest_paths:
+            self._bg_noise_perturbers = {}
             for i in range(len(bg_noise_manifest_paths)):
                 if bg_orig_sample_rate is None:
                     orig_sr = 16000
@@ -692,30 +928,33 @@ class RirAndNoisePerturbation(Perturbation):
         self._apply_noise_rir = apply_noise_rir
 
     def perturb(self, data):
-        prob = self._rng.uniform(0.0, 1.0)
+        prob = random.uniform(0.0, 1.0)
 
         if prob < self._rir_prob:
             self._rir_perturber.perturb(data)
 
-        orig_sr = data.orig_sr
-        if orig_sr not in self._fg_noise_perturbers:
-            orig_sr = max(self._fg_noise_perturbers.keys())
-        fg_perturber = self._fg_noise_perturbers[orig_sr]
-
-        orig_sr = data.orig_sr
-        if orig_sr not in self._bg_noise_perturbers:
-            orig_sr = max(self._bg_noise_perturbers.keys())
-        bg_perturber = self._bg_noise_perturbers[orig_sr]
-
         data_rms = data.rms_db
-        noise = fg_perturber.get_one_noise_sample(data.sample_rate)
-        if self._apply_noise_rir:
-            self._rir_perturber.perturb(noise)
-        fg_perturber.perturb_with_foreground_noise(
-            data, noise, data_rms=data_rms, max_noise_dur=self._max_duration, max_additions=self._max_additions
-        )
-        noise = bg_perturber.get_one_noise_sample(data.sample_rate)
-        bg_perturber.perturb_with_input_noise(data, noise, data_rms=data_rms)
+
+        if self._fg_noise_perturbers is not None and random.uniform(0.0, 1.0) < self._noise_prob:
+            orig_sr = data.orig_sr
+            if orig_sr not in self._fg_noise_perturbers:
+                orig_sr = max(self._fg_noise_perturbers.keys())
+            fg_perturber = self._fg_noise_perturbers[orig_sr]
+            noise = fg_perturber.get_one_noise_sample(data.sample_rate)
+            if self._apply_noise_rir:
+                self._rir_perturber.perturb(noise)
+            fg_perturber.perturb_with_foreground_noise(
+                data, noise, data_rms=data_rms, max_noise_dur=self._max_duration, max_additions=self._max_additions
+            )
+
+        if self._bg_noise_perturbers is not None and random.uniform(0.0, 1.0) < self._bg_noise_prob:
+            orig_sr = data.orig_sr
+            if orig_sr not in self._bg_noise_perturbers:
+                orig_sr = max(self._bg_noise_perturbers.keys())
+            bg_perturber = self._bg_noise_perturbers[orig_sr]
+
+            noise = bg_perturber.get_one_noise_sample(data.sample_rate)
+            bg_perturber.perturb_with_input_noise(data, noise, data_rms=data_rms)
 
 
 class TranscodePerturbation(Perturbation):
@@ -724,11 +963,12 @@ class TranscodePerturbation(Perturbation):
         so users need to make sure that the installed sox version supports the codecs used here (G711 and amr-nb).
 
         Args:
-            rng: Random number generator
+            codecs (List[str]):A list of codecs to be trancoded to. Default is None.
+            rng (int): Random seed. Default is None.
     """
 
     def __init__(self, codecs=None, rng=None):
-        self._rng = np.random.RandomState() if rng is None else rng
+        random.seed(rng) if rng else None
         self._codecs = codecs if codecs is not None else ["g711", "amr-nb", "ogg"]
         self.att_factor = 0.8  # to avoid saturation while writing to wav
         if codecs is not None:
@@ -789,7 +1029,7 @@ class RandomSegmentPerturbation(Perturbation):
     Args:
         duration_sec (float): duration of the segment to be extracted
         pad_to_duration (bool): zero pad if length of input audio < duration_sec
-        rng: Random number generator
+        rng: Random seed. Default is None
     """
 
     def __init__(self, duration_sec=32.0, pad_to_duration=False, rng=None):
@@ -798,7 +1038,7 @@ class RandomSegmentPerturbation(Perturbation):
 
         self._duration_sec = duration_sec
         self._pad_to_duration = pad_to_duration
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
 
     def perturb(self, data):
         if self._duration_sec > data.duration:
@@ -808,7 +1048,7 @@ class RandomSegmentPerturbation(Perturbation):
             pad_size = self._duration_sec * data.sample_rate - data.num_samples
             data.pad(pad_size=pad_size)
         else:
-            start_time = self._rng.uniform(0.0, data.duration - self._duration_sec)
+            start_time = random.uniform(0.0, data.duration - self._duration_sec)
 
         end_time = start_time + self._duration_sec
         data.subsegment(start_time=start_time, end_time=end_time)
@@ -822,6 +1062,7 @@ perturbation_types = {
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,
+    "noise_norm": NoisePerturbationWithNormalization,
     "white_noise": WhiteNoisePerturbation,
     "rir_noise_aug": RirAndNoisePerturbation,
     "transcode_aug": TranscodePerturbation,
@@ -840,12 +1081,12 @@ def register_perturbation(name: str, perturbation: Perturbation):
 
 class AudioAugmentor(object):
     def __init__(self, perturbations=None, rng=None):
-        self._rng = random.Random() if rng is None else rng
+        random.seed(rng) if rng else None
         self._pipeline = perturbations if perturbations is not None else []
 
     def perturb(self, segment):
         for (prob, p) in self._pipeline:
-            if self._rng.random() < prob:
+            if random.random() < prob:
                 p.perturb(segment)
         return
 
@@ -867,7 +1108,7 @@ class AudioAugmentor(object):
         return cls(perturbations=ptbs)
 
 
-def process_augmentations(augmenter) -> Optional[AudioAugmentor]:
+def process_augmentations(augmenter, global_rank=0, world_size=1) -> Optional[AudioAugmentor]:
     """Process list of online data augmentations.
     Accepts either an AudioAugmentor object with pre-defined augmentations,
     or a dictionary that points to augmentations that have been defined.
@@ -981,7 +1222,12 @@ def process_augmentations(augmenter) -> Optional[AudioAugmentor]:
                 raise ValueError("`prob` must be a float value between 0 and 1.")
 
             try:
-                augmentation = perturbation_types[augment_name](**augment_kwargs)
+                augmentation_class = perturbation_types[augment_name]
+                if 'global_rank' in inspect.signature(augmentation_class).parameters:
+                    augment_kwargs['global_rank'] = global_rank
+                if 'world_size' in inspect.signature(augmentation_class).parameters:
+                    augment_kwargs['world_size'] = world_size
+                augmentation = augmentation_class(**augment_kwargs)
                 augmentations.append([prob, augmentation])
             except KeyError:
                 raise KeyError(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
@@ -993,40 +1239,38 @@ def process_augmentations(augmenter) -> Optional[AudioAugmentor]:
 class AugmentationDataset(IterableDataset):
     """
         A class that loads tarred audio files and cycles over the files in the dataset.
-
         Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset/AudioToBPEDataset),
         as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
         contain the information for one audio file, including at least the transcript and name of the audio
         file within the tarball.
-
         Valid formats for the audio_tar_filepaths argument include:
         (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
         (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
-
         Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
         This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
         Supported opening braces - { <=> (, [, < and the special tag _OP_.
         Supported closing braces - } <=> ), ], > and the special tag _CL_.
         For SLURM based tasks, we suggest the use of the special tags for ease of use.
-
         See the WebDataset documentation for more information about accepted data and input formats.
     """
 
-    def __init__(self, manifest_path: str, tar_filepaths: Union[str, List[str]], shuffle_n: int = 128):
+    def __init__(
+        self,
+        manifest_path: str,
+        tar_filepaths: Union[str, List[str]],
+        shuffle_n: int = 128,
+        rank: int = 0,
+        world_size: int = 1,
+        shard_strategy: str = "replicate",
+    ):
+        # import here to avoid circular import error
+        from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
+
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
 
-        if isinstance(tar_filepaths, str):
-            # Replace '(' and '[' with '{'
-            brace_keys_open = ['(', '[', '<', '_OP_']
-            for bkey in brace_keys_open:
-                if bkey in tar_filepaths:
-                    tar_filepaths = tar_filepaths.replace(bkey, "{")
-
-            # Replace ')' and ']' with '}'
-            brace_keys_close = [')', ']', '>', '_CL_']
-            for bkey in brace_keys_close:
-                if bkey in tar_filepaths:
-                    tar_filepaths = tar_filepaths.replace(bkey, "}")
+        tar_filepaths = expand_sharded_filepaths(
+            tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
+        )
 
         if not HAVE_OMEGACONG_WEBDATASET:
             raise LightningNotInstalledException(self)
@@ -1037,25 +1281,58 @@ class AugmentationDataset(IterableDataset):
         else:
             logging.info("WebDataset will not shuffle files within the tar files.")
 
-        self.audio_dataset = self.audio_dataset.rename(audio='wav', key='__key__').to_tuple('audio', 'key')
-        self.audio_iter = iter(self.audio_dataset)
+        self.audio_dataset = (
+            self.audio_dataset.rename(audio='wav;ogg;flac', key='__key__')
+            .to_tuple('audio', 'key')
+            .pipe(self._loop_offsets)
+        )
 
     def __len__(self):
         return len(self._manifest)
 
-    def __iter__(self):
-        return self
+    def _loop_offsets(self, iterator):
+        """This function is used to iterate through utterances with different offsets for each file.
+        """
 
-    def __next__(self):
+        class TarredAudioLoopOffsets:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+                self.current_fn = None
+                self.current_bytes = None
+                self.offset_id = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if self.current_fn is None:
+                    self.current_bytes, self.current_fn = next(self.iterator)
+                    self.offset_id = 0
+                else:
+                    offset_list = self.collection.mapping[self.current_fn]
+                    if len(offset_list) == self.offset_id + 1:
+                        self.current_bytes, self.current_fn = next(self.iterator)
+                        self.offset_id = 0
+                    else:
+                        self.offset_id += 1
+
+                return self.current_bytes, self.current_fn, self.offset_id
+
+        return TarredAudioLoopOffsets(self._manifest)
+
+    def __iter__(self):
+        audio_iter = iter(self.audio_dataset)
+
         while True:
             try:
-                audio_bytes, audio_filename = next(self.audio_iter)
+                audio_bytes, audio_filename, offset_id = next(audio_iter)
+                file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+                manifest_idx = self._manifest.mapping[file_id][offset_id]
+                manifest_entry = self._manifest[manifest_idx]
 
+                # Convert audio bytes to IO stream for processing (for SoundFile to read)
+                audio_file = io.BytesIO(audio_bytes)
+                yield audio_file, file_id, manifest_entry
             except StopIteration:
-                self.audio_iter = iter(self.audio_dataset)
-                audio_bytes, audio_filename = next(self.audio_iter)
-            file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-
-            # Convert audio bytes to IO stream for processing (for SoundFile to read)
-            audio_file = io.BytesIO(audio_bytes)
-            return audio_file, file_id
+                audio_iter = iter(self.audio_dataset)

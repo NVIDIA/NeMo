@@ -63,10 +63,10 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.tts.data.data_utils import read_manifest, write_manifest
-from nemo.collections.tts.helpers.helpers import process_batch, to_device_recursive
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.parts.utils.helpers import process_batch, to_device_recursive
 
 
 def chunks(iterable: Iterable, size: int) -> Iterator[List]:
@@ -117,6 +117,15 @@ class TTSDatasetResynthesizer:
         batch = to_device_recursive(batch, self.device)
 
         mels, mel_lens = self.model.preprocessor(input_signal=batch["audio"], length=batch["audio_lens"])
+
+        reference_audio = batch.get("reference_audio", None)
+        reference_audio_len = batch.get("reference_audio_lens", None)
+        reference_spec, reference_spec_len = None, None
+        if reference_audio is not None:
+            reference_spec, reference_spec_len = self.model.preprocessor(
+                input_signal=reference_audio, length=reference_audio_len
+            )
+
         outputs_tuple = self.model.forward(
             text=batch["text"],
             durs=None,
@@ -127,6 +136,8 @@ class TTSDatasetResynthesizer:
             attn_prior=batch.get("attn_prior"),
             mel_lens=mel_lens,
             input_lens=batch["text_lens"],
+            reference_spec=reference_spec,
+            reference_spec_lens=reference_spec_len,
         )
         names = self.model.fastpitch.output_types.keys()
         return {"spec": mels, "mel_lens": mel_lens, **dict(zip(names, outputs_tuple))}
@@ -198,7 +209,7 @@ def prepare_paired_mel_spectrograms(
             }
             output_manifest.append(new_manifest_entry)
 
-    write_manifest(output_json_manifest, output_manifest)
+    write_manifest(output_json_manifest, output_manifest, ensure_ascii=False)
 
 
 def argument_parser() -> argparse.ArgumentParser:

@@ -23,28 +23,23 @@ import textwrap
 
 from packaging.version import Version
 from pytorch_lightning.utilities.imports import package_available
+from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 
 __K2_MINIMUM_MAJOR_VERSION = 1
-__K2_MINIMUM_MINOR_VERSION = 11
+__K2_MINIMUM_MINOR_VERSION = 14
 
 __K2_MINIMUM_VERSION = Version(f"{__K2_MINIMUM_MAJOR_VERSION}.{__K2_MINIMUM_MINOR_VERSION}")
 
-K2_INSTALLATION_MESSAGE = (
-    "Could not import `k2`.\n"
-    "Please install k2 in one of the following ways:\n"
-    "1) Run `bash scripts/speech_recognition/k2/setup.sh`\n"
-    "2) (not recommended) Use any approach from https://k2-fsa.github.io/k2/installation/index.html "
-    "if your your cuda and pytorch versions are supported.\n"
-    "It is advised to always install k2 using setup.sh only, "
-    "as different versions of k2 may not interact with the NeMo code as expected."
-)
 
 if not package_available("k2"):
-    raise ModuleNotFoundError(K2_INSTALLATION_MESSAGE)
+    raise ModuleNotFoundError("Module k2 is not available.\n" + K2_INSTALLATION_MESSAGE)
 
 import k2  # noqa: E402
 
-__k2_version = Version(k2.__dev_version__)
+try:
+    __k2_version = Version(k2.__dev_version__)
+except AttributeError:
+    raise ImportError("Module k2 is corrupted.\n" + K2_INSTALLATION_MESSAGE)
 
 if __k2_version < __K2_MINIMUM_VERSION:
     raise ImportError(

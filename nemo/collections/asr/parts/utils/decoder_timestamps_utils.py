@@ -310,8 +310,7 @@ class FrameBatchASRLogits(FrameBatchASR):
         del encoded_len
         del predictions
 
-    @torch.no_grad()
-    def _get_batch_preds(self):
+    def _get_batch_preds(self, keep_logits):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
             feat_signal, feat_signal_len = batch
@@ -322,9 +321,12 @@ class FrameBatchASRLogits(FrameBatchASR):
             preds = torch.unbind(predictions)
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
+            # Always keep logits in FrameBatchASRLogits
+            _ = keep_logits
             log_probs_tup = torch.unbind(log_probs)
             for log_prob in log_probs_tup:
                 self.all_logprobs.append(log_prob)
+            del log_probs, log_probs_tup
             del encoded_len
             del predictions
     

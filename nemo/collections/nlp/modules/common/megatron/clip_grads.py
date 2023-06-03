@@ -17,28 +17,41 @@
 import itertools
 
 import torch
-from torch._six import inf
+from torch import inf
 
 from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
+from nemo.utils import logging
 
 try:
     import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
-    from apex.transformer import parallel_state
-    from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
 
 HAVE_APEX_DISTRIBUTED_ADAM = False
+
 if HAVE_APEX:
     try:
         from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
 
         HAVE_APEX_DISTRIBUTED_ADAM = True
+
     except (ImportError, ModuleNotFoundError):
         pass
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
@@ -79,7 +92,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             grads_for_norm.append(grad)
 
     if not grads_for_norm:
-        raise ValueError("No grads found, please disable gradient clipping")
+        logging.warning("No grads found, consider disabling gradient clipping")
 
     # Norm parameters.
     max_norm = float(max_norm)
@@ -88,7 +101,8 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
     # Calculate norm.
     if norm_type == inf:
-        total_norm = max(grad.abs().max() for grad in grads_for_norm)
+        if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+            total_norm = max(grad.abs().max() for grad in grads_for_norm)
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
         # Take max across all model-parallel GPUs.
         torch.distributed.all_reduce(
@@ -102,9 +116,12 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
-            grad_norm, _ = multi_tensor_applier(
-                amp_C.multi_tensor_l2norm, dummy_overflow_buf, [grads_for_norm], False  # no per-parameter norm
-            )
+            if grads_for_norm:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+                grad_norm, _ = multi_tensor_applier(
+                    amp_C.multi_tensor_l2norm, dummy_overflow_buf, [grads_for_norm], False  # no per-parameter norm
+                )
+            else:
+                grad_norm = 0.0
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
             total_norm = grad_norm ** norm_type
@@ -115,14 +132,18 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
                 total_norm += grad_norm ** norm_type
 
         # Sum across all model-parallel GPUs.
+        total_norm_cuda = torch.cuda.FloatTensor(
+            [float(total_norm)]
+        )  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
         torch.distributed.all_reduce(
-            total_norm, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+            total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
         )
-        total_norm = total_norm.item() ** (1.0 / norm_type)
+        total_norm = total_norm_cuda[0].item()
+        total_norm = total_norm ** (1.0 / norm_type)
 
     # Scale.
     clip_coeff = max_norm / (total_norm + 1.0e-6)
-    if clip_coeff < 1.0:
+    if clip_coeff < 1.0 and grads:  # (@adithyare) grads can be empty for adapter training.
         dummy_overflow_buf = torch.cuda.IntTensor([0])
         multi_tensor_applier(amp_C.multi_tensor_scale, dummy_overflow_buf, [grads, grads], clip_coeff)
 
@@ -173,35 +194,21 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
         Total norm of the parameters (viewed as a single vector).
 
     """
-    assert norm_type == 2
     assert isinstance(optimizer, DistributedFusedAdam)
 
     # Filter parameters based on:
     #   - parameter should not be shared
     #   - should not be a replica due to tensor model parallelism
-    params = itertools.chain.from_iterable(param_group['params'] for param_group in optimizer.param_groups)
     params_for_norm = []
-    for param in params:
+    for param in optimizer.parameters(with_fp32_optim_params=True):
         is_not_shared = param_is_not_shared(param)
         is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
         if is_not_shared and is_not_tp_duplicate:
             params_for_norm.append(param)
 
     # Compute grad norm
-    # Note: Compute norm of local grads and sum over all procs
-    grad_norm_sq = optimizer._local_grad_norm(parameters=params_for_norm, norm_type=norm_type)
-    if optimizer.redundant_size > 1:
-        grad_norm_sq /= optimizer.redundant_size
-    torch.distributed.all_reduce(
-        grad_norm_sq, op=torch.distributed.ReduceOp.SUM,
-    )
-    grad_norm = grad_norm_sq.sqrt()
+    # Note: DistributedFusedAdam caches grad norm to avoid redundant
+    # communication.
+    optimizer.grad_norm(parameters=params_for_norm, norm_type=norm_type)
 
-    # Apply gradient clipping
-    # Note: DistributedFusedAdam is only aware of the data-parallel
-    # process group, so we cannot directly apply its gradient clipping
-    # function. However, it caches the grad norm to avoid redundant
-    # communication, so it suffices to overwrite the cache with the
-    # grad norm computed over the world parallel group.
-    optimizer._grad_norm = grad_norm
     return optimizer.clip_grad_norm(max_norm, norm_type=norm_type)

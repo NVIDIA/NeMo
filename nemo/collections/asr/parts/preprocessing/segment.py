@@ -36,6 +36,7 @@
 import math
 import os
 import random
+from typing import Optional
 
 import librosa
 import numpy as np
@@ -58,7 +59,7 @@ sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]
 
 
 class AudioSegment(object):
-    """Monaural audio segment abstraction.
+    """Audio segment abstraction.
     :param samples: Audio samples [num_samples x num_channels].
     :type samples: ndarray.float32
     :param sample_rate: Audio sample rate.
@@ -78,6 +79,8 @@ class AudioSegment(object):
         trim_hop_length=512,
         orig_sr=None,
         channel_selector=None,
+        normalize_db: Optional[float] = None,
+        ref_channel: Optional[int] = None,
     ):
         """Create audio segment from samples.
         Samples are convert float32 internally, with int scaled to [-1, 1].
@@ -112,6 +115,11 @@ class AudioSegment(object):
         self._samples = samples
         self._sample_rate = sample_rate
         self._orig_sr = orig_sr if orig_sr is not None else sample_rate
+        self._ref_channel = ref_channel
+        self._normalize_db = normalize_db
+
+        if normalize_db is not None:
+            self.normalize_db(normalize_db, ref_channel)
 
     def __eq__(self, other):
         """Return whether two objects are equal."""
@@ -181,10 +189,14 @@ class AudioSegment(object):
         trim_hop_length=512,
         orig_sr=None,
         channel_selector=None,
+        normalize_db=None,
+        ref_channel=None,
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
-        :param audio_file: path of file to load
+        :param audio_file: path of file to load.
+                           Alternatively, a list of paths of single-channel files can be provided
+                           to form a multichannel signal.
         :param target_sr: the desired sample rate
         :param int_values: if true, load samples as 32-bit integers
         :param offset: offset in seconds when loading audio
@@ -199,9 +211,29 @@ class AudioSegment(object):
         :param channel selector: string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
                                  of integers denoting a subset of channels. Channel selector is using zero-based indexing.
                                  If set to `None`, the original signal will be used.
-        :return: numpy array of samples
+        :param normalize_db (Optional[float]): if not None, normalize the audio signal to a target RMS value
+        :param ref_channel (Optional[int]): channel to use as reference for normalizing multi-channel audio, set None to use max RMS across channels
+        :return: AudioSegment instance
         """
         samples = None
+        if isinstance(audio_file, list):
+            return cls.from_file_list(
+                audio_file_list=audio_file,
+                target_sr=target_sr,
+                int_values=int_values,
+                offset=offset,
+                duration=duration,
+                trim=trim,
+                trim_ref=trim_ref,
+                trim_top_db=trim_top_db,
+                trim_frame_length=trim_frame_length,
+                trim_hop_length=trim_hop_length,
+                orig_sr=orig_sr,
+                channel_selector=channel_selector,
+                normalize_db=normalize_db,
+                ref_channel=ref_channel,
+            )
+
         if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
             try:
                 with sf.SoundFile(audio_file, 'r') as f:
@@ -256,6 +288,89 @@ class AudioSegment(object):
             trim_hop_length=trim_hop_length,
             orig_sr=orig_sr,
             channel_selector=channel_selector,
+            normalize_db=normalize_db,
+            ref_channel=ref_channel,
+        )
+
+    @classmethod
+    def from_file_list(
+        cls,
+        audio_file_list,
+        target_sr=None,
+        int_values=False,
+        offset=0,
+        duration=0,
+        trim=False,
+        channel_selector=None,
+        *args,
+        **kwargs,
+    ):
+        """
+        Function wrapper for `from_file` method. Load a list of files from `audio_file_list`.
+        The length of each audio file is unified with the duration item in the input manifest file.
+        See `from_file` method for arguments.
+
+        If a list of files is provided, load samples from individual single-channel files and
+        concatenate them along the channel dimension.
+        """
+        if isinstance(channel_selector, int):
+            # Shortcut when selecting a single channel
+            if channel_selector >= len(audio_file_list):
+                raise RuntimeError(
+                    f'Channel cannot be selected: channel_selector={channel_selector}, num_audio_files={len(audio_file_list)}'
+                )
+            # Select only a single file
+            audio_file_list = [audio_file_list[channel_selector]]
+            # Reset the channel selector since we applied it here
+            channel_selector = None
+
+        samples = None
+
+        for a_file in audio_file_list:
+            # Load audio from the current file
+            a_segment = cls.from_file(
+                a_file,
+                target_sr=target_sr,
+                int_values=int_values,
+                offset=offset,
+                duration=duration,
+                channel_selector=None,
+                trim=False,  # Do not apply trim to individual files, it will be applied to the concatenated signal
+                *args,
+                **kwargs,
+            )
+
+            # Only single-channel individual files are supported for now
+            if a_segment.num_channels != 1:
+                raise RuntimeError(
+                    f'Expecting a single-channel audio signal, but loaded {a_segment.num_channels} channels from file {a_file}'
+                )
+
+            if target_sr is None:
+                # All files need to be loaded with the same sample rate
+                target_sr = a_segment.sample_rate
+
+            # Concatenate samples
+            a_samples = a_segment.samples[:, None]
+
+            if samples is None:
+                samples = a_samples
+            else:
+                # Check the dimensions match
+                if len(a_samples) != len(samples):
+                    raise RuntimeError(
+                        f'Loaded samples need to have identical length: {a_samples.shape} != {samples.shape}'
+                    )
+
+                # Concatenate along channel dimension
+                samples = np.concatenate([samples, a_samples], axis=1)
+
+        # Final setup for class initialization
+        samples = np.squeeze(samples)
+        sample_rate = target_sr
+
+        return cls(
+            samples, sample_rate, target_sr=target_sr, trim=trim, channel_selector=channel_selector, *args, **kwargs,
         )
 
     @classmethod
@@ -294,7 +409,7 @@ class AudioSegment(object):
                         audio_start = math.floor(offset * sample_rate)
                         if audio_start > max_audio_start:
                             raise RuntimeError(
-                                f'Provided audio start ({audio_start_seconds} seconds = {audio_start} samples) is larger than the maximum possible ({max_audio_start})'
+                                f'Provided audio start ({audio_start}) is larger than the maximum possible ({max_audio_start})'
                             )
                     f.seek(audio_start)
                     samples = f.read(n_segments_at_original_sr, dtype='float32')
@@ -308,6 +423,7 @@ class AudioSegment(object):
                     samples = f.read(dtype='float32')
         except RuntimeError as e:
             logging.error(f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`.")
+            raise e
 
         features = cls(
             samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr, channel_selector=channel_selector
@@ -354,6 +470,17 @@ class AudioSegment(object):
 
     def gain_db(self, gain):
         self._samples *= 10.0 ** (gain / 20.0)
+
+    def normalize_db(self, target_db=-20, ref_channel=None):
+        """Normalize the signal to a target RMS value in decibels. 
+        For multi-channel audio, the RMS value is determined by the reference channel (if not None),
+        otherwise it will be the maximum RMS across all channels.
+        """
+        rms_db = self.rms_db
+        if self.num_channels > 1:
+            rms_db = max(rms_db) if ref_channel is None else rms_db[ref_channel]
+        gain = target_db - rms_db
+        self.gain_db(gain)
 
     def pad(self, pad_size, symmetric=False):
         """Add zero padding to the sample. The pad size is given in number

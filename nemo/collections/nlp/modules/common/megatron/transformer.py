@@ -38,12 +38,12 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 
 try:
     from apex.normalization import MixedFusedRMSNorm
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, AttnType, ModelType
 
     HAVE_APEX = True
@@ -54,6 +54,15 @@ except (ImportError, ModuleNotFoundError):
 
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 try:
     from transformer_engine.common import recipe
@@ -131,6 +140,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         hidden_dropout=0.1,
         persist_layer_norm=False,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
@@ -145,6 +155,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         chunk_size=64,
         normalization='layernorm',
         transformer_block_type='pre_ln',
+        position_embedding_type='learned_absolute',
+        multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
@@ -165,6 +177,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.layer_type = layer_type
         self.bias = bias
         self.transformer_block_type = transformer_block_type
+        self.position_embedding_type = position_embedding_type
+        self.param_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
         if not bias and bias_dropout_add_fusion:
@@ -212,13 +227,16 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
+                multi_query_attention=multi_query_attention,
                 layer_type=layer_type,
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
+                position_embedding_type=position_embedding_type,
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
@@ -277,7 +295,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 precision=precision,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
+                multi_query_attention=multi_query_attention,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
@@ -325,6 +345,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 use_cpu_initialization=use_cpu_initialization,
+                megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
@@ -367,6 +388,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 use_cpu_initialization=use_cpu_initialization,
+                dtype=self.param_dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
@@ -387,6 +409,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 use_cpu_initialization=use_cpu_initialization,
+                dtype=self.param_dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
@@ -623,6 +646,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         bias_dropout_add_fusion=True,
         persist_layer_norm=False,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
@@ -635,6 +659,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         chunk_size=64,
         normalization='layernorm',
         transformer_block_type='pre_ln',
+        position_embedding_type='learned_absolute',
+        multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
@@ -662,6 +688,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             persist_layer_norm=persist_layer_norm,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
@@ -674,7 +701,9 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             chunk_size=chunk_size,
             normalization=normalization,
             transformer_block_type=transformer_block_type,
+            position_embedding_type=position_embedding_type,
             headscale=headscale,
+            multi_query_attention=multi_query_attention,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
@@ -684,14 +713,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             moe_dropout=moe_dropout,
         )
 
-        if precision == 'bf16':
-            self.dtype = torch.bfloat16
-        elif int(precision) == 16:
-            self.dtype = torch.float16
-        elif int(precision) == 32:
-            self.dtype = torch.float32
-        else:
-            raise ValueError
+        # Dtype for forward pass - ignore amp O2
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -770,6 +793,7 @@ class AutocastTransformerLayer(TransformerLayer):
         drop_path_rate: float = 0,
         use_emha: bool = False,
         autocast_dtype: Any = 16,
+        zero_centered_gamma: bool = False,
     ) -> None:
         super().__init__(
             hidden_size=hidden_size,
@@ -799,17 +823,12 @@ class AutocastTransformerLayer(TransformerLayer):
             drop_path_rate=drop_path_rate,
             set_parallel_mode=tp_size > 1,
             fuse_qkv_params=True,
+            zero_centered_gamma=zero_centered_gamma,
         )
         # use_emha=use_emha,
 
-        if autocast_dtype == 32:
-            self.dtype = torch.float32
-        elif autocast_dtype == 16:
-            self.dtype = torch.float16
-        elif autocast_dtype == 'bf16':
-            self.dtype = torch.bfloat16
-        else:
-            raise ValueError
+        # Dtype for forward pass - ignore amp O2
+        self.dtype = utils_funcs.dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
 
     def forward(
         self,
@@ -869,6 +888,7 @@ class ParallelTransformer(MegatronModule):
         attention_dropout=0.1,
         ffn_dropout=0.0,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
@@ -883,6 +903,7 @@ class ParallelTransformer(MegatronModule):
         chunk_size=64,
         normalization='layernorm',
         transformer_block_type='pre_ln',
+        position_embedding_type='learned_absolute',
         headscale=False,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
@@ -899,6 +920,7 @@ class ParallelTransformer(MegatronModule):
         reduce_amax=True,
         use_emha=False,
         normalize_attention_scores=True,
+        multi_query_attention=False,
         num_moe_experts=1,
         moe_frequency=1,
         moe_dropout=0.0,
@@ -920,6 +942,8 @@ class ParallelTransformer(MegatronModule):
         self.normalization = normalization
         self.transformer_block_type = transformer_block_type
         self.layer_type = layer_type
+        self.position_embedding_type = position_embedding_type
+        self.multi_query_attention = multi_query_attention
 
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
@@ -1034,6 +1058,7 @@ class ParallelTransformer(MegatronModule):
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
                     use_emha=use_emha,
+                    zero_centered_gamma=normalization == 'layernorm1p',
                 )
             else:
                 return ParallelTransformerLayer(
@@ -1054,11 +1079,13 @@ class ParallelTransformer(MegatronModule):
                     attention_dropout=attention_dropout,
                     ffn_dropout=ffn_dropout,
                     use_cpu_initialization=use_cpu_initialization,
+                    megatron_amp_O2=megatron_amp_O2,
                     bias_activation_fusion=bias_activation_fusion,
                     bias_dropout_add_fusion=bias_dropout_add_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
                     gradient_accumulation_fusion=gradient_accumulation_fusion,
                     persist_layer_norm=persist_layer_norm,
+                    position_embedding_type=position_embedding_type,
                     openai_gelu=openai_gelu,
                     onnx_safe=onnx_safe,
                     activation=activation,
@@ -1241,9 +1268,6 @@ class ParallelTransformer(MegatronModule):
 
             return custom_forward
 
-        # Make sure memory is freed.
-        tensor_parallel.reset_checkpointed_activations_memory_buffer()
-
         if self.activations_checkpoint_method == 'uniform':
             # Uniformly divide the total number of Transformer layers and checkpoint
             # the input activation of each divided chunk.
@@ -1401,8 +1425,8 @@ class ParallelTransformer(MegatronModule):
         with rng_context:
             # fp8_autocast will not do anything if TE or FP8 isn't used
             fp8_group = None
-            if parallel_state.model_parallel_is_initialized():
-                fp8_group = parallel_state.get_data_parallel_group()
+            if self.fp8 and parallel_state.model_parallel_is_initialized():
+                fp8_group = parallel_state.get_amax_reduction_group()
 
             if HAVE_TE:
                 # if TE is installed but fp8 is not available then this will do nothing

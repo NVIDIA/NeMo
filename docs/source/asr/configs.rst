@@ -1,12 +1,12 @@
 NeMo ASR Configuration Files
 ============================
 
-This section describes the NeMo configuration file setup that is specific to models in the ASR collection. For general information 
-about how to set up and run experiments that is common to all NeMo models (e.g. Experiment Manager and PyTorch Lightning trainer 
+This section describes the NeMo configuration file setup that is specific to models in the ASR collection. For general information
+about how to set up and run experiments that is common to all NeMo models (e.g. Experiment Manager and PyTorch Lightning trainer
 parameters), see the :doc:`../core/core` section.
 
-The model section of the NeMo ASR configuration files generally requires information about the dataset(s) being used, the preprocessor 
-for audio files, parameters for any augmentation being performed, as well as the model architecture specification. The sections on 
+The model section of the NeMo ASR configuration files generally requires information about the dataset(s) being used, the preprocessor
+for audio files, parameters for any augmentation being performed, as well as the model architecture specification. The sections on
 this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo ASR scripts can be found in the
@@ -17,8 +17,8 @@ Dataset Configuration
 ---------------------
 
 Training, validation, and test parameters are specified using the ``train_ds``, ``validation_ds``, and
-``test_ds`` sections in the configuration file, respectively. Depending on the task, there may be arguments specifying the sample rate 
-of the audio files, the vocabulary of the dataset (for character prediction), whether or not to shuffle the dataset, and so on. You may 
+``test_ds`` sections in the configuration file, respectively. Depending on the task, there may be arguments specifying the sample rate
+of the audio files, the vocabulary of the dataset (for character prediction), whether or not to shuffle the dataset, and so on. You may
 also decide to leave fields such as the ``manifest_filepath`` blank, to be specified via the command-line at runtime.
 
 Any initialization parameter that is accepted for the Dataset class used in the experiment can be set in the config file.
@@ -61,6 +61,25 @@ An example ASR train and validation configuration should look similar to the fol
       num_workers: 8
       pin_memory: true
 
+There are two ways to test/validate on more than one manifest:
+
+- Specify a list in the `manifest_filepath` field. Results will be reported for each, the first one being used for overall loss / WER (specify `val_dl_idx` if you wish to change that). In this case, all manifests will share configuration parameters.
+- Use the ds_item key and pass a list of config objects to it. This allows you to use differently configured datasets for validation, e.g. 
+
+.. code-block:: yaml
+
+  model:
+    validation_ds:
+      ds_item:
+      - name: dataset1
+        manifest_filepath: ???
+        # Config parameters for dataset1
+        ...
+      - name: dataset2
+        manifest_filepath: ???
+        # Config parameters for dataset2
+        ...
+
 By default, dataloaders are set up when the model is instantiated. However, dataloader setup can be deferred to
 model's `setup()` method by setting ``defer_setup`` in the configuration.
 
@@ -80,7 +99,7 @@ Preprocessor Configuration
 --------------------------
 
 If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the
-raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio 
+raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio
 preprocessor to be used via the ``_target_`` field, as well as any initialization parameters for that preprocessor.
 
 An example of specifying a preprocessor is as follows:
@@ -97,7 +116,7 @@ An example of specifying a preprocessor is as follows:
       ...
       # Other parameters for the preprocessor
 
-Refer to the `Audio Preprocessors <./api.html#Audio Preprocessors>`__ API section for the preprocessor options, expected arguments, 
+Refer to the `Audio Preprocessors <./api.html#Audio Preprocessors>`__ API section for the preprocessor options, expected arguments,
 and defaults.
 
 Augmentation Configurations
@@ -179,7 +198,7 @@ The following example sets up a ``SentencePiece Tokenizer`` at a path specified 
       dir: "<path to the directory that contains the custom tokenizer files>"
       type: "bpe"  # can be "bpe" or "wpe"
 
-The Aggregate (``agg``) tokenizer feature makes it possible to combine tokenizers in order to train multilingual 
+The Aggregate (``agg``) tokenizer feature makes it possible to combine tokenizers in order to train multilingual
 models. The config file would look like this:
 
 .. code-block:: yaml
@@ -188,21 +207,21 @@ models. The config file would look like this:
     ...
     tokenizer:
       type: "agg"  # aggregate tokenizer
-      langs: 
+      langs:
         en:
           dir: "<path to the directory that contains the tokenizer files>"
           type: "bpe"  # can be "bpe" or "wpe"
         es:
           dir: "<path to the directory that contains the tokenizer files>"
-          type: "bpe"  # can be "bpe" or "wpe"  
+          type: "bpe"  # can be "bpe" or "wpe"
 
-In the above config file, each language is associated with its own pre-trained tokenizer, which gets assigned 
-a token id range in the order the tokenizers are listed. To train a multilingual model, one needs to populate the 
+In the above config file, each language is associated with its own pre-trained tokenizer, which gets assigned
+a token id range in the order the tokenizers are listed. To train a multilingual model, one needs to populate the
 ``lang`` field in the manifest file, allowing the routing of each sample to the correct tokenizer. At inference time,
 the routing is done based on the inferred token id range.
 
-For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models. 
-All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For 
+For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models.
+All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For
 such models, the tokenizer is utilized to fill in the missing information when the model is constructed automatically.
 
 For example, a decoder config corresponding to a sub-word tokenization model should look similar to the following:
@@ -221,7 +240,7 @@ For example, a decoder config corresponding to a sub-word tokenization model sho
 Model Architecture Configurations
 ---------------------------------
 
-Each configuration file should describe the model architecture being used for the experiment. Models in the NeMo ASR collection need 
+Each configuration file should describe the model architecture being used for the experiment. Models in the NeMo ASR collection need
 an ``encoder`` section and a ``decoder`` section, with the ``_target_`` field specifying the module to use for each.
 
 Here is the list of the parameters in the model section which are shared among most of the ASR models:
@@ -478,7 +497,7 @@ A Citrinet-512 config should look similar to the following:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-As mentioned above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be 
+As mentioned above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be
 changed slightly as Citrinet utilizes sub-word tokenization.
 
 .. note::
@@ -499,8 +518,8 @@ The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_
 Conformer-CTC
 ~~~~~~~~~~~~~
 
-The config files for Conformer-CTC model contain character-based encoding and sub-word encoding at 
-``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` 
+The config files for Conformer-CTC model contain character-based encoding and sub-word encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``
 respectively. Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`__ include the following datasets:
 
 * ``train_ds``, ``validation_ds``, and ``test_ds``
@@ -510,10 +529,11 @@ respectively. Some components of the configs of `Conformer-CTC <./models.html#Co
 * ``trainer``
 * ``exp_manager``
 
-These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can  
+These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
-The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
+
+The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`.
 
 Squeezeformer-CTC
@@ -544,6 +564,58 @@ The config files for LSTM-Transducer and LSTM-CTC models can be found at ``<NeMo
 Most of the of the configs of are similar to other ctc or transducer models. The main difference is the encoder part.
 The encoder section includes the details about the RNN-based encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.RNNEncoder <rnn-encoder-api>`.
+
+
+InterCTC Config
+---------------
+
+All CTC-based models also support `InterCTC loss <https://arxiv.org/abs/2102.03216>`_. To use it, you need to specify
+2 parameters as in example below
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      interctc:
+        loss_weights: [0.3]
+        apply_at_layers: [8]
+
+which can be used to reproduce the default setup from the paper (assuming the total number of layers is 18).
+You can also specify multiple CTC losses from different layers, e.g., to get 2 losses from layers 3 and 8 with
+weights 0.1 and 0.3, specify:
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      interctc:
+        loss_weights: [0.1, 0.3]
+        apply_at_layers: [3, 8]
+
+Note that the final-layer CTC loss weight is automatically computed to normalize
+all weight to 1 (0.6 in the example above).
+
+
+Stochastic Depth Config
+-----------------------
+
+`Stochastic Depth <https://arxiv.org/abs/2102.03216>`_ is a useful technique for regularizing ASR model training.
+Currently it's only supported for :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`. To
+use it, specify the following parameters in the encoder config file to reproduce the default setup from the paper:
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      encoder:
+        # ...
+        stochastic_depth_drop_prob: 0.3
+        stochastic_depth_mode: linear  # linear or uniform
+        stochastic_depth_start_layer: 1
+
+See :ref:`documentation of ConformerEncoder <conformer-encoder-api>` for more details. Note that stochastic depth
+is supported for both CTC and Transducer model variations (or any other kind of model/loss that's using
+conformer as encoder).
 
 
 Transducer Configurations
@@ -805,6 +877,114 @@ FastEmit Regularization is supported for the default Numba based WarpRNNT loss. 
 
 Refer to the above paper for results and recommendations of ``fastemit_lambda``.
 
+
+.. _Hybrid-ASR-TTS_model__Config:
+
+Hybrid ASR-TTS Model Configuration
+----------------------------------
+
+:ref:`Hybrid ASR-TTS model <Hybrid-ASR-TTS_model>` consists of three parts:
+
+* ASR model (``EncDecCTCModelBPE``, ``EncDecRNNTBPEModel`` or ``EncDecHybridRNNTCTCBPEModel``)
+* TTS Mel Spectrogram Generator (currently, only :ref:`FastPitch <FastPitch_model>` model is supported)
+* :ref:`Enhancer model <SpectrogramEnhancer_model>` (optional)
+
+Also, the config allows to specify :ref:`text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>`.
+
+Main parts of the config:
+
+* ASR model
+    * ``asr_model_path``: path to the ASR model checkpoint (`.nemo`) file, loaded only once, then the config of the ASR model is stored in the ``asr_model`` field
+    * ``asr_model_type``: needed only when training from scratch. ``rnnt_bpe`` corresponds to ``EncDecRNNTBPEModel``, ``ctc_bpe`` to ``EncDecCTCModelBPE``, ``hybrid_rnnt_ctc_bpe`` to ``EncDecHybridRNNTCTCBPEModel``
+    * ``asr_model_fuse_bn``: fusing BatchNorm in the pretrained ASR model, can improve quality in finetuning scenario
+* TTS model
+    * ``tts_model_path``: path to the pretrained TTS model checkpoint (`.nemo`) file, loaded only once, then the config of the model is stored in the ``tts_model`` field
+* Enhancer model
+    * ``enhancer_model_path``: optional path to the enhancer model. Loaded only once, the config is stored in the ``enhancer_model`` field
+* ``train_ds``
+    * ``text_data``: properties related to text-only data
+        * ``manifest_filepath``: path (or paths) to :ref:`text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>` manifests
+        * ``speakers_filepath``: path (or paths) to the text file containing speaker ids for the multi-speaker TTS model (speakers are sampled randomly during training)
+        * ``min_words`` and ``max_words``: parameters to filter text-only manifests by the number of words
+        * ``tokenizer_workers``: number of workers for initial tokenization (when loading the data). ``num_CPUs / num_GPUs`` is a recommended value.
+    * ``asr_tts_sampling_technique``, ``asr_tts_sampling_temperature``, ``asr_tts_sampling_probabilities``: sampling parameters for text-only and audio-text data (if both specified). Correspond to ``sampling_technique``, ``sampling_temperature``, and ``sampling_probabilities`` parameters of the :mod:`ConcatDataset <nemo.collections.common.data.dataset.ConcatDataset>`.
+    * all other components are similar to conventional ASR models
+* ``validation_ds`` and ``test_ds`` correspond to the underlying ASR model
+
+
+.. code-block:: yaml
+
+  model:
+    sample_rate: 16000
+
+    # asr model
+    asr_model_path: ???
+    asr_model: null
+    asr_model_type: null  # rnnt_bpe, ctc_bpe or hybrid_rnnt_ctc_bpe; needed only if instantiating from config, otherwise type is auto inferred
+    asr_model_fuse_bn: false  # only ConformerEncoder supported now, use false for other models
+
+    # tts model
+    tts_model_path: ???
+    tts_model: null
+
+    # enhancer model
+    enhancer_model_path: null
+    enhancer_model: null
+
+    train_ds:
+      text_data:
+        manifest_filepath: ???
+        speakers_filepath: ???
+        min_words: 1
+        max_words: 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
+        tokenizer_workers: 1
+      asr_tts_sampling_technique: round-robin  # random, round-robin, temperature
+      asr_tts_sampling_temperature: null
+      asr_tts_sampling_probabilities: null  # [0.5,0.5] – ASR,TTS
+      manifest_filepath: ???
+      batch_size: 16 # you may increase batch_size if your memory allows
+      # other params
+
+Finetuning
+~~~~~~~~~~~
+
+To finetune existing ASR model using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text_finetune.py`` script with the corresponding config ``<NeMo_git_root>/examples/asr/conf/asr_tts/hybrid_asr_tts.yaml``.
+
+Please specify paths to all the required models (ASR, TTS, and Enhancer checkpoints), along with ``train_ds.text_data.manifest_filepath`` and ``train_ds.text_data.speakers_filepath``.
+
+.. code-block:: shell
+
+    python speech_to_text_bpe_with_text_finetune.py \
+        model.asr_model_path=<path to ASR model> \
+        model.tts_model_path=<path to compatible TTS model> \
+        model.enhancer_model_path=<optional path to enhancer model> \
+        model.asr_model_fuse_bn=<true recommended if ConformerEncoder with BatchNorm, false otherwise> \
+        model.train_ds.manifest_filepath=<path to manifest with audio-text pairs or null> \
+        model.train_ds.text_data.manifest_filepath=<path(s) to manifest with train text> \
+        model.train_ds.text_data.speakers_filepath=<path(s) to speakers list> \
+        model.train_ds.text_data.tokenizer_workers=4 \
+        model.validation_ds.manifest_filepath=<path to validation manifest> \
+        model.train_ds.batch_size=<batch_size>
+
+Training from Scratch
+~~~~~~~~~~~~~~~~~~~~~
+
+To train ASR model from scratch using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text.py`` script with conventional ASR model config, e.g. ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` or  ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``
+
+Please specify the ASR model type, paths to the TTS model, and (optional) enhancer, along with text-only data-related fields.
+Use ``++`` or ``+`` markers for these options, since the options are not present in the original ASR model config.
+
+.. code-block:: shell
+
+    python speech_to_text_bpe_with_text.py \
+        ++asr_model_type=<rnnt_bpe or ctc_bpe> \
+        ++tts_model_path=<path to compatible tts model> \
+        ++enhancer_model_path=<optional path to enhancer model> \
+        ++model.train_ds.text_data.manifest_filepath=<path(s) to manifests with train text> \
+        ++model.train_ds.text_data.speakers_filepath=<path(s) to speakers list> \
+        ++model.train_ds.text_data.min_words=1 \
+        ++model.train_ds.text_data.max_words=45 \
+        ++model.train_ds.text_data.tokenizer_workers=4
 
 Fine-tuning Configurations
 --------------------------

@@ -21,6 +21,7 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -61,7 +62,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
 
             compute_langs: a bool flag, which allows to compute language id (LID) information per token,
-                word, and the entire sample (most likely language id). The LIDS will be available 
+                word, and the entire sample (most likely language id). The LIDS will be available
                 in the returned Hypothesis object as a dictionary
 
             rnnt_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
@@ -195,12 +196,20 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
-        blank_id = tokenizer.tokenizer.vocab_size
+        blank_id = tokenizer.tokenizer.vocab_size  # RNNT or TDT models.
+
+        # multi-blank RNNTs
+        if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'multiblank':
+            blank_id = tokenizer.tokenizer.vocab_size + joint.num_extra_outputs
+
         self.tokenizer = tokenizer
 
         super(RNNTBPEDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id + joint.num_extra_outputs
+            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
+
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer):
+            self.decoding.set_decoding_type('subword')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
