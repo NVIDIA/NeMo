@@ -31,15 +31,10 @@
 # https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
-from typing import List, Tuple
+from typing import List, Set, Tuple
 
 import numpy as np
 import torch
-
-from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
-from sklearn.metrics.pairwise import linear_kernel
-from sklearn.preprocessing import OneHotEncoder
-import torch.nn.functional as F
 
 from nemo.collections.asr.parts.utils.offline_clustering import (
     NMESC,
@@ -47,40 +42,17 @@ from nemo.collections.asr.parts.utils.offline_clustering import (
     getAffinityGraphMat,
     getCosAffinityMatrix,
 )
+from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
 
 
-
-def torch_intersection(a_tensor: torch.Tensor, b_tensor: torch.Tensor):
-    """
-    Find the intersection of two tensors
-
-    Args:
-        a (Tensor):
-            Tensor containing cluster labels
-        b (Tensor):
-            Tensor containing cluster labels
-
-    Returns:
-        (Tensor): Intersection of two tensors
-    """
-    a_cat_b, counts = torch.unique(torch.cat([a_tensor, b_tensor]), return_counts=True)
-    return a_cat_b[torch.where(counts.gt(1))]
-
-
-def hungarian_algorithm(
-    spk_count: int, 
-    U_set: torch.Tensor, 
-    cmm_P: torch.Tensor, 
-    cmm_Q: torch.Tensor, 
-    PandQ: torch.Tensor
+def get_lsa_speaker_mapping(
+    U_set: torch.Tensor, cmm_P: torch.Tensor, cmm_Q: torch.Tensor, PandQ: torch.Tensor
 ) -> torch.Tensor:
     """
     Find a mapping that minimizes the matching cost between the label P and Q.
     One-hot encodding is employed to represent sequence and calculate the cost.
 
     Args:
-        spk_count (int):
-            Estimated speaker count
         U_set (list):
             Whole set of the estimated speakers
         cmm_P (Tensor):
@@ -95,7 +67,7 @@ def hungarian_algorithm(
             Mapped labels that minimizes the cost
     """
     all_spks_labels = [[x] for x in range(len(U_set))]
-    PandQ_list: List[int] = [ int(x.item()) for x in PandQ ]
+    common_inds: List[int] = [int(x.item()) for x in PandQ]
 
     # Create tensors for one-hot encoding
     enc_P = torch.zeros((len(cmm_P), len(all_spks_labels))).to(cmm_P.device)
@@ -107,12 +79,12 @@ def hungarian_algorithm(
 
     # Cost matrix from one-hot encoding vectors
     cost = -1 * torch.matmul(enc_P.T, enc_Q).T.to(PandQ.device)
-    row_ind, col_ind = linear_sum_assignment(cost)
+    _, col_ind = linear_sum_assignment(cost)
 
     # If number of are speakers in each vector is not the same
     mapping_array = torch.arange(0, len(U_set)).to(PandQ.device)
     for x in range(col_ind.shape[0]):
-        if x not in PandQ_list:
+        if x not in common_inds:
             mapping_array[x] = x
         else:
             mapping_array[x] = col_ind[x]
@@ -143,6 +115,7 @@ def get_minimal_indices(Y_new: torch.Tensor) -> torch.Tensor:
     return sequence[Y_new]
 
 
+@torch.jit.script
 def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Tensor:
     """
     Run Hungarian (linear sum assignment) algorithm to find the best permutation mapping between
@@ -164,8 +137,7 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Ten
     if len(Y_old) == 0:
         matched_output = Y_new
     else:
-        spk_count = max(len(torch.unique(Y_old)), len(torch.unique(Y_new)))
-        P_raw, Q_raw = Y_old, Y_new
+        P_raw, Q_raw = Y_old.to(Y_new.device), Y_new
         U_set = torch.unique(torch.cat([P_raw, Q_raw]))
         PQ = torch.cat([P_raw, Q_raw])
         a_cat_b, counts = torch.unique(PQ, return_counts=True)
@@ -179,7 +151,7 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor) -> torch.Ten
             mapping_array = torch.tensor([0, 0]).to(Y_new.device)
         else:
             # Run Hungarian algorithm if there are more than one speaker in universal set U.
-            mapping_array = hungarian_algorithm(spk_count, U_set, P, Q, PandQ)
+            mapping_array = get_lsa_speaker_mapping(U_set=U_set, cmm_P=P, cmm_Q=Q, PandQ=PandQ)
         matched_output = mapping_array[Y_new]
     matched_output = get_minimal_indices(matched_output)
     return matched_output
@@ -242,7 +214,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
     diff_counts = (zero_padded_counts[1:] - zero_padded_counts[:-1])[:num_clus]
     gradual_counts = torch.arange(num_clus, 0, -1).to(device) * diff_counts
     cumsum_counts = torch.cumsum(gradual_counts, dim=0)
-    count, remain_count_rem = 0, remain_count
+    remain_count_rem = remain_count
 
     # Find how many remaining counts we can use
     ind: int = 0
@@ -301,9 +273,7 @@ def get_merge_quantity(
             Tensor containing the number of vectors should be removed from each cluster
     """
     if num_to_be_removed > pre_clus_labels.shape[0] - 1:
-        raise ValueError(
-            f"num_to_be_removed: {num_to_be_removed} should be less than pre_clus_labels length - 1"
-        )
+        raise ValueError(f"num_to_be_removed: {num_to_be_removed} should be less than pre_clus_labels length - 1")
     remain_count = pre_clus_labels.shape[0] - num_to_be_removed
     spk_freq_count = torch.bincount(pre_clus_labels)
     num_clus = len(torch.unique(pre_clus_labels))
@@ -329,7 +299,9 @@ def get_merge_quantity(
     return removable_counts_mat
 
 
-def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels: torch.Tensor):
+def merge_vectors(
+    selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Merge feature (embedding) vectors estimated to be the same cluster label.
 
@@ -349,9 +321,6 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
         merged_clus_labels (Tensor):
             Cluster labels for the merged feature vectors
             Dimension: (merged vector counts)
-        index_mapping (Tuple):
-            index_mapping[0] contains bypassed vector labels
-            index_mapping[1] contains merged vector labels
     """
     if emb_ndx.shape[0] != pre_cluster_labels.shape[0]:
         raise ValueError("pre_cluster_labels and emb_ndx have mismatch in dimension")
@@ -366,7 +335,6 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
     selected_inds = torch.tensor(selected_inds_list)
     merged_vecs = torch.vstack((emb_ndx[bypass_inds], avg_emb))
     merged_clus_labels = torch.hstack((pre_cluster_labels[bypass_inds], merged_clus_labels[0]))
-    index_mapping: Tuple[torch.Tensor, torch.Tensor] = (bypass_inds, selected_inds)
     return merged_vecs, merged_clus_labels
 
 
@@ -387,8 +355,6 @@ def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[
     Args:
         affinity_mat: (Tensor)
             Symmetric affinity matrix of the given embedding vector set.
-        target_emb_index: (Tensor)
-            Targeted speaker index
         n_closest (int):
             The amount of vector counts that are expected to be removed from the set
             Example:
@@ -417,10 +383,7 @@ def get_closest_embeddings(affinity_mat: torch.Tensor, n_closest: int) -> Tuple[
 
 
 def run_reducer(
-    pre_embs: torch.Tensor, 
-    target_spk_idx: int, 
-    merge_quantity: int, 
-    pre_clus_labels: torch.Tensor,
+    pre_embs: torch.Tensor, target_spk_idx: int, merge_quantity: int, pre_clus_labels: torch.Tensor,
 ):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
@@ -456,10 +419,13 @@ def run_reducer(
             The original cluster (speaker) index
 
     Returns:
-        result_emb (Tensor):
-            Set of merged embedding vectors
-        merged_clus_labels (list):
-            Cluster (speaker) labels for the merged embedding vectors
+        merged_embs (torch.Tensor):    
+            The merged embedding vectors.
+        merged_clus_labels (torch.Tensor):
+            The cluster (speaker) indices for the merged embedding vectors.
+        index_mapping (Tuple[torch.Tensor, torch.Tensor]):
+            A tuple containing the indices of the original embeddings that were not merged (`bypassed indices`)
+            and the indices of the new merged embeddings (`merged indices`).
     """
     if pre_embs.shape[0] != pre_clus_labels.shape[0]:
         raise ValueError("Dimension mismatch between `pre_embs` and `pre_clus_labels`.")
@@ -472,7 +438,7 @@ def run_reducer(
                 f"merge_quantity {merge_quantity} should not be larger than target_emb_index length: {target_emb_index.shape[0]-1}"
             )
         total_affinity_mat = getCosAffinityMatrix(pre_embs)
-        
+
         # Get the lower triangle of the affinity_mat array
         affinity_mat = total_affinity_mat[:, target_emb_index][target_emb_index, :]
         if affinity_mat.shape[0] != target_emb_index.shape[0]:
@@ -515,6 +481,7 @@ def get_first_arg_index(mat: torch.Tensor, label: int) -> int:
         (int) The first index of the given label
     """
     return int(torch.where(mat == label)[0][0])
+
 
 class OnlineSpeakerClustering(torch.nn.Module):
     """
@@ -630,15 +597,16 @@ class OnlineSpeakerClustering(torch.nn.Module):
         sparse_search_volume: int = 10,
         history_buffer_size: int = 150,
         current_buffer_size: int = 150,
-        min_spk_counting_buffer_size: int =3,
+        min_spk_counting_buffer_size: int = 3,
         min_frame_per_spk: int = 15,
-        p_update_freq: int = 10,
+        p_update_freq: int = 5,
         p_value_skip_frame_thres: int = 50,
         p_value_queue_size: int = 3,
         use_temporal_label_major_vote: bool = False,
         temporal_label_major_vote_buffer_size: int = 11,
+        cuda: bool = False,
     ):
-        super().__init__() 
+        super().__init__()
         self.max_num_speakers = max_num_speakers
         self.max_rp_threshold = max_rp_threshold
         self.enhanced_count_thres = enhanced_count_thres
@@ -653,6 +621,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.p_value_queue_size = p_value_queue_size
         self.use_temporal_label_major_vote = use_temporal_label_major_vote
         self.temporal_label_major_vote_buffer_size = temporal_label_major_vote_buffer_size
+        self.cuda = cuda
         self.num_spk_stat: List[torch.Tensor] = [torch.tensor(1)]
         self.p_value_hist: List[torch.Tensor] = [torch.tensor(2)]
 
@@ -667,7 +636,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.history_embedding_buffer_emb = torch.tensor([])
         self.history_embedding_buffer_label = torch.tensor([])
         self.Y_fullhist = torch.tensor([])
-    
+
     def onlineNMEanalysis(self, mat_in: torch.Tensor, frame_index: int) -> Tuple[int, int]:
         """
         To save the running time, the p-value is only estimated in the beginning of the session.
@@ -676,8 +645,8 @@ class OnlineSpeakerClustering(torch.nn.Module):
         p-value can speed up the clustering algorithm by a huge margin.
 
         Args:
-            nmesc: (NMESC)
-                nmesc instance from NMESC class
+            mat_in (Tensor):
+                Tensor containing the affinity matrix for the current segments
             frame_index (int):
                 Unique index for each segment and embedding vector
 
@@ -698,6 +667,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             nme_mat_size=256,
             parallelism=False,
             device=mat_in.device,
+            cuda=self.cuda,
         )
         if len(self.p_value_hist) == 0 or (
             frame_index < self.p_value_skip_frame_thres and frame_index % self.p_update_freq == 0
@@ -712,7 +682,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         g_p, est_num_of_spk = output[0], output[1].int()
         return est_num_of_spk, p_hat_value
 
-    def speaker_counter_buffer(self, est_num_of_spk: int):
+    def speaker_counter_buffer(self, est_num_of_spk: int) -> torch.Tensor:
         """
         Use a queue to avoid unstable speaker counting results.
 
@@ -728,7 +698,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.num_spk_stat.append(est_num_of_spk)
         if len(self.num_spk_stat) > self.min_spk_counting_buffer_size:
             self.num_spk_stat.pop(0)
-        num_spk_stat_tensor = torch.tensor([ int(s) for s in self.num_spk_stat ])
+        num_spk_stat_tensor = torch.tensor([int(s) for s in self.num_spk_stat])
         num_spks_bincount = torch.bincount(num_spk_stat_tensor)
         est_num_of_spk = torch.argmax(num_spks_bincount)
         return est_num_of_spk
@@ -762,16 +732,13 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Returns:
             est_num_of_spk (int):
                 Estimated number of speakers
-            nmesc (NMESC):
-                NMESC class instance
-            frame_index (int):
-                Unique frame index of online processing pipeline
+            affinity_mat (Tensor):
+                Affinity matrix after applying the affinity threshold with `p_hat_value`
         """
         est_num_of_spk, p_hat_value = self.onlineNMEanalysis(mat_in, frame_index)
         affinity_mat = getAffinityGraphMat(mat_in, p_hat_value)
         raw_est_num_of_spk = self.speaker_counter_buffer(est_num_of_spk)
-        raw_est_num_of_spk = raw_est_num_of_spk.item()
-        est_num_of_spk = self.limit_frames_per_speaker(frame_index, raw_est_num_of_spk)
+        est_num_of_spk = self.limit_frames_per_speaker(frame_index, raw_est_num_of_spk.item())
         return est_num_of_spk, affinity_mat
 
     def prepare_embedding_update(
@@ -779,7 +746,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
     ) -> Tuple[bool, int, torch.Tensor, torch.Tensor]:
         """
         This function performs the following tasks:
-            1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
+            1. Decide whether to extract more embeddings or not (by setting `is_update`)
         (Only if we need update):
             2. Calculate how many embeddings should be updated (set `new_emb_n` variable)
             3. Update history embedding vectors and save it to `pre_embs`.
@@ -814,11 +781,11 @@ class OnlineSpeakerClustering(torch.nn.Module):
             emb_in (Tensor):
                 Tensor containing embedding vectors
                 Dimensions: (number of embedding vectors) x (embedding dimension)
-            base_segment_indexes (list):
-                List containing unique segment (embedding vector) index
+            segment_indexes_matrix (Tensor):
+                Tensor containing unique segment (embedding vector) index
 
         Returns:
-            update_speaker_register (bool):
+            is_update (bool):
                 Boolean indicates whether to update speaker embedding vectors.
             new_emb_n (int):
                 The amount of embedding vectors that are exceeding FIFO queue size.
@@ -835,7 +802,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         new_emb_n: int = 0
         pre_embs: torch.Tensor = torch.empty(0)
         pre_clus_labels: torch.Tensor = torch.empty(0)
-        update_speaker_register = True
+        is_update = True
 
         if total_segments_processed_count > self.max_embed_count:
             # Case-1: The very first step
@@ -858,24 +825,30 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 pre_clus_labels = torch.hstack(
                     (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
                 )
+
             if new_emb_n > self.current_n:
-                raise ValueError("new_emb_n should be less than or equal to current buffer size (self.current_n)." \
-                                 f" Getting too many segments: {new_emb_n} for the given current buffer size {self.current_n}." \
-                                 " Please either (1) increase buffer size or (2) use longer segment lengths to get less number of segments.")
+                raise ValueError(
+                    "new_emb_n should be less than or equal to current buffer size (self.current_n)."
+                    f" Getting too many segments: {new_emb_n} for the given current buffer size {self.current_n}."
+                    " Please either (1) increase buffer size or (2) use longer segment lengths to get less number of segments."
+                )
             elif new_emb_n <= 0:
                 raise ValueError("Segment counting error. `new_emb_n` should be a positve integer number.")
             if pre_embs.shape[0] != pre_clus_labels.shape[0]:
-                raise ValueError("`pre_embs` and `pre_clus_labels` should have the same length.")
+                raise ValueError(
+                    "`pre_embs` and `pre_clus_labels` should have the same length, "
+                    f"but got {pre_embs.shape[0]} and {pre_clus_labels.shape[0]} respectively."
+                )
 
         # Case-3: Number of embedding vectors is not increased.
         else:
             # There will be no embedding update, so new_emb_n is 0, pre_embs and pre_clus_labels are empty.
-            update_speaker_register = False
+            is_update = False
 
         # Update the history buffer index for the next step
         self.history_buffer_seg_end = hist_curr_boundary
         self.max_embed_count = max(total_segments_processed_count, self.max_embed_count)
-        return update_speaker_register, new_emb_n, pre_embs, pre_clus_labels
+        return is_update, new_emb_n, pre_embs, pre_clus_labels
 
     def make_constant_length_emb(self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor) -> torch.Tensor:
         """
@@ -890,9 +863,9 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Args:
             emb_in (Tensor):
                 If self.is_online is False:
-                    `emb` contains only current speaker embedding inputs, which is FIFO queue
+                    `pre_embs` contains only current speaker embedding inputs, which is FIFO queue
                 If self.is_online is True:
-                    `emb` contains history buffer and FIFO queue
+                    `pre_embs` contains history buffer and FIFO queue
             base_segment_indexes (Tensor):
                 Tensor containing unique segment (embedding vector) index
 
@@ -911,11 +884,12 @@ class OnlineSpeakerClustering(torch.nn.Module):
             emb_curr = emb_in[curr_clustered_segments]
         return emb_curr
 
-    def reduce_embedding_sets(
+    def update_speaker_history_buffer(
         self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor
     ) -> Tuple[torch.Tensor, bool]:
         """
         Merge the given embedding vectors based on the calculate affinity matrix.
+        if `is_update` is True, update the history buffer .
 
         Args:
             emb_in (Tensor):
@@ -930,60 +904,61 @@ class OnlineSpeakerClustering(torch.nn.Module):
             history_embedding_buffer_emb (Tensor):
                 Matrix containing merged embedding vectors of the previous frames.
                 This matrix is referred to as "history buffer" in this class.
-            update_speaker_register (bool):
+            is_update (bool):
                 Boolean indicates whether to update speaker
 
         Example:
 
             at the frame index where `is_online` turns to True:
 
-            |---hist-buffer---|-----FIFO-queue-----|
+            |------hist-buffer------|-----FIFO-queue-----|
 
-            self.history_n = 10
-            self.current_n = 20
+            self.history_n = 20
+            self.current_n = 10
 
             Step (1)
-            |-----------------|ABCDEF--------------|
+            |-----------------------|ABCDEF--------------|
 
             If we get two more segments, "NN" as in the description:
-            history buffer = 10
-            current buffer = 22
+            history buffer = 20
+            current buffer = 12
 
             Step (2)
-            |-----------------|ABCDEF--------------XY|
+            |-----------------------|ABCDEF--------------XY|
+                                    |---------emb_in-------| 
 
             The newly accepted embeddings go through a FIFO queue (first come, first merge)
-            history buffer = 12
-            current buffer = 20
+            history buffer = 22
+            current buffer = 10
 
             Step (3)
-            |-----------------AB|CDEF--------------XY|
+            |-----------------------AB|CDEF--------------XY|
+            |---------pre_embs--------|
 
-            After merging (reducing) the embedding set:
-            history buffer = 10
-            current buffer = 20
+            After merging (reducing) the embedding set gets back to the original size:
+            history buffer = 20
+            current buffer = 10
 
             Step (4)
-            |================|CDEF--------------XY|
-
+            |======================|CDEF--------------XY|
+            |-----hist_emb_buff----|
+            
             After clustering, `self.Y_fullhist` is updated as:
 
-            |0000011111|11110000110010010011|
+            |0000000000011111111111|11110000110010010011|
 
             The dimension of `self.Y_fullhist` is (`history_n + current_n`) x 1
 
         self.history_buffer_seg_end (int):
             The total number of segments that have been merged from the beginning of the session.
             (=`hist_curr_boundary`)
-
         """
-        update_speaker_register, new_emb_n, pre_embs, pre_clus_labels = self.prepare_embedding_update(emb_in, base_segment_indexes)
+        is_update, new_emb_n, pre_embs, pre_clus_labels = self.prepare_embedding_update(emb_in, base_segment_indexes)
 
         # Update the history/current_buffer boundary cursor
         total_emb, total_cluster_labels = [], []
 
-        if update_speaker_register:
-
+        if is_update:
             # Calculate how many embedding vectors should be reduced per speaker
             class_target_vol = get_merge_quantity(
                 num_to_be_removed=new_emb_n,
@@ -1002,10 +977,13 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 total_emb.append(merged_embs)
                 total_cluster_labels.append(merged_clus_labels)
 
+            # Update the speaker history buffer
             self.history_embedding_buffer_emb = torch.vstack(total_emb)
             self.history_embedding_buffer_label = torch.hstack(total_cluster_labels)
             if self.history_embedding_buffer_emb.shape[0] != self.history_n:
                 raise ValueError("History embedding size is not maintained correctly.")
+            if len(self.history_embedding_buffer_label) != self.history_n:
+                raise ValueError("History label size is not maintained correctly.")
 
         else:
             total_emb.append(self.history_embedding_buffer_emb)
@@ -1023,10 +1001,9 @@ class OnlineSpeakerClustering(torch.nn.Module):
         history_and_current_labels = torch.hstack(total_cluster_labels)
         if history_and_current_emb.shape[0] != len(history_and_current_labels):
             raise ValueError("`history_and_current_emb` has a mismatch in length with `history_and_current_labels`.")
+        return history_and_current_emb, is_update
 
-        return history_and_current_emb, update_speaker_register
-
-    def get_reduced_mat(self, emb_in, base_segment_indexes) -> Tuple[torch.Tensor, bool]:
+    def get_reduced_mat(self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor) -> Tuple[torch.Tensor, bool]:
         """
         Choose whether we want to add embeddings to the memory or not.
         The processing buffer has size of (self.current_n + self.history_n).
@@ -1034,7 +1011,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
         Case-1: If margin_seg_n > 0, this means we have more embedding vectors than we can hold in the processing buffer.
             - `is_online` should be `True`
             - reduce the number of embedding vectors by merging the closest ones.
-                call `self.reduce_embedding_sets` function
+                call `update_speaker_history_buffer` function
 
         Case-2: If margin_seg_n <= 0, this means that we can accept more embedding vectors and yet to fill the processing buffer.
             - `is_online` should be `False`
@@ -1052,6 +1029,10 @@ class OnlineSpeakerClustering(torch.nn.Module):
             merged_emb (Tensor):
                 Matrix containing merged embedding vectors of the previous frames.
                 This matrix is referred to as "history buffer" in this class.
+                If self.is_online is False:
+                    `merged_emb` contains only current speaker embedding inputs
+                If self.is_online is True:
+                    `merged_emb` is a concatenated matrix with history embedding and current embedding inputs
             add_new (bool):
                 Boolean that indicates whether there is a new set of segments. Depending on the VAD timestamps,
                 the number of subsegments can be ocassionally decreased. If `add_new=True`, then it adds the newly
@@ -1066,22 +1047,25 @@ class OnlineSpeakerClustering(torch.nn.Module):
             )
         if margin_seg_n > 0:
             self.is_online = True
-            merged_emb, add_new = self.reduce_embedding_sets(emb_in, base_segment_indexes)
+            merged_emb, add_new = self.update_speaker_history_buffer(
+                emb_in=emb_in, base_segment_indexes=base_segment_indexes
+            )
         else:
             self.is_online = False
             merged_emb = emb_in
             add_new = True
         return merged_emb, add_new
 
-    def match_labels(self, Y_new: torch.Tensor, add_new: bool) -> torch.Tensor:
+    def match_labels(self, Y_merged: torch.Tensor, add_new: bool) -> torch.Tensor:
         """
         This function matches the newly generated clustering label sequence with the existing speaker labels in the history buffer.
         `self.history_buffer_seg_end` is an integer index that tells to which point is history embedding contains from `self.Y_fullhist`.
+
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
-        (self.history_n, len(Y_new)) from the new clustering output `Y_new`.
+        (self.history_n, len(Y_merged)) from the new clustering output `Y_merged`.
 
         Args:
-            Y_new (Tensor):
+            Y_merged (Tensor):
                 The newly generated clustering label sequence that may have different permutations with the existing
                 speaker labels in the history buffer.
             add_new (bool):
@@ -1098,8 +1082,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             Y_old = torch.hstack((self.history_embedding_buffer_label, self.Y_fullhist[self.history_buffer_seg_end :]))
 
             # Stitch the old history and new cluster labels
-            Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_new).to(Y_new.device)
-
+            Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_merged).to(Y_merged.device)
             if add_new:
                 if Y_matched[self.history_n :].shape[0] != self.current_n:
                     raise ValueError("Update point sync is not correct.")
@@ -1108,23 +1091,22 @@ class OnlineSpeakerClustering(torch.nn.Module):
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
-                Y_out = self.Y_fullhist[: Y_new.shape[0]]
+                Y_out = self.Y_fullhist
         else:
             # If no memory is used, offline clustering is applied.
-            Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_new).to(Y_new.device)
-            # , with_history=False).to(Y_new.device)
+            Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_merged).to(Y_merged.device)
             self.Y_fullhist = Y_out
         return Y_out
 
     def forward(
-        self, 
+        self,
         curr_emb,
         base_segment_indexes,
         max_num_speakers: int,
         max_rp_threshold: float,
         enhanced_count_thres: int,
         sparse_search_volume: int,
-        frame_index: int, 
+        frame_index: int,
         cuda: bool = False,
     ) -> torch.Tensor:
         """
@@ -1132,26 +1114,27 @@ class OnlineSpeakerClustering(torch.nn.Module):
         NOTE: jit scripted classes only contain the methods which are included in the computation graph in the forward pass.
         """
         Y = self.forward_infer(
-        curr_emb=curr_emb,
-        base_segment_indexes=base_segment_indexes,
-        max_num_speakers=max_num_speakers,
-        max_rp_threshold=max_rp_threshold,
-        enhanced_count_thres=enhanced_count_thres,
-        sparse_search_volume=sparse_search_volume,
-        frame_index=frame_index,
-        cuda=cuda,)
+            curr_emb=curr_emb,
+            base_segment_indexes=base_segment_indexes,
+            max_num_speakers=max_num_speakers,
+            max_rp_threshold=max_rp_threshold,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=sparse_search_volume,
+            frame_index=frame_index,
+            cuda=cuda,
+        )
         return Y
 
     def forward_infer(
-        self, 
+        self,
         curr_emb: torch.Tensor,
         base_segment_indexes: torch.Tensor,
         max_num_speakers: int = 4,
         max_rp_threshold: float = 0.15,
         enhanced_count_thres: int = 40,
-        sparse_search_volume: int = 5,
+        sparse_search_volume: int = 10,
         fixed_thres: float = -1.0,
-        frame_index: int = 0, 
+        frame_index: int = 0,
         cuda: bool = False,
     ) -> torch.Tensor:
         """
@@ -1159,13 +1142,20 @@ class OnlineSpeakerClustering(torch.nn.Module):
         history embeddings to count the number of speakers.
 
         Args:
-            emb (Tensor):
-                If self.is_online is False:
-                    `emb` contains only current speaker embedding inputs
-                If self.is_online is True:
-                    `emb` is a concatenated matrix with history embedding and current embedding inputs
+            curr_emb (Tensor):
+                Current embedding vector input.
             base_segment_indexes (Tensor):
                 Tensor containing unique segment (embedding vector) index
+            max_num_speakers (int):
+                Maximum number of speakers to be detected during online diarization session
+            max_rp_threshold (float):
+                Limits the range of parameter search.
+                Clustering performance can vary depending on this range.
+                Default is 0.25.
+            max_rp_threshold (float):
+                Limits the range of parameter search.
+                Clustering performance can vary depending on this range.
+                Default is 0.15.
             frame_index (int):
                 Unique index for each segment (also each embedding vector)
             cuda (bool):
@@ -1183,19 +1173,19 @@ class OnlineSpeakerClustering(torch.nn.Module):
         self.sparse_search_volume = sparse_search_volume
         self.fixed_thres = fixed_thres
         # Merge the closest embeddings and reduce the size of the embedding count.
-        concat_emb, add_new = self.get_reduced_mat(
-            emb_in=curr_emb, base_segment_indexes=base_segment_indexes,
-        )
 
-        # Perform clustering on the embedding matrix containing history and current FIFO buffer concat_embeddings
-        if concat_emb.shape[0] == 1:
+        if cuda and (curr_emb.device == torch.device("cpu") or base_segment_indexes.device == torch.device("cpu")):
+            raise ValueError(f"CUDA is enabled but the input {curr_emb} or {base_segment_indexes} is not on the GPU.")
+
+        merged_embs, add_new = self.get_reduced_mat(emb_in=curr_emb, base_segment_indexes=base_segment_indexes,)
+        # Perform clustering on the embedding matrix containing history and current FIFO buffer merged_embeddings
+        if merged_embs.shape[0] == 1:
             Y = torch.zeros((1,), dtype=torch.int32)
         else:
-            mat = getCosAffinityMatrix(concat_emb)
+            mat = getCosAffinityMatrix(merged_embs)
             est_num_of_spk, affinity_mat = self.online_spk_num_estimation(mat, frame_index)
-            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=concat_emb.device)
-            Y = spectral_model.forward(affinity_mat).to(concat_emb.device)
-
+            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=merged_embs.device)
+            Y = spectral_model.forward(affinity_mat).to(merged_embs.device)
         # Match the permutation of the newly obtained speaker labels and the previous labels
-        merged_clus_labels = self.match_labels(Y, add_new)
+        merged_clus_labels = self.match_labels(Y_merged=Y, add_new=add_new)
         return merged_clus_labels

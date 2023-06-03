@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import time
 from copy import deepcopy
@@ -126,15 +127,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             sparse_search_volume=clustering_params.sparse_search_volume,
             history_buffer_size=clustering_params.history_buffer_size,
             current_buffer_size=clustering_params.current_buffer_size,
+            cuda=self.cuda,
         )
-        # Export jit.script module 
-        # self.online_clus = torch.jit.script(self.online_clus)
-        # torch.jit.save(self.online_clus, 'online_clus.pt')
-        # self.online_clus = torch.jit.load('online_clus.pt')
-
         self.history_n = clustering_params.history_buffer_size
         self.current_n = clustering_params.current_buffer_size
-        self.max_num_speakers = clustering_params.max_num_speakers
+
+        self.max_num_speakers = self.online_clus.max_num_speakers
 
     def _init_online_segmentor_module(self, sample_rate):
         """
@@ -145,9 +143,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 online segmentation module that generates short speech segments from the VAD input
         """
         self.online_segmentor = OnlineSegmentor(sample_rate)
-        # self.online_segmentor = torch.jit.script(self.online_segmentor)
-        # torch.jit.save(self.online_segmentor, 'online_segmentor.pt')
-        # self.online_segmentor = torch.jit.load('online_segmentor.pt')
 
     def _init_memory_buffer(self):
         """
@@ -200,8 +195,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         for scale_idx in self.multiscale_args_dict['scale_dict'].keys():
             self.multiscale_embeddings_and_timestamps[scale_idx] = [None, None]
-            # self.emb_vectors[scale_idx] = torch.tensor([])
-            self.emb_vectors[scale_idx] = None
+            self.emb_vectors[scale_idx] = torch.tensor([])
             self.time_stamps[scale_idx] = []
             self.segment_range_ts[scale_idx] = []
             self.segment_raw_audio[scale_idx] = []
@@ -356,7 +350,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             # Convert global index global_stt_idx to buffer index buffer_stt_idx
             segment_indexes_mat = torch.tensor(self.segment_indexes[scale_idx])
             buffer_stt_idx = torch.where(segment_indexes_mat == global_stt_idx)[0][0]
-
             self.memory_segment_ranges[scale_idx][global_stt_idx:] = deepcopy(
                 self.segment_range_ts[scale_idx][buffer_stt_idx:]
             )
@@ -442,6 +435,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 embeddings = torch_embs
             else:
                 embeddings = torch.vstack((embeddings[:stt_idx, :], torch_embs))
+
         elif end_idx < stt_idx:
             embeddings = embeddings[: len(segment_ranges)]
 
@@ -480,15 +474,10 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             device=device,
         )
 
-        base_segment_indexes=torch.tensor(self.segment_indexes[self.base_scale_index]).to(curr_emb.device)
-
+        base_segment_indexes = torch.tensor(self.segment_indexes[self.base_scale_index]).to(curr_emb.device)
         merged_clus_labels = self.online_clus.forward_infer(
-            curr_emb=curr_emb,
-            base_segment_indexes=base_segment_indexes,
-            frame_index=self.frame_index, 
-            cuda=cuda,
+            curr_emb=curr_emb, base_segment_indexes=base_segment_indexes, frame_index=self.frame_index, cuda=cuda,
         )
-
         # Update history data
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             cluster_label_hyp = self.save_history_data(scale_idx, merged_clus_labels, self.online_clus.is_online)
@@ -548,6 +537,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
+
             # Step 1: Get subsegments for embedding extraction.
             audio_sigs, segment_ranges, range_inds = self.online_segmentor.run_online_segmentation(
                 audio_buffer=audio_buffer,
