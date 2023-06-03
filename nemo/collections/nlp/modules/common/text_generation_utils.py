@@ -698,10 +698,10 @@ def sample_sequence_batch(
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
-                    logits = output[0]['logits'][:, -1]
+                    logits = output[0]['logits'][:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
-                    logits = logits.view(batch_size, -1).contiguous()
+                    logits = logits.view(batch_size, -1)
 
                 # make sure it will generate at least min_length
                 min_length = extra.get('min_tokens_to_generate', 0)
