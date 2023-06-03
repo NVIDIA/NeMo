@@ -281,7 +281,8 @@ def main(cfg) -> None:
     print(response)
     print("***************************")
 
-    # Second method of running text generation, call trainer.predict
+
+    # Second method of running text generation, call trainer.predict [recommended]
     bs = 8 if fp8_enabled else 2
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
     request_dl = DataLoader(dataset=ds, batch_size=bs)
