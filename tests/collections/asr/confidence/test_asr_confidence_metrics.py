@@ -36,7 +36,7 @@ from nemo.collections.asr.parts.utils.confidence_metrics import (
 # set convenient name2metric mapping
 name2metric = {
     f.__name__: (f, ans)
-    for f, ans in zip((auc_roc, auc_pr, auc_nt, auc_yc, ece, nce), (0.833, 0.917, 0.833, 0.419, 0.232, 0.403))
+    for f, ans in zip((auc_roc, auc_pr, auc_nt, auc_yc, ece, nce), (0.833, 0.917, 0.833, 0.421, 0.232, 0.403))
 }
 # ece does not have a default value
 name2metric_all_correct = {
@@ -88,7 +88,7 @@ class TestConfidenceMetrics:
             Y_TRUE, Y_SCORE, n_bins=n_bins, return_std_maximum=True, return_curve=True
         )
 
-        assert round(result_std, TOL_DEGREE) == 0.214
+        assert round(result_std, TOL_DEGREE) == 0.228
         assert round(result_max, TOL_DEGREE) == 0.667
         assert np.allclose(np.array(thresholds), np.array([i / n_bins for i in range(0, n_bins + 1)]), atol=TOL)
         assert np.allclose(

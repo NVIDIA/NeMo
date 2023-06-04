@@ -1521,7 +1521,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
-        confidence_method_cfg: Optional[DictConfig] = None,
+        confidence_measure_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -1530,7 +1530,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
-            confidence_method_cfg=confidence_method_cfg,
+            confidence_measure_cfg=confidence_measure_cfg,
         )
         self.big_blank_durations = big_blank_durations
         self._SOS = blank_index - len(big_blank_durations)
@@ -1725,7 +1725,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
-        confidence_method_cfg: Optional[DictConfig] = None,
+        confidence_measure_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -1734,7 +1734,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
-            confidence_method_cfg=confidence_method_cfg,
+            confidence_measure_cfg=confidence_measure_cfg,
         )
         self.big_blank_durations = big_blank_durations
 
@@ -2283,7 +2283,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
-        confidence_method_cfg: Optional[DictConfig] = None,
+        confidence_measure_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2292,7 +2292,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
-            confidence_method_cfg=confidence_method_cfg,
+            confidence_measure_cfg=confidence_measure_cfg,
         )
         self.durations = durations
 
@@ -2539,7 +2539,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
-        confidence_method_cfg: Optional[DictConfig] = None,
+        confidence_measure_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2548,7 +2548,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
-            confidence_method_cfg=confidence_method_cfg,
+            confidence_measure_cfg=confidence_measure_cfg,
         )
         self.durations = durations
 
