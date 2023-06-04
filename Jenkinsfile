@@ -3381,7 +3381,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_sft_results"
       }
     }
-    stage('L2: Megatron GPT PEFT Lora PP=2') {
+    stage('L2: Megatron GPT PEFT Lora TP=2') {
       when {
         anyOf {
           branch 'main'
