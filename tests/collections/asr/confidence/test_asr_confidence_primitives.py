@@ -88,9 +88,7 @@ class TestConfidenceMeasureBank:
     def test_confidence_measures_one(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
 
-        assert torch.allclose(
-            measure(ONE_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([1.0, 1.0]), atol=TOL
-        )
+        assert torch.allclose(measure(ONE_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([1.0, 1.0]), atol=TOL)
 
     @pytest.mark.unit
     @pytest.mark.parametrize('measure_name', measure_bank.keys())
@@ -99,9 +97,7 @@ class TestConfidenceMeasureBank:
     def test_confidence_measures_zero(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
 
-        assert torch.allclose(
-            measure(ZERO_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([0.0, 0.0]), atol=TOL
-        )
+        assert torch.allclose(measure(ZERO_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([0.0, 0.0]), atol=TOL)
 
     @pytest.mark.unit
     @pytest.mark.parametrize('measure_name', measure_bank.keys())

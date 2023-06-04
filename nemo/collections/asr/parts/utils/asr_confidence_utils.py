@@ -31,7 +31,11 @@ class ConfidenceMeasureConstants:
 
     @classmethod
     def print(cls):
-        return cls.__name__ + ": " + str({"NAMES": cls.NAMES, "ENTROPY_TYPES": cls.ENTROPY_TYPES, "ENTROPY_NORMS": cls.ENTROPY_NORMS})
+        return (
+            cls.__name__
+            + ": "
+            + str({"NAMES": cls.NAMES, "ENTROPY_TYPES": cls.ENTROPY_TYPES, "ENTROPY_NORMS": cls.ENTROPY_NORMS})
+        )
 
 
 class ConfidenceConstants:
@@ -78,6 +82,7 @@ class ConfidenceMeasureConfig:
                 - 'lin' for using the linear mapping.
                 - 'exp' for using exponential mapping with linear shift.
     """
+
     name: str = "entropy"
     entropy_type: str = "tsallis"
     alpha: float = 0.33
@@ -158,6 +163,7 @@ class ConfidenceConfig:
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
     """
+
     preserve_frame_confidence: bool = False
     preserve_token_confidence: bool = False
     preserve_word_confidence: bool = False

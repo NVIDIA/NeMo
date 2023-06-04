@@ -145,9 +145,7 @@ def word_error_rate_detail(
     return wer, words, ins_rate, del_rate, sub_rate
 
 
-def word_error_rate_per_utt(
-    hypotheses: List[str], references: List[str], use_cer=False
-) -> Tuple[List[float], float]:
+def word_error_rate_per_utt(hypotheses: List[str], references: List[str], use_cer=False) -> Tuple[List[float], float]:
     """
     Computes Word Error Rate per utterance and the average WER
     between two texts represented as corresponding lists of string. 
