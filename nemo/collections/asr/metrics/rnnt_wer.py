@@ -111,10 +111,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_measure_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
@@ -124,8 +125,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
@@ -1021,10 +1022,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_measure_cfg.name is set to `entropy`.
                         Supported values:
-                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                                Note that for this entropy, the temperature should comply the following inequality:
-                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
@@ -1034,8 +1036,8 @@ class RNNTDecoding(AbstractRNNTDecoding):
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                        When the temperature equals one, scaling is not applied to 'max_prob',
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].

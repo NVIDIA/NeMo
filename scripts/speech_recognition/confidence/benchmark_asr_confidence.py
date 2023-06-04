@@ -27,7 +27,10 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import ASRModel, EncDecRNNTModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
-from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import apply_confidence_parameters, run_confidence_benchmark
+from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import (
+    apply_confidence_parameters,
+    run_confidence_benchmark,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -68,7 +71,7 @@ python benchmark_asr_confidence.py \
     amp=True \
     target_level="word" \
     confidence_cfg.exclude_blank=False \
-    'grid_params="{\"aggregation\": [\"min\", \"prod\"], \"temperature\": [0.33, 0.5]}"'
+    'grid_params="{\"aggregation\": [\"min\", \"prod\"], \"alpha\": [0.33, 0.5]}"'
 """
 
 
@@ -82,7 +85,7 @@ def get_experiment_params(cfg):
     blank = "no_blank" if cfg.exclude_blank else "blank"
     aggregation = cfg.aggregation
     method_name = cfg.measure_cfg.name
-    temperature = cfg.measure_cfg.temperature
+    alpha = cfg.measure_cfg.alpha
     if method_name == "entropy":
         entropy_type = cfg.measure_cfg.entropy_type
         entropy_norm = cfg.measure_cfg.entropy_norm
@@ -92,12 +95,12 @@ def get_experiment_params(cfg):
             method_name,
             entropy_type,
             entropy_norm,
-            str(temperature),
+            str(alpha),
         ]
-        experiment_str = "-".join([aggregation, blank, method_name, entropy_type, entropy_norm, str(temperature)])
+        experiment_str = "-".join([aggregation, blank, method_name, entropy_type, entropy_norm, str(alpha)])
     else:
-        experiment_param_list = [aggregation, str(cfg.exclude_blank), method_name, "-", "-", str(temperature)]
-        experiment_str = "-".join([aggregation, blank, method_name, str(temperature)])
+        experiment_param_list = [aggregation, str(cfg.exclude_blank), method_name, "-", "-", str(alpha)]
+        experiment_str = "-".join([aggregation, blank, method_name, str(alpha)])
     return experiment_param_list, experiment_str
 
 
@@ -213,7 +216,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                 "method_name",
                 "entropy_type",
                 "entropy_norm",
-                "temperature",
+                "alpha",
                 "target_level",
                 "auc_roc",
                 "auc_pr",

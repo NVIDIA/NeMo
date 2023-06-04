@@ -50,14 +50,14 @@ TOL = 1 / math.pow(10, TOL_DEGREE)
 
 def get_measure_parametrize_ranges():
     confidence_measure_bank = {}
-    temperature_range = (0.25, 0.5, 1.0)
+    alpha_range = (0.25, 0.5, 1.0)
     bank_exception = None
     try:
         confidence_measure_bank = get_confidence_measure_bank()
     except Exception as e:
-        temperature_range = ()
+        alpha_range = ()
         bank_exception = e
-    return confidence_measure_bank, temperature_range, bank_exception
+    return confidence_measure_bank, alpha_range, bank_exception
 
 
 def get_aggregation_parametrize_ranges():
@@ -71,7 +71,7 @@ def get_aggregation_parametrize_ranges():
 
 
 class TestConfidenceMeasureBank:
-    measure_bank, temperatures, bank_build_exception = get_measure_parametrize_ranges()
+    measure_bank, alphas, bank_build_exception = get_measure_parametrize_ranges()
 
     @pytest.mark.unit
     def test_measure_bank(self):
@@ -83,38 +83,38 @@ class TestConfidenceMeasureBank:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('measure_name', measure_bank.keys())
-    @pytest.mark.parametrize('temperature', temperatures)
+    @pytest.mark.parametrize('alpha', alphas)
     @pytest.mark.parametrize('vocab_size', VOCAB_SIZES)
-    def test_confidence_measures_one(self, measure_name, temperature, vocab_size):
+    def test_confidence_measures_one(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
 
         assert torch.allclose(
-            measure(ONE_VEC_SET[vocab_size], vocab_size, temperature), torch.tensor([1.0, 1.0]), atol=TOL
+            measure(ONE_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([1.0, 1.0]), atol=TOL
         )
 
     @pytest.mark.unit
     @pytest.mark.parametrize('measure_name', measure_bank.keys())
-    @pytest.mark.parametrize('temperature', temperatures)
+    @pytest.mark.parametrize('alpha', alphas)
     @pytest.mark.parametrize('vocab_size', VOCAB_SIZES)
-    def test_confidence_measures_zero(self, measure_name, temperature, vocab_size):
+    def test_confidence_measures_zero(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
 
         assert torch.allclose(
-            measure(ZERO_VEC_SET[vocab_size], vocab_size, temperature), torch.tensor([0.0, 0.0]), atol=TOL
+            measure(ZERO_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([0.0, 0.0]), atol=TOL
         )
 
     @pytest.mark.unit
     @pytest.mark.parametrize('measure_name', measure_bank.keys())
-    @pytest.mark.parametrize('temperature', temperatures)
+    @pytest.mark.parametrize('alpha', alphas)
     @pytest.mark.parametrize('vocab_size', VOCAB_SIZES)
-    def test_confidence_measures_partial_order(self, measure_name, temperature, vocab_size):
+    def test_confidence_measures_partial_order(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
-        value_normal = round(float(measure(RAND_VEC_SET[vocab_size], vocab_size, temperature)[0]), TOL_DEGREE)
-        value_overfit = round(float(measure(OVERFIT_RAND_VEC_SET[vocab_size], vocab_size, temperature)[0]), TOL_DEGREE)
+        value_normal = round(float(measure(RAND_VEC_SET[vocab_size], vocab_size, alpha)[0]), TOL_DEGREE)
+        value_overfit = round(float(measure(OVERFIT_RAND_VEC_SET[vocab_size], vocab_size, alpha)[0]), TOL_DEGREE)
 
         assert 0 <= value_normal < value_overfit <= 1, (
-            measure(RAND_VEC_SET[vocab_size], vocab_size, temperature),
-            measure(OVERFIT_RAND_VEC_SET[vocab_size], vocab_size, temperature),
+            measure(RAND_VEC_SET[vocab_size], vocab_size, alpha),
+            measure(OVERFIT_RAND_VEC_SET[vocab_size], vocab_size, alpha),
         )
 
 

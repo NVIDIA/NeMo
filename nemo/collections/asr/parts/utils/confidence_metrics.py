@@ -156,7 +156,7 @@ def auc_yc(
     """
     y_true = np.array(y_true)
     y_score = np.array(y_score)
-    thresholds = [i / n_bins for i in range(0, n_bins + 1)]
+    thresholds = np.linspace(0, 1, n_bins + 1)
     assert len(y_true) == len(y_score)
     assert np.all(y_true >= 0) and np.all(y_true <= 1)
     if np.all(y_true == 0) or np.all(y_true == 1):
@@ -192,6 +192,7 @@ def auc_yc(
 def save_confidence_hist(y_score: Union[List[float], np.ndarray], plot_dir: Union[str, Path], name: str = "hist"):
     os.makedirs(plot_dir, exist_ok=True)
     plt.hist(np.array(y_score), 50, range=(0, 1))
+    plt.title(name)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()
 
@@ -206,6 +207,7 @@ def save_roc_curve(
     os.makedirs(plot_dir, exist_ok=True)
     fpr, tpr, _ = roc_curve(1 - np.array(y_true), 1 - np.array(y_score))
     RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
+    plt.title(name)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()
 
@@ -220,6 +222,7 @@ def save_pr_curve(
     os.makedirs(plot_dir, exist_ok=True)
     precision, recall, _ = precision_recall_curve(np.array(y_true), np.array(y_score))
     PrecisionRecallDisplay(precision=precision, recall=recall).plot()
+    plt.title(name)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()
 
@@ -234,6 +237,7 @@ def save_nt_curve(
     os.makedirs(plot_dir, exist_ok=True)
     precision, recall, _ = precision_recall_curve(1 - np.array(y_true), 1 - np.array(y_score))
     PrecisionRecallDisplay(precision=precision, recall=recall).plot()
+    plt.title(name)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()
 
@@ -249,5 +253,6 @@ def save_custom_confidence_curve(
     plt.plot(thresholds, values)
     plt.xlim([0, 1])
     plt.ylim([0, 1])
+    plt.title(name)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()

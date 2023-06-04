@@ -40,7 +40,7 @@ from nemo.collections.asr.parts.utils.confidence_metrics import (
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
-def get_correct_marks(r: List[int], h: List[int]) -> List[bool]:
+def get_correct_marks(r: Union[List[int], List[str]], h: Union[List[int], List[str]]) -> List[bool]:
     """Get correct marks by aligning the reference text with a hypothesis.
 
     This method considers only insertions and substitutions as incorrect marks.
@@ -150,6 +150,7 @@ def run_confidence_benchmark(
             save_custom_confidence_curve(yc_thresholds, yc_values, plot_dir, level + "_" + "yc")
             # ECE curve
             ece_thresholds, ece_values = results_ece[-1]
+            ece_values /= max(ece_values)
             save_custom_confidence_curve(ece_thresholds, ece_values, plot_dir, level + "_" + "ece")
 
     return results
@@ -163,7 +164,7 @@ def apply_confidence_parameters(decoding_cfg, hp):
     """
     new_decoding_cfg = copy.deepcopy(decoding_cfg)
     confidence_cfg_fields = ("aggregation", "exclude_blank")
-    confidence_measure_cfg_fields = ("name", "temperature", "entropy_type", "entropy_norm")
+    confidence_measure_cfg_fields = ("name", "alpha", "entropy_type", "entropy_norm")
     with open_dict(new_decoding_cfg):
         for p, v in hp.items():
             if p in confidence_cfg_fields:
