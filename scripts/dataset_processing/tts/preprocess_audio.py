@@ -98,6 +98,12 @@ def get_args():
         "--output_sample_rate", default=0, type=int, help="If provided, rate to resample the audio to."
     )
     parser.add_argument(
+        "--output_format",
+        default=".flac",
+        type=str,
+        help="If provided, format output audio will be saved as. If not provided, will keep original format.",
+    )
+    parser.add_argument(
         "--volume_level", default=0.0, type=float, help="If provided, peak volume to normalize audio to."
     )
     parser.add_argument(
@@ -123,12 +129,18 @@ def _process_entry(
     overwrite_audio: bool,
     audio_trimmer: AudioTrimmer,
     output_sample_rate: int,
+    output_format: str,
     volume_level: float,
 ) -> Tuple[dict, float, float]:
     audio_filepath = Path(entry["audio_filepath"])
 
     audio_path, audio_path_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=input_audio_dir)
+
+    if not output_format:
+        output_format = audio_path.suffix
+
     output_path = output_audio_dir / audio_path_rel
+    output_path = output_path.with_suffix(output_format)
     output_path.parent.mkdir(exist_ok=True, parents=True)
 
     if output_path.exists() and not overwrite_audio:
@@ -159,6 +171,9 @@ def _process_entry(
 
     if os.path.isabs(audio_filepath):
         entry["audio_filepath"] = str(output_path)
+    else:
+        output_filepath = audio_path_rel.with_suffix(output_format)
+        entry["audio_filepath"] = str(output_filepath)
 
     return entry, original_duration, output_duration
 
@@ -175,6 +190,7 @@ def main():
     num_workers = args.num_workers
     max_entries = args.max_entries
     output_sample_rate = args.output_sample_rate
+    output_format = args.output_format
     volume_level = args.volume_level
     min_duration = args.min_duration
     max_duration = args.max_duration
@@ -207,6 +223,7 @@ def main():
             overwrite_audio=overwrite_audio,
             audio_trimmer=audio_trimmer,
             output_sample_rate=output_sample_rate,
+            output_format=output_format,
             volume_level=volume_level,
         )
         for entry in tqdm(entries)
