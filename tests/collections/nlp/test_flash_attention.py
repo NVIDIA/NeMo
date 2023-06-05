@@ -25,10 +25,21 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 try:
     from apex.transformer.enums import AttnMaskType
-
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    import flash_attn
+    HAVE_FA = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_FA = False
+    
+try:
+    import triton
+    HAVE_TRITON = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_TRITON = False
 
 
 @pytest.mark.run_only_on('GPU')
@@ -59,14 +70,6 @@ class TestFlashAttention:
             apex_transformer_log_level=30,
         )
 
-        def dummy():
-            return
-
-        if trainer.strategy.launcher is not None:
-            trainer.strategy.launcher.launch(dummy, trainer=trainer)
-        trainer.strategy.setup_environment()
-        torch.distributed.barrier()
-
     @pytest.fixture()
     def cfg(self):
         cfg = {
@@ -75,9 +78,13 @@ class TestFlashAttention:
             'head': random.randint(1, 7),
             'device': torch.cuda.current_device(),
         }
-        cfg['hidden'] = cfg['head'] * 8
+        # flash attention requires head dimensions are multiples of 8
+        head_dim = random.randint(1, 7) * 8
+        cfg['hidden'] = cfg['head'] * head_dim
+        
         return cfg
-
+    
+    @pytest.mark.skipif(not HAVE_FA, reason="flash-attention is not installed")
     @pytest.mark.unit
     def test_flash_attention(self, cfg):
         device = cfg['device']
@@ -88,8 +95,9 @@ class TestFlashAttention:
         k = torch.rand(sl, bz, np, hn, device=device).half()
         v = torch.rand(sl, bz, np, hn, device=device).half()
 
-        q_m = torch.tril(torch.ones(bz, sl, device=device))
-        k_m = torch.tril(torch.ones(bz, sl, device=device))
+        q_m = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(1, sl, (bz,), device=device).unsqueeze(1)
+        k_m = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(1, sl, (bz,), device=device).unsqueeze(1)
+        
         attention_mask_padding = build_attention_mask_3d(
             source_mask=q_m, target_mask=k_m, attn_mask_type=AttnMaskType.padding
         ).unsqueeze(1)
@@ -141,7 +149,9 @@ class TestFlashAttention:
         out = attention(q, k, v, attention_mask_causal)
         out_fa = attention_fa(q, k, v, attention_mask_causal)
         assert torch.allclose(out, out_fa, rtol=1e-3, atol=1e-3)
-
+        
+    @pytest.mark.skipif(not HAVE_FA, reason="flash-attention is not installed")
+    @pytest.mark.skipif(not HAVE_TRITON, reason="triton is not installed")
     @pytest.mark.unit
     def test_flash_attention_triton(self, cfg):
         device = cfg['device']
@@ -152,8 +162,9 @@ class TestFlashAttention:
         k = torch.rand(sl, bz, np, hn, device=device).half()
         v = torch.rand(sl, bz, np, hn, device=device).half()
 
-        q_m = torch.tril(torch.ones(bz, sl, device=device))
-        k_m = torch.tril(torch.ones(bz, sl, device=device))
+        q_m = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(1, sl, (bz,), device=device).unsqueeze(1)
+        k_m = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(1, sl, (bz,), device=device).unsqueeze(1)
+        
         attention_mask_padding = build_attention_mask_3d(
             source_mask=q_m, target_mask=k_m, attn_mask_type=AttnMaskType.padding
         ).unsqueeze(1)
