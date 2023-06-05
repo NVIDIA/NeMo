@@ -350,7 +350,6 @@ class ConvSubsampling(torch.nn.Module):
         for chunk in torch.split(x, chunk_size, 1):
             step = chunk.size()[1]
 
-
             if self.is_causal:
                 chunk = F.pad(chunk, pad=(kernel_size - 1, stride - 1, kernel_size - 1, stride - 1))
                 ch_out = nn.functional.conv2d(
@@ -359,9 +358,9 @@ class ConvSubsampling(torch.nn.Module):
                     bias=conv.bias[ind : ind + step],
                     stride=self._stride,
                     padding=None,
-                    padding_mode = 'zeros',
+                    padding_mode='zeros',
                     groups=step,
-                ) 
+                )
             else:
                 ch_out = nn.functional.conv2d(
                     chunk,
