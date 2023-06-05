@@ -271,10 +271,10 @@ class ConvSubsampling(torch.nn.Module):
             # after the first conv numel will be * conv-channels but (self._stride * self._stride) downsampled
             x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
             if torch.numel(x) > x_ceil:
-                x, success = self.batch_split_conv(x)
+                x, success = self.conv_split_by_batch(x)
                 if not success:
                     if self._subsampling == 'dw_striding':
-                        x = self.channel_split_conv(x)
+                        x = self.conv_split_by_channel(x)
                     else:
                         x = self.conv(x)  # try anyway
             else:
@@ -309,7 +309,7 @@ class ConvSubsampling(torch.nn.Module):
                 torch.nn.init.uniform_(self.out.weight, -fc_scale, fc_scale)
                 torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
 
-    def batch_split_conv(self, x):
+    def conv_split_by_batch(self, x):
         """ Tries to split input by batch, run conv and concat results """
         b, _, _, _ = x.size()
         if b == 1:  # can't split if batch size is 1
@@ -324,7 +324,7 @@ class ConvSubsampling(torch.nn.Module):
         logging.debug(f'conv subsampling: using split batch size {new_batch_size}')
         return torch.cat([self.conv(chunk) for chunk in torch.split(x, new_batch_size, 0)]), True
 
-    def channel_split_conv(self, x):
+    def conv_split_by_channel(self, x):
         """ For dw convs, tries to split input by time, run conv and concat results """
         x = self.conv[0](x)  # full conv2D
         x = self.conv[1](x)  # activation
