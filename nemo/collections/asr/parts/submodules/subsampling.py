@@ -266,6 +266,7 @@ class ConvSubsampling(torch.nn.Module):
         x = x.unsqueeze(1)
 
         # avoiding a bug / feature limiting indexing of tensors to 2**31
+        # see https://github.com/pytorch/pytorch/issues/80020
         # after the first conv numel will be * conv-channels but 2*2 downsampled
         x_ceil = 2 ** 31 / self._conv_channels * 4
         if torch.numel(x) > x_ceil:
