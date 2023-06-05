@@ -74,15 +74,15 @@ class ConvSubsampling(torch.nn.Module):
     """
 
     def __init__(
-        self, 
-        subsampling, 
-        subsampling_factor, 
-        feat_in, 
-        feat_out, 
-        conv_channels, 
-        chunking_factor=1, 
-        activation=nn.ReLU(), 
-        is_causal=False
+        self,
+        subsampling,
+        subsampling_factor,
+        feat_in,
+        feat_out,
+        conv_channels,
+        chunking_factor=1,
+        activation=nn.ReLU(),
+        is_causal=False,
     ):
         super(ConvSubsampling, self).__init__()
         self._subsampling = subsampling
@@ -293,7 +293,6 @@ class ConvSubsampling(torch.nn.Module):
         else:
             x = self.conv(x)
 
-
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
         return x, lengths
@@ -327,16 +326,15 @@ class ConvSubsampling(torch.nn.Module):
         if b == 1:  # can't split if batch size is 1
             return x, False
 
-        
         x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
         p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
-        if self.chunking_factor != 1 and self.chunking_factor > 2 ** p: # be nice
+        if self.chunking_factor != 1 and self.chunking_factor > 2 ** p:  # be nice
             cf = self.chunking_factor
             logging.debug(f'using manually set chunking factor: {cf}')
         else:
             cf = 2 ** p
             logging.debug(f'using auto set chunking factor: {cf}')
-            
+
         new_batch_size = b // cf
         if new_batch_size == 0:  # input is too big
             return x, False
@@ -353,7 +351,7 @@ class ConvSubsampling(torch.nn.Module):
             p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
             _, c, t, _ = x.size()
 
-            if self.chunking_factor != 1 and self.chunking_factor > 2 ** p: # be nice
+            if self.chunking_factor != 1 and self.chunking_factor > 2 ** p:  # be nice
                 cf = self.chunking_factor
                 logging.debug(f'using manually set chunking factor: {cf}')
             else:
