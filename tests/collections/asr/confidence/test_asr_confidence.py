@@ -23,13 +23,8 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
-from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel, EncDecRNNTModel
-from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import (
-    get_correct_marks,
-    get_token_targets_with_confidence,
-    get_word_targets_with_confidence,
-    run_confidence_benchmark,
-)
+from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import run_confidence_benchmark
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
 
 # both models recognize the test data without errors, thus every metric except ece return default values
