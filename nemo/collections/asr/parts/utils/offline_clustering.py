@@ -529,6 +529,7 @@ def getMultiScaleCosAffinityMatrix(
         fused_sim_d += multiscale_weights[scale_idx] * repeated_tensor_1
     return fused_sim_d
 
+
 def reclusteringMultiScaleCosAffinityMatrix(
     multiscale_weights: torch.Tensor,
     embeddings_in_scales: torch.Tensor,
@@ -540,16 +541,17 @@ def reclusteringMultiScaleCosAffinityMatrix(
     a few number of embeddings from each speaker, discovered in the earlier step of clusterization
     The embeddings are already repeated, so it isn't needed to repeat the score_mat_torch tensor
     """
-    multiscale_weights = torch.squeeze(multiscale_weights,dim=0).to(device)   
-    fused_sim_d = torch.zeros(len(timestamps_in_scales),len(timestamps_in_scales))
-    
+    multiscale_weights = torch.squeeze(multiscale_weights, dim=0).to(device)
+    fused_sim_d = torch.zeros(len(timestamps_in_scales), len(timestamps_in_scales))
+
     for scale_idx in range(len(embeddings_in_scales)):
         emb_t = embeddings_in_scales[scale_idx].half().to(device)
         score_mat_torch = getCosAffinityMatrix(emb_t)
-        fused_sim_d = fused_sim_d + multiscale_weights[scale_idx] * score_mat_torch  #fused affinity matrix of scales
-        
-    #print(f"[INFO] Size of fused affinity matrix for reclustering is:{fused_sim_d.size()}")
+        fused_sim_d = fused_sim_d + multiscale_weights[scale_idx] * score_mat_torch  # fused affinity matrix of scales
+
+    # print(f"[INFO] Size of fused affinity matrix for reclustering is:{fused_sim_d.size()}")
     return fused_sim_d
+
 
 def getRepeatedEmbeddings(
     embeddings_in_scales: List[torch.Tensor],
@@ -566,19 +568,19 @@ def getRepeatedEmbeddings(
         These embeddings will be used for calculating the affinity matrix in the reclustering step.
         Size: [num_scales, num_embeddings_base_scale, num_embeddings_base_scale]
     """
-    
+
     repeated_embs_list = []
-    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)    
+    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
     scale_list = list(range(len(timestamps_in_scales)))
-    
-    for scale_idx in scale_list:                   
+
+    for scale_idx in scale_list:
         mapping_argmat = session_scale_mapping_list[scale_idx]
         emb_t = embeddings_in_scales[scale_idx].half().to(device)
         repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.size()[0])).to(device)
         repeated_embs = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
         repeated_embs_list.append(repeated_embs)
 
-    repp = torch.stack(repeated_embs_list).float()    
+    repp = torch.stack(repeated_embs_list).float()
 
     return repp
 
@@ -1346,8 +1348,6 @@ class SpeakerClustering(torch.nn.Module):
         Computer the fused embeddings tensor for all timestamp scales for an audio.
         """
         repeated_embeddings = getRepeatedEmbeddings(self.embeddings_in_scales, self.timestamps_in_scales, self.device)
-        
-
 
         nmesc = NMESC(
             mat,
@@ -1399,7 +1399,7 @@ class SpeakerClustering(torch.nn.Module):
         sparse_search_volume: int = 30,
         fixed_thres: float = -1.0,
     ) -> torch.LongTensor:
-        
+
         """
         This function is similar to forward_infer() function, but is used only in the case we perform reclustering
         on long audios that were split.
@@ -1439,7 +1439,7 @@ class SpeakerClustering(torch.nn.Module):
         mat = reclusteringMultiScaleCosAffinityMatrix(
             multiscale_weights, embeddings_in_scales, timestamps_in_scales, self.device
         )
-            
+
         nmesc = NMESC(
             mat,
             max_num_speakers=max_num_speakers,
@@ -1456,7 +1456,7 @@ class SpeakerClustering(torch.nn.Module):
         # If there are less than `min_samples_for_nmesc` segments, est_num_of_spk is 1.
         if mat.shape[0] > self.min_samples_for_nmesc:
             est_num_of_spk, p_hat_value = nmesc.forward()
-            
+
             affinity_mat = getAffinityGraphMat(mat, p_hat_value)
         else:
             est_num_of_spk = torch.tensor(1)
@@ -1472,5 +1472,5 @@ class SpeakerClustering(torch.nn.Module):
 
         spectral_model = SpectralClustering(n_clusters=n_clusters, cuda=self.cuda, device=self.device)
         Y = spectral_model.forward(affinity_mat)
-        
+
         return Y
