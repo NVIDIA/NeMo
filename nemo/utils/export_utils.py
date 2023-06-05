@@ -46,6 +46,25 @@ _EXT_DICT = {
 }
 
 
+class TorchRMSNorm(nn.Module):
+    def __init__(self, weight, eps=1e-6):
+        """
+        LayerNorm without bias
+        """
+        super().__init__()
+        self.weight = weight
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        # can be only calculated with precision=32
+        variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = hidden_states.to(self.weight.dtype)
+
+        return self.weight * hidden_states
+
+
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
         super(LinearWithBiasSkip, self).__init__()
@@ -212,7 +231,7 @@ try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
-    from apex.transformer.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
         """
@@ -238,9 +257,29 @@ try:
         else:
             return None
 
+        n_state = n.state_dict()
         mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
 
         mod.load_state_dict(n_state)
+
+        return mod
+
+    def replace_MixedFusedRMSNorm(n: nn.Module):
+        """
+        Replaces Apex's MixedFusedRMSNorm with equivalent Pytorch layer. This is required for ONNX export.
+        Args:
+           n: the MixedFusedRMSNorm pytorch module to replace
+        Returns:
+           Equivalent module
+        """
+
+        p = next(n.parameters())
+
+        if isinstance(n, MixedFusedRMSNorm):
+            mod = TorchRMSNorm(n.state_dict()['weight'], n.eps).to(p.device)
+        else:
+            return None
+
         return mod
 
     def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
@@ -270,7 +309,8 @@ try:
            Equivalent LayerNorm module
         """
         if not isinstance(n, FusedScaleMaskSoftmax):
-            raise ValueError("This function can only change the FusedScaleMaskSoftmax module.")
+            logging.warning("This function can only change the FusedScaleMaskSoftmax module.")
+            return n
 
         # disable the fusion only
         mod = FusedScaleMaskSoftmax(
@@ -286,7 +326,7 @@ try:
         "RowParallelLinear": replace_ParallelLinear,
         "ColumnParallelLinear": replace_ParallelLinear,
         "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
-        "MixedFusedRMSNorm": replace_FusedLayerNorm,
+        "MixedFusedRMSNorm": replace_MixedFusedRMSNorm,
     }
 
 except Exception as e:
@@ -401,22 +441,16 @@ script_replacements = {}
 
 def replace_for_export(model: nn.Module) -> nn.Module:
     """
-    Top-level function to replace default set of modules in model
+    Top-level function to replace 'default set' of modules in model, called from _prepare_for_export. 
     NOTE: This occurs in place, if you want to preserve model then make sure to copy it first.
     Args:
         model : top level module
-        replace_1D_2D : include 1D -> 2D replacements
     Returns:
         model, possibly modified in-place
     """
     from nemo.collections.tts.modules.submodules import MaskedInstanceNorm1d
 
     default_replacements = {
-        "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
-        "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
-        "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
-        "InstanceNorm1d": wrap_module(nn.InstanceNorm1d, CastToFloat),
-        "MaskedInstanceNorm1d": wrap_module(MaskedInstanceNorm1d, CastToFloatAll),
         "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
     }
 
@@ -424,3 +458,19 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     replace_modules(model, default_replacements)
     # This one has to be the last
     replace_modules(model, script_replacements)
+
+
+def add_casts_around_norms(model: nn.Module):
+    """
+    Function to put additional to/from float32 casts around operations known to require full precision.
+    It was used with an extra post-parse script to have TRT preserve extra precision when --fp16 needed.
+    Should not be needed with TRT 8.6.1 or later.
+    """
+    default_cast_replacements = {
+        "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
+        "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
+        "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
+        "InstanceNorm1d": wrap_module(nn.InstanceNorm1d, CastToFloat),
+        "MaskedInstanceNorm1d": wrap_module(MaskedInstanceNorm1d, CastToFloatAll),
+    }
+    replace_modules(model, default_cast_replacements)

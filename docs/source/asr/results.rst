@@ -26,6 +26,17 @@ If there is a local ``.nemo`` checkpoint that you'd like to load, use the :code:
 
 Where the model base class is the ASR model class of the original checkpoint, or the general ``ASRModel`` class.
 
+
+Hybrid ASR-TTS Models Checkpoints
+---------------------------------
+
+:ref:`Hybrid ASR-TTS model <Hybrid-ASR-TTS_model>` is a transparent wrapper for the ASR model, text-to-mel-spectrogram generator, and optional enhancer.
+The model is saved as a solid ``.nemo`` checkpoint containing all these parts.
+Due to transparency, the ASR model can be extracted after training/finetuning separately by using the ``asr_model`` attribute (NeMo submodel)
+:code:`hybrid_model.asr_model.save_to(<asr_checkpoint_path>.nemo)` or by using a wrapper
+made for convenience purpose :code:`hybrid_model.save_asr_model_to(<asr_checkpoint_path>.nemo)`
+
+
 NGC Pretrained Checkpoints
 --------------------------
 
@@ -81,8 +92,10 @@ There are two main ways of performing inference on long audio files in NeMo:
 The first way is to use buffered inference, where the audio is divided into chunks to run on, and the output is merged afterwards.
 The relevant scripts for this are contained in `this folder <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_chunked_inference>`_.
 
-The second way, specifically for models with the Conformer encoder, is to convert to local attention, which changes the costs to be linear.
-This can be done even for models trained with full attention, though may result in lower WER in some cases. You can switch to local attention when running the
+The second way, specifically for models with the Conformer/Fast Conformer encoder, is to use local attention, which changes the costs to be linear.
+You can train Fast Conformer models with Longformer-style (https://arxiv.org/abs/2004.05150) local+global attention using one of the following configs: CTC config at
+``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer-long_ctc_bpe.yaml`` and transducer config at ``<NeMo_git_root>/examples/asr/conf/fastconformer/fast-conformer-long_transducer_bpe.yaml``.
+You can also convert any model trained with full context attention to local, though this may result in lower WER in some cases. You can switch to local attention when running the
 `transcribe <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/transcribe_speech.py>`_ or `evaluation <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/transcribe_speech.py>`_
 scripts in the following way:
 
@@ -91,7 +104,7 @@ scripts in the following way:
     python speech_to_text_eval.py \
         (...other parameters...)  \
         ++model_change.conformer.self_attention_model="rel_pos_local_attn" \
-        ++model_change.conformer.att_context_size=[64, 64]
+        ++model_change.conformer.att_context_size=[128, 128]
 
 Alternatively, you can change the attention model after loading a checkpoint:
 
@@ -100,8 +113,23 @@ Alternatively, you can change the attention model after loading a checkpoint:
     asr_model = ASRModel.from_pretrained('stt_en_conformer_ctc_large')
     asr_model.change_attention_model(
         self_attention_model="rel_pos_local_attn",
-        att_context_size=[64, 64]
+        att_context_size=[128, 128]
     )
+
+
+Inference on Apple M-Series GPU
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To perform inference on Apple Mac M-Series GPU (``mps`` PyTorch device), use PyTorch 2.0 or higher (see :ref:`mac-installation` section). Environment variable ``PYTORCH_ENABLE_MPS_FALLBACK=1`` should be set, since not all operations in PyTorch are currently implemented on ``mps`` device.
+
+If ``allow_mps=true`` flag is passed to ``speech_to_text_eval.py``, the ``mps`` device will be selected automatically.
+
+.. code-block:: python
+
+    PYTORCH_ENABLE_MPS_FALLBACK=1 python speech_to_text_eval.py \
+      (...other parameters...)  \
+      allow_mps=true
+
 
 Fine-tuning on Different Datasets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -251,3 +279,22 @@ Kinyarwanda
    :widths: 40, 10, 50
    :header-rows: 1
 
+-----------------------------
+
+Belarusian
+^^^^^^^^^^^
+.. csv-table::
+   :file: data/benchmark_by.csv
+   :align: left
+   :widths: 40, 10, 50
+   :header-rows: 1
+
+-----------------------------
+
+Ukrainian
+^^^^^^^^^^^
+.. csv-table::
+   :file: data/benchmark_ua.csv
+   :align: left
+   :widths: 40, 10, 50
+   :header-rows: 1

@@ -21,13 +21,13 @@ from torch.nn.parameter import Parameter
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
@@ -44,9 +44,9 @@ class MegatronModule(torch.nn.Module):
     for pipelining."""
 
     def __init__(self, share_token_embeddings=True):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super(MegatronModule, self).__init__()
         self.share_token_embeddings = share_token_embeddings
@@ -111,7 +111,7 @@ class MegatronModule(torch.nn.Module):
                 f"No decoder_cross_attention_relative_position_embedding found on this rank. Looking for decoder_cross_attention_relative_position_embedding.relative_position_embedding.weight"
             )
 
-    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size):
+    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size, param_dtype=torch.float32):
         if not self.share_token_embeddings:
             raise Exception('initialize_word_embeddings() was called but ' 'share_token_embeddings is false')
 
@@ -140,7 +140,7 @@ class MegatronModule(torch.nn.Module):
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
             self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-                vocab_size, hidden_size, init_method=init_method
+                vocab_size, hidden_size, init_method=init_method, params_dtype=param_dtype
             )
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
@@ -255,24 +255,24 @@ def float16_to_fp32(val):
 
 class Float16Module(MegatronModule):
     def __init__(self, module, precision):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__()
         self.precision = precision
 
-        if precision == 16:
-            self.add_module('module', module.half())
-
-            def float16_converter(val):
-                return val.half()
-
-        elif precision == 'bf16':
+        if precision == 'bf16':
             self.add_module('module', module.bfloat16())
 
             def float16_converter(val):
                 return val.bfloat16()
+
+        elif int(precision) == 16:
+            self.add_module('module', module.half())
+
+            def float16_converter(val):
+                return val.half()
 
         else:
             raise Exception(
@@ -290,7 +290,7 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage() and self.training:
             outputs = float16_to_fp32(outputs)
         return outputs
 

@@ -32,13 +32,13 @@ from nemo.core import Dataset
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_APEX = False
+    HAVE_MEGATRON_CORE = False
 
 
 def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length, seed, skip_warmup, tokenizer, name):
@@ -303,9 +303,9 @@ class GPTDataset(Dataset):
         seed,
         drop_last=True,
     ):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         super().__init__()
@@ -321,12 +321,15 @@ class GPTDataset(Dataset):
         self.reset_position_ids = cfg.data.get('reset_position_ids', False)
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
         self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
+        self.create_inputs = any([self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss])
+        self.cached_inputs = False
         self.eos_id = tokenizer.eos_id
         self.no_seqlen_plus_one_input_tokens = cfg.data.get('no_seqlen_plus_one_input_tokens', False)
         self.add_extra_token = 1
         if self.no_seqlen_plus_one_input_tokens:
             self.add_extra_token = 0
         self.shuffle_documents = cfg.data.get('shuffle_documents', True)
+        self.exchange_indices_distributed = cfg.data.get('exchange_indices_distributed', False)
 
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
@@ -351,6 +354,7 @@ class GPTDataset(Dataset):
             drop_last=drop_last,
             add_extra_token=self.add_extra_token,
             shuffle_documents=self.shuffle_documents,
+            exchange_indices_distributed=self.exchange_indices_distributed,
         )
         deallocate_indexed_dataset_memory(self.indexed_dataset)
 
@@ -406,9 +410,19 @@ class GPTDataset(Dataset):
             tokens = text
             labels = torch.roll(text, shifts=-1, dims=0)
             labels[-1] = -1
-        attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
-        )
+        if self.create_inputs or not self.cached_inputs:
+            attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
+                tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+            )
+            if not self.create_inputs:
+                self.cached_attention_mask = attention_mask
+                self.cached_loss_mask = loss_mask
+                self.cached_position_ids = position_ids
+                self.cached_inputs = True
+        else:
+            attention_mask = self.cached_attention_mask
+            loss_mask = self.cached_loss_mask
+            position_ids = self.cached_position_ids
         loss_mask[labels == -1] = 0.0
         tokens[tokens == -1] = 0
         labels[labels == -1] = 0
@@ -432,9 +446,9 @@ class MockGPTDataset(Dataset):
     def __init__(
         self, cfg, tokenizer, name, num_samples, seq_length, seed,
     ):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "Megatron core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         super().__init__()
@@ -443,6 +457,11 @@ class MockGPTDataset(Dataset):
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
         self.seed = seed
+
+        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
+        self.attention_mask = self.attention_mask < 0.5
+        self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+        self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self):
         return self.length
@@ -457,18 +476,12 @@ class MockGPTDataset(Dataset):
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
-        with torch.no_grad():
-            attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
-            attention_mask = attention_mask < 0.5
-            loss_mask = torch.ones(self.seq_length, dtype=torch.float)
-            position_ids = torch.arange(self.seq_length, dtype=torch.int64)
-
         return {
             'tokens': tokens,
             'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
+            'attention_mask': self.attention_mask,
+            'loss_mask': self.loss_mask,
+            'position_ids': self.position_ids,
         }
 
 
@@ -533,6 +546,7 @@ def _build_index_mappings(
     drop_last: bool = True,
     add_extra_token: int = 1,
     shuffle_documents: bool = True,
+    exchange_indices_distributed: bool = False,
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
     doc-idx: is an array (ordered) of documents to be used in training.
@@ -561,12 +575,13 @@ def _build_index_mappings(
 
     # Build the indexed mapping if not exist.
     if torch.distributed.get_rank() == 0:
+        using_cached_indices = True
         if (
             (not os.path.isfile(doc_idx_filename))
             or (not os.path.isfile(sample_idx_filename))
             or (not os.path.isfile(shuffle_idx_filename))
         ):
-
+            using_cached_indices = False
             logging.info(' > WARNING: could not find index map files, building ' 'the indices on rank 0 ...')
 
             # For the last epoch, decide whether include the entire epoch
@@ -586,7 +601,7 @@ def _build_index_mappings(
                 last_epoch_num_samples = num_samples - num_samples_from_epochs_minus_one
                 assert last_epoch_num_samples >= 0, 'last epoch number of samples should be non-negative.'
                 num_samples_per_epoch = (tokens_per_epoch - add_extra_token) // seq_length
-                assert last_epoch_num_samples < (
+                assert last_epoch_num_samples <= (
                     num_samples_per_epoch + 1
                 ), 'last epoch number of samples exceeded max value.'
                 # If we have less than 80% of the samples for the last epoch,
@@ -666,17 +681,26 @@ def _build_index_mappings(
         // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
 
-    # Load mappings.
-    start_time = time.time()
-    logging.info(' > loading doc-idx mapping from {}'.format(doc_idx_filename))
-    doc_idx = np.load(doc_idx_filename, allow_pickle=True, mmap_mode='r')
-    logging.info(' > loading sample-idx mapping from {}'.format(sample_idx_filename))
-    sample_idx = np.load(sample_idx_filename, allow_pickle=True, mmap_mode='r')
-    logging.info(' > loading shuffle-idx mapping from {}'.format(shuffle_idx_filename))
-    shuffle_idx = np.load(shuffle_idx_filename, allow_pickle=True, mmap_mode='r')
-    logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-    logging.info('    total number of samples: {}'.format(sample_idx.shape[0]))
-    logging.info('    total number of epochs: {}'.format(num_epochs))
+    if not exchange_indices_distributed or (torch.distributed.get_rank() == 0 and using_cached_indices):
+        # Load mappings.
+        start_time = time.time()
+        logging.info(' > loading doc-idx mapping from {}'.format(doc_idx_filename))
+        doc_idx = np.load(doc_idx_filename, allow_pickle=True, mmap_mode='r')
+        logging.info(' > loading sample-idx mapping from {}'.format(sample_idx_filename))
+        sample_idx = np.load(sample_idx_filename, allow_pickle=True, mmap_mode='r')
+        logging.info(' > loading shuffle-idx mapping from {}'.format(shuffle_idx_filename))
+        shuffle_idx = np.load(shuffle_idx_filename, allow_pickle=True, mmap_mode='r')
+        logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
+        logging.info('    total number of samples: {}'.format(sample_idx.shape[0]))
+        logging.info('    total number of epochs: {}'.format(num_epochs))
+
+    if exchange_indices_distributed:
+        if torch.distributed.get_rank() == 0:
+            indices = [(doc_idx, sample_idx, shuffle_idx)]
+        else:
+            indices = [None]
+        torch.distributed.broadcast_object_list(indices)
+        doc_idx, sample_idx, shuffle_idx = indices[0]
 
     return doc_idx, sample_idx, shuffle_idx
 

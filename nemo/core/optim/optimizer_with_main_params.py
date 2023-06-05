@@ -21,14 +21,22 @@ from nemo.utils import logging
 try:
     import amp_C
     from apex.multi_tensor_apply import multi_tensor_applier
-    from apex.transformer.parallel_state import get_data_parallel_group, get_data_parallel_world_size
-    from apex.transformer.tensor_parallel import copy_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    from megatron.core.parallel_state import get_data_parallel_group, get_data_parallel_world_size
+    from megatron.core.tensor_parallel import copy_tensor_model_parallel_attributes
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def _zero_grad_group_helper(group, set_to_none):
@@ -69,6 +77,11 @@ class GradBucket(object):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         self.numel = numel
@@ -167,6 +180,11 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         self.optimizer = optimizer
@@ -470,11 +488,12 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     def fp32_grad_accumulation(self):
         return self._fp32_grad_accum
 
-    def get_parameters(self):
+    def get_parameters_with_grad(self):
         params = []
         for param_group in self.optimizer.param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if param.grad is not None:  # (@adithyare) added to enable pp>1 training for adapters
+                    params.append(param)
         return params
 
     # Promote state so it can be retrieved or set via

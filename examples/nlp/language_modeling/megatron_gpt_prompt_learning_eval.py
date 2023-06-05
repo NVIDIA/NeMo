@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import torch
 import torch.multiprocessing as mp
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 
 mp.set_start_method("spawn", force=True)
@@ -80,6 +83,27 @@ def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+
+    if (
+        cfg.tensor_model_parallel_size < 0
+        or cfg.pipeline_model_parallel_size < 0
+        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+    ):
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.gpt_model_file):
+            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+        model_config = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
+        )
+
+        with open_dict(cfg):
+            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -99,6 +123,7 @@ def main(cfg) -> None:
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base
+
     model = MegatronGPTPromptLearningModel.restore_from(
         restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg,
     )
@@ -136,12 +161,13 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_seq_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_seq_length = min(max_seq_length, cfg.get("max_seq_length", 8192))
 
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
         batch_size=cfg.inference.get('batch_size', 1),
-        max_seq_length=max_input_length,
+        max_seq_length=max_seq_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
         add_eos=False,

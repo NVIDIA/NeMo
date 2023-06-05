@@ -256,7 +256,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
 
     ds_key = resolve_dataset_name_from_cfg(cfg.validation_ds)
 
-    if ds_key is None:
+    if ds_key is None or val_dl_idx < 0:
         logging.debug(
             "Could not resolve file path from provided config - {}. "
             "Disabling support for multi-dataloaders.".format(cfg.validation_ds)
@@ -280,7 +280,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
             dataloaders.append(model._validation_dl)
 
         model._validation_dl = dataloaders
-        if isinstance(ds_values[0], (dict, DictConfig)):
+        if len(ds_values) > 0 and isinstance(ds_values[0], (dict, DictConfig)):
             # using the name of each of the nested dataset
             model._validation_names = [ds.name for ds in ds_values]
         else:
@@ -359,7 +359,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
             dataloaders.append(model._test_dl)
 
         model._test_dl = dataloaders
-        if isinstance(ds_values[0], (dict, DictConfig)):
+        if len(ds_values) > 0 and isinstance(ds_values[0], (dict, DictConfig)):
             # using the name of each of the nested dataset
             model._test_names = [ds.name for ds in ds_values]
         else:

@@ -42,7 +42,6 @@ from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer import parallel_state
     from apex.transformer.enums import ModelType
     from apex.transformer.pipeline_parallel.schedules.common import _calc_number_of_params
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -53,6 +52,15 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
@@ -78,6 +86,11 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
@@ -87,7 +100,7 @@ class NLPDDPStrategy(DDPStrategy):
         super().setup_distributed()
 
         # init model parallel if needed
-        if parallel_state.is_unitialized():
+        if not parallel_state.model_parallel_is_initialized():
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
@@ -151,11 +164,11 @@ class NLPDDPStrategy(DDPStrategy):
             parallel_state.destroy_model_parallel()
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_parallel(
-                    tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
-                    pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
-                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
-                    virtual_pipeline_model_parallel_size_=app_state.virtual_pipeline_model_parallel_size,
-                    use_fp8_=app_state.use_fp8,
+                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                    use_fp8=app_state.use_fp8,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
@@ -240,6 +253,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # raise ImportError(
             #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             # )
+        if not HAVE_MEGATRON_CORE:
+            logging.warning(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__()
 
     def save_to(self, model, save_path: str):
@@ -381,19 +398,127 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
+class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
+    """
+    PEFT models require the ability to load/save a small subset of the full model (once PEFT params have been infused into the base model.)
+    The PEFTSaveRestoreConnector is used to allow loading and saving only the PEFT params while not saving the entire model.
+
+    Args:
+        peft_model_nemo_path: Used to provide the .nemo file corresponding to a PEFT model (which will only contain a small set of params)
+        peft_model_ckpt_path: Used to provide the path to .ckpt files of a PEFT model. This is required when no .nemo is available (yet) such as during resumed training.
+        peft_model_ckpt_name: The filename of the ckpt file inside the peft_model_ckpt_path folder
+    If both are provided the peft_model_ckpt_path takes precedence.
+    If neither are provided, PEFT params are initialized at random (not loaded from any external source).
+    """
+
+    def __init__(
+        self,
+        peft_model_nemo_path: Optional[str] = None,
+        peft_model_ckpt_path: Optional[str] = None,
+        peft_model_ckpt_name: Optional[str] = "model_weights.ckpt",
+    ) -> None:
+        super().__init__()
+        self.peft_model_ckpt_name = peft_model_ckpt_name
+        if peft_model_ckpt_path:
+            # First we will try to load a adapter ckpt path
+            # this is given priority over loading from nemo path to make resumption of training possible
+            ckpt_name = os.path.basename(peft_model_ckpt_path)
+            if not ckpt_name.strip() == '':
+                # update the weights file name inside the ckpt path rank folders
+                self.peft_model_ckpt_name = ckpt_name
+            self.peft_model_ckpt_dir = os.path.dirname(peft_model_ckpt_path)
+            assert os.path.isdir(self.peft_model_ckpt_dir)
+            self.peft_model_nemo_path = None
+        elif peft_model_nemo_path:
+            # If resumption is not possible we will try to load a adapter nemo path
+            self.peft_model_nemo_path = peft_model_nemo_path
+            assert os.path.exists(self.peft_model_nemo_path)
+            self.peft_model_ckpt_dir = None
+        else:
+            # We are not resuming training from a nemo file or a ckpt
+            # We are training the adapter from randomly initialization
+            self.peft_model_nemo_path = None
+            self.peft_model_ckpt_dir = None
+
+    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+        """
+        Infuse the state_dict of the base model with PEFT params from either a peft_model_nemo_path or peft_model_ckpt_path
+        """
+        # first load based model weights
+        base_model_state_dict = super()._load_state_dict_from_disk(model_weights, map_location)
+        # Next, We want to load PEFT model's weights
+        if self.peft_model_nemo_path:
+            # if the PEFT weights are provided in a .nemo file
+            # we need to untar the .nemo if its still tarred
+            with tempfile.TemporaryDirectory() as tmpdir:
+                self._unpack_nemo_file(self.peft_model_nemo_path, tmpdir)
+                model_weights_path = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.peft_model_ckpt_name)
+                peft_state_dict = torch.load(model_weights_path, map_location)
+        elif self.peft_model_ckpt_dir:
+            # if the PEFT weights are provided in a ckpt path file
+            # we don't need to untar
+            model_weights_path = self._inject_model_parallel_rank_for_ckpt(
+                self.peft_model_ckpt_dir, self.peft_model_ckpt_name
+            )
+            peft_state_dict = torch.load(model_weights_path, map_location)['state_dict']
+        else:
+            peft_state_dict = {}
+        base_model_state_dict.update(peft_state_dict)  # add the PEFT state_dict into the base model's state_dict
+        return base_model_state_dict
+
+    def restore_from(
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
+    ):
+        """
+        Extends the restore_from method of the `NLPSaveRestoreConnector` so that PEFT params are inserted into the state_dict which is required when training a PEFT model from scratch.
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        loaded_params = super().load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple) or return_config is True:
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+        state_dict = self.modify_state_dict(conf, state_dict)
+
+        if (
+            self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
+        ):  # we have this check only for training PEFT from scratch
+            peft_state_dict = instance.get_peft_state_dict()
+            state_dict.update(peft_state_dict)
+        self.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        return instance
+
+
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
-        We do this because we have the Apex fwd/bwd functions in training_step.
+        We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
         step wrapped in autocast.
 
-        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+        We instead wrap the fwd_output_and_loss_func that is passed to the megatron-core fwd/bwd functions.
     """
 
     def __init__(
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -594,6 +719,13 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler)
+        dtype = None
+        if precision == 16:
+            dtype = torch.float16
+        elif precision == 'bf16':
+            dtype = torch.bfloat16
+
+        torch.set_autocast_gpu_dtype(dtype)
 
     def optimizer_step(
         self,
@@ -651,6 +783,8 @@ class GlobalBatchDataFetcher(DataFetcher):
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not HAVE_MEGATRON_CORE:
+            logging.warning("Megatron-core was not found. Using model parallel or megatron models will error out..")
 
         super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
 
@@ -664,130 +798,3 @@ class GlobalBatchDataFetcher(DataFetcher):
             assert isinstance(dataloader, Sized)  # `_has_len` is True
             self.done = self.fetched >= len(dataloader)
         self.on_fetch_end(batch, start_output)
-
-
-def build_model_cpu(
-    model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],
-    wrap_with_ddp: bool = True,
-    virtual_pipeline_model_parallel_size: Optional[int] = None,
-    model_type: 'ModelType' = None,  # Default of ModelType.encoder_or_decoder
-    *args: Any,
-    **kwargs: Any,
-) -> List[torch.nn.Module]:
-    """Build the model satisfying pipeline model parallel requirements on CPU.
-
-    NOTE: This function is a duplicate of the Apex `build_model` function with the only difference
-    being that it removes an explicit forced cast of the model onto the GPU. This is necessary
-    because in certain cases the model is simply too large to fit on the GPU, and the user
-    should be responsible for casting the model to the GPU if they wish to do so.
-
-    Specifically, this function is used when constructing a dummy model containing the union of parameters
-    from all TP and PP ranks, which is then sharded across a new TP PP configuration.
-
-    This function sets `pre_process` and `post_process` to `**kwargs` and pass `*args` and `**kwargs` to
-    `model_provider_func`.
-
-    Args:
-        model_provider_func: A function which takes `*args` and `**kwargs` and returns a `nn.Module`.
-        wrap_with_ddp: If :obj:`True`, wrap the instantiated model
-            with `torch.nn.parallel.distributed.DistributedDataParallel`, a.k.a. `DDP`.
-        virtual_pipeline_model_parallel_size: Specify when using interleaving scheduling pipeline model parallel.
-        model_type:
-        *args: arguments for model provider func
-        **kwargs: Keyword arguments for model provider func
-
-    Returns:
-        a list of `nn.Module`(s). If `virtual_pipeline_model_parallel_size` is not None,
-        the list has multiple models, otherwise one.
-    """
-    if not HAVE_APEX:
-        raise ValueError("Apex is required for pipeline parallelism.")
-
-    if model_type is None:
-        model_type = ModelType.encoder_or_decoder
-
-    if (
-        parallel_state.get_pipeline_model_parallel_world_size() > 1
-        and virtual_pipeline_model_parallel_size is not None
-    ):
-        model = []
-        for i in range(virtual_pipeline_model_parallel_size):
-            cur_args = args
-            cur_kwargs = kwargs
-            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-            # Set pre_process and post_process only after virtual rank is set.
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
-            cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
-            )
-            this_model = model_provider_func(*cur_args, **cur_kwargs)
-            model.append(this_model)
-    else:
-        cur_args = args
-        cur_kwargs = kwargs
-        model = None
-        if model_type == ModelType.encoder_or_decoder:
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
-            cur_kwargs.update(
-                {"pre_process": pre_process, "post_process": post_process,}
-            )
-            model = model_provider_func(*cur_args, **cur_kwargs)
-        elif model_type == ModelType.encoder_and_decoder:
-            pre_process = parallel_state.is_pipeline_first_stage()
-            post_process = parallel_state.is_pipeline_last_stage()
-            # `add_encoder` & `add_decoder` logic.
-            add_encoder, add_decoder = True, True
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
-                if split_rank is None:
-                    raise RuntimeError("Split rank needs to be specified for model with both encoder and decoder.")
-                rank = parallel_state.get_pipeline_model_parallel_rank()
-                world_size = parallel_state.get_pipeline_model_parallel_world_size()
-                pre_process = rank == 0 or rank == split_rank
-                post_process = rank == (split_rank - 1) or rank == (world_size - 1)
-                add_encoder = parallel_state.is_pipeline_stage_before_split()
-                add_decoder = parallel_state.is_pipeline_stage_after_split()
-            cur_kwargs.update(
-                {
-                    "pre_process": pre_process,
-                    "post_process": post_process,
-                    "add_encoder": add_encoder,
-                    "add_decoder": add_decoder,
-                }
-            )
-            model = model_provider_func(*cur_args, **cur_kwargs)
-
-        if model is not None:
-            model.model_type = model_type
-
-    if not isinstance(model, list):
-        model = [model]
-
-    # Set tensor model parallel attributes if not set.
-    # Only parameters that are already tensor model parallel have these
-    # attributes set for them. We should make sure the default attributes
-    # are set for all params so the optimizer can use them.
-    for model_module in model:
-        for param in model_module.parameters():
-            set_defaults_if_not_set_tensor_model_parallel_attributes(param)
-
-    # Print number of parameters.
-    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
-        msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
-            parallel_state.get_tensor_model_parallel_rank(),
-            parallel_state.get_pipeline_model_parallel_rank(),
-            _calc_number_of_params(model),
-        )
-        print(msg, flush=True)
-
-    if wrap_with_ddp:
-        i = torch.cuda.current_device()
-        model = [
-            torch.nn.parallel.distributed.DistributedDataParallel(
-                model_module, device_ids=[i], output_device=i, process_group=parallel_state.get_data_parallel_group(),
-            )
-            for model_module in model
-        ]
-    return model
