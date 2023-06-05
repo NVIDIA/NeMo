@@ -453,7 +453,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         )
 
         # Clustering
-        all_reference, all_hypothesis = perform_clustering(
+        all_reference, all_hypothesis, split_audios = perform_clustering(
             embs_and_timestamps=embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
