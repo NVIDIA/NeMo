@@ -22,8 +22,14 @@ fi
 
 cd /workspace/nemo
 
+
 for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
-   RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
+  if [ ${REVERSE_RANKS:?} -eq 1 ]; then
+    NEW_LOCAL=$(($GPUS_PER_NODE - 1 - $LOCAL_RANK ))
+    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $NEW_LOCAL))
+  else
+    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
+  fi
 
    RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
      python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
