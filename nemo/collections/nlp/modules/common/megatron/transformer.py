@@ -116,6 +116,12 @@ def get_dropout_add(training):
     return _dropout_add
 
 
+def remove_bias_from_layernorm(layer):
+    for module in layer.modules():
+        if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
+            module.register_parameter('bias', None)
+
+
 class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """A single transformer layer.
 
@@ -189,6 +195,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 'bias_dropout_add_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
             )
 
+        # the low_precision_layernorm does not require a bias term, whereas layernorm1p from apex
+        # does require a bias, so it cannot be used for bias-less low precision LN such as in MPT-7B
         if normalization not in ['layernorm', 'layernorm1p', 'rmsnorm', 'low_precision_layernorm']:
             raise ValueError(f'normalization must be "layernorm", "layernorm1p" or "rmsnorm", found {normalization}')
 
@@ -218,10 +226,12 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-            if not bias:
-                for module in self.input_layernorm.modules():
-                    if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
-                        module.register_parameter('bias', None)
+            # for architectures such as MPT, there is no bias term even on the layernorms
+            # this code allows us to remove the bias terms from the layernorm module
+            # so that we can support MPT. However, certain apex-based LNs don't support
+            # removing bias, so we also have to check for that
+            if not bias and normalization not in ['layernorm', 'layernorm1p']:
+                remove_bias_from_layernorm(self.input_layernorm)
 
             self.self_attention = ParallelAttention(
                 init_method=init_method,
@@ -274,10 +284,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
                 else:
                     self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-                if not bias:
-                    for module in self.post_attention_layernorm.modules():
-                        if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
-                            module.register_parameter('bias', None)
+                if not bias and normalization not in ['layernorm', 'layernorm1p']:
+                    remove_bias_from_layernorm(self.post_attention_layernorm)
 
         if self.layer_type == LayerType.decoder_pre_mlp:
             # skip MLP and cross attention
@@ -299,10 +307,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-            if not bias:
-                for module in self.post_attention_layernorm.modules():
-                    if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
-                        module.register_parameter('bias', None)
+            if not bias and normalization not in ['layernorm', 'layernorm1p']:
+                remove_bias_from_layernorm(self.post_attention_layernorm)
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
             self.inter_attention = ParallelAttention(
@@ -1181,10 +1187,12 @@ class ParallelTransformer(MegatronModule):
                 self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-            if not bias:
-                for module in self.final_layernorm.modules():
-                    if hasattr(module, 'bias') and isinstance(module.bias, nn.Parameter):
-                        module.register_parameter('bias', None)
+            # for architectures such as MPT, there is no bias term even on the layernorms
+            # this code allows us to remove the bias terms from the layernorm module
+            # so that we can support MPT. However, certain apex-based LNs don't support
+            # removing bias, so we also have to check for that
+            if not bias and normalization not in ['layernorm', 'layernorm1p']:
+                remove_bias_from_layernorm(self.final_layernorm)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
