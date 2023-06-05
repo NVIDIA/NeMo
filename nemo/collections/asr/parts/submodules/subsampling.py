@@ -273,7 +273,6 @@ class ConvSubsampling(torch.nn.Module):
             x, success = self.batch_split_conv(x)
             if not success:
                 if self._subsampling == 'dw_striding':
-                    # x = self.time_split_conv(x)
                     x = self.channel_split_conv(x)
                 else:
                     x = self.conv(x)  # try anyway
@@ -340,21 +339,6 @@ class ConvSubsampling(torch.nn.Module):
             x = self.conv[i * 3 + 4](x)  # activation
         return x
 
-    def time_split_conv(self, x):
-        """ For dw convs, tries to split input by time, run conv and concat results """
-        x = self.conv[0](x)  # full conv2D
-        x = self.conv[1](x)  # activation
-
-        for i in range(self._sampling_num - 1):
-            p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
-            _, _, t, _ = x.size()
-            new_t = int(t // (2 ** (p + 1))) * 2  # forcing new_t to be even
-            logging.debug(f'conv dw subsampling: using split T size {new_t}')
-            x = self.time_chunked_conv(self.conv[i * 3 + 2], new_t, x)  # conv2D, depthwise
-            x = torch.cat([self.conv[i * 3 + 3](chunk) for chunk in torch.split(x, new_t, 2)], 2)  # conv2D, pointwise
-            x = self.conv[i * 3 + 4](x)  # activation
-        return x
-
     def channel_chunked_conv(self, conv, chunk_size, x):
         """ Performs channel chunked convolution"""
 
@@ -374,26 +358,6 @@ class ConvSubsampling(torch.nn.Module):
             ind += step
 
         return torch.cat(out_chunks, 1)
-
-    def time_chunked_conv(self, conv, chunk_size, x):
-        """ Performs exact time chunked convolution"""
-        t_size = x.size()[2]
-        i = 0
-        out_chunks = []
-
-        while True:
-            step = chunk_size
-            if i + step > t_size:
-                step = t_size - i
-                if step == 2:
-                    break
-            out = conv(x[:, :, i : i + step, :])
-            if i > 0:
-                out = out[:, :, 1:, :]  # throw away the first element in the output
-            out_chunks.append(out)
-            i += step - 2  # advance but step back by 2
-
-        return torch.cat(out_chunks, 2)
 
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
