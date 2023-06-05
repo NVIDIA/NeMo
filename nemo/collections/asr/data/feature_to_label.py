@@ -271,7 +271,7 @@ class FeatureToLabelDataset(Dataset):
         augmentor (Optional): feature augmentation
         window_length_in_sec (float): Window length in seconds.
         shift_length_in_sec (float): Shift length in seconds.
-        is_regression_task (bool): if True, the labels are treated as regression task.
+        is_regression_task (bool): if True, the labels are treated as for a regression task.
         cal_labels_occurrence (bool): if True, the labels occurrence will be calculated.
         zero_spec_db_val (float): Value to replace non-speech signals in log-melspectrogram.
         min_duration (float): Minimum duration of the audio file in seconds.
@@ -386,7 +386,7 @@ class FeatureToMultiLabelDataset(Dataset):
         labels (Optional[list]): List of unique labels collected from all samples.
         augmentor (Optional): feature augmentation
         delimiter (str): delimiter to split the labels.
-        is_regression_task (bool): if True, the labels are treated as regression task.
+        is_regression_task (bool): if True, the labels are treated as for a regression task.
         cal_labels_occurrence (bool): if True, the labels occurrence will be calculated.
         zero_spec_db_val (float): Value to replace non-speech signals in log-melspectrogram.
         min_duration (float): Minimum duration of the audio file in seconds.

@@ -40,7 +40,7 @@ To use only VAD, set `asr_model=None` and specify both `vad_model` and `vad_conf
 
 To enable profiling, set `profiling=True`, but this will significantly slow down the program.
 
-To use or disable feature masking/droping based on RTTM files, set `use_rttm` to `True` or `False`. 
+To use or disable feature masking/dropping based on RTTM files, set `use_rttm` to `True` or `False`. 
 There are two ways to use RTTM files, either by masking the features (`rttm_mode=mask`) or by dropping the features (`rttm_mode=drop`).
 For audios that have long non-speech audios between speech segments, dropping frames is recommended.
 
@@ -121,7 +121,7 @@ class InferenceConfig:
     # Output settings, no need to change
     output_dir: Optional[str] = None  # will be automatically set by the program
     output_filename: Optional[str] = None  # will be automatically set by the program
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    pred_name_postfix: Optional[str] = None  # If you need to use another model name, other than the standard one.
 
     # Set to True to output language ID information
     compute_langs: bool = False

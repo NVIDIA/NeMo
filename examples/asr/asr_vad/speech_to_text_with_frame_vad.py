@@ -108,8 +108,7 @@ class InferenceConfig:
         str
     ] = "post_norm"  # whether and where to normalize audio feature, choices=[None, `pre_norm`, `post_norm`]
     normalize_type: str = "per_feature"  # how to determine mean and std used for normalization
-    normalize_audio_db: bool = False  # whether to normalize loudness of audio before extracting audio features
-    normalize_audio_db_target: float = -25.0  # target dB for audio loudness normalization
+    normalize_audio_db: Optional[float] = None  # set to normalize RMS DB of audio before extracting audio features
 
     profiling: bool = False  # whether to enable pytorch profiling
 
@@ -123,7 +122,7 @@ class InferenceConfig:
     # Output settings, no need to change
     output_dir: Optional[str] = None  # will be automatically set by the program
     output_filename: Optional[str] = None  # will be automatically set by the program
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    pred_name_postfix: Optional[str] = None  # If you need to use another model name, other than the standard one.
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -264,7 +263,6 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
             'num_workers': cfg.num_workers,
             'shuffle': False,
             'normalize_audio_db': cfg.normalize_audio_db,
-            'normalize_audio_db_target': cfg.normalize_audio_db_target,
         }
     )
 
