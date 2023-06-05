@@ -995,11 +995,11 @@ class CoreAttention(MegatronModule):
             query_layer.shape[1], key_layer.shape[1], self.attn_mask_type == AttnMaskType.causal
         )
         context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, causal)
-        
+
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
-        
+
         if attention_mask is not None:
             context_layer = context_layer * attention_mask_q
-            
+
         return context_layer
