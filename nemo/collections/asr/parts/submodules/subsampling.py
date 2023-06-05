@@ -315,7 +315,7 @@ class ConvSubsampling(torch.nn.Module):
         if b == 1:  # can't split if batch size is 1
             return x, False
 
-        x_ceil = 2 ** 31 / self._conv_channels * 4
+        x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
         p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
         new_batch_size = b // (2 ** p)
         if new_batch_size == 0:  # input is too big
