@@ -237,7 +237,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         attention_mask_repeat = None
         if compute_attention_mask:
             attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
-            
+
         setkey_value_array = torch.tensor(
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
