@@ -359,7 +359,7 @@ class ConvSubsampling(torch.nn.Module):
                 logging.debug(f'using auto set chunking factor: {cf}')
 
             new_c = int(c // cf)
-            if new_c == 0: 
+            if new_c == 0:
                 logging.warning(f'chunking factor {cf} is too high; splitting down to one channel.')
                 new_c = 1
 
