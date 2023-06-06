@@ -55,6 +55,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_group = None
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
+        self._sequence_parallel_size = None
 
         self._random_seed = None
 
@@ -362,6 +363,22 @@ class AppState(metaclass=Singleton):
                 use_fp8:  Use of FP8.
         """
         self._use_fp8 = use_fp8
+
+    @property
+    def sequence_parallel_size(self):
+        """ Property returns the number of GPUs in each sequence parallel group.
+            Returns:
+                Number of GPUs in each sequence parallel group.
+        """
+        return self._sequence_parallel_size
+
+    @sequence_parallel_size.setter
+    def sequence_parallel_size(self, size):
+        """ Property sets the number of GPUs in each sequence parallel group.
+            Args:
+                size (int):  Number of GPUs in each sequence parallel group.
+        """
+        self._sequence_parallel_size = size
 
     @property
     def random_seed(self):

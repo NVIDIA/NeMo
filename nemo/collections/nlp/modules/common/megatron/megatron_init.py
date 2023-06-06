@@ -63,6 +63,7 @@ def initialize_model_parallel_for_nemo(
     pipeline_model_parallel_size=1,
     virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
+    sequence_parallel_size=1,
     micro_batch_size=None,
     global_batch_size=None,
     rampup_batch_size=None,
@@ -82,6 +83,7 @@ def initialize_model_parallel_for_nemo(
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
     app_state.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
+    app_state.sequence_parallel_size = sequence_parallel_size
     app_state.use_fp8 = use_fp8
     (
         app_state.tensor_model_parallel_rank,
@@ -97,6 +99,7 @@ def initialize_model_parallel_for_nemo(
         pipeline_model_parallel_size_=pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size_=virtual_pipeline_model_parallel_size,
         pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
+        sequence_parallel_size_=sequence_parallel_size,
     )
 
     # update apex.transformer globals
@@ -174,6 +177,7 @@ def fake_initialize_model_parallel(
     pipeline_model_parallel_size_,
     pipeline_model_parallel_split_rank_=None,
     virtual_pipeline_model_parallel_size_=None,
+    sequence_parallel_size_=1,
 ):
     """
     Fake initialize model data parallel groups so that we can instantiate model parallel models before DDP is initialized.
@@ -184,6 +188,7 @@ def fake_initialize_model_parallel(
     Arguments:
         tensor_model_parallel_size: number of GPUs used to parallelize model tensor.
         pipeline_model_parallel_size: number of GPUs used to parallelize model pipeline.
+        sequence_parallel_size: number of GPUs used to parallelize tokens of each input sequence.
 
     Let's say we have a total of 16 GPUs denoted by g0 ... g15 and we
     use 2 GPUs to parallelize the model tensor, and 4 GPUs to parallelize
@@ -206,10 +211,11 @@ def fake_initialize_model_parallel(
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
     model_parallel_size = tensor_model_parallel_size * pipeline_model_parallel_size
+    sequence_parallel_size = min(sequence_parallel_size_, world_size)
 
     assert (
-        world_size % tensor_model_parallel_size * pipeline_model_parallel_size == 0
-    ), f'world_size: {world_size} must be divisible by tensor_model_parallel_size: {tensor_model_parallel_size} times pipeline_model_parallel_size {pipeline_model_parallel_size}'
+        world_size % (tensor_model_parallel_size * pipeline_model_parallel_size * sequence_parallel_size) == 0
+    ), f'world_size: {world_size} must be divisible by tensor_model_parallel_size: {tensor_model_parallel_size} times pipeline_model_parallel_size {pipeline_model_parallel_size} times sequence_parallel_size {sequence_parallel_size}'
     data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size)
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
@@ -234,6 +240,23 @@ def fake_initialize_model_parallel(
     data_parallel_rank = data_parallel_group.index(rank)
     logging.info(f'All data parallel group ranks: {all_data_parallel_group_ranks}')
     logging.info(f'Ranks {rank} has data parallel rank: {data_parallel_rank}')
+
+    # Build the sequence-parallel groups.
+    all_sequence_parallel_group_ranks = []
+    for i in range(pipeline_model_parallel_size):
+        for j in range(data_parallel_size // sequence_parallel_size):
+            start_rank = i * num_pipeline_model_parallel_groups + j * tensor_model_parallel_size * sequence_parallel_size
+            end_rank = i * num_pipeline_model_parallel_groups + (j + 1) * tensor_model_parallel_size * sequence_parallel_size
+            for k in range(tensor_model_parallel_size):
+                ranks = range(start_rank + k, end_rank, tensor_model_parallel_size)
+                all_sequence_parallel_group_ranks.append(list(ranks))
+                if rank in ranks:
+                    sequence_parallel_group = list(ranks)
+                    logging.info(f'Rank {rank} has sequence parallel group: {sequence_parallel_group}')
+
+    sequence_parallel_rank = sequence_parallel_group.index(rank)
+    logging.info(f'All sequence parallel group ranks: {all_sequence_parallel_group_ranks}')
+    logging.info(f'Ranks {rank} has sequence parallel rank: {squence_parallel_rank}')
 
     # Build the model-parallel groups.
     all_model_parallel_group_ranks = []
