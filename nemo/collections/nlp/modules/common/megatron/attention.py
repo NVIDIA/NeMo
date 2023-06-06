@@ -942,20 +942,19 @@ class CoreAttention(MegatronModule):
 
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask):
         batch_size, seqlen, nheads, _ = query_layer.shape
-
-        if attention_mask is not None:
+        
+        # True: attend / False: not attend
+        if attention_mask is None:
+            attention_mask_q = torch.ones(batch_size, query_layer.shape[1], device=query_layer.device).bool()
+            attention_mask_kv = torch.ones(batch_size, key_layer.shape[1], device=query_layer.device).bool()
+        elif len(attention_mask.shape) == 4:
             # [b, 1, sq, sk] -> [b, sq] / [b, sk]
-            # True: not attend / False: attend -> True: attend / False: not attend
             attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).squeeze(1)
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
-        else:
-            attention_mask_q = torch.ones(
-                batch_size, query_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device()
-            )
-            attention_mask_kv = torch.ones(
-                batch_size, key_layer.shape[1], dtype=torch.bool, device=torch.cuda.current_device()
-            )
-
+        elif len(attention_mask.shape) == 2:
+            attention_mask_q = attention_mask
+            attention_mask_kv = attention_mask
+            
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
@@ -986,9 +985,15 @@ class CoreAttention(MegatronModule):
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
 
         if attention_mask is not None:
-            # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
-            attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
-            attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
+            if len(attention_mask.shape) == 4:
+                # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
+                attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
+                attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
+            elif len(attention_mask.shape) == 2:
+                # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
+                attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
+                attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
+            
             attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
             attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
