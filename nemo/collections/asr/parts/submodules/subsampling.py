@@ -391,8 +391,7 @@ class ConvSubsampling(torch.nn.Module):
                     conv.weight[ind : ind + step, :, :, :],
                     bias=conv.bias[ind : ind + step],
                     stride=self._stride,
-                    padding=None,
-                    padding_mode='zeros',
+                    padding=0,
                     groups=step,
                 )
             else:
