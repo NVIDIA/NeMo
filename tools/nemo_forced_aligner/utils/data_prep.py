@@ -83,13 +83,14 @@ def is_entry_in_all_lines(manifest_filepath, entry):
 
 def get_manifest_lines_batch(manifest_filepath, start, end):
     manifest_lines_batch = []
-    with open(manifest_filepath, "r") as f:
+    with open(manifest_filepath, "r", encoding="utf-8-sig") as f:
         for line_i, line in enumerate(f):
             if line_i >= start and line_i <= end:
                 data = json.loads(line)
                 if "text" in data:
-                    # remove any duplicated spaces and convert any
+                    # remove any BOM, any duplicated spaces, convert any
                     # newline chars to spaces
+                    data["text"] = data["text"].replace("\ufeff", "")
                     data["text"] = " ".join(data["text"].split())
                 manifest_lines_batch.append(data)
 
