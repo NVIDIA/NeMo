@@ -109,6 +109,38 @@ def get_char_tokens(text, model):
     return tokens
 
 
+def is_sub_or_superscript_pair(ref_text, text):
+    """returns True if ref_text is a subscript or superscript version of text"""
+    sub_or_superscript_to_num = {
+        "⁰": "0",
+        "¹": "1",
+        "²": "2",
+        "³": "3",
+        "⁴": "4",
+        "⁵": "5",
+        "⁶": "6",
+        "⁷": "7",
+        "⁸": "8",
+        "⁹": "9",
+        "₀": "0",
+        "₁": "1",
+        "₂": "2",
+        "₃": "3",
+        "₄": "4",
+        "₅": "5",
+        "₆": "6",
+        "₇": "7",
+        "₈": "8",
+        "₉": "9",
+    }
+
+    if text in sub_or_superscript_to_num:
+        if sub_or_superscript_to_num[text] == ref_text:
+            print('True')
+            return True
+    return False
+
+
 def restore_token_case(word, word_tokens):
 
     # remove repeated "▁" and "_" from word as that is what the tokenizer will do
@@ -130,7 +162,9 @@ def restore_token_case(word, word_tokens):
                 word_char_pointer += 1
 
             else:
-                if token_char.upper() == word[word_char_pointer]:
+                if token_char.upper() == word[word_char_pointer] or is_sub_or_superscript_pair(
+                    token_char, word[word_char_pointer]
+                ):
                     token_cased += token_char.upper()
                     word_char_pointer += 1
                 else:

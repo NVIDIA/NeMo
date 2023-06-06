@@ -27,6 +27,8 @@ from utils.data_prep import restore_token_case
         ("▁Bab▁AB▁a", ['▁b', 'a', 'b', '▁a', 'b', '▁a'], ['▁B', 'a', 'b', '▁A', 'B', '▁a']),
         ("▁Bab▁AB▁▁a", ['▁b', 'a', 'b', '▁a', 'b', '▁a'], ['▁B', 'a', 'b', '▁A', 'B', '▁a']),
         ("▁▁BabAB▁a", ['▁b', 'a', 'b', 'a', 'b', '▁a'], ['▁B', 'a', 'b', 'A', 'B', '▁a']),
+        ("m²", ['▁', 'm', '2'], ['▁', 'm', '2']),
+        ("²", ['▁', '2'], ['▁', '2']),
     ],
 )
 def test_restore_token_case(word, word_tokens, expected_word_tokens_cased):
