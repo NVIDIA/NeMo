@@ -359,7 +359,15 @@ class ConvSubsampling(torch.nn.Module):
                 logging.debug(f'using auto set chunking factor: {cf}')
 
             new_c = int(c // cf)
-            new_t = int(t // (2 * cf)) * 2  # forcing new_t to be even
+            if new_c == 0: 
+                logging.warning(f'chunking factor {cf} is too high; splitting down to one channel.')
+                new_c = 1
+
+            new_t = int(t // cf)
+            if new_t == 0:
+                logging.warning(f'chunking factor {cf} is too high; splitting down to one timestep.')
+                new_t = 1
+
             logging.debug(f'conv dw subsampling: using split C size {new_c} and split T size {new_t}')
             x = self.channel_chunked_conv(self.conv[i * 3 + 2], new_c, x)  # conv2D, depthwise
 
