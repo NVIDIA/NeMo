@@ -443,7 +443,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
         if not hasattr(self, 'encoder'):
             logging.info(
-                "Could not change the change_subsampling_conv_chunking_factor in encoder "
+                "Could not call the change_subsampling_conv_chunking_factor method in encoder "
                 "since the model provided does not contain an `encoder` module in its config."
             )
             return
@@ -452,11 +452,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             logging.info("Model encoder doesn't have a change_subsampling_conv_chunking_factor method ")
             return
 
-        self.encoder.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor, update_config)
+        self.encoder.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor)
         if update_config:
             with open_dict(self.cfg):
                 self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor      
-
 
     def conformer_stream_step(
         self,

@@ -359,7 +359,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     feat_in=feat_in,
                     feat_out=d_model,
                     conv_channels=subsampling_conv_channels,
-                    chunking_factor=subsampling_conv_chunking_factor,
+                    subsampling_conv_chunking_factor=subsampling_conv_chunking_factor,
                     activation=nn.ReLU(True),
                     is_causal=causal_downsampling,
                 )
@@ -982,7 +982,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 self._cfg.self_attention_model = self_attention_model
                 self._cfg.att_context_size = att_context_size
 
-    def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int, update_config: bool = True):
+    def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
         """
         Update the conv_chunking_factor (int) 
         Set it to a higher value (default is 1) if you OOM in the conv subsampling layers
@@ -991,16 +991,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             conv_chunking_factor (int)
         """
 
-        if not hasattr(self.pre_encode, "subsampling_conv_chunking_factor"):
-            logging.info("Model pre_encoder doesn't have a subsampling_conv_chunking_factor method ")
+        if not hasattr(self.pre_encode, "change_subsampling_conv_chunking_factor"):
+            logging.info("Model pre_encoder doesn't have a change_subsampling_conv_chunking_factor method ")
             return
 
         self.pre_encode.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor = subsampling_conv_chunking_factor)
-
-        if update_config:
-            with open_dict(self._cfg):
-                self._cfg.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
-
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
 
