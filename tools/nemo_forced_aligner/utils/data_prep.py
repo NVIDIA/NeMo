@@ -619,8 +619,9 @@ def get_batch_variables(
                     audio_filepaths_batch, return_hypotheses=True, batch_size=B
                 )
 
-        if isinstance(model, EncDecHybridRNNTCTCModel):
-            hypotheses = hypotheses[0]  # since hybrid models return 2 hypotheses lists and we only need one
+        # if hypotheses form a tuple (from Hybrid model), extract just "best" hypothesis
+        if type(hypotheses) == tuple and len(hypotheses) == 2:
+            hypotheses = hypotheses[0]
 
         for hypothesis in hypotheses:
             log_probs_list_batch.append(hypothesis.y_sequence)
