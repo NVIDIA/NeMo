@@ -26,7 +26,7 @@ class TestASRSubsamplingConvChunking:
         asr_model.preprocessor.featurizer.dither = 0.0
         asr_model.preprocessor.featurizer.pad_to = 0
 
-        len = 16000 * 4  # 4 second sample
+        len = 512
 
         input_signal_batch1 = torch.randn(size=(1, len), device=asr_model.device)
         length_batch1 = torch.randint(low=161, high=500, size=[1], device=asr_model.device)
