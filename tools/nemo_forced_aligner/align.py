@@ -68,13 +68,8 @@ Arguments:
     use_local_attention: boolean flag specifying whether to try to use local attention for the ASR Model (will only
         work if the ASR Model is a Conformer model). If local attention is used, we will set the local attention context 
         size to [64,64].
-    TODO: update description and variable name:
-    additional_segment_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
-        level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
-        files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. 
-        If `additional_segment_grouping_separator` is specified, an additional folder 
-        `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs 
-        for `addtional_ctm_grouping_separator`-separated segments. 
+    additional_segment_grouping_separator: an optional string used to separate the text into smaller segments. 
+        If this is not specified, then the whole text will be treated as a single segment. 
     remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from token-level output CTMs. 
     audio_filepath_parts_in_utt_id: int specifying how many of the 'parts' of the audio_filepath
         we will use (starting from the final part of the audio_filepath) to determine the 
