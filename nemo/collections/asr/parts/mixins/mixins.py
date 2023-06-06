@@ -432,7 +432,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 self.cfg.encoder.self_attention_model = self_attention_model
                 self.cfg.encoder.att_context_size = att_context_size
 
-    def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int, update_config: bool = True):
+    def change_subsampling_conv_chunking_factor(
+        self, subsampling_conv_chunking_factor: int, update_config: bool = True
+    ):
         """
         Update the conv_chunking_factor (int) if function is available in encoder.
         Default is -1 (disabled)
@@ -456,7 +458,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         self.encoder.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor)
         if update_config:
             with open_dict(self.cfg):
-                self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor      
+                self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
     def conformer_stream_step(
         self,
