@@ -61,7 +61,7 @@ pipeline {
       steps {
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout e6d7e09845590d0a36bc7f29eb28db974fb8da4e && \
+            git checkout d2891b4ad3a00e3c4223f89491afd9e1b812f9b5 && \
             pip install -e .'
       }
     }
@@ -3379,6 +3379,41 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
         model.data.validation_ds.names=[quarel,trec]"
         sh "rm -rf examples/nlp/language_modeling/gpt_sft_results"
+      }
+    }
+    stage('L2: Megatron GPT PEFT Lora PP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2"
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_peft_tuning.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.max_epochs=9999 \
+        trainer.max_steps=3 \
+        trainer.val_check_interval=3 \
+        ++trainer.limit_val_batches=2 \
+        trainer.precision=16 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_peft_lora_results_pp2 \
+        model.pipeline_model_parallel_size=2 \
+        model.tensor_model_parallel_size=1 \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+        model.peft.peft_scheme='lora' \
+        model.answer_only_loss=True \
+        model.micro_batch_size=1 \
+        model.global_batch_size=4 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[1.0] \
+        model.data.train_ds.num_workers=0 \
+        model.data.validation_ds.num_workers=0 \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]"
+        sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2"
       }
     }
     stage('L2: Megatron GPT PEFT Lora TP=2') {
