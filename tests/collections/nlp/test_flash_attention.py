@@ -98,7 +98,9 @@ class TestFlashAttention:
         k = torch.rand(sl, bz, np, hn, device=device).half()
         v = torch.rand(sl, bz, np, hn, device=device).half()
 
-        attention_mask_2d = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(1, sl, (bz,), device=device).unsqueeze(1)
+        attention_mask_2d = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(
+            1, sl, (bz,), device=device
+        ).unsqueeze(1)
 
         attention_mask_padding_3d = build_attention_mask_3d(
             source_mask=attention_mask_2d, target_mask=attention_mask_2d, attn_mask_type=AttnMaskType.padding
@@ -168,7 +170,9 @@ class TestFlashAttention:
         k = torch.rand(sl, bz, np, hn, device=device).half()
         v = torch.rand(sl, bz, np, hn, device=device).half()
 
-        attention_mask_2d = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(1, sl, (bz,), device=device).unsqueeze(1)
+        attention_mask_2d = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(
+            1, sl, (bz,), device=device
+        ).unsqueeze(1)
 
         attention_mask_padding_3d = build_attention_mask_3d(
             source_mask=attention_mask_2d, target_mask=attention_mask_2d, attn_mask_type=AttnMaskType.padding
@@ -203,7 +207,7 @@ class TestFlashAttention:
         assert torch.allclose(out, out_fa, rtol=1e-3, atol=1e-3)
         out_fa = attention_fa(q, k, v, attention_mask_2d, relative_position_bias=attention_bias)
         assert torch.allclose(out, out_fa, rtol=1e-3, atol=1e-3)
-        
+
         # Causal
         attention = CoreAttention(
             layer_number=1,

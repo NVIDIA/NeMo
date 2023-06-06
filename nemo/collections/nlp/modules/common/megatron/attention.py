@@ -942,7 +942,7 @@ class CoreAttention(MegatronModule):
 
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask):
         batch_size, seqlen, nheads, _ = query_layer.shape
-        
+
         # True: attend / False: not attend
         if attention_mask is None:
             attention_mask_q = torch.ones(batch_size, query_layer.shape[1], device=query_layer.device).bool()
@@ -954,7 +954,7 @@ class CoreAttention(MegatronModule):
         elif len(attention_mask.shape) == 2:
             attention_mask_q = attention_mask
             attention_mask_kv = attention_mask
-            
+
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
@@ -993,7 +993,7 @@ class CoreAttention(MegatronModule):
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
                 attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
-            
+
             attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
             attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
