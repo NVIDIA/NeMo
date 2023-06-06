@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ The input manifest must be a manifest json file, where each line is a Python dic
 To run the code with ASR+VAD default settings:
 
 ```bash
-python speech_to_text_with_segment_vad.py \
+python speech_to_text_with_vad.py \
     manifest_filepath=/PATH/TO/MANIFEST.json \
-    vad_model=vad_multilingual_marblenet \
+    vad_model=vad_multilingual_frame_marblenet\
     asr_model=stt_en_conformer_ctc_large \
-    vad_config=../conf/vad/vad_inference_postprocessing.yaml
+    vad_config=../conf/vad/frame_vad_inference_postprocess.yaml
 ```
 
 To use only ASR and disable VAD, set `vad_model=None` and `use_rttm=False`.
@@ -40,7 +40,7 @@ To use only VAD, set `asr_model=None` and specify both `vad_model` and `vad_conf
 
 To enable profiling, set `profiling=True`, but this will significantly slow down the program.
 
-To use or disable feature masking/dropping based on RTTM files, set `use_rttm` to `True` or `False`. 
+To use or disable feature masking/droping based on RTTM files, set `use_rttm` to `True` or `False`. 
 There are two ways to use RTTM files, either by masking the features (`rttm_mode=mask`) or by dropping the features (`rttm_mode=drop`).
 For audios that have long non-speech audios between speech segments, dropping frames is recommended.
 
@@ -74,10 +74,10 @@ from nemo.collections.asr.metrics.wer import CTCDecodingConfig, word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecClassificationModel
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
-    extract_audio_features,
     generate_overlap_vad_seq,
     generate_vad_segment_table,
     get_vad_stream_status,
+    init_frame_vad_model,
     init_vad_model,
 )
 from nemo.core.config import hydra_runner
@@ -108,6 +108,7 @@ class InferenceConfig:
         str
     ] = "post_norm"  # whether and where to normalize audio feature, choices=[None, `pre_norm`, `post_norm`]
     normalize_type: str = "per_feature"  # how to determine mean and std used for normalization
+    normalize_audio_db: Optional[float] = None  # set to normalize RMS DB of audio before extracting audio features
 
     profiling: bool = False  # whether to enable pytorch profiling
 
@@ -115,7 +116,7 @@ class InferenceConfig:
     batch_size: int = 1  # batch size for ASR. Feature extraction and VAD only support single sample per batch.
     num_workers: int = 8
     sample_rate: int = 16000
-    frame_unit_time_secs: float = 0.01  # unit time per frame in seconds, equal to `window_stride` in ASR configs.
+    frame_unit_time_secs: float = 0.01  # unit time per frame in seconds, equal to `window_stride` in ASR configs, typically 10ms.
     audio_type: str = "wav"
 
     # Output settings, no need to change
@@ -131,6 +132,9 @@ class InferenceConfig:
 
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+
+    # VAD model type
+    vad_type: str = "frame"  # which type of VAD to use, choices=[`frame`, `segment`]
 
 
 @hydra_runner(config_name="InferenceConfig", schema=InferenceConfig)
@@ -245,7 +249,10 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
 
     out_dir.mkdir(parents=True, exist_ok=True)
     torch.set_grad_enabled(False)
-    vad_model = EncDecClassificationModel.from_pretrained("vad_multilingual_marblenet")
+    if cfg.vad_model:
+        vad_model = init_frame_vad_model(cfg.vad_model)
+    else:
+        vad_model = EncDecClassificationModel.from_pretrained("vad_multilingual_marblenet")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vad_model = vad_model.to(device)
     vad_model.eval()
@@ -258,6 +265,7 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
             'labels': ['infer',],
             'num_workers': cfg.num_workers,
             'shuffle': False,
+            'normalize_audio_db': cfg.normalize_audio_db,
         }
     )
 
@@ -286,7 +294,13 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
 
 def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callable) -> str:
     logging.info("Start VAD inference pipeline...")
-    vad_model = init_vad_model(cfg.vad_model)
+    if cfg.vad_type == "segment":
+        vad_model = init_vad_model(cfg.vad_model)
+    elif cfg.vad_type == "frame":
+        vad_model = init_frame_vad_model(cfg.vad_model)
+    else:
+        raise ValueError(f"Unknown VAD type: {cfg.vad_type}, supported types: ['segment', 'frame']")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vad_model = vad_model.to(device)
     vad_model.eval()
@@ -432,9 +446,14 @@ def generate_vad_frame_pred(
 
                 with record_fn("vad_infer_other"):
                     probs = torch.softmax(log_probs, dim=-1)
+                    if len(probs.shape) == 3:
+                        # squeeze the batch dimension, since batch size is 1
+                        probs = probs.squeeze(0)  # [1,T,C] -> [T,C]
                     pred = probs[:, 1]
 
-                    if status[i] == 'start':
+                    if window_length_in_sec == 0:
+                        to_save = pred
+                    elif status[i] == 'start':
                         to_save = pred[:-trunc]
                     elif status[i] == 'next':
                         to_save = pred[trunc:-trunc_l]
@@ -443,11 +462,13 @@ def generate_vad_frame_pred(
                     else:
                         to_save = pred
 
+                    to_save = to_save.cpu().tolist()
                     all_len += len(to_save)
+
                     outpath = os.path.join(out_dir, data[i] + ".frame")
                     with open(outpath, "a", encoding='utf-8') as fout:
-                        for f in range(len(to_save)):
-                            fout.write('{0:0.4f}\n'.format(to_save[f]))
+                        for p in to_save:
+                            fout.write(f'{p:0.4f}\n')
 
                     del test_batch
                     if status[i] == 'end' or status[i] == 'single':
@@ -529,6 +550,7 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
         "frame_unit_time_secs": cfg.frame_unit_time_secs,
     }
     logging.info(f"use_rttm = {cfg.use_rttm}, rttm_mode = {cfg.rttm_mode}, feat_mask_val = {cfg.feat_mask_val}")
+
     if hasattr(asr_model, "tokenizer"):
         dataset = feature_to_text_dataset.get_bpe_dataset(config=data_config, tokenizer=asr_model.tokenizer)
     else:
@@ -558,6 +580,7 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
                             processed_signal=test_batch[0].to(device),
                             processed_signal_length=test_batch[1].to(device),
                         )
+
                     with record_fn("asr_infer_other"):
                         logits, logits_len = outputs[0], outputs[1]
 
@@ -609,7 +632,7 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
         wer_score = word_error_rate(hypotheses=hypotheses, references=groundtruth)
         cer_score = word_error_rate(hypotheses=hypotheses, references=groundtruth, use_cer=True)
         logging.info("-----------------------------------------")
-        logging.info(f"WER={wer_score*100:.2f}, CER={cer_score*100:.2f}")
+        logging.info(f"WER={wer_score:.4f}, CER={cer_score:.4f}")
         logging.info("-----------------------------------------")
 
     logging.info(f"ASR output saved at {cfg.output_filename}")
