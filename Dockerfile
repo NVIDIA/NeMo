@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.03-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.04-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -43,11 +43,6 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
-# Install Megatron-core
-RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
-  cd Megatron-LM && \
-  git checkout 3db2063b1ff992a971ba18f7101eecc9c4e90f03 && \
-  pip install -e .
 
 WORKDIR /tmp/
 # TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
@@ -94,7 +89,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.18.0
+ARG NEMO_VERSION=1.19.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

@@ -38,6 +38,7 @@ from nemo.utils.data_utils import (
     datastore_path_to_webdataset_url,
     is_datastore_cache_shared,
     is_datastore_path,
+    is_tarred_path,
 )
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -190,8 +191,8 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
                 sharded_filepaths = sharded_filepaths.replace(bkey, "}")
 
     if isinstance(sharded_filepaths, str):
-        # Brace expand
-        sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths))
+        # Brace expand, set escape=False for Windows compatibility
+        sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths, escape=False))
 
     # Expand store paths into WebDataset URLs
     sharded_filepaths = [
@@ -1340,8 +1341,7 @@ class BucketingIterator:
             try:
                 sample = next(self.wrapped_iter)
             except StopIteration:
-                self.wrapped_iter = iter(self.wrapped_ds)
-                sample = next(self.wrapped_iter)
+                break
             batches.append(sample)
         if len(batches) == 0:
             raise StopIteration
@@ -1358,5 +1358,9 @@ class RandomizedChainDataset(ChainDataset):
         for dataset_idx in shuffled_order:
             d = self.datasets[dataset_idx]
             assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
-            for x in d:
+            for idx, x in enumerate(d):
                 yield x
+                # in case d is an infinite dataset, we want to break the loop
+                # so that the other datasets get a chance to yield too
+                if idx >= len(d) - 1:
+                    break

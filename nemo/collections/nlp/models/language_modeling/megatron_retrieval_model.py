@@ -105,6 +105,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
 
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
+
         if hasattr(self.cfg, "shape_file"):
             set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
 
@@ -460,7 +464,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
-                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
@@ -470,7 +473,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
-                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 return generate(self, **inference_config, strategy=self.inference_strategy)
 
@@ -509,7 +511,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         Used for generate method only.
         """
 
-        def fwd_output_only_func(batch, model):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,

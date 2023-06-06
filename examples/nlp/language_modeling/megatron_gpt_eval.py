@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
+from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
@@ -196,11 +196,14 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
+            if trainer.precision == "16":
+                pretrained_cfg.megatron_amp_O2 = False
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=save_restore_connector,
+            map_location=f'cuda:{trainer.local_rank}',  # map_location is needed for converted models
         )
     elif cfg.checkpoint_dir:
         app_state = AppState()
@@ -260,7 +263,7 @@ def main(cfg) -> None:
     print(response)
     print("***************************")
 
-    # Second method of running text generation, call trainer.predict
+    # Second method of running text generation, call trainer.predict [recommended]
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
     request_dl = DataLoader(dataset=ds, batch_size=2)
     config = OmegaConf.to_container(cfg.inference)
@@ -275,9 +278,13 @@ def main(cfg) -> None:
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
+                if cfg.chat:
+                    web_ui = get_chatbot_demo
+                else:
+                    web_ui = get_demo
                 loop = asyncio.new_event_loop()
                 thread = threading.Thread(
-                    target=get_demo,
+                    target=web_ui,
                     daemon=True,
                     args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
                 )

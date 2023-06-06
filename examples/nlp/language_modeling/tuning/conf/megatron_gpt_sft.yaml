@@ -29,7 +29,7 @@ exp_manager:
     monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 2
     mode: max
-    save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
+    save_nemo_on_train_end: False 
     filename: 'megatron_gpt_sft--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -66,6 +66,7 @@ model:
   ffn_dropout: 0.0
 
   data:
+    chat: False # whether use chatbot data or not
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names: 
