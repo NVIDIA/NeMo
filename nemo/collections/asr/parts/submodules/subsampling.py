@@ -385,7 +385,9 @@ class ConvSubsampling(torch.nn.Module):
             step = chunk.size()[1]
 
             if self.is_causal:
-                chunk = nn.functional.pad(chunk, pad=(self._kernel_size - 1, self._stride - 1, self._kernel_size - 1, self._stride - 1))
+                chunk = nn.functional.pad(
+                    chunk, pad=(self._kernel_size - 1, self._stride - 1, self._kernel_size - 1, self._stride - 1)
+                )
                 ch_out = nn.functional.conv2d(
                     chunk,
                     conv.weight[ind : ind + step, :, :, :],
