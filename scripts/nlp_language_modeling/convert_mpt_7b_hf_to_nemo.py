@@ -29,6 +29,12 @@ can read them:
     pytorch_model-00001-of-00002.bin
     pytorch_model-00002-of-00002.bin
 
+This script will generate a Megatron model with TP=1 and PP=1. If you need different TP/PP
+values, then after running this script, please use the script located below to set whatever
+TP/PP values you want:
+    NeMo/examples/nlp/language_modeling/megatron_change_num_partitions.py
+
+
 Here is an example usage command:
 
 ```python
