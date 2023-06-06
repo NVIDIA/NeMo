@@ -323,10 +323,8 @@ class GPTModel(MegatronModule):
             )
         return state_dict_
 
-    def load_state_dict(self, state_dict, strict=True, bypass=False):
+    def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
-        if bypass:
-            return super(GPTModel, self).load_state_dict(state_dict, strict=strict)
 
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
