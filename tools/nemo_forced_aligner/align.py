@@ -95,6 +95,10 @@ Arguments:
                       which will cut one audio into segments and do inference on chunk_batch_size segments at a time
 
     simulate_cache_aware_streaming: False, if set True, using cache aware streaming to do get the logits for alignment
+
+    save_output_file_formats: List of strings specifying what type of output files to save (default: ["ctm", "ass"])
+    ctm_file_config: CTMFileConfig to specify the configuration of the output CTM files
+    ass_file_config: ASSFileConfig to specify the configuration of the output ASS files
 """
 
 
@@ -107,6 +111,9 @@ class CTMFileConfig:
 class ASSFileConfig:
     fontsize: int = 20
     marginv: int = 20
+    # if resegment_text_to_fill_space is True, the ASS files will use new segments
+    # such that each segment will not take up more than (approximately) max_lines_per_segment
+    # when the ASS file is applied to a video
     resegment_text_to_fill_space: bool = False
     max_lines_per_segment: int = 2
 
