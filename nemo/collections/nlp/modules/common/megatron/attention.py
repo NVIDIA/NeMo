@@ -66,7 +66,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     logging.warning(
         "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
-        "If you use flash_attn with triton. Please see the installation instructions: https://github.com/openai/triton/."
+        "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
     )
     flash_attn_unpadded_func, flash_attn_func = None, None
     unpad_input, pad_input = None, None
@@ -721,8 +721,12 @@ class CoreAttention(MegatronModule):
         print("flash attention", use_flash_attention)
 
         self.precision = precision
-        self.fp16 = precision == 16
-        self.bf16 = precision == 'bf16'
+        self.fp16 = False
+        self.bf16 = False
+        if precision == 'bf16':
+            self.bf16 = True
+        elif int(precision) == 16:
+            self.fp16 = True
         self.multi_query_attention = multi_query_attention
         self.position_embedding_type = position_embedding_type
 
@@ -996,4 +1000,8 @@ class CoreAttention(MegatronModule):
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
+
+        if attention_mask is not None:
+            context_layer = context_layer * attention_mask_q
+
         return context_layer
