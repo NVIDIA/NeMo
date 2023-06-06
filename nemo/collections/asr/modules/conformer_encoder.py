@@ -982,6 +982,25 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 self._cfg.self_attention_model = self_attention_model
                 self._cfg.att_context_size = att_context_size
 
+    def change_conv_chunking_factor(self, conv_chunking_factor: int, update_config: bool = True):
+        """
+        Update the conv_chunking_factor (int) 
+        Set it to a higher value (default is 1) if you OOM in the conv subsampling layers
+
+        Args:
+            conv_chunking_factor (int)
+        """
+
+        if not hasattr(self.pre_encode, "change_conv_chunking_factor"):
+            logging.info("Model pre_encoder doesn't have a change_conv_chunking_factor method ")
+            return
+
+        self.pre_encode.change_conv_chunking_factor(chunking_factor = conv_chunking_factor)
+
+        if update_config:
+            with open_dict(self._cfg):
+                self._cfg.conv_chunking_factor = conv_chunking_factor
+
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
 

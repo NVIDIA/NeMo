@@ -410,6 +410,9 @@ class ConvSubsampling(torch.nn.Module):
 
         return torch.cat(out_chunks, 1)
 
+    def change_conv_chunking_factor(self, chunking_factor: int):
+        self.chunking_factor = chunking_factor
+
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
