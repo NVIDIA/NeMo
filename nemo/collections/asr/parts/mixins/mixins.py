@@ -437,8 +437,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
     ):
         """
         Update the conv_chunking_factor (int) if function is available in encoder.
-        Default is -1 (disabled)
-        Set it to 1 (auto) or to a specific value (power of 2) if you OOM in the conv subsampling layers
+        Default is 1 (auto)
+        Set it to -1 (disabled) or to a specific value (power of 2) if you OOM in the conv subsampling layers
 
         Args:
             conv_chunking_factor (int)

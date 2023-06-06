@@ -67,7 +67,7 @@ class ConvSubsampling(torch.nn.Module):
         subsampling (str): The subsampling technique from {"vggnet", "striding"}
         subsampling_factor (int): The subsampling factor which should be a power of 2
         subsampling_conv_chunking_factor (int): Input chunking factor which can be -1 (no chunking) 
-        1 (auto) or a power of 2. Default is -1
+        1 (auto) or a power of 2. Default is 1
         feat_in (int): size of the input features
         feat_out (int): size of the output features
         conv_channels (int): Number of channels for the convolution layers.
@@ -81,7 +81,7 @@ class ConvSubsampling(torch.nn.Module):
         feat_in,
         feat_out,
         conv_channels,
-        subsampling_conv_chunking_factor=-1,
+        subsampling_conv_chunking_factor=1,
         activation=nn.ReLU(),
         is_causal=False,
     ):

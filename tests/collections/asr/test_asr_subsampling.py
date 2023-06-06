@@ -21,7 +21,7 @@ class TestASRSubsamplingConvChunking:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_forward(self):
-        asr_model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
+        asr_model = ASRModel.from_pretrained("stt_en_fastconformer_ctc_large")
         asr_model = asr_model.eval()
         asr_model.preprocessor.featurizer.dither = 0.0
         asr_model.preprocessor.featurizer.pad_to = 0
