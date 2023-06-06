@@ -105,7 +105,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             greedy=sampling_params['use_greedy'],
             repetition_penalty=sampling_params['repetition_penalty'],
             min_tokens_to_generate=length_params['min_length'],
-            **strategy_args,
+            compute_attention_mask=sampling_params.get("compute_attention_mask", True) ** strategy_args,
         )
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
         return compute_prob_response
@@ -690,7 +690,7 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                tokens, maxlen, micro_batch_size, counter, context_length
+                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
 
