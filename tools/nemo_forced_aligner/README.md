@@ -34,8 +34,8 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * **[OPTIONAL]** `batch_size`: The batch_size that will be used for generating log-probs and doing Viterbi decoding. (Default: 1).
 
-* **[OPTIONAL]** `additional_ctm_grouping_separator`: the string used to separate CTM segments if you want to obtain CTM files at a level that is not the token level or the word level. NFA will always produce token-level and word-level CTM files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. If `additional_ctm_grouping_separator` is specified, an additional folder `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs for `addtional_ctm_grouping_separator`-separated segments. (Default: `None`. Cannot be empty string or space (" "), as space-separated word-level CTMs will always be saved in `<output_dir>/words/<utt_id>.ctm`.)
-> Note: the `additional_ctm_grouping_separator` will be removed from the ground truth text and all the output CTMs, ie it is treated as a marker which is not part of the ground truth. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_ctm_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
+* **[OPTIONAL]** `additional_segment_grouping_separator`: the string used to separate CTM segments if you want to obtain CTM files at a level that is not the token level or the word level. NFA will always produce token-level and word-level CTM files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. If `additional_segment_grouping_separator` is specified, an additional folder `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs for `addtional_ctm_grouping_separator`-separated segments. (Default: `None`. Cannot be empty string or space (" "), as space-separated word-level CTMs will always be saved in `<output_dir>/words/<utt_id>.ctm`.)
+> Note: the `additional_segment_grouping_separator` will be removed from the ground truth text and all the output CTMs, ie it is treated as a marker which is not part of the ground truth. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_segment_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
 
 * **[OPTIONAL]** `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from token-level output CTMs. (Default: False). 
 
@@ -64,7 +64,7 @@ You can omit the `"text"` field from the manifest if you specify `align_using_pr
 For each utterance specified in a line of `manifest_filepath`, several CTM files will be generated:
 * a CTM file containing token-level alignments at `<output_dir>/tokens/<utt_id>.ctm`,
 * a CTM file containing word-level alignments at `<output_dir>/words/<utt_id>.ctm`,
-* if `additional_ctm_grouping_separator` is specified, there will also be a CTM file containing those segments at `output_dir/additional_segments`.
+* if `additional_segment_grouping_separator` is specified, there will also be a CTM file containing those segments at `output_dir/additional_segments`.
 Each CTM file will contain lines of the format:
 `<utt_id> 1 <start time in seconds> <duration in seconds> <text, ie token/word/segment>`.
 Note the second item in the line (the 'channel ID', which is required by the CTM file format) is always 1, as NFA operates on single channel audio.
@@ -73,7 +73,7 @@ Note the second item in the line (the 'channel ID', which is required by the CTM
 A new manifest file will be saved at `<output_dir>/<original manifest file name>_with_ctm_paths.json`. It will contain the same fields as the original manifest, and additionally:
 * `"token_level_ctm_filepath"`
 * `"word_level_ctm_filepath"`
-* `"additonal_segment_level_ctm_filepath"` (if `additional_ctm_grouping_separator` is specified)
+* `"additonal_segment_level_ctm_filepath"` (if `additional_segment_grouping_separator` is specified)
 * `"pred_text"` (if `align_using_pred_text=true`)
 
 

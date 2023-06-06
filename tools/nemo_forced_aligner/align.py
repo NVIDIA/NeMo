@@ -69,10 +69,10 @@ Arguments:
         work if the ASR Model is a Conformer model). If local attention is used, we will set the local attention context 
         size to [64,64].
     TODO: update description and variable name:
-    additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
+    additional_segment_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
         level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
         files in: `<output_dir>/tokens/<utt_id>.ctm` and `<output_dir>/words/<utt_id>.ctm`. 
-        If `additional_ctm_grouping_separator` is specified, an additional folder 
+        If `additional_segment_grouping_separator` is specified, an additional folder 
         `<output_dir>/{tokens/words/additional_segments}/<utt_id>.ctm` will be created containing CTMs 
         for `addtional_ctm_grouping_separator`-separated segments. 
     remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from token-level output CTMs. 
@@ -130,7 +130,7 @@ class AlignmentConfig:
     viterbi_device: Optional[str] = None
     batch_size: int = 1
     use_local_attention[bool] = True
-    additional_ctm_grouping_separator: Optional[str] = None
+    additional_segment_grouping_separator: Optional[str] = None
     minimum_timestamp_duration: float = 0
     audio_filepath_parts_in_utt_id: int = 1
 
@@ -173,7 +173,7 @@ def main(cfg: AlignmentConfig):
     if cfg.batch_size < 1:
         raise ValueError("cfg.batch_size cannot be zero or a negative number")
 
-    if cfg.additional_ctm_grouping_separator == "" or cfg.additional_ctm_grouping_separator == " ":
+    if cfg.additional_segment_grouping_separator == "" or cfg.additional_segment_grouping_separator == " ":
         raise ValueError("cfg.additional_grouping_separator cannot be empty string or space character")
 
     if cfg.minimum_timestamp_duration < 0:
@@ -298,7 +298,7 @@ def main(cfg: AlignmentConfig):
         (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
             manifest_lines_batch,
             model,
-            cfg.additional_ctm_grouping_separator,
+            cfg.additional_segment_grouping_separator,
             cfg.align_using_pred_text,
             cfg.audio_filepath_parts_in_utt_id,
             output_timestep_duration,
