@@ -26,8 +26,8 @@ checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpo
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
 prompts: # prompts for GPT inference
-  - "<extra_id_r>Q: How<extra_id_0> you? A:"
-  - "<extra_id_r>Q: How big is the<extra_id_0>? A:"
+  - "<extra_id_x>Q: How is <extra_id_0> created? A:"
+  - "<extra_id_x>Q: How big <extra_id_0> at night? A:"
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server
