@@ -285,12 +285,26 @@ class ConvSubsampling(torch.nn.Module):
 
         # split inputs if chunking_factor is set
         if self.subsampling_conv_chunking_factor != -1:
-            x, success = self.conv_split_by_batch(x)
-            if not success:  # if unable to split by batch, try by channel
-                if self._subsampling == 'dw_striding':
-                    x = self.conv_split_by_channel(x)
+            if self.subsampling_conv_chunking_factor == 1:
+                # if subsampling_conv_chunking_factor is 1, we split only if needed
+                # avoiding a bug / feature limiting indexing of tensors to 2**31
+                # see https://github.com/pytorch/pytorch/issues/80020
+                x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
+                if torch.numel(x) > x_ceil:
+                   need_to_split = True 
                 else:
-                    x = self.conv(x)  # try anyway
+                   need_to_split = False
+            else:
+                # if subsampling_conv_chunking_factor > 1 we always split
+                need_to_split = True 
+
+            if need_to_split:
+                x, success = self.conv_split_by_batch(x)
+                if not success:  # if unable to split by batch, try by channel
+                    if self._subsampling == 'dw_striding':
+                        x = self.conv_split_by_channel(x)
+                    else:
+                        x = self.conv(x)  # try anyway
         else:
             x = self.conv(x)
 
