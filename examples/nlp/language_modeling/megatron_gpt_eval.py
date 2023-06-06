@@ -207,6 +207,7 @@ def main(cfg) -> None:
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=save_restore_connector,
+            map_location=f'cuda:{trainer.local_rank}',  # map_location is needed for converted models
         )
     elif cfg.checkpoint_dir:
         app_state = AppState()
@@ -266,7 +267,7 @@ def main(cfg) -> None:
     # print(response)
     # print("***************************")
 
-    # Second method of running text generation, call trainer.predict
+    # Second method of running text generation, call trainer.predict [recommended]
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
     request_dl = DataLoader(dataset=ds, batch_size=1)
     config = OmegaConf.to_container(cfg.inference)
