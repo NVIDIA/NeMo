@@ -65,6 +65,9 @@ Arguments:
         The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
         (otherwise will set it to 'cpu').
     batch_size: int specifying batch size that will be used for generating log-probs and doing Viterbi decoding.
+    use_local_attention: boolean flag specifying whether to try to use local attention for the ASR Model (will only
+        work if the ASR Model is a Conformer model). If local attention is used, we will set the local attention context 
+        size to [64,64].
     TODO: update description and variable name:
     additional_ctm_grouping_separator:  the string used to separate CTM segments if you want to obtain CTM files at a 
         level that is not the token level or the word level. NFA will always produce token-level and word-level CTM 
@@ -126,6 +129,7 @@ class AlignmentConfig:
     transcribe_device: Optional[str] = None
     viterbi_device: Optional[str] = None
     batch_size: int = 1
+    use_local_attention[bool] = True
     additional_ctm_grouping_separator: Optional[str] = None
     minimum_timestamp_duration: float = 0
     audio_filepath_parts_in_utt_id: int = 1
@@ -222,8 +226,10 @@ def main(cfg: AlignmentConfig):
     if isinstance(model, EncDecHybridRNNTCTCModel):
         model.change_decoding_strategy(decoder_type="ctc")
 
-        # change to local attention since our hybrid models are currently all conformers
-        # TODO: logic should be only if model is conformer and if audio duration is too long
+    if cfg.use_local_attention:
+        logging.info(
+            "Flag use_local_attention is set to True => will try to use local attention for model if it allows it"
+        )
         model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=[64, 64])
 
     if not (isinstance(model, EncDecCTCModel) or isinstance(model, EncDecHybridRNNTCTCModel)):
