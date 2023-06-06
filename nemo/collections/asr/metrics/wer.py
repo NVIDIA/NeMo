@@ -370,6 +370,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
+        # Confidence estimation is not implemented for strategies other than `greedy`
+        if (
+            not self.preserve_frame_confidence
+            and self.cfg.strategy != 'greedy'
+            and self.cfg.beam.get('preserve_frame_confidence', False)
+        ):
+            raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
+
         # we need timestamps to extract non-blank per-frame confidence
         if self.compute_timestamps is not None:
             self.compute_timestamps |= self.preserve_frame_confidence

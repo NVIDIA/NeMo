@@ -256,19 +256,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
-        # Update preserve frame confidence
-        if self.preserve_frame_confidence is False:
-            if self.cfg.strategy in ['greedy', 'greedy_batch']:
-                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_measure_cfg = self.cfg.greedy.get('confidence_measure_cfg', None)
-
-            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes'] and self.cfg.beam.get(
-                'preserve_frame_confidence', False
-            ):
-                # Not implemented for these strategies
-                raise NotImplementedError(
-                    f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`"
-                )
+        # Confidence estimation is not implemented for these strategies
+        if (
+            not self.preserve_frame_confidence
+            and self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']
+            and self.cfg.beam.get('preserve_frame_confidence', False)
+        ):
+            raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None:

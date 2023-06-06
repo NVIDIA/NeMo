@@ -22,6 +22,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.utils import logging
 
 
 class ConfidenceMeasureConstants:
@@ -87,8 +88,11 @@ class ConfidenceMeasureConfig:
     entropy_type: str = "tsallis"
     alpha: float = 0.33
     entropy_norm: str = "exp"
+    temperature: str = "DEPRECATED"
 
     def __post_init__(self):
+        if self.temperature != "DEPRECATED":
+            logging.warning("`temperature` is deprecated and will be ignored. Please use `alpha` instead.")
         if self.name not in ConfidenceMeasureConstants.NAMES:
             raise ValueError(
                 f"`name` must be one of the following: "
@@ -170,8 +174,11 @@ class ConfidenceConfig:
     exclude_blank: bool = True
     aggregation: str = "min"
     measure_cfg: ConfidenceMeasureConfig = ConfidenceMeasureConfig()
+    method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
+        if self.method_cfg != "DEPRECATED":
+            logging.warning("`method_cfg` is deprecated and will be ignored. Please use `measure_cfg` instead.")
         if self.aggregation not in ConfidenceConstants.AGGREGATIONS:
             raise ValueError(
                 f"`aggregation` has to be one of the following: "
@@ -281,17 +288,21 @@ class ConfidenceMeasureMixin(ABC):
     def _init_confidence_measure(self, confidence_measure_cfg: Optional[DictConfig] = None):
         """Initialize per-frame confidence measure from config.
         """
-        # this ensures that post_init check is always executed
-        confidence_measure_cfg = OmegaConf.structured(
-            ConfidenceMeasureConfig()
-            if confidence_measure_cfg is None
-            else ConfidenceMeasureConfig(**confidence_measure_cfg)
-        )
+        if confidence_measure_cfg is None:
+            confidence_measure_cfg = OmegaConf.structured(ConfidenceMeasureConfig())
+            self.alpha = confidence_measure_cfg.alpha
+        else:
+            # initialize alpha before converting confidence_measure_cfg to OmegaConf.structured
+            # to get actual alpha from old models
+            self.alpha = confidence_measure_cfg.get("alpha", confidence_measure_cfg.get("temperature", None))
+            # OmegaConf.structured ensures that post_init check is always executed
+            confidence_measure_cfg = OmegaConf.structured(ConfidenceMeasureConfig(**confidence_measure_cfg))
+            if self.alpha is None:
+                self.alpha = confidence_measure_cfg.alpha
 
         # set confidence calculation measure
         # we suppose that self.blank_id == len(vocabulary)
         self.num_tokens = (self.blank_id if hasattr(self, "blank_id") else self._blank_index) + 1
-        self.alpha = confidence_measure_cfg.alpha
 
         # init confidence measure bank
         self.confidence_measure_bank = get_confidence_measure_bank()
@@ -322,10 +333,17 @@ class ConfidenceMixin(ABC):
     def _init_confidence(self, confidence_cfg: Optional[DictConfig] = None):
         """Initialize confidence-related fields and confidence aggregation function from config.
         """
-        # this ensures that post_init check is always executed
-        confidence_cfg = OmegaConf.structured(
-            ConfidenceConfig() if confidence_cfg is None else ConfidenceConfig(**confidence_cfg)
-        )
+        if confidence_cfg is None:
+            confidence_cfg = OmegaConf.structured(ConfidenceConfig())
+            self.confidence_measure_cfg = confidence_cfg.measure_cfg
+        else:
+            # initialize confidence_measure_cfg before converting confidence_cfg to OmegaConf.structured
+            # to get actual confidence_measure_cfg from old models
+            self.confidence_measure_cfg = confidence_cfg.get('measure_cfg', confidence_cfg.get("method_cfg", None))
+            # OmegaConf.structured ensures that post_init check is always executed
+            confidence_cfg = OmegaConf.structured(ConfidenceConfig(**confidence_cfg))
+            if self.confidence_measure_cfg is None:
+                self.confidence_measure_cfg = confidence_cfg.measure_cfg
 
         # extract the config
         self.preserve_word_confidence = confidence_cfg.get('preserve_word_confidence', False)
@@ -340,7 +358,6 @@ class ConfidenceMixin(ABC):
         )
         self.exclude_blank_from_confidence = confidence_cfg.get('exclude_blank', True)
         self.word_confidence_aggregation = confidence_cfg.get('aggregation', "min")
-        self.confidence_measure_cfg = confidence_cfg.get('measure_cfg', None)
 
         # define aggregation functions
         self.confidence_aggregation_bank = get_confidence_aggregation_bank()
@@ -350,7 +367,9 @@ class ConfidenceMixin(ABC):
         if self.preserve_frame_confidence is False:
             if self.cfg.strategy in ['greedy', 'greedy_batch']:
                 self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_measure_cfg = self.cfg.greedy.get('confidence_measure_cfg', None)
+                self.confidence_measure_cfg = self.cfg.greedy.get(
+                    'confidence_measure_cfg', self.cfg.greedy.get("confidence_method_cfg", None)
+                )
 
     @abstractmethod
     def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:

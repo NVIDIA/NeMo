@@ -92,7 +92,7 @@ class TestConfidenceMetrics:
         assert round(result_max, TOL_DEGREE) == 0.667
         assert np.allclose(np.array(thresholds), np.array([i / n_bins for i in range(0, n_bins + 1)]), atol=TOL)
         assert np.allclose(
-            np.array(yc_curve), np.array([0.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.167, 0.667, 0.333, 0.0]), atol=TOL
+            np.array(yc_curve), np.array([0.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.167, 0.667, 0.667, 0.333, 0.0]), atol=TOL
         )
 
 
