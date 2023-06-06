@@ -176,7 +176,9 @@ def restore_token_case(word, word_tokens):
                             token_cased += token_char
 
                     else:
-                        raise RuntimeError("Unexpected error - failed to recover capitalization of tokens")
+                        raise RuntimeError(
+                            f"Unexpected error - failed to recover capitalization of tokens for word {word}"
+                        )
 
         word_tokens_cased.append(token_cased)
 
