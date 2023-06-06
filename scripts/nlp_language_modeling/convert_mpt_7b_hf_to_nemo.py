@@ -46,30 +46,39 @@ python scripts/nlp_language_modeling/convert_mpt_7b_hf_to_nemo.py -i /path/to/mp
 
 import argparse
 import os
-
-import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf
+import pytorch_lightning as pl
 
-from nemo.collections.nlp.models.language_modeling.megatron import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron import GPTModel
+
+from omegaconf import OmegaConf
+from nemo.utils import logging
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-i', '--input', required=True, type=str, help='path to the two MPT-7B .bin weight files from HuggingFace'
-    )
-    parser.add_argument(
-        '-o', '--output', required=False, default=None, type=str, help='path to dir where to store output .nemo file'
-    )
-    parser.add_argument('--cuda', action='store_true', help='put Nemo model onto GPU prior to savedown')
-
+    parser.add_argument('-i', '--input',
+                        required=True,
+                        type=str,
+                        help='path to the two MPT-7B .bin weight files from HuggingFace')
+    parser.add_argument('-o', '--output',
+                        required=False,
+                        default=None,
+                        type=str,
+                        help='path to dir where to store output .nemo file')
+    parser.add_argument('--cuda',
+                        action='store_true',
+                        help='put Nemo model onto GPU prior to savedown')
+    
     args = parser.parse_args()
-
+    
+    
     if not os.path.exists(args.input):
-        print('ERROR: input directory does not exist or cannot be found. Aborting.', flush=True)
+        logging.critical(f'Input directory [ {args.input} ] does not exist or cannot be found. Aborting.')
         exit(255)
-
+    
+    
     model_dict = {
         'micro_batch_size': 4,
         'global_batch_size': 8,
@@ -84,7 +93,7 @@ if __name__ == '__main__':
         'max_position_embeddings': 2048,
         'num_layers': 32,
         'num_attention_heads': 32,
-        'ffn_hidden_size': 4 * 4096,
+        'ffn_hidden_size': 4*4096,
         'precision': 'bf16',
         'pre_process': True,
         'post_process': True,
@@ -123,11 +132,11 @@ if __name__ == '__main__':
         'num_nodes': 1,
         'accelerator': 'gpu' if args.cuda else 'cpu',
         'precision': 'bf16',
-        'logger': False,  # logger provided by exp_manager
+        'logger': False, # logger provided by exp_manager
         'enable_checkpointing': False,
         'replace_sampler_ddp': False,
-        'max_epochs': -1,  # PTL default. In practice, max_steps will be reached first.
-        'max_steps': 100000,  # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+        'max_epochs': -1, # PTL default. In practice, max_steps will be reached first. 
+        'max_steps': 100000, # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
         'log_every_n_steps': 10,
         'val_check_interval': 100,
         'limit_val_batches': 50,
@@ -137,30 +146,35 @@ if __name__ == '__main__':
         'benchmark': False,
         'enable_model_summary': False,
     }
-
+    
+    
     model_dict['tokenizer'] = tokeniser_dict
     model_dict['optim'] = optim_dict
-
+    
     omega_cfg = OmegaConf.create(model_dict)
-
+    
     trainer = pl.Trainer(**trainer_dict)
-
+    
+    
     model = MegatronGPTModel(omega_cfg, trainer)
-
+    
+    
     model_keys = list(model.state_dict().keys())
     model_dtypes = list(set([model.state_dict()[x].dtype for x in model_keys]))
-
+    
     if not (len(model_dtypes) == 1 and model_dtypes[0] is torch.bfloat16):
         model = model.bfloat16()
-
+    
     if args.cuda:
         model = model.cuda()
-
+    
+    
     mpt_1 = torch.load(os.path.join(args.input, 'pytorch_model-00001-of-00002.bin'), map_location="cpu")
     mpt_2 = torch.load(os.path.join(args.input, 'pytorch_model-00002-of-00002.bin'), map_location="cpu")
     mpt_dict = {**mpt_1, **mpt_2}
     del mpt_1, mpt_2
-
+    
+    
     def convert_state_dict(state_dict, amp=False):
         def get_new_key(old_key):
             if old_key == 'transformer.wte.weight':
@@ -175,37 +189,39 @@ if __name__ == '__main__':
                 p5 = p4.replace('norm_2.weight', 'post_attention_layernorm.weight')
                 p6 = p5.replace('ffn.up_proj.weight', 'mlp.dense_h_to_4h.weight')
                 p7 = p6.replace('ffn.down_proj.weight', 'mlp.dense_4h_to_h.weight')
-
+                
                 return p7
-
+        
         new_dict = {}
-
+        
         for old_key, val in state_dict.items():
             new_key = get_new_key(old_key)
             if amp:
                 new_key = 'module.' + new_key
-
+                
             new_dict[new_key] = val
-
+        
         return new_dict
-
+    
+    
     convert_dict = convert_state_dict(mpt_dict, amp=model_dict['megatron_amp_O2'])
-
+    
     if model_dict['megatron_amp_O2']:
         missing_keys, unexpected_keys = model.model.load_state_dict(convert_dict, strict=True)
     else:
         missing_keys, unexpected_keys = super(GPTModel, model.model).load_state_dict(convert_dict, strict=True)
-
+    
     if len(missing_keys) > 0:
-        print('ERROR: missing keys were detected during the load, something has gone wrong. Aborting.', flush=True)
-        print('Missing keys: ', missing_keys, flush=True)
+        logging.critical('Missing keys were detected during the load, something has gone wrong. Aborting.')
+        logging.critical(f'Missing keys: \n{missing_keys}')
         exit(255)
-
+    
+    
     if len(unexpected_keys) > 0:
-        print('WARNING: unexpected keys were detected which should not happen. Please investigate', flush=True)
-        print('Unexpected keys: ', unexpected_keys, flush=True)
-
+        logging.warning('Unexpected keys were detected which should not happen. Please investigate.')
+        logging.warning(f'Unexpected keys: \n{unexpected_keys}')
+    
     if args.output is None:
         args.output = os.path.dirname(os.path.abspath(__file__))
-
+    
     model.save_to(os.path.join(args.output, 'megatron_mpt_7b_base_tp1_pp1.nemo'))
