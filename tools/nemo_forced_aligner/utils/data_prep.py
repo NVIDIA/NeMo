@@ -137,7 +137,6 @@ def is_sub_or_superscript_pair(ref_text, text):
 
     if text in sub_or_superscript_to_num:
         if sub_or_superscript_to_num[text] == ref_text:
-            print('True')
             return True
     return False
 
