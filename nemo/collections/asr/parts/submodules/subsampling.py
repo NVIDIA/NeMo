@@ -80,7 +80,7 @@ class ConvSubsampling(torch.nn.Module):
         feat_in,
         feat_out,
         conv_channels,
-        chunking_factor=1,
+        subsampling_conv_chunking_factor=1,
         activation=nn.ReLU(),
         is_causal=False,
     ):
@@ -96,9 +96,9 @@ class ConvSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.is_causal = is_causal
 
-        if chunking_factor != 1 and chunking_factor % 2 != 0:
-            raise ValueError("Chunking factor should be a multiply of 2!")
-        self.chunking_factor = chunking_factor
+        if subsampling_conv_chunking_factor != 1 and subsampling_conv_chunking_factor % 2 != 0:
+            raise ValueError("subsampling_conv_chunking_factor should be a multiply of 2!")
+        self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
         in_channels = 1
         layers = []
@@ -328,8 +328,8 @@ class ConvSubsampling(torch.nn.Module):
 
         x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
         p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
-        if self.chunking_factor != 1 and self.chunking_factor > 2 ** p:  # be nice
-            cf = self.chunking_factor
+        if self.subsampling_conv_chunking_factor != 1 and self.subsampling_conv_chunking_factor > 2 ** p:  # be nice
+            cf = self.subsampling_conv_chunking_factor
             logging.debug(f'using manually set chunking factor: {cf}')
         else:
             cf = 2 ** p
@@ -351,8 +351,8 @@ class ConvSubsampling(torch.nn.Module):
             p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
             _, c, t, _ = x.size()
 
-            if self.chunking_factor != 1 and self.chunking_factor > 2 ** p:  # be nice
-                cf = self.chunking_factor
+            if self.subsampling_conv_chunking_factor != 1 and self.subsampling_conv_chunking_factor > 2 ** p:  # be nice
+                cf = self.subsampling_conv_chunking_factor
                 logging.debug(f'using manually set chunking factor: {cf}')
             else:
                 cf = 2 ** p
@@ -410,8 +410,8 @@ class ConvSubsampling(torch.nn.Module):
 
         return torch.cat(out_chunks, 1)
 
-    def change_conv_chunking_factor(self, chunking_factor: int):
-        self.chunking_factor = chunking_factor
+    def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
+        self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
