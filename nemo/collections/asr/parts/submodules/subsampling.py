@@ -284,7 +284,7 @@ class ConvSubsampling(torch.nn.Module):
             x, success = self.conv_split_by_batch(x)
             if not success: # if unable to split by batch, try by channel
                 if self._subsampling == 'dw_striding':
-                    x = self.channel_split_conv(x)
+                    x = self.conv_split_by_channel(x)
                 else:
                     x = self.conv(x)  # try anyway
         else:
