@@ -231,7 +231,9 @@ def get_utt_obj(
     text, model, separator, T, audio_filepath, utt_id,
 ):
     """
-    TODO
+    Function to create an Utterance object and add all necessary information to it except
+        for timings of the segments / words / tokens according to the alignment - that will
+        be done later in a different function, after the alignment is done.
     """
 
     if not separator:  # if separator is not defined - treat the whole text as one segment
