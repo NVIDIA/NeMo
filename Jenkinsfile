@@ -65,6 +65,13 @@ pipeline {
             pip install -e .'
       }
     }
+      
+    stage('Flash Attention installation') {
+      steps {
+        sh 'pip install flash-attn && \
+            pip install triton==2.0.0.dev20221202'
+      }
+    }
 
     stage('PyTorch Lightning version') {
       steps {
