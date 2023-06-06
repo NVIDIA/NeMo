@@ -455,8 +455,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         self.encoder.change_conv_chunking_factor(conv_chunking_factor, update_config)
         if update_config:
             with open_dict(self.cfg):
-                self.cfg.encoder.conv_chunking_factor = conv_chunking_factor      
-
+                self.cfg.encoder.conv_chunking_factor = conv_chunking_factor
 
     def conformer_stream_step(
         self,

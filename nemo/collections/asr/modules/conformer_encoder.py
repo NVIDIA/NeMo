@@ -995,7 +995,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             logging.info("Model pre_encoder doesn't have a change_conv_chunking_factor method ")
             return
 
-        self.pre_encode.change_conv_chunking_factor(chunking_factor = conv_chunking_factor)
+        self.pre_encode.change_conv_chunking_factor(chunking_factor=conv_chunking_factor)
 
         if update_config:
             with open_dict(self._cfg):
