@@ -74,9 +74,7 @@ class TextMemMapDataset(Dataset):
         header_lines: Optional[int] = 0,
         workers: Optional[int] = None,
         tokenizer: Optional[Type["TokenizerSpec"]] = None,
-        build_index_fn: Optional[
-            Callable[[str, Optional[int]], bool]
-        ] = _build_index_from_memdata,
+        build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = _build_index_from_memdata,
         sort_dataset_paths: Optional[bool] = True,
         index_mapping_dir: Optional[str] = None,
     ):
@@ -117,9 +115,7 @@ class TextMemMapDataset(Dataset):
 
         logging.info(f"Building data files")
         # load all files into memmap
-        is_distributed = (
-            torch.distributed.is_available() and torch.distributed.is_initialized()
-        )
+        is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
         if not is_distributed or (is_distributed and torch.distributed.get_rank() == 0):
             # Create index files on global rank 0.
@@ -161,17 +157,13 @@ class TextMemMapDataset(Dataset):
 
         logging.info(f"Loading data files")
         start_time = time.time()
-        mdata_midx_list = [
-            self.load_file(fn, index_mapping_dir) for fn in self._files_list
-        ]
+        mdata_midx_list = [self.load_file(fn, index_mapping_dir) for fn in self._files_list]
         logging.info(
             f"Time loading {len(mdata_midx_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
         )
 
         logging.info("Computing global indices")
-        midx_bins = np.cumsum(
-            [(len(midx) - header_lines) for _, midx in mdata_midx_list]
-        )
+        midx_bins = np.cumsum([(len(midx) - header_lines) for _, midx in mdata_midx_list])
 
         self.midx_bins = midx_bins
         self.mdata_midx_list = mdata_midx_list
@@ -192,9 +184,7 @@ class TextMemMapDataset(Dataset):
         Return a string from binary memmap
         """
         if (idx >= len(self)) or (idx < 0):
-            raise IndexError(
-                f"Index {idx} if out of dataset range with {len(self)} samples"
-            )
+            raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
 
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
@@ -225,9 +215,7 @@ class TextMemMapDataset(Dataset):
             logging.error(
                 f"Error while building data from text, possible issue with sample expected format (see offending sample below): {e}"
             )
-            logging.error(
-                f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}"
-            )
+            logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
             raise e
 
         return data
@@ -269,9 +257,7 @@ class TextMemMapDataset(Dataset):
             midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode="r")
             # test for header
             if len(midx) < self._header_lines:
-                raise RuntimeError(
-                    f"Missing header, expected {self._header_lines} header lines"
-                )
+                raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
 
             # load meta info
             idx_info_dict = pickle.load(open(idx_fn + ".info", "rb"))
@@ -449,9 +435,7 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir
         # validate midx
         midx = np.asarray(midx)
         if not np.issubdtype(midx.dtype, np.integer):
-            raise TypeError(
-                f"midx must be an integer array, but got type = {midx.dtype}"
-            )
+            raise TypeError(f"midx must be an integer array, but got type = {midx.dtype}")
 
         # create e metadata file
         data = dict(newline_int=newline_int, version=__idx_version__)
@@ -466,11 +450,7 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir
 
 
 def build_index_files(
-    dataset_paths,
-    newline_int,
-    workers=None,
-    build_index_fn=_build_index_from_memdata,
-    index_mapping_dir: str = None,
+    dataset_paths, newline_int, workers=None, build_index_fn=_build_index_from_memdata, index_mapping_dir: str = None,
 ):
     """Auxiliary method to build multiple index files"""
     if len(dataset_paths) < 1:
@@ -484,12 +464,7 @@ def build_index_files(
     start_time = time.time()
     with mp.Pool(workers) as p:
         build_status = p.map(
-            partial(
-                _build_memmap_index_files,
-                newline_int,
-                build_index_fn,
-                index_mapping_dir=index_mapping_dir,
-            ),
+            partial(_build_memmap_index_files, newline_int, build_index_fn, index_mapping_dir=index_mapping_dir,),
             dataset_paths,
         )
 
