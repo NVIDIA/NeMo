@@ -58,7 +58,7 @@ if __name__ == "__main__":
             logging.warning('Supplied Nemo model does not contain a tokenizer')
 
     lex_file = os.path.join(save_path, os.path.splitext(os.path.basename(args.arpa))[0] + '.lexicon')
-    
+
     logging.info(f"Writing Lexicon file to: {lex_file}...")
     with open(lex_file, "w", encoding='utf_8', newline='\n') as f:
         with open(args.arpa, "r", encoding='utf_8') as arpa:
