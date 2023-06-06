@@ -502,15 +502,15 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
     """
     Function to add t_start and t_end (representing time in seconds) to the Utterance object utt_obj.
     Args:
-    utt_obj: Utterance object to which we will add t_start and t_end for its 
-        constituent segments/words/tokens.
-    alignment_utt: a list of ints indicating which token does the alignment pass through at each 
-        timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
-    output_timestep_duration: a float indicating the duration of a single output timestep from
-        the ASR Model.
+        utt_obj: Utterance object to which we will add t_start and t_end for its 
+            constituent segments/words/tokens.
+        alignment_utt: a list of ints indicating which token does the alignment pass through at each 
+            timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
+        output_timestep_duration: a float indicating the duration of a single output timestep from
+            the ASR Model.
 
     Returns:
-    utt_obj: updated Utterance object.
+        utt_obj: updated Utterance object.
     """
 
     # General idea for the algorithm of how we add t_start and t_end
@@ -602,15 +602,9 @@ def get_batch_variables(
     Returns:
         log_probs, y, T, U (y and U are s.t. every other token is a blank) - these are the tensors we will need
             during Viterbi decoding.
-        TODO: update
-        token_info_list, word_info_list, segment_info_list - these are lists of dictionaries which we will need
-            for writing the CTM files with the human-readable alignments.
-        pred_text_list - this is a list of the transcriptions from our model which we will save to our output JSON
-            file if align_using_pred_text is True.
-        model_downsample_factor - the ratio (length of model input) / (length of model output).
-            This variable is also an input variable. The input variable will be None only during the first batch.
-            The function will calculate the value of this ratio and update the variable. When the input varialbe is 
-            not None, this ratio will not be re-calculated.
+        utt_obj_batch: a list of Utterance objects for every utterance in the batch.
+        output_timestep_duration: a float indicating the duration of a single output timestep from
+            the ASR Model.
     """
 
     # get hypotheses by calling 'transcribe'
