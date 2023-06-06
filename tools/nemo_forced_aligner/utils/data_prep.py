@@ -500,10 +500,20 @@ def get_utt_obj(
 
 def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration):
     """
-    TODO
+    Function to add t_start and t_end (representing time in seconds) to the Utterance object utt_obj.
+    Args:
+    utt_obj: Utterance object to which we will add t_start and t_end for its 
+        constituent segments/words/tokens.
+    alignment_utt: a list of ints indicating which token does the alignment pass through at each 
+        timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
+    output_timestep_duration: a float indicating the duration of a single output timestep from
+        the ASR Model.
+
+    Returns:
+    utt_obj: updated Utterance object.
     """
 
-    # General idea:
+    # General idea for the algorithm of how we add t_start and t_end
     # the timestep where a token s starts is the location of the first appearance of s_start in alignment_utt
     # the timestep where a token s ends is the location of the final appearance of s_end in alignment_utt
     # We will make dictionaries num_to_first_alignment_appearance and
