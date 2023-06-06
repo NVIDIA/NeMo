@@ -210,7 +210,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         micro_batch_size: int,
         step: int,
         context_length: int,
-        compute_attention_mask: bool = True,
+        compute_attention_mask: bool,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
