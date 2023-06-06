@@ -359,7 +359,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     feat_in=feat_in,
                     feat_out=d_model,
                     conv_channels=subsampling_conv_channels,
-                    conv_chunking_factor=conv_chunking_factor,
+                    chunking_factor=conv_chunking_factor,
                     activation=nn.ReLU(True),
                     is_causal=causal_downsampling,
                 )
