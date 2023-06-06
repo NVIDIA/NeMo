@@ -44,7 +44,7 @@ class TestASRSubsamplingConvChunking:
             )
 
             # force chunking
-            asr_model.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor = 2)
+            asr_model.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor=2)
 
             # chunked inference by channels as batch is 1
             logprobs_batch1_split, _, _ = asr_model.forward(

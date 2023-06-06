@@ -995,7 +995,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             logging.info("Model pre_encoder doesn't have a change_subsampling_conv_chunking_factor method ")
             return
 
-        self.pre_encode.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor = subsampling_conv_chunking_factor)
+        self.pre_encode.change_subsampling_conv_chunking_factor(
+            subsampling_conv_chunking_factor=subsampling_conv_chunking_factor
+        )
+
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
 

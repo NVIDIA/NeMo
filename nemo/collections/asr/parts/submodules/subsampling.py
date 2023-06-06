@@ -351,7 +351,9 @@ class ConvSubsampling(torch.nn.Module):
             p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
             _, c, t, _ = x.size()
 
-            if self.subsampling_conv_chunking_factor != 1 and self.subsampling_conv_chunking_factor > 2 ** p:  # be nice
+            if (
+                self.subsampling_conv_chunking_factor != 1 and self.subsampling_conv_chunking_factor > 2 ** p
+            ):  # be nice
                 cf = self.subsampling_conv_chunking_factor
                 logging.debug(f'using manually set chunking factor: {cf}')
             else:
