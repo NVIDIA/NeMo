@@ -66,7 +66,8 @@ class ConvSubsampling(torch.nn.Module):
     Args:
         subsampling (str): The subsampling technique from {"vggnet", "striding"}
         subsampling_factor (int): The subsampling factor which should be a power of 2
-        chunking_factor (int): Input chunking factor which should be 1 (no chunking) or a power of 2. Default is 1
+        subsampling_conv_chunking_factor (int): Input chunking factor which can be -1 (no chunking) 
+        1 (auto) or a power of 2. Default is -1
         feat_in (int): size of the input features
         feat_out (int): size of the output features
         conv_channels (int): Number of channels for the convolution layers.
@@ -80,7 +81,7 @@ class ConvSubsampling(torch.nn.Module):
         feat_in,
         feat_out,
         conv_channels,
-        subsampling_conv_chunking_factor=1,
+        subsampling_conv_chunking_factor=-1,
         activation=nn.ReLU(),
         is_causal=False,
     ):
@@ -96,8 +97,8 @@ class ConvSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.is_causal = is_causal
 
-        if subsampling_conv_chunking_factor != 1 and subsampling_conv_chunking_factor % 2 != 0:
-            raise ValueError("subsampling_conv_chunking_factor should be a multiply of 2!")
+        if subsampling_conv_chunking_factor != -1 and subsampling_conv_chunking_factor != 1 and subsampling_conv_chunking_factor % 2 != 0:
+            raise ValueError("subsampling_conv_chunking_factor should be -1, 1, or a power of 2")
         self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
         in_channels = 1
@@ -279,15 +280,11 @@ class ConvSubsampling(torch.nn.Module):
         x = x.unsqueeze(1)
 
         # split inputs if chunking_factor is set
-        # in dw conv, automatically avoiding a bug / feature limiting indexing of tensors to 2**31
-        # see https://github.com/pytorch/pytorch/issues/80020
-        # after the first conv numel will be * conv-channels but (self._stride * self._stride) downsampled
-        x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
-        if torch.numel(x) > x_ceil or self.chunking_factor != 1:
+        if self.subsampling_conv_chunking_factor != -1:
             x, success = self.conv_split_by_batch(x)
-            if not success:
+            if not success: # if unable to split by batch, try by channel
                 if self._subsampling == 'dw_striding':
-                    x = self.conv_split_by_channel(x)
+                    x = self.channel_split_conv(x)
                 else:
                     x = self.conv(x)  # try anyway
         else:
@@ -326,12 +323,14 @@ class ConvSubsampling(torch.nn.Module):
         if b == 1:  # can't split if batch size is 1
             return x, False
 
-        x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
-        p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
-        if self.subsampling_conv_chunking_factor != 1 and self.subsampling_conv_chunking_factor > 2 ** p:  # be nice
+        if self.subsampling_conv_chunking_factor > 1:
             cf = self.subsampling_conv_chunking_factor
             logging.debug(f'using manually set chunking factor: {cf}')
         else:
+            # avoiding a bug / feature limiting indexing of tensors to 2**31
+            # see https://github.com/pytorch/pytorch/issues/80020
+            x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
+            p = math.ceil(math.log(torch.numel(x) / x_ceil, 2))
             cf = 2 ** p
             logging.debug(f'using auto set chunking factor: {cf}')
 
@@ -348,13 +347,15 @@ class ConvSubsampling(torch.nn.Module):
         x = self.conv[1](x)  # activation
 
         for i in range(self._sampling_num - 1):
-            p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
             _, c, t, _ = x.size()
 
-            if self.subsampling_conv_chunking_factor != 1 and self.subsampling_conv_chunking_factor > 2 ** p:  # be nice
+            if self.subsampling_conv_chunking_factor > 1:
                 cf = self.subsampling_conv_chunking_factor
                 logging.debug(f'using manually set chunking factor: {cf}')
             else:
+                # avoiding a bug / feature limiting indexing of tensors to 2**31
+                # see https://github.com/pytorch/pytorch/issues/80020
+                p = math.ceil(math.log(torch.numel(x) / 2 ** 31, 2))
                 cf = 2 ** p
                 logging.debug(f'using auto set chunking factor: {cf}')
 
@@ -411,6 +412,8 @@ class ConvSubsampling(torch.nn.Module):
         return torch.cat(out_chunks, 1)
 
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
+        if subsampling_conv_chunking_factor != -1 and subsampling_conv_chunking_factor != 1 and subsampling_conv_chunking_factor % 2 != 0:
+            raise ValueError("subsampling_conv_chunking_factor should be -1, 1, or a power of 2")
         self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
 

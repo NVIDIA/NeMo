@@ -435,7 +435,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int, update_config: bool = True):
         """
         Update the conv_chunking_factor (int) if function is available in encoder.
-        Set it to a higher value (default is 1) if you OOM in the conv subsampling layers
+        Default is -1 (disabled)
+        Set it to 1 (auto) or to a specific value (power of 2) if you OOM in the conv subsampling layers
 
         Args:
             conv_chunking_factor (int)

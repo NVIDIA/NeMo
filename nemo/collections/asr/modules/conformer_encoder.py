@@ -68,7 +68,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
         subsampling_conv_chunking_factor(int): optionally, force chunk inputs (helpful for large inputs)
-            Should be power of 2. Defaults to 1 (no chunking)
+            Should be power of 2, 1 (auto-chunking), or -1 (no chunking, default)
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
             Defaults to -1 which would set it to d_model.
         reduction (str, Optional): the method of reduction, choices=['pooling', 'striding']. If no value
@@ -247,7 +247,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         causal_downsampling=False,
         subsampling='striding',
         subsampling_factor=4,
-        subsampling_conv_chunking_factor=1,
+        subsampling_conv_chunking_factor=-1,
         subsampling_conv_channels=-1,
         reduction=None,
         reduction_position=None,
@@ -985,10 +985,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
         """
         Update the conv_chunking_factor (int) 
-        Set it to a higher value (default is 1) if you OOM in the conv subsampling layers
+        Default is -1 (disabled)
+        Set it to 1 (auto) or to a specific value (power of 2) if you OOM in the conv subsampling layers
+
 
         Args:
-            conv_chunking_factor (int)
+            subsampling_conv_chunking_factor (int)
         """
 
         if not hasattr(self.pre_encode, "change_subsampling_conv_chunking_factor"):

@@ -43,7 +43,7 @@ class TestASRSubsamplingConvChunking:
                 input_signal=input_signal_batch4, input_signal_length=length_batch4
             )
 
-            # force chunking
+            # force chunking to 2
             asr_model.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor = 2)
 
             # chunked inference by channels as batch is 1
