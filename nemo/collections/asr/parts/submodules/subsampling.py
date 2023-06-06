@@ -97,7 +97,11 @@ class ConvSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.is_causal = is_causal
 
-        if subsampling_conv_chunking_factor != -1 and subsampling_conv_chunking_factor != 1 and subsampling_conv_chunking_factor % 2 != 0:
+        if (
+            subsampling_conv_chunking_factor != -1
+            and subsampling_conv_chunking_factor != 1
+            and subsampling_conv_chunking_factor % 2 != 0
+        ):
             raise ValueError("subsampling_conv_chunking_factor should be -1, 1, or a power of 2")
         self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
@@ -282,7 +286,7 @@ class ConvSubsampling(torch.nn.Module):
         # split inputs if chunking_factor is set
         if self.subsampling_conv_chunking_factor != -1:
             x, success = self.conv_split_by_batch(x)
-            if not success: # if unable to split by batch, try by channel
+            if not success:  # if unable to split by batch, try by channel
                 if self._subsampling == 'dw_striding':
                     x = self.channel_split_conv(x)
                 else:
@@ -412,7 +416,11 @@ class ConvSubsampling(torch.nn.Module):
         return torch.cat(out_chunks, 1)
 
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
-        if subsampling_conv_chunking_factor != -1 and subsampling_conv_chunking_factor != 1 and subsampling_conv_chunking_factor % 2 != 0:
+        if (
+            subsampling_conv_chunking_factor != -1
+            and subsampling_conv_chunking_factor != 1
+            and subsampling_conv_chunking_factor % 2 != 0
+        ):
             raise ValueError("subsampling_conv_chunking_factor should be -1, 1, or a power of 2")
         self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
