@@ -1033,6 +1033,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_sp_running()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -1089,6 +1090,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if self.cfg.get('transformer_engine', False):
                 self.setup_transformer_engine_tp_groups()
+                self.setup_transformer_engine_sp_running()
 
         # set the default sampling params if it is None.
         # default do greedy sampling
@@ -1185,6 +1187,31 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._set_tp_groups(module)
         else:
             self._set_tp_groups(self.model)
+
+    def _set_sp_running(self, module):
+        """ Helper method to set sp running for transformer engine"""
+
+        if self.cfg.get('transformer_engine', False):
+            logging.info(f'Setting up transformer engine modules for seequence parallelism.')
+            sp_stream = torch.cuda.Stream()
+            if self.cfg.get('megatron_amp_O2', 'False'):
+                # when using O2 additional module key is added that casts the weights
+                for layer in module.module.language_model.encoder.layers:
+                    layer.set_sequence_parallel_running(parallel_state.get_sequence_parallel_group(), sp_stream)
+
+            else:
+                for layer in module.language_model.encoder.layers:
+                    layer.set_sequence_parallel_running(parallel_state.get_sequence_parallel_group(), sp_stream)
+
+    def setup_transformer_engine_sp_running(self):
+        """ This should be called after model parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        if isinstance(self.model, list):
+            for module in self.model:
+                self._set_sp_running(module)
+        else:
+            self._set_sp_running(self.model)
 
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
