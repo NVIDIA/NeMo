@@ -291,12 +291,12 @@ class ConvSubsampling(torch.nn.Module):
                 # see https://github.com/pytorch/pytorch/issues/80020
                 x_ceil = 2 ** 31 / self._conv_channels * self._stride * self._stride
                 if torch.numel(x) > x_ceil:
-                   need_to_split = True 
+                    need_to_split = True
                 else:
-                   need_to_split = False
+                    need_to_split = False
             else:
                 # if subsampling_conv_chunking_factor > 1 we always split
-                need_to_split = True 
+                need_to_split = True
 
             if need_to_split:
                 x, success = self.conv_split_by_batch(x)
