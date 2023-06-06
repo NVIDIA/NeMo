@@ -32,7 +32,7 @@ class TestASRSubsamplingConvChunking:
         asr_model.preprocessor.featurizer.dither = 0.0
         asr_model.preprocessor.featurizer.pad_to = 0
 
-        len = 16000 * 4 # 4 second sample
+        len = 16000 * 4  # 4 second sample
 
         input_signal_batch1 = torch.randn(size=(1, len), device=asr_model.device)
         length_batch1 = torch.randint(low=161, high=500, size=[1], device=asr_model.device)
@@ -42,21 +42,26 @@ class TestASRSubsamplingConvChunking:
 
         with torch.no_grad():
             # regular inference
-            logprobs_batch1_nosplit, _, _ = asr_model.forward(input_signal=input_signal_batch1, input_signal_length=length_batch1)
-            logprobs_batch4_nosplit, _, _ = asr_model.forward(input_signal=input_signal_batch4, input_signal_length=length_batch4)
+            logprobs_batch1_nosplit, _, _ = asr_model.forward(
+                input_signal=input_signal_batch1, input_signal_length=length_batch1
+            )
+            logprobs_batch4_nosplit, _, _ = asr_model.forward(
+                input_signal=input_signal_batch4, input_signal_length=length_batch4
+            )
 
-            # force chunking 
-            asr_model.encoder.pre_encode.chunking_factor = 2 
+            # force chunking
+            asr_model.encoder.pre_encode.chunking_factor = 2
 
             # chunked inference by channels as batch is 1
-            logprobs_batch1_split, _, _ = asr_model.forward(input_signal=input_signal_batch1, input_signal_length=length_batch1)
+            logprobs_batch1_split, _, _ = asr_model.forward(
+                input_signal=input_signal_batch1, input_signal_length=length_batch1
+            )
             # chunked inference by batch as it is 4 [> 1]
-            logprobs_batch4_split, _, _ = asr_model.forward(input_signal=input_signal_batch4, input_signal_length=length_batch4)
-
+            logprobs_batch4_split, _, _ = asr_model.forward(
+                input_signal=input_signal_batch4, input_signal_length=length_batch4
+            )
 
         diff = torch.mean(torch.abs(logprobs_batch1_split - logprobs_batch1_nosplit))
         assert diff <= 1e-6
         diff = torch.max(torch.abs(logprobs_batch4_split - logprobs_batch4_nosplit))
         assert diff <= 1e-6
-
-
