@@ -276,7 +276,13 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
         return maxlen
 
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int, compute_attention_mask: bool
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         # types2use = None
         if step == 0:
