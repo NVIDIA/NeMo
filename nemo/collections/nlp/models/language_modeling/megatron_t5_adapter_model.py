@@ -441,6 +441,10 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
             AdapterName.LORA_KV_ADAPTER,
             AdapterName.LORA_Q_ADAPTER,
         ]
+
+        # add adapter keys to the list -> to update state dict
+        self.adapter_name_keys = encoder_adapter_name_keys + decoder_adapter_name_keys
+
         frozen_model_cfg = MegatronT5Model.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
