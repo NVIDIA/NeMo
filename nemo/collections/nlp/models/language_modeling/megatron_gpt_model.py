@@ -468,6 +468,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             no_sync_func=no_sync_func,
             grad_sync_func=grad_sync_func,
             param_sync_func=param_sync_func,
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses
@@ -1280,7 +1282,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         for module in self.get_gpt_module_list():
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
-                    mod.sequence_parallel = self.last_sequence_parallel
+                    mod.sequence_parallel = False
 
     def _restore_sequence_parallelism_args(self):
         """ Restores the sequence parallelism parameters using the values saved by
