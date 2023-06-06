@@ -305,6 +305,8 @@ class ConvSubsampling(torch.nn.Module):
                         x = self.conv_split_by_channel(x)
                     else:
                         x = self.conv(x)  # try anyway
+            else:
+                x = self.conv(x)
         else:
             x = self.conv(x)
 
