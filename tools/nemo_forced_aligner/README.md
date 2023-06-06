@@ -28,7 +28,7 @@ Call the `align.py` script, specifying the parameters as follows:
 
 ### Optional parameters:
 
-* `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the 'ground truth' for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_dir>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
+* `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the reference text for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_dir>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
 
 * `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). If None, NFA will set it to 'cuda' if it is available (otherwise will set it to 'cpu'). If specified `transcribe_device` needs to be a string that can be input to the `torch.device()` method. (Default: `None`).
 
@@ -39,7 +39,7 @@ Call the `align.py` script, specifying the parameters as follows:
 * `use_local_attention`: boolean flag specifying whether to try to use local attention for the ASR Model (will only work if the ASR Model is a Conformer model). If local attention is used, we will set the local attention context size to [64,64].
 
 * `additional_segment_grouping_separator`: an optional string used to separate the text into smaller segments. If this is not specified, then the whole text will be treated as a single segment. (Default: `None`. Cannot be empty string or space (" "), as NFA will automatically produce word-level timestamps for substrings separated by spaces).
-> Note: the `additional_segment_grouping_separator` will be removed from the ground truth text and all the output files, ie it is treated as a marker which is not part of the reference text. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_segment_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
+> Note: the `additional_segment_grouping_separator` will be removed from the reference text and all the output files, ie it is treated as a marker which is not part of the reference text. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_segment_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
 
 * `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from token-level output CTMs. (Default: False). 
 
@@ -67,9 +67,9 @@ By default, NFA needs to be provided with a 'manifest' file where each line spec
 {"audio_filepath": "/absolute/path/to/audio.wav", "text": "the transcription of the utterance"}
 ```
 
-You can omit the `"text"` field from the manifest if you specify `align_using_pred_text=true`. In that case, any `"text"` fields in the manifest will be ignored: the ASR model at `pretrained_name` or `model_path` will be used to transcribe the audio and obtain `"pred_text"`, which will be used as the 'ground truth' for the forced alignment process. The `"pred_text"` will also be saved in the output manifest JSON file at `<output_dir>/<original manifest file name>_with_output_file_paths.json`. To remove the possibility of overwriting `"pred_text"`, NFA will raise an error if `align_using_pred_text=true` and there are existing `"pred_text"` fields in the original manifest.
+You can omit the `"text"` field from the manifest if you specify `align_using_pred_text=true`. In that case, any `"text"` fields in the manifest will be ignored: the ASR model at `pretrained_name` or `model_path` will be used to transcribe the audio and obtain `"pred_text"`, which will be used as the reference text for the forced alignment process. The `"pred_text"` will also be saved in the output manifest JSON file at `<output_dir>/<original manifest file name>_with_output_file_paths.json`. To remove the possibility of overwriting `"pred_text"`, NFA will raise an error if `align_using_pred_text=true` and there are existing `"pred_text"` fields in the original manifest.
 
-> Note: NFA does not require `"duration"` fields in the manifest, and can align long audio files without running out of memory. The duration of audio file you can align will depend on the amount of memory on your machine. NFA will also produce better alignments the more accurate the ground-truth `"text"` is.
+> Note: NFA does not require `"duration"` fields in the manifest, and can align long audio files without running out of memory. The duration of audio file you can align will depend on the amount of memory on your machine. NFA will also produce better alignments the more accurate the reference text in `"text"` is.
 
 
 # Output CTM file format

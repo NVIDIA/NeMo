@@ -57,7 +57,7 @@ Arguments:
         containing 'audio_filepath' and 'text' fields.
     output_dir: the folder where output CTM files and new JSON manifest will be saved.
     align_using_pred_text: if True, will transcribe the audio using the specified model and then use that transcription 
-        as the 'ground truth' for the forced alignment. 
+        as the reference text for the forced alignment. 
     transcribe_device: None, or a string specifying the device that will be used for generating log-probs (i.e. "transcribing").
         The string needs to be in a format recognized by torch.device(). If None, NFA will set it to 'cuda' if it is available 
         (otherwise will set it to 'cpu').
