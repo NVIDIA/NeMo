@@ -20,6 +20,7 @@ import torchvision.transforms as T
 from PIL import Image, ImageFilter, ImageOps
 from torch.utils.data import Dataset
 
+from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch
 from nemo.collections.vision.data.megatron.autoaugment import ImageNetPolicy
 from nemo.collections.vision.data.megatron.image_folder import ImageFolder
 
@@ -38,17 +39,17 @@ def _to_torch_data_type(precision):
 class RandomSeedDataset(Dataset):
     def __init__(self, dataset, seed=1234):
         self.base_seed = seed
-        self.curr_seed = seed
         self.dataset = dataset
+        self.epoch = SharedEpoch()
 
     def __len__(self):
         return len(self.dataset)
 
     def set_epoch(self, epoch):
-        self.curr_seed = self.base_seed + epoch
+        self.epoch.set_value(epoch)
 
     def __getitem__(self, idx):
-        seed = idx + self.curr_seed
+        seed = idx + self.base_seed + self.epoch.get_value() * 32768
         torch.manual_seed(seed)
         random.seed(seed)
         np.random.seed(seed)
