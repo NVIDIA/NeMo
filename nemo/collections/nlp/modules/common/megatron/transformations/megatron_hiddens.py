@@ -98,10 +98,14 @@ def get_hiddens_module(cfg=None):
     if cfg is None:
         return None
 
-    # build all hidden transforms
+    logging.info(f"NOTE: Adding hiddens transforms and losses")
+
+    # build all hidden transforms. We support a list or a dictionary of transforms (list enforces order)
     transform_cfg = cfg.get("transform", [])
+    if isinstance(transform_cfg, dict):
+        transform_cfg = [transform_cfg]
     hidden_transforms = []
-    # we expect transform_cfg to be a list of dictionaries
+    # here we expect transform_cfg to be a list of dictionaries
     for cur_list_cfg in transform_cfg.items():
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
@@ -113,11 +117,14 @@ def get_hiddens_module(cfg=None):
                 raise KeyError(f"Unknown hidden transform {cls_name}, available: {_TRANSFORM_CLASS_REGISTRY.keys()}")
             cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
             hidden_transforms.append(cur_transform)
+            logging.info(f"Added transform {name} with cfg={cur_cfg}")
 
     # build all hidden losses
-    loss_cfg = cfg.get("loss", {})
+    loss_cfg = cfg.get("loss", [])
+    if isinstance(loss_cfg, dict):
+        loss_cfg = [loss_cfg]
     hidden_loss_transforms = []
-    # we expect loss_cfg to be a list of dictionaries
+    # here we expect loss_cfg to be a list of dictionaries
     for cur_list_cfg in loss_cfg.items():
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
@@ -129,6 +136,7 @@ def get_hiddens_module(cfg=None):
                 raise KeyError(f"Unknown hidden loss {cls_name}, available: {_LOSS_CLASS_REGISTRY.keys()}")
             cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
             hidden_loss_transforms.append(cur_loss)
+            logging.info(f"Added loss {name} with cfg={cur_cfg}")
 
     enc_output_name = cfg.get("enc_output_name", "hiddens")
 
