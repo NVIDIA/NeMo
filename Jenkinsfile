@@ -68,6 +68,7 @@ pipeline {
       
     stage('Flash Attention installation') {
       steps {
+        // pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
         sh 'pip install flash-attn && \
             pip install triton==2.0.0.dev20221202'
       }
