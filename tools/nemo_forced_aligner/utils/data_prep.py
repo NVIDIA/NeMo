@@ -234,6 +234,15 @@ def get_utt_obj(
     Function to create an Utterance object and add all necessary information to it except
         for timings of the segments / words / tokens according to the alignment - that will
         be done later in a different function, after the alignment is done.
+
+        The Utterance object has a list segments_and_tokens which contains Segment objects and
+        Token objects (for blank tokens in between segments).
+        Within the Segment objects, there is a list words_and_tokens which contains Word objects and
+        Token objects (for blank tokens in between words).
+        Within the Word objects, there is a list tokens tokens which contains Token objects for
+        blank and non-blank tokens.
+        We will be building up these lists in this function. This data structure will then be useful for
+        generating the various output files that we wish to save.
     """
 
     if not separator:  # if separator is not defined - treat the whole text as one segment
@@ -246,6 +255,8 @@ def get_utt_obj(
 
     utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
 
+    # build up lists: token_ids_with_blanks, segments_and_tokens.
+    # The code for these is different depending on whether we use char-based tokens or not
     if hasattr(model, 'tokenizer'):
         if hasattr(model, 'blank_id'):
             BLANK_ID = model.blank_id
@@ -285,10 +296,18 @@ def get_utt_obj(
             segment_tokens = model.tokenizer.text_to_tokens(segment)
             utt.segments_and_tokens.append(
                 Segment(
-                    text=segment, s_start=segment_s_pointer, s_end=segment_s_pointer + (len(segment_tokens) - 1) * 2
+                    text=segment,
+                    s_start=segment_s_pointer,
+                    # segment_tokens do not contain blanks => need to muliply by 2
+                    # s_end needs to be the index of the final token (including blanks) of the current segment:
+                    # segment_s_pointer + len(segment_tokens) * 2 is the index of the first token of the next segment =>
+                    # => need to subtract 2
+                    s_end=segment_s_pointer + len(segment_tokens) * 2 - 2,
                 )
             )
-            segment_s_pointer += len(segment_tokens) * 2
+            segment_s_pointer += (
+                len(segment_tokens) * 2
+            )  # multiply by 2 to account for blanks (which are not present in segment_tokens)
 
             words = segment.split(" ")  # we define words to be space-separated sub-strings
             for word_i, word in enumerate(words):
@@ -299,9 +318,15 @@ def get_utt_obj(
 
                 # add the word to word_info and increment the word_s_pointer
                 utt.segments_and_tokens[-1].words_and_tokens.append(
+                    # word_tokens do not contain blanks => need to muliply by 2
+                    # s_end needs to be the index of the final token (including blanks) of the current word:
+                    # word_s_pointer + len(word_tokens) * 2 is the index of the first token of the next word =>
+                    # => need to subtract 2
                     Word(text=word, s_start=word_s_pointer, s_end=word_s_pointer + len(word_tokens) * 2 - 2)
                 )
-                word_s_pointer += len(word_tokens) * 2  # TODO check this
+                word_s_pointer += (
+                    len(word_tokens) * 2
+                )  # multiply by 2 to account for blanks (which are not present in word_tokens)
 
                 for token_i, (token, token_id, token_cased) in enumerate(
                     zip(word_tokens, word_token_ids, word_tokens_cased)
@@ -309,31 +334,46 @@ def get_utt_obj(
                     # add the text tokens and the blanks in between them
                     # to our token-based variables
                     utt.token_ids_with_blanks.extend([token_id, BLANK_ID])
+                    # adding Token object for non-blank token
                     utt.segments_and_tokens[-1].words_and_tokens[-1].tokens.append(
                         Token(
                             text=token,
                             text_cased=token_cased,
+                            # utt.token_ids_with_blanks has the form [...., <this non-blank token>, <blank>] =>
+                            # => if do len(utt.token_ids_with_blanks) - 1 you get the index of the final <blank>
+                            # => we want to do len(utt.token_ids_with_blanks) - 2 to get the index of <this non-blank token>
                             s_start=len(utt.token_ids_with_blanks) - 2,
+                            # s_end is same as s_start since the token only occupies one element in the list
                             s_end=len(utt.token_ids_with_blanks) - 2,
                         )
                     )
 
+                    # adding Token object for blank tokens in between the tokens of the word
+                    # (ie do not add another blank if you have reached the end)
                     if token_i < len(word_tokens) - 1:
                         utt.segments_and_tokens[-1].words_and_tokens[-1].tokens.append(
                             Token(
                                 text=BLANK_TOKEN,
                                 text_cased=BLANK_TOKEN,
+                                # utt.token_ids_with_blanks has the form [...., <this blank token>] =>
+                                # => if do len(utt.token_ids_with_blanks) -1 you get the index of this <blank>
                                 s_start=len(utt.token_ids_with_blanks) - 1,
+                                # s_end is same as s_start since the token only occupies one element in the list
                                 s_end=len(utt.token_ids_with_blanks) - 1,
                             )
                         )
 
+                # add a Token object for blanks in between words in this segment
+                # (but only *in between* - do not add the token if it is after the final word)
                 if word_i < len(words) - 1:
                     utt.segments_and_tokens[-1].words_and_tokens.append(
                         Token(
                             text=BLANK_TOKEN,
                             text_cased=BLANK_TOKEN,
+                            # utt.token_ids_with_blanks has the form [...., <this blank token>] =>
+                            # => if do len(utt.token_ids_with_blanks) -1 you get the index of this <blank>
                             s_start=len(utt.token_ids_with_blanks) - 1,
+                            # s_end is same as s_start since the token only occupies one element in the list
                             s_end=len(utt.token_ids_with_blanks) - 1,
                         )
                     )
@@ -343,7 +383,10 @@ def get_utt_obj(
                 Token(
                     text=BLANK_TOKEN,
                     text_cased=BLANK_TOKEN,
+                    # utt.token_ids_with_blanks has the form [...., <this blank token>] =>
+                    # => if do len(utt.token_ids_with_blanks) -1 you get the index of this <blank>
                     s_start=len(utt.token_ids_with_blanks) - 1,
+                    # s_end is same as s_start since the token only occupies one element in the list
                     s_end=len(utt.token_ids_with_blanks) - 1,
                 )
             )
@@ -390,9 +433,18 @@ def get_utt_obj(
             segment_tokens = get_char_tokens(segment, model)
             utt.segments_and_tokens.append(
                 Segment(
-                    text=segment, s_start=segment_s_pointer, s_end=segment_s_pointer + (len(segment_tokens) - 1) * 2
+                    text=segment,
+                    s_start=segment_s_pointer,
+                    # segment_tokens do not contain blanks => need to muliply by 2
+                    # s_end needs to be the index of the final token (including blanks) of the current segment:
+                    # segment_s_pointer + len(segment_tokens) * 2 is the index of the first token of the next segment =>
+                    # => need to subtract 2
+                    s_end=segment_s_pointer + len(segment_tokens) * 2 - 2,
                 )
             )
+
+            # for correct calculation: multiply len(segment_tokens) by 2 to account for blanks (which are not present in segment_tokens)
+            # and + 2 to account for [<token for space in between segments>, <blank token after that space token>]
             segment_s_pointer += len(segment_tokens) * 2 + 2
 
             words = segment.split(" ")  # we define words to be space-separated substrings
@@ -405,9 +457,17 @@ def get_utt_obj(
 
                 # add the word to word_info and increment the word_s_pointer
                 utt.segments_and_tokens[-1].words_and_tokens.append(
+                    # note for s_end:
+                    # word_tokens do not contain blanks => need to muliply by 2
+                    # s_end needs to be the index of the final token (including blanks) of the current word:
+                    # word_s_pointer + len(word_tokens) * 2 is the index of the first token of the next word =>
+                    # => need to subtract 2
                     Word(text=word, s_start=word_s_pointer, s_end=word_s_pointer + len(word_tokens) * 2 - 2)
                 )
-                word_s_pointer += len(word_tokens) * 2 + 2  # TODO check this
+
+                # for correct calculation: multiply len(word_tokens) by 2 to account for blanks (which are not present in word_tokens)
+                # and + 2 to account for [<token for space in between words>, <blank token after that space token>]
+                word_s_pointer += len(word_tokens) * 2 + 2
 
                 for token_i, (token, token_id) in enumerate(zip(word_tokens, word_token_ids)):
                     # add the text tokens and the blanks in between them
@@ -417,18 +477,24 @@ def get_utt_obj(
                         Token(
                             text=token,
                             text_cased=token,
+                            # utt.token_ids_with_blanks has the form [..., <this non-blank token>]
+                            # => do len(utt.token_ids_with_blanks) - 1 to get the index of this non-blank token
                             s_start=len(utt.token_ids_with_blanks) - 1,
+                            # s_end is same as s_start since the token only occupies one element in the list
                             s_end=len(utt.token_ids_with_blanks) - 1,
                         )
                     )
 
-                    if token_i < len(word_tokens) - 1:
+                    if token_i < len(word_tokens) - 1:  # only add blank tokens that are in the middle of words
                         utt.token_ids_with_blanks.extend([BLANK_ID])
                         utt.segments_and_tokens[-1].words_and_tokens[-1].tokens.append(
                             Token(
                                 text=BLANK_TOKEN,
                                 text_cased=BLANK_TOKEN,
+                                # utt.token_ids_with_blanks has the form [..., <this blank token>]
+                                # => do len(utt.token_ids_with_blanks) - 1 to get the index of this blank token
                                 s_start=len(utt.token_ids_with_blanks) - 1,
+                                # s_end is same as s_start since the token only occupies one element in the list
                                 s_end=len(utt.token_ids_with_blanks) - 1,
                             )
                         )
@@ -440,7 +506,11 @@ def get_utt_obj(
                         Token(
                             text=BLANK_TOKEN,
                             text_cased=BLANK_TOKEN,
+                            # utt.token_ids_with_blanks has the form
+                            # [..., <final token of previous word>, <blank token>, <space token>, <blank token>]
+                            # => do len(utt.token_ids_with_blanks) - 3 to get the index of the blank token before the space token
                             s_start=len(utt.token_ids_with_blanks) - 3,
+                            # s_end is same as s_start since the token only occupies one element in the list
                             s_end=len(utt.token_ids_with_blanks) - 3,
                         )
                     )
@@ -448,7 +518,11 @@ def get_utt_obj(
                         Token(
                             text=SPACE_TOKEN,
                             text_cased=SPACE_TOKEN,
+                            # utt.token_ids_with_blanks has the form
+                            # [..., <final token of previous word>, <blank token>, <space token>, <blank token>]
+                            # => do len(utt.token_ids_with_blanks) - 2 to get the index of the space token
                             s_start=len(utt.token_ids_with_blanks) - 2,
+                            # s_end is same as s_start since the token only occupies one element in the list
                             s_end=len(utt.token_ids_with_blanks) - 2,
                         )
                     )
@@ -456,7 +530,11 @@ def get_utt_obj(
                         Token(
                             text=BLANK_TOKEN,
                             text_cased=BLANK_TOKEN,
+                            # utt.token_ids_with_blanks has the form
+                            # [..., <final token of previous word>, <blank token>, <space token>, <blank token>]
+                            # => do len(utt.token_ids_with_blanks) - 1 to get the index of the blank token after the space token
                             s_start=len(utt.token_ids_with_blanks) - 1,
+                            # s_end is same as s_start since the token only occupies one element in the list
                             s_end=len(utt.token_ids_with_blanks) - 1,
                         )
                     )
@@ -467,7 +545,10 @@ def get_utt_obj(
                 Token(
                     text=BLANK_TOKEN,
                     text_cased=BLANK_TOKEN,
+                    # utt.token_ids_with_blanks has the form [..., <this blank token>]
+                    # => do len(utt.token_ids_with_blanks) - 1 to get the index of this blank token
                     s_start=len(utt.token_ids_with_blanks) - 1,
+                    # s_end is same as s_start since the token only occupies one element in the list
                     s_end=len(utt.token_ids_with_blanks) - 1,
                 )
             )
@@ -478,7 +559,11 @@ def get_utt_obj(
                     Token(
                         text=SPACE_TOKEN,
                         text_cased=SPACE_TOKEN,
+                        # utt.token_ids_with_blanks has the form
+                        # [..., <space token>, <blank token>]
+                        # => do len(utt.token_ids_with_blanks) - 2 to get the index of the space token
                         s_start=len(utt.token_ids_with_blanks) - 2,
+                        # s_end is same as s_start since the token only occupies one element in the list
                         s_end=len(utt.token_ids_with_blanks) - 2,
                     )
                 )
@@ -486,7 +571,11 @@ def get_utt_obj(
                     Token(
                         text=BLANK_TOKEN,
                         text_cased=BLANK_TOKEN,
+                        # utt.token_ids_with_blanks has the form
+                        # [..., <space token>, <blank token>]
+                        # => do len(utt.token_ids_with_blanks) - 1 to get the index of the blank token
                         s_start=len(utt.token_ids_with_blanks) - 1,
+                        # s_end is same as s_start since the token only occupies one element in the list
                         s_end=len(utt.token_ids_with_blanks) - 1,
                     )
                 )
