@@ -57,7 +57,7 @@ def seconds_to_ass_format(seconds_float):
 
 
 def make_ass_files(
-    utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,
+    utt_obj, output_dir_root, minimum_timestamp_duration, ass_file_config,
 ):
 
     # don't try to make files if utt_obj.segments_and_tokens is empty, which will happen
@@ -68,8 +68,8 @@ def make_ass_files(
     if ass_file_config.resegment_text_to_fill_space:
         utt_obj = resegment_utt_obj(utt_obj, ass_file_config)
 
-    utt_obj = make_word_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
-    utt_obj = make_token_level_ass_file(utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,)
+    utt_obj = make_word_level_ass_file(utt_obj, output_dir_root, minimum_timestamp_duration, ass_file_config,)
+    utt_obj = make_token_level_ass_file(utt_obj, output_dir_root, minimum_timestamp_duration, ass_file_config,)
 
     return utt_obj
 
@@ -161,7 +161,7 @@ def resegment_utt_obj(utt_obj, ass_file_config):
 
 
 def make_word_level_ass_file(
-    utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,
+    utt_obj, output_dir_root, minimum_timestamp_duration, ass_file_config,
 ):
 
     default_style_dict = {
@@ -285,7 +285,7 @@ def make_word_level_ass_file(
 
 
 def make_token_level_ass_file(
-    utt_obj, model, output_dir_root, minimum_timestamp_duration, ass_file_config,
+    utt_obj, output_dir_root, minimum_timestamp_duration, ass_file_config,
 ):
 
     default_style_dict = {

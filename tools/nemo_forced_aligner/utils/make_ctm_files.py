@@ -20,7 +20,7 @@ from utils.data_prep import Segment, Word
 
 
 def make_ctm_files(
-    utt_obj, model, output_dir_root, minimum_timestamp_duration, ctm_file_config,
+    utt_obj, output_dir_root, minimum_timestamp_duration, ctm_file_config,
 ):
     """
     Function to save CTM files for all the utterances in the incoming batch.
@@ -39,22 +39,22 @@ def make_ctm_files(
         audio_file_duration = None
 
     utt_obj = make_ctm(
-        "tokens", utt_obj, model, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
+        "tokens", utt_obj, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
     )
 
     utt_obj = make_ctm(
-        "words", utt_obj, model, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
+        "words", utt_obj, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
     )
 
     utt_obj = make_ctm(
-        "segments", utt_obj, model, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
+        "segments", utt_obj, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
     )
 
     return utt_obj
 
 
 def make_ctm(
-    alignment_level, utt_obj, model, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
+    alignment_level, utt_obj, output_dir_root, minimum_timestamp_duration, audio_file_duration, ctm_file_config,
 ):
     output_dir = os.path.join(output_dir_root, "ctm", alignment_level)
     os.makedirs(output_dir, exist_ok=True)
@@ -94,12 +94,6 @@ def make_ctm(
                 text = boundary_info_.text
                 start_time = boundary_info_.t_start
                 end_time = boundary_info_.t_end
-
-                if not 'sample_rate' in model.cfg.preprocessor:
-                    raise ValueError(
-                        "Don't have attribute 'sample_rate' in 'model.cfg.preprocessor' => cannot calculate start "
-                        " and end time of segments => stopping process"
-                    )
 
                 if minimum_timestamp_duration > 0 and minimum_timestamp_duration > end_time - start_time:
                     # make the predicted duration of the token/word/segment longer, growing it outwards equal
