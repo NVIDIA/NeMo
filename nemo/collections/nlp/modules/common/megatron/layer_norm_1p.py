@@ -15,6 +15,7 @@
 
 import torch
 from torch import nn
+from nemo.collections.nlp.modules.common.megatron.utils import _cast_if_autocast_enabled
 
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm as OrigFastLayerNorm
@@ -48,18 +49,6 @@ else:
     class LayerNorm1P(nn.Module):
         def __init__(self, *args, **kwargs):
             raise NotImplementedError('LayerNorm1P available only with apex installed')
-
-
-def _cast_if_autocast_enabled(tensor):
-    if torch.is_autocast_enabled():
-        if tensor.device.type == 'cuda':
-            dtype = torch.get_autocast_gpu_dtype()
-        elif tensor.device.type == 'cpu':
-            dtype = torch.get_autocast_cpu_dtype()
-        else:
-            raise NotImplementedError()
-        return tensor.to(dtype=dtype)
-    return tensor
 
 
 class LPLayerNorm(torch.nn.LayerNorm):
