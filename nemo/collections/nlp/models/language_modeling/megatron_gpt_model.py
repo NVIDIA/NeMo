@@ -294,7 +294,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         model = GPTModel(
-            vocab_size=self.padded_vocab_size,
+            vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
             num_layers=self.cfg.num_layers,
@@ -352,6 +352,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
+            megatron_legacy=self.cfg.get('megatron_legacy', False),
         )
 
         return model

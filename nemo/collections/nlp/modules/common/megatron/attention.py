@@ -951,7 +951,7 @@ class CoreAttention(MegatronModule):
             # [b, 1, sq, sk] -> [b, sq] / [b, sk]
             attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).squeeze(1)
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
-        else: 
+        else:
             assert len(attention_mask.shape) == 2
             attention_mask_q = attention_mask
             attention_mask_kv = attention_mask
@@ -990,7 +990,7 @@ class CoreAttention(MegatronModule):
                 # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
                 attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
                 attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
-            else: 
+            else:
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 assert len(attention_mask.shape) == 2
                 attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
