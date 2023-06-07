@@ -412,7 +412,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
 
     @torch.no_grad()
-    def infer_file(self, path2audio_file):
+    def infer_file(self, path2audio_file, max_duration=None):
         """
         Args:
             path2audio_file: path to an audio wav file
@@ -425,6 +425,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
+        if max_duration:
+            audio = audio[:16000*max_duration]
         audio_length = audio.shape[0]
         device = self.device
         audio = np.array([audio])
@@ -443,7 +445,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         del audio_signal, audio_signal_len
         return emb, logits
 
-    def get_label(self, path2audio_file):
+    def get_label(self, path2audio_file, duration_limit=None):
         """
         Returns label of path2audio_file from classes the model was trained on.
         Args:
@@ -452,7 +454,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Returns:
             label: label corresponding to the trained model
         """
-        _, logits = self.infer_file(path2audio_file=path2audio_file)
+        _, logits = self.infer_file(path2audio_file=path2audio_file, max_duration=duration_limit)
 
         trained_labels = self._cfg['train_ds'].get('labels', None)
         if trained_labels is not None:
