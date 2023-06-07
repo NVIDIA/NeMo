@@ -17,13 +17,13 @@ import time
 from dataclasses import dataclass, field
 from typing import List
 
+from utils.constants import BLANK_TOKEN, SPACE_TOKEN
+from utils.data_prep import Segment, Token, Utterance, Word
+
 PLAYERRESX = 384
 PLAYERRESY = 288
 MARGINL = 10
 MARGINR = 10
-
-from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.data_prep import Segment, Token, Utterance, Word
 
 
 def seconds_to_ass_format(seconds_float):
