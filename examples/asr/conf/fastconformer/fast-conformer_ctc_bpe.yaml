@@ -47,8 +47,8 @@ model:
     # bucketing params
     bucketing_strategy: "fully_randomized"
     bucketing_batch_size: null
-    shard_manifests: True
-    defer_setup: True
+    shard_manifests: False
+    defer_setup: False
 
   validation_ds:
     manifest_filepath: ???
