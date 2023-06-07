@@ -24,12 +24,9 @@ by the NFA alignemtns.
 """
 
 import os
-import time
-from dataclasses import dataclass, field
-from typing import List
 
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.data_prep import Segment, Token, Utterance, Word
+from utils.data_prep import Segment, Token, Word
 
 PLAYERRESX = 384
 PLAYERRESY = 288

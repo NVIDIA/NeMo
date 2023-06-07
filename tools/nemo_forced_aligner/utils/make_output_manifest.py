@@ -13,12 +13,6 @@
 # limitations under the License.
 
 import json
-import os
-from pathlib import Path
-
-import soundfile as sf
-from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.data_prep import Segment, Token, Utterance, Word
 
 
 def write_manifest_out_line(

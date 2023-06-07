@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union
@@ -23,7 +22,6 @@ import torch
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.utils import logging
 
 
@@ -153,7 +151,7 @@ def restore_token_case(word, word_tokens):
     word_tokens_cased = []
     word_char_pointer = 0
 
-    for token_i, token in enumerate(word_tokens):
+    for token in enumerate(word_tokens):
         token_cased = ""
 
         for token_char in token:

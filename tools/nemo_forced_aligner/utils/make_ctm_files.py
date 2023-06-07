@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
-from pathlib import Path
 
 import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
-from utils.data_prep import Segment, Token, Utterance, Word
+from utils.data_prep import Segment, Word
 
 
 def make_ctm_files(
@@ -35,7 +33,7 @@ def make_ctm_files(
 
     # get audio file duration if we will need it later
     if minimum_timestamp_duration > 0:
-        with sf.SoundFile(manifest_line["audio_filepath"]) as f:
+        with sf.SoundFile(utt_obj.audio_filepath) as f:
             audio_file_duration = f.frames / f.samplerate
     else:
         audio_file_duration = None

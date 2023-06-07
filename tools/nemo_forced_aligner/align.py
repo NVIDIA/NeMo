@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 from utils.data_prep import (
     add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
@@ -131,7 +131,7 @@ class AlignmentConfig:
     transcribe_device: Optional[str] = None
     viterbi_device: Optional[str] = None
     batch_size: int = 1
-    use_local_attention[bool] = True
+    use_local_attention: bool = True
     additional_segment_grouping_separator: Optional[str] = None
     minimum_timestamp_duration: float = 0
     audio_filepath_parts_in_utt_id: int = 1
@@ -322,7 +322,7 @@ def main(cfg: AlignmentConfig):
 
             if "ass" in cfg.save_output_file_formats:
                 make_ass_files(
-                    utt_obj, model, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ass_file_config,
+                    utt_obj, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ass_file_config,
                 )
 
             write_manifest_out_line(
