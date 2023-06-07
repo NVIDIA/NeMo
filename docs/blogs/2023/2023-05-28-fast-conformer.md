@@ -3,7 +3,7 @@ title: Fast Conformer with Linearly Scalable Attention for Efficient Speech Reco
 author: [Dima Rekesh, Samuel Kriman, Somshubra Majumdar, Vahid Noroozi, He Huang, Oleksii Hrinchuk, Ankur Kumar, Boris Ginsburg]
 author_gh_user: [bmwshop, sam1373, titu1994, VahidooX, stevehuang52, AlexGrinch, iankur, borisgin]
 read_time: 10 Minutes
-publish_date: 05/28/2023
+publish_date: 06/07/2023
 
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews
