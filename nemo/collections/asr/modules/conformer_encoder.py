@@ -296,7 +296,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.global_tokens_spacing = global_tokens_spacing
 
         # Setting up the att_context_size
-        self.att_context_size_all, self.att_context_size, self.att_context_probs, self.conv_context_size = self._calc_context_sizes(
+        (
+            self.att_context_size_all,
+            self.att_context_size,
+            self.att_context_probs,
+            self.conv_context_size,
+        ) = self._calc_context_sizes(
             att_context_style=att_context_style,
             att_context_size=att_context_size,
             att_context_probs=att_context_probs,
