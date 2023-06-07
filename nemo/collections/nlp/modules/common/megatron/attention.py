@@ -30,9 +30,9 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_posi
     apply_rotary_pos_emb,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults, 
-    attention_mask_func,
+    ApexGuardDefaults,
     _cast_if_autocast_enabled,
+    attention_mask_func,
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
@@ -65,13 +65,13 @@ try:
     from flash_attn.bert_padding import pad_input, unpad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
     from flash_attn.flash_attn_triton import flash_attn_func
-    
+
     HAVE_FLASH_ATTENTION = True
-    
+
 except (ImportError, ModuleNotFoundError):
 
     HAVE_FLASH_ATTENTION = False
-    
+
     flash_attn_unpadded_func, flash_attn_func = None, None
     unpad_input, pad_input = None, None
 
@@ -783,12 +783,12 @@ class CoreAttention(MegatronModule):
         # on average it should not be partition dependent.
         self.attention_dropout_p = attention_dropout
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
-        
+
         if use_flash_attention:
             self.attn_fn = self.flash_attention
         else:
             self.attn_fn = self.torch_attention
-            
+
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOSPositionEmbedding(kv_channels)
 
@@ -873,11 +873,11 @@ class CoreAttention(MegatronModule):
         context_layer = context_layer.view(*new_context_layer_shape)
 
         return context_layer
-    
+
     def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
-        
+
         if self.multi_query_attention:
             query_layer = rearrange(query_layer, 'sq b np hn -> b (np sq) hn')
             key_layer = rearrange(key_layer, 'sk b 1 hn -> b hn sk')
@@ -886,13 +886,13 @@ class CoreAttention(MegatronModule):
             query_layer = rearrange(query_layer, 'sq b np hn -> (b np) sq hn')
             key_layer = rearrange(key_layer, 'sk b np hn -> (b np) hn sk')
             value_layer = rearrange(value_layer, 'sv b np hn -> (b np) sv hn')
-        
+
         matmul_input_buffer = torch.empty(
-                query_layer.shape[0],
-                query_layer.shape[1],
-                key_layer.shape[2],
-                dtype=query_layer.dtype,
-                device=torch.cuda.current_device(),
+            query_layer.shape[0],
+            query_layer.shape[1],
+            key_layer.shape[2],
+            dtype=query_layer.dtype,
+            device=torch.cuda.current_device(),
         )
 
         matmul_result = torch.baddbmm(
@@ -928,37 +928,26 @@ class CoreAttention(MegatronModule):
 
         # change view [b, np, sq, hn]
         context_layer = rearrange(context_layer, '(b np) sq hn -> b np sq hn', np=np)
-        
+
         return context_layer
-    
+
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
         value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
-        
+
         # Use to ensure dtype cast to fp16 or bf16
         query_layer = _cast_if_autocast_enabled(query_layer)
         key_layer = _cast_if_autocast_enabled(key_layer)
         value_layer = _cast_if_autocast_enabled(value_layer)
         attention_mask = _cast_if_autocast_enabled(attention_mask)
         attention_bias = _cast_if_autocast_enabled(attention_bias)
-        
+
         if attention_bias is not None:
-            return self.flash_attention_triton(
-                query_layer, 
-                key_layer, 
-                value_layer, 
-                attention_mask, 
-                attention_bias,
-            )
+            return self.flash_attention_triton(query_layer, key_layer, value_layer, attention_mask, attention_bias,)
         else:
-            return self.flash_attention_cuda(
-                query_layer, 
-                key_layer, 
-                value_layer, 
-                attention_mask,
-            )
-    
+            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask,)
+
     def reset_is_causal(self, query_length, key_length, causal):
         if query_length != key_length:
             if query_length == 1:
