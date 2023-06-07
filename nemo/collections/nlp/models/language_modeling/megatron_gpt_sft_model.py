@@ -1,4 +1,4 @@
-#examples/nlp/language_modeling/tuning/conf/megatron_gpt_sft.yaml.cpy Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# examples/nlp/language_modeling/tuning/conf/megatron_gpt_sft.yaml.cpy Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,11 +26,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     LengthParam,
@@ -95,19 +95,18 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.virtual_tokens = 0
         self.summarize()
         if self.cfg.get("unfreeze_layers", "all") == "all":
-            return 
+            return
         else:
             self.freeze()
             _unfreeze_layers = [int(i) for i in self.cfg.unfreeze_layers.split(",")]
             for n, m in self.named_modules():
                 if isinstance(m, ParallelTransformerLayer):
                     print(m.layer_number)
-                    if m.layer_number in  _unfreeze_layers:
+                    if m.layer_number in _unfreeze_layers:
                         for p in m.parameters():
                             p.requires_grad = True
-            
-            self.summarize()
 
+            self.summarize()
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"

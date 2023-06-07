@@ -189,7 +189,7 @@ def main(cfg) -> None:
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
-    
+
     trainer.fit(model)
 
 
