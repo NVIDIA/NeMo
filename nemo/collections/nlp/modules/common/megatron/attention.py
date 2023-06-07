@@ -307,14 +307,14 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         return hidden_states
 
-    def _allocate_memory(self, inference_max_sequence_len, batch_size, dtype):
+    def _allocate_memory(self, inference_max_sequence_len, batch_size, dtype, device):
         return torch.empty(
             inference_max_sequence_len,
             batch_size,
             self.num_attention_heads_per_partition,
             self.hidden_size_per_attention_head,
             dtype=dtype,
-            device=torch.cuda.current_device(),
+            device=device,
         )
 
     def _transpose_last_dim(self, mixed_layer, num_splits, num_splits_first):
@@ -372,10 +372,10 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if set_inference_key_value_memory:
             assert inference_max_sequence_len and inference_max_sequence_len > 0
             self.inference_key_memory = self._allocate_memory(
-                inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype
+                inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype, hidden_states.device
             )
             self.inference_value_memory = self._allocate_memory(
-                inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype
+                inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype, hidden_states.device
             )
             self.inference_current_sequence_len = 0
 
@@ -892,7 +892,7 @@ class CoreAttention(MegatronModule):
             query_layer.shape[1],
             key_layer.shape[2],
             dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
+            device=query_layer.device,
         )
 
         matmul_result = torch.baddbmm(
