@@ -63,6 +63,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
+        gpt_cfg.unfreeze_layers = cfg.model.get("unfreeze_layers", "all")
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
@@ -188,7 +189,7 @@ def main(cfg) -> None:
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
-
+    
     trainer.fit(model)
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#examples/nlp/language_modeling/tuning/conf/megatron_gpt_sft.yaml.cpy Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
@@ -92,6 +93,21 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
         self.virtual_tokens = 0
+        self.summarize()
+        if self.cfg.get("unfreeze_layers", "all") == "all":
+            return 
+        else:
+            self.freeze()
+            _unfreeze_layers = [int(i) for i in self.cfg.unfreeze_layers.split(",")]
+            for n, m in self.named_modules():
+                if isinstance(m, ParallelTransformerLayer):
+                    print(m.layer_number)
+                    if m.layer_number in  _unfreeze_layers:
+                        for p in m.parameters():
+                            p.requires_grad = True
+            
+            self.summarize()
+
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
