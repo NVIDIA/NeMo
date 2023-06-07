@@ -132,7 +132,7 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 Requirements
 ------------
 
-1) Python 3.8 or above
+1) Python 3.10 or above
 2) Pytorch 1.10.0 or above
 3) NVIDIA GPU for training
 
@@ -176,7 +176,7 @@ We recommend installing NeMo in a fresh Conda environment.
 
 .. code-block:: bash
 
-    conda create --name nemo python==3.8.10
+    conda create --name nemo python==3.10
     conda activate nemo
 
 Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_.
@@ -286,7 +286,8 @@ NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separa
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.18.1`` comes with container ``nemo:23.03``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.18.1`` comes with container ``nemo:23.03``. If you encounter issues with creating your NeMo environment, we highly
+recommend using our most recent container. You may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
