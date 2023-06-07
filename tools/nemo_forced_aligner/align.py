@@ -319,9 +319,7 @@ def main(cfg: AlignmentConfig):
                 utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ctm_file_config,)
 
             if "ass" in cfg.save_output_file_formats:
-                make_ass_files(
-                    utt_obj, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ass_file_config,
-                )
+                utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
             write_manifest_out_line(
                 f_manifest_out, utt_obj,
