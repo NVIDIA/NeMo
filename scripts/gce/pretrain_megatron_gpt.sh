@@ -72,6 +72,8 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
       model.optim.sched.warmup_steps=750 \
       model.optim.sched.constant_steps=80000 \
       model.optim.sched.min_lr=6e-5 \
+      model.overlap_p2p_comm=${OVERLAP_P2P_COMM:=False} \
+      model.batch_p2p_comm=${BATCH_P2P_COMM:=False} \
       model.transformer_engine=${TRANSFORMER_ENGINE_ENABLED:=False} \
       model.fp8=${FP8_ENABLED:=False} \
       model.nsys_profile.enabled=${NSYS_PROFILE_ENABLED:=False} \
