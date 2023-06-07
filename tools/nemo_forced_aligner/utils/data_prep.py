@@ -218,7 +218,6 @@ class Segment:
 @dataclass
 class Utterance:
     token_ids_with_blanks: List[int] = field(default_factory=list)
-    S: int = None
     segments_and_tokens: List[Union[Segment, Token]] = field(default_factory=list)
     text: str = None
     pred_text: str = None
@@ -267,7 +266,6 @@ def get_utt_obj(
 
         # check for text being 0 length
         if len(text) == 0:
-            utt.S = len(utt.token_ids_with_blanks)
             return utt
 
         # check for # tokens + token repetitions being > T
@@ -278,7 +276,6 @@ def get_utt_obj(
                 n_token_repetitions += 1
 
         if len(all_tokens) + n_token_repetitions > T:
-            utt.S = len(utt.token_ids_with_blanks)
             logging.info(
                 f"Utterance {utt_id} has too many tokens compared to the audio file duration."
                 " Will not generate output alignment files for this utterance."
@@ -391,8 +388,6 @@ def get_utt_obj(
                 )
             )
 
-        utt.S = len(utt.token_ids_with_blanks)
-
         return utt
 
     elif hasattr(model.decoder, "vocabulary"):  # i.e. tokenization is simply character-based
@@ -404,7 +399,6 @@ def get_utt_obj(
 
         # check for text being 0 length
         if len(text) == 0:
-            utt.S = len(utt.token_ids_with_blanks)
             return utt
 
         # check for # tokens + token repetitions being > T
@@ -415,7 +409,6 @@ def get_utt_obj(
                 n_token_repetitions += 1
 
         if len(all_tokens) + n_token_repetitions > T:
-            utt.S = len(utt.token_ids_with_blanks)
             logging.info(
                 f"Utterance {utt_id} has too many tokens compared to the audio file duration."
                 " Will not generate output alignment files for this utterance."
@@ -580,7 +573,6 @@ def get_utt_obj(
                     )
                 )
 
-        utt.S = len(utt.token_ids_with_blanks)
         return utt
 
     else:
@@ -775,7 +767,7 @@ def get_batch_variables(
                 )
 
         y_list_batch.append(utt_obj.token_ids_with_blanks)
-        U_list_batch.append(utt_obj.S)
+        U_list_batch.append(len(utt_obj.token_ids_with_blanks))
         utt_obj_batch.append(utt_obj)
 
     # turn log_probs, y, T, U into dense tensors for fast computation during Viterbi decoding

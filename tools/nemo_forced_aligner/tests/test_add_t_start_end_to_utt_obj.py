@@ -71,7 +71,6 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
         25,
         28,
     ],
-    S=25,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=-1, t_end=-1),
         Segment(

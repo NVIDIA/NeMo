@@ -56,19 +56,23 @@ def get_utt_obj_pp_string(utt_obj):
             Utterance,
             text=value.text,
             token_ids_with_blanks=value.token_ids_with_blanks,
-            S=value.S,
             segments_and_tokens=value.segments_and_tokens,
+            audio_filepath=value.audio_filepath,
+            utt_id=value.utt_id,
         )
 
     return prettyprinter.pformat(utt_obj)
 
+
+T_FOR_TEST = 999
+AUDIO_FILEPATH_FOR_TEST = "arbitrary_string.wav"
+UTT_ID_FOR_TEST = "arbitrary_string"
 
 EN_TEXT = "hi world | hey"
 
 EN_CN_EXPECTED_UTTERANCE = Utterance(
     text='hi world | hey',
     token_ids_with_blanks=[1024, 317, 1024, 472, 1024, 25, 1024, 20, 1024],
-    S=9,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=None, t_end=None),
         Segment(
@@ -121,6 +125,8 @@ EN_CN_EXPECTED_UTTERANCE = Utterance(
         ),
         Token(text='<b>', text_cased='<b>', s_start=8, s_end=8, t_start=None, t_end=None),
     ],
+    audio_filepath=AUDIO_FILEPATH_FOR_TEST,
+    utt_id=UTT_ID_FOR_TEST,
 )
 
 EN_QN_EXPECTED_UTTERANCE = Utterance(
@@ -152,7 +158,6 @@ EN_QN_EXPECTED_UTTERANCE = Utterance(
         25,
         28,
     ],
-    S=25,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=None, t_end=None),
         Segment(
@@ -225,6 +230,8 @@ EN_QN_EXPECTED_UTTERANCE = Utterance(
         ),
         Token(text='<b>', text_cased='<b>', s_start=24, s_end=24, t_start=None, t_end=None),
     ],
+    audio_filepath=AUDIO_FILEPATH_FOR_TEST,
+    utt_id=UTT_ID_FOR_TEST,
 )
 
 
@@ -251,7 +258,6 @@ ZH_CN_EXPECTED_UTTERANCE = Utterance(
         2075,
         5206,
     ],
-    S=17,
     segments_and_tokens=[
         Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=None, t_end=None),
         Segment(
@@ -316,6 +322,8 @@ ZH_CN_EXPECTED_UTTERANCE = Utterance(
         ),
         Token(text='<b>', text_cased='<b>', s_start=16, s_end=16, t_start=None, t_end=None),
     ],
+    audio_filepath=AUDIO_FILEPATH_FOR_TEST,
+    utt_id=UTT_ID_FOR_TEST,
 )
 
 
@@ -329,7 +337,9 @@ ZH_CN_EXPECTED_UTTERANCE = Utterance(
 )
 def test_token_info(text, model_pretrained_name, separator, expected_utterance):
     model = ASRModel.from_pretrained(model_pretrained_name)
-    utt_obj = get_utt_obj(text, model, separator)
+    utt_obj = get_utt_obj(
+        text, model, separator, T=T_FOR_TEST, audio_filepath=AUDIO_FILEPATH_FOR_TEST, utt_id=UTT_ID_FOR_TEST
+    )
     print(f"expected utterance object: {get_utt_obj_pp_string(expected_utterance)}\n")
     print(f"output utterance object in test: {get_utt_obj_pp_string(utt_obj)}\n")
 
