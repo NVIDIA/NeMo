@@ -79,11 +79,6 @@ Arguments:
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 1 => utt_id will be "e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 2 => utt_id will be "d_e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 3 => utt_id will be "c_d_e1"
-    minimum_timestamp_duration: a float indicating a minimum duration (in seconds) for timestamps in the CTM. If any 
-        line in the CTM has a duration lower than the `minimum_timestamp_duration`, it will be enlarged from the 
-        middle outwards until it meets the minimum_timestamp_duration, or reaches the beginning or end of the audio 
-        file. Note that this may cause timestamps to overlap.
-
     use_buffered_infer: False, if set True, using streaming to do get the logits for alignment
                         This flag is useful when aligning large audio file.
                         However, currently the chunk streaming inference does not support batch inference,
@@ -105,6 +100,11 @@ Arguments:
 @dataclass
 class CTMFileConfig:
     remove_blank_tokens: bool = False
+    # minimum duration (in seconds) for timestamps in the CTM.If any line in the CTM has a
+    # duration lower than this, it will be enlarged from the middle outwards until it
+    # meets the minimum_timestamp_duration, or reaches the beginning or end of the audio file.
+    # Note that this may cause timestamps to overlap.
+    minimum_timestamp_duration: float = 0
 
 
 @dataclass
@@ -133,7 +133,6 @@ class AlignmentConfig:
     batch_size: int = 1
     use_local_attention: bool = True
     additional_segment_grouping_separator: Optional[str] = None
-    minimum_timestamp_duration: float = 0
     audio_filepath_parts_in_utt_id: int = 1
 
     # Buffered chunked streaming configs
@@ -178,7 +177,7 @@ def main(cfg: AlignmentConfig):
     if cfg.additional_segment_grouping_separator == "" or cfg.additional_segment_grouping_separator == " ":
         raise ValueError("cfg.additional_grouping_separator cannot be empty string or space character")
 
-    if cfg.minimum_timestamp_duration < 0:
+    if cfg.ctm_file_config.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
 
     # Validate manifest contents
@@ -240,9 +239,9 @@ def main(cfg: AlignmentConfig):
             " Currently only instances of these models are supported"
         )
 
-    if cfg.minimum_timestamp_duration > 0:
+    if cfg.ctm_file_config.minimum_timestamp_duration > 0:
         logging.warning(
-            f"cfg.minimum_timestamp_duration has been set to {cfg.minimum_timestamp_duration} seconds. "
+            f"cfg.ctm_file_config.minimum_timestamp_duration has been set to {cfg.ctm_file_config.minimum_timestamp_duration} seconds. "
             "This may cause the alignments for some tokens/words/additional segments to be overlapping."
         )
 
@@ -316,7 +315,7 @@ def main(cfg: AlignmentConfig):
             utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
             if "ctm" in cfg.save_output_file_formats:
-                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.minimum_timestamp_duration, cfg.ctm_file_config,)
+                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
 
             if "ass" in cfg.save_output_file_formats:
                 utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
