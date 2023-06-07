@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import os
 import logging
+import os
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
+import torch
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
+
 from nemo.collections.common import tokenizers
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
@@ -54,10 +55,10 @@ class ConcatDataset(IterableDataset):
         sampling_scale: int = 1,
         sampling_probabilities: List[float] = None,
         concat_samples: bool = False,
-        concat_samples_count_as_one = True,
-        concat_samples_max_length = 20,
-        concat_samples_min_length = 16,
-        concat_samples_joining_pause = 0.1,
+        concat_samples_count_as_one=True,
+        concat_samples_max_length=20,
+        concat_samples_min_length=16,
+        concat_samples_joining_pause=0.1,
         seed: Optional[int] = None,
         global_rank: int = 0,
         world_size: int = 1,
@@ -75,7 +76,7 @@ class ConcatDataset(IterableDataset):
         self.sampling_scale = sampling_scale
 
         self.concat_samples = concat_samples
-        self.concat_samples_count_as_one = concat_samples_count_as_one 
+        self.concat_samples_count_as_one = concat_samples_count_as_one
         self.concat_samples_min_length = concat_samples_min_length
         self.concat_samples_max_length = concat_samples_max_length
         self.concat_samples_joining_pause = concat_samples_joining_pause
@@ -113,7 +114,7 @@ class ConcatDataset(IterableDataset):
             self.length = int(self.length * self.sampling_scale)
             logging.info(f'applying {sampling_scale} sampling scale, concat ds len: {self.length}')
 
-        self.samples_served = 0 
+        self.samples_served = 0
         self.samples_pulled = 0
         self.samples_retried = 0
 
@@ -165,25 +166,25 @@ class ConcatDataset(IterableDataset):
                 n += incr
                 yield samp
             else:
-                if incr is None: # ind gen iterator ended... hmm
+                if incr is None:  # ind gen iterator ended... hmm
                     return
                 # otherwise we do nothing and just retry
                 # this means we are restarting one of the datasets
 
-# The original logic
-#            n += 1
-#            try:
-#                ind = next(ind_gen)
-#            except StopIteration:
-#                return
-#            try:
-#                val = next(self.iterables[ind])
-#                if self.kind == 'map':
-#                    val = self.datasets[ind][val]
-#                yield val
-#            except StopIteration:
-#                self.iterables[ind] = self.get_iterable(self.datasets[ind])
-#                n -= 1
+    # The original logic
+    #            n += 1
+    #            try:
+    #                ind = next(ind_gen)
+    #            except StopIteration:
+    #                return
+    #            try:
+    #                val = next(self.iterables[ind])
+    #                if self.kind == 'map':
+    #                    val = self.datasets[ind][val]
+    #                yield val
+    #            except StopIteration:
+    #                self.iterables[ind] = self.get_iterable(self.datasets[ind])
+    #                n -= 1
 
     def pull_concatenated_sample(self, ind_gen):
         """
@@ -197,8 +198,8 @@ class ConcatDataset(IterableDataset):
         _tl = 0
         _num_concatenated_samples = 0
 
-        sample_rate = 16000 # placeholder just to get in the loop
-        
+        sample_rate = 16000  # placeholder just to get in the loop
+
         while _fl < self.concat_samples_min_length * sample_rate:
 
             (f, fl, t, tl), sample_rate, _ = self.pull_sample(ind_gen)
@@ -209,13 +210,13 @@ class ConcatDataset(IterableDataset):
             logging.debug(f'pulled t: {t.type() } {t}')
             logging.debug(f'pulled tl: {tl.type()}  {tl}')
 
-            if _fl + fl > self.concat_samples_max_length * sample_rate:  
+            if _fl + fl > self.concat_samples_max_length * sample_rate:
                 # just try another sample if this one is too long.
                 # print(f'sample too big: we are at {_fl}, new sample is {fl}, more than {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}, min: {_CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE}')
                 # print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
                 self.samples_retried += 1
                 if self.samples_pulled % 1000 == 0:
-                    fr = self.samples_retried / self.samples_pulled 
+                    fr = self.samples_retried / self.samples_pulled
                     logging.info(f'concat samples retried: {fr:.2f} out of pulled: {self.samples_pulled}')
                 continue
 
@@ -227,11 +228,11 @@ class ConcatDataset(IterableDataset):
                 _t = t
                 _tl = tl
             else:
-                _t = torch.concat((_t,t))
-                _tl += tl 
+                _t = torch.concat((_t, t))
+                _tl += tl
 
             _num_concatenated_samples += 1
-            
+
         logging.debug(f'returning _f: {_f.type()} {_f.size()}')
         logging.debug(f'returning _fl:{_fl.type()}  {_fl}')
         logging.debug(f'returning _t: {_t.type()} {_t}')
@@ -240,13 +241,13 @@ class ConcatDataset(IterableDataset):
 
         self.samples_served += 1
         if self.samples_pulled % 1000 == 0:
-            fr = (self.samples_pulled - self.samples_retried) / self.samples_served 
+            fr = (self.samples_pulled - self.samples_retried) / self.samples_served
             logging.info(f'concat samples ratio: {fr:.2f} out of served: {self.samples_served}')
 
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
     def concat_with_space(self, t1, tl1, t2, tl2):
-        if t1 is None or t1.size()[0] == 0: # no need to add space etc
+        if t1 is None or t1.size()[0] == 0:  # no need to add space etc
             return t2, tl2
 
         tl = tl1
@@ -266,18 +267,17 @@ class ConcatDataset(IterableDataset):
             space_id = torch.tensor([space_id], dtype=torch.long)
             logging.debug(f'concatenating space {space_id} to t {t1}')
             t = torch.concat((t1, space_id))  # likely needs to be concat
-            tl += 1 # space
+            tl += 1  # space
 
-        t = torch.concat((t,t2))
+        t = torch.concat((t, t2))
         tl += tl2
         return t, tl
-
 
     def concat_with_pause(self, f1, fl1, f2, fl2, pause_len):
 
         fl = fl1 + fl2 + pause_len
         fl = torch.tensor(fl, dtype=torch.long)
-        # get a blank sample 
+        # get a blank sample
         # _blank = torch.from_numpy(np.zeros(pause_len))
         _blank = torch.zeros(pause_len, dtype=torch.float)
         if f1 is not None:
@@ -293,21 +293,21 @@ class ConcatDataset(IterableDataset):
         If one of the dataset iterators ended, we return None, 0
         """
         _sample = None
-        _sample_rate = None 
+        _sample_rate = None
 
         while _sample is None:
             try:
                 ind = next(ind_gen)
             except StopIteration:
-                return None, None, None 
+                return None, None, None
 
             try:
                 _sample = next(self.iterables[ind])
                 if self.kind == 'map':
                     _sample = self.datasets[ind][_sample]
 
-                if self.concat_samples: ## AttributeError: 'Subset' object has no attribute 'featurizer' ?
-                    _sample_rate = self.datasets[ind].featurizer.sample_rate 
+                if self.concat_samples:  ## AttributeError: 'Subset' object has no attribute 'featurizer' ?
+                    _sample_rate = self.datasets[ind].featurizer.sample_rate
 
             except StopIteration:
                 self.iterables[ind] = self.get_iterable(self.datasets[ind])
