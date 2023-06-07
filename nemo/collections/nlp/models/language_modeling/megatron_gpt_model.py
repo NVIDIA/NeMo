@@ -455,7 +455,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
+            forward_step_func=self.get_forward_output_and_loss_func(forward_only),
             data_iterator=self._make_data_iterator_list(dataloader_iter),
             model=self.model,
             num_microbatches=get_num_microbatches(),
@@ -468,6 +468,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             no_sync_func=no_sync_func,
             grad_sync_func=grad_sync_func,
             param_sync_func=param_sync_func,
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses
@@ -1109,7 +1111,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
-                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
@@ -1119,7 +1120,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
-                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 return generate(self, **inference_config)
 
@@ -1280,7 +1280,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         for module in self.get_gpt_module_list():
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
-                    mod.sequence_parallel = self.last_sequence_parallel
+                    mod.sequence_parallel = False
 
     def _restore_sequence_parallelism_args(self):
         """ Restores the sequence parallelism parameters using the values saved by
