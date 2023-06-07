@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import torch
-from torch import nn
 from nemo.collections.nlp.modules.common.megatron.utils import _cast_if_autocast_enabled
 
 try:
@@ -37,8 +36,8 @@ if HAVE_APEX:
             ), 'LayerNorm1P implemented only as an apex.contrib.layer_norm.FastLayerNorm extension'
 
         def reset_parameters(self):
-            nn.init.zeros_(self.weight)
-            nn.init.zeros_(self.bias)
+            torch.nn.init.zeros_(self.weight)
+            torch.nn.init.zeros_(self.bias)
 
         def forward(self, x):
             return _fast_layer_norm(x, self.weight + 1, self.bias, self.epsilon)
@@ -46,7 +45,7 @@ if HAVE_APEX:
 
 else:
 
-    class LayerNorm1P(nn.Module):
+    class LayerNorm1P(torch.nn.Module):
         def __init__(self, *args, **kwargs):
             raise NotImplementedError('LayerNorm1P available only with apex installed')
 

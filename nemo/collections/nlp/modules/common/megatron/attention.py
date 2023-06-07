@@ -36,7 +36,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
-from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType, AttnType
