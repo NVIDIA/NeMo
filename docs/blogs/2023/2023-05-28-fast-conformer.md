@@ -97,6 +97,42 @@ In order to provide a consistent and reproducible way to process such dataset, w
 
 Speech Dataset Processor will initially host dataset processing recipies for Spanish, and we will add more languages in the future.
 
+# Usage
+
+Fast Conformer can be instantiated and used with just a few lines of code when the NeMo ASR library is installed.
+
+## Global Attention
+
+For global attention on modest files (upto 15-18 minutes on an A100), you can perform the following steps :
+
+```python
+from nemo.collections.asr.models import ASRModel
+  
+model = ASRModel.from_pretrained("nvidia/stt_en_fastconformer_hybrid_large_pc")
+model.transcribe(["<path to a audio file>.wav"])  # ~10-15 minutes long!
+
+```
+
+## Local Attention
+
+Coming in NeMo 1.20, you can easily modify the attention type to local attention after building the model. Then you can also apply audio chunking for the subsampling module to perform inference on huge audio files!
+
+For local attention on huge files (upto 11 hours on an A100), you can perform the following steps :
+
+```python
+from nemo.collections.asr.models import ASRModel
+  
+model = ASRModel.from_pretrained("nvidia/stt_en_fastconformer_hybrid_large_pc")
+
+model.change_attention_model("rel_pos_local_attn", [128, 128])  # local attn
+
+# (Coming in NeMo 1.20)
+model.change_subsampling_conv_chunking_factor(1)  # 1 = auto select
+
+model.transcribe(["<path to a huge audio file>.wav"])  # 10+ hours !
+
+```
+
 # Results
 
 By performing the simple modifications in Fast Conformer, we obtain strong scores throughout multiple speech tasks as shown below, all while having more efficient training and inference.
