@@ -7,7 +7,7 @@
 # Cache-aware Conformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer
 # FastConformer-CTC's architecture config: NeMo/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml
 # FastConformer-Transducer's architecture config, along with the optimal batch size and precision: NeMo/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml
-fixed
+
 # Note: if training loss does not converge, you may increase warm-up to 20K.
 
 name: "FastConformer-Hybrid-Transducer-CTC-Char-Streaming"

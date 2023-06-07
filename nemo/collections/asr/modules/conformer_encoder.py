@@ -88,10 +88,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to 5000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 4.
-        att_context_size (list): specifies the context sizes on each side. Each context size should be a list of two integers like [100,100].
+        att_context_size (List[Union[List[int],int]]): specifies the context sizes on each side. Each context size should be a list of two integers like [100,100].
             A list of context sizes like [[100,100],[100,50]] can also be passed. -1 means unlimited context.
             Defaults to [-1,-1]
-        att_context_probs (list): a list of probabilities of each one of the att_context_size when a list of them is passed. If not specified, uniform distribution is being used.
+        att_context_probs (List[float]): a list of probabilities of each one of the att_context_size when a list of them is passed. If not specified, uniform distribution is being used.
             Defaults to None
         att_context_style (str): 'regular' or 'chunked_limited'.
             Defaults to 'regular'
@@ -104,7 +104,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         conv_norm_type (str): the type of the normalization in the convolutional modules
             Defaults to 'batch_norm'.
         conv_context_size (list): it can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size.
-            None means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0].
+            None means [(conv_kernel_size-1)//2, (conv_kernel_size-1)//2], and 'causal' means [(conv_kernel_size-1), 0].
             Defaults to None.
         conv_dual_mode (bool): specifies if convolution should be dual mode when dual_offline mode is being used. When enables, the left half of the convolution kernel would get masked in streaming cases.
             Defaults to False
@@ -296,7 +296,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.global_tokens_spacing = global_tokens_spacing
 
         # Setting up the att_context_size
-        self._setup_context_sizes(
+        self.att_context_size_all, self.att_context_size, self.att_context_probs, self.conv_context_size = self._calc_context_sizes(
             att_context_style=att_context_style,
             att_context_size=att_context_size,
             att_context_probs=att_context_probs,
@@ -710,7 +710,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.use_pad_mask = on
         return mask
 
-    def _setup_context_sizes(
+    def _calc_context_sizes(
         self, att_context_size, att_context_probs, att_context_style, conv_context_size, conv_kernel_size
     ):
         # convert att_context_size to a standard list of lists
@@ -742,12 +742,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         else:
             att_context_probs = [1.0 / len(att_context_size_all)] * len(att_context_size_all)
 
-        self.att_context_size_all = att_context_size_all
-        # setting the default to be used for non-validation cases like test, validation or inference
-        # it uses the first mode in self.att_context_size
-        self.att_context_size = att_context_size_all[0]
-        self.att_context_probs = att_context_probs
-
         if conv_context_size is not None:
             if isinstance(conv_context_size, ListConfig):
                 conv_context_size = list(conv_context_size)
@@ -762,7 +756,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
         else:
             conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
-        self.conv_context_size = conv_context_size
+        return att_context_size_all, att_context_size_all[0], att_context_probs, conv_context_size
 
     def set_default_att_context_size(self, att_context_size):
         self.att_context_size = att_context_size
