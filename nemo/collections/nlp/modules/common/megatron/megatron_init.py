@@ -216,7 +216,7 @@ def fake_initialize_model_parallel(
     assert (
         world_size % (tensor_model_parallel_size * pipeline_model_parallel_size * sequence_parallel_size) == 0
     ), f'world_size: {world_size} must be divisible by tensor_model_parallel_size: {tensor_model_parallel_size} times pipeline_model_parallel_size {pipeline_model_parallel_size} times sequence_parallel_size {sequence_parallel_size}'
-    data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size)
+    data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size * sequence_parallel_size)
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
@@ -244,7 +244,7 @@ def fake_initialize_model_parallel(
     # Build the sequence-parallel groups.
     all_sequence_parallel_group_ranks = []
     for i in range(pipeline_model_parallel_size):
-        for j in range(data_parallel_size // sequence_parallel_size):
+        for j in range(data_parallel_size):
             start_rank = i * num_pipeline_model_parallel_groups + j * tensor_model_parallel_size * sequence_parallel_size
             end_rank = i * num_pipeline_model_parallel_groups + (j + 1) * tensor_model_parallel_size * sequence_parallel_size
             for k in range(tensor_model_parallel_size):
@@ -256,11 +256,11 @@ def fake_initialize_model_parallel(
 
     sequence_parallel_rank = sequence_parallel_group.index(rank)
     logging.info(f'All sequence parallel group ranks: {all_sequence_parallel_group_ranks}')
-    logging.info(f'Ranks {rank} has sequence parallel rank: {squence_parallel_rank}')
+    logging.info(f'Ranks {rank} has sequence parallel rank: {sequence_parallel_rank}')
 
     # Build the model-parallel groups.
     all_model_parallel_group_ranks = []
-    for i in range(data_parallel_size):
+    for i in range(data_parallel_size * sequence_parallel_size):
         ranks = [data_parallel_group_ranks[i] for data_parallel_group_ranks in all_data_parallel_group_ranks]
         all_model_parallel_group_ranks.append(ranks)
         if rank in ranks:
