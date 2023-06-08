@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union
 
-import librosa
+import soundfile as sf
 import torch
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
@@ -808,7 +808,8 @@ def get_batch_variables(
                 " and end time of segments => stopping process"
             )
 
-        audio_dur = librosa.get_duration(path=audio_filepaths_batch[0])
+        with sf.SoundFile(audio_filepaths_batch[0]) as f:
+            audio_dur = f.frames / f.samplerate
         n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
         model_downsample_factor = round(n_input_frames / int(T_batch[0]))
 
