@@ -32,9 +32,9 @@ Please refer to the paper here: [Fast Conformer with Linearly Scalable Attention
 
 We propose 4 changes to the original Conformer architecture to make it more efficient:
 
-1) **Downsampling module**: The original Conformer paper uses a stack of 2-D Convolutions with a large number of output filters in order to perform the downsampling in order to reduce the resolution of the incoming audio frames from 10 mz to 40 ms, which makes it more tractable for the subsequent attention layers to operate on. However, these convolutions amount to roughly 20 % of the entire time required to perform a single forward pass of of the "Large" Conformer (with 120 M parameters). Furthermore, due to the quadratic attention cost, we can option a 4x reduction in all subsequent attention layers by downsampling the audio to 80 ms frames. So as the first change, we perform 8x downsampling before any of the Conformer layers are applied. This reduces GMACs to roughly 65% of the baseline Conformer.
+1) **Downsampling module**: The original Conformer paper uses a stack of 2-D Convolutions with a large number of output filters to perform the downsampling in order to reduce the resolution of the incoming audio frames from 10 ms to 40 ms, which makes it more tractable for the subsequent attention layers to operate on. However, these convolutions amount to roughly 20 % of the entire time required to perform a single forward pass of the "Large" Conformer (with 120 M parameters). Furthermore, due to the quadratic attention cost, we can obtain a 4x reduction in all subsequent attention layers by downsampling the audio to 80 ms frames. So as the first change, we perform 8x downsampling before any of the Conformer layers are applied. This reduces GMACs to roughly 65% of the baseline Conformer.
 
-2) **Depthwise convolution**: Multiple other works have shown that it is not necessary to use full Convolution layers and that we can save both compute and memory simply by using Depthwise Seperably Convoltions. Therefore we replace all Convolution layers in the preprocessor by Depthwise Seperable Convolutions. This reduces GMACs to roughly 37% of the baseline Conformer.
+2) **Depthwise convolution**: Multiple other works have shown that it is not necessary to use full Convolution layers and that we can save both compute and memory simply by using Depthwise Separable Convoltions. Therefore, we replace all Convolution layers in the preprocessor by Depthwise Seperable Convolutions. This reduces GMACs to roughly 37% of the baseline Conformer.
 
 3) **Channel reduction**: In literature, it is common for the hidden dimension of the downsampling module to match the `d_model` of the Conformer module for easy application to the subsequent stack of Conformer modules. However, this is not necessary, and we can reduce the number of channels in the downsampling module to reduce the number of parameters and GMACs. We reduce the number of channels to 256, which reduces GMACs to roughly 33% of the baseline Conformer.
 
@@ -54,7 +54,7 @@ We propose 4 changes to the original Conformer architecture to make it more effi
 
 ## Fast Conformer: Linearly Scalable Attention
 
-On an NVIDIA A100 GPU with 80 GB of memory, we find that Conformer reaches the memory limit at around 10-minute long single audio clip. This means that for it is not feasible to perform inference without performing streaming inference which may lead to degraded results.
+On an NVIDIA A100 GPU with 80 GB of memory, we find that Conformer reaches the memory limit at around 10-minute long single audio clip. This mean that it is not feasible to perform inference without performing streaming inference which may lead to degraded results.
 
 Fast Conformer, due to its 8x stride fairs a little better and can perform inference on roughly 18-minute long audio clips. However, this is still not sufficient for many use cases.
 
@@ -64,7 +64,7 @@ We therefore extend [Longformer](https://arxiv.org/abs/2004.05150) to the Confor
 <img src="https://github.com/NVIDIA/NeMo/releases/download/v1.18.0/asset-post-fast-conformer-local-attn.png" width="100%">
 </div>
 
-By switching to limited context attention, we extend the maximum duration that the model can process at once on a single A100 GPU by 7x: from 10 minutes for Conformer to 70 minutes for Fast Conformer. Furthermore, you can use a pre-trained Fast Conformer model and readily convert its attention to Longformer attention without any further training ! While this will not use the global attention token, it will still be able to process 70-minute long audio clips.
+By switching to limited context attention, we extend the maximum duration that the model can process at once on a single A100 GPU by ~4x: from 10 minutes for Conformer to 18 minutes for Fast Conformer. Furthermore, you can use a pre-trained Fast Conformer model and readily convert its attention to Longformer attention without any further training ! While this will not use the global attention token, it will still be able to process 70-minute long audio clips.`
 
 ## Checkpoints
 
@@ -95,7 +95,7 @@ When constructing datasets with support for Punctuation and Capitalization, data
 
 In order to provide a consistent and reproducible way to process such dataset, we will begin providing the dataset preprocessing strategies in [Speech Data Processor](https://github.com/NVIDIA/NeMo-speech-data-processor).
 
-Speech Dataset Processor will initially host dataset processing recipies for Spanish, and we will add more languages in the future.
+Speech Dataset Processor currently hosts dataset processing recipies for Spanish, and we will add more languages in the future.
 
 # Usage
 
@@ -147,17 +147,17 @@ We find that Fast Conformer is able to achieve the same accuracy as the Conforme
 
 *Fast Conformer-Large with CTC and RNNT decoders trained on Librispeech. Greedy WER (%) was measured on Librispeech test-other.  The number of parameters  (M) and compute (Multiply-Acc, GMAC) are shown for encoder only.*
 
-| Encoder                     	|   WER, %   	| Params, 	| Compute, 	|
-|-----------------------------	|:----------:	|:-------:	|:--------:	|
-|                             	| test-other 	|    M    	|   GMACS  	|
-|         RNNT decoder        	|            	|         	|          	|
-| Conformer                   	|    5.19    	|   115   	|   143.2  	|
-| Fast Conformer              	|    4.99    	|   109   	|   48.7   	|
-|         CTC decoder         	|            	|         	|          	|
-| Conformer                   	|    5.74    	|   121   	|   149.2  	|
-| Eff. Conformer [Burchi2021] 	|    5.79    	|   125   	|   101.3  	|
-| SqeezeFormer [Kim2022]      	|    6.05    	|   125   	|   91.0   	|
-| Fast Conformer              	|    6.00    	|   115   	|   51.5   	|
+| Encoder                     	 |   WER, %   	| Params, 	| Compute, 	|
+|-------------------------------|:----------:	|:-------:	|:--------:	|
+| 	                             | test-other 	|    M    	|   GMACS  	|
+| **RNNT decoder**        	     |            	|         	|          	|
+| Conformer                   	 |    5.19    	|   115   	|   143.2  	|
+| Fast Conformer              	 |    4.99    	|   109   	|   48.7   	|
+| **CTC decoder**         	     |            	|         	|          	|
+| Conformer                   	 |    5.74    	|   121   	|   149.2  	|
+| Eff. Conformer [Burchi2021] 	 |    5.79    	|   125   	|   101.3  	|
+| SqeezeFormer [Kim2022]      	 |    6.05    	|   125   	|   91.0   	|
+| Fast Conformer              	 |    6.00    	|   115   	|   51.5   	|
 
 ## Speech Translation Results
 
@@ -167,14 +167,14 @@ Our models have been trained on all available datasets from IWSLT22 competition 
 
 *Speech Translation, MUST-C V2 tst-COMMON dataset. SacreBLEU, total inference time, and relative inference speed-up were measured with a batch size $32$ for two speech translation models with Conformer-based encoder and either RNNT, or Transformer decoder.*
 
-| Encoder             	| BLEU 	| Time, sec 	| Speed-up 	|
-|---------------------	|:----:	|:---------:	|:--------:	|
-| Transformer decoder 	|      	|           	|          	|
-| Conformer           	| 31.0 	|    267    	|    1X    	|
-| Fast Conformer      	| 31.4 	|    161    	|   1.66X  	|
-|     RNNT decoder    	|      	|           	|          	|
-| Conformer           	| 23.2 	|     83    	|    1X    	|
-| Fast Conformer      	| 27.9 	|     45    	|   1.84X  	|
+| Encoder             	     | BLEU 	| Time (sec) 	 | Speed-up 	|
+|---------------------------|:----:	|:------------:|:--------:	|
+| **Transformer decoder** 	 |      	|      	       |          	|
+| Conformer           	     | 31.0 	|   267    	   |    1X    	|
+| Fast Conformer      	     | 31.4 	|   161    	   |   1.66X  	|
+| **RNNT decoder**    	     |      	|      	       |          	|
+| Conformer           	     | 23.2 	|   83    	    |    1X    	|
+| Fast Conformer      	     | 27.9 	|   45    	    |   1.84X  	|
 
 ## Spoken Language Understanding Results
 
@@ -183,13 +183,13 @@ For the Speech Intent Clasification and Slot Filling task, experiments are condu
 *Speech intent classification and slot filling on SLURP dataset. ESPNet-SLU  and SpeechBrain-SLU models use a [HuBERT](https://arxiv.org/abs/2106.07447) encoder pre-trained via a self-supervised objective on [LibriLight-60k](https://arxiv.org/abs/1912.07875). 
 Inference time and relative speed-up against Conformer are measured with batch size 32.*
 
-| Model                                        	| Intent Acc 	| SLURP F1 	| Inference, sec 	| Rel. Speed-up 	|
-|----------------------------------------------	|:----------:	|:--------:	|:--------------:	|:-------------:	|
-| SpeechBrain-SLU                              	|    87.70   	|   76.19  	|        -       	|       -       	|
-| ESPnet-SLU                                   	|    86.52   	|   76.91  	|        -       	|       -       	|
-| Conformer/Fast Conformer+Transformer Decoder 	|            	|          	|                	|               	|
-| Conformer                                    	|    90.14   	|   82.27  	|       210      	|       1X      	|
-| Fast Conformer                               	|    90.68   	|   82.04  	|       191      	|      1.1X     	|
+| Model                                        	     | Intent Acc 	| SLURP F1 	| Inference, sec 	| Rel. Speed-up 	|
+|----------------------------------------------------|:----------:	|:--------:	|:--------------:	|:-------------:	|
+| SpeechBrain-SLU                              	     |    87.70   	|   76.19  	|        -       	|       -       	|
+| ESPnet-SLU                                   	     |    86.52   	|   76.91  	|        -       	|       -       	|
+| **Conformer/Fast Conformer+Transformer Decoder** 	 |            	|          	|                	|               	|
+| Conformer                                    	     |    90.14   	|   82.27  	|       210      	|       1X      	|
+| Fast Conformer                               	     |    90.68   	|   82.04  	|       191      	|      1.1X     	|
 
 ## Long Form Speech Recognition Results
 
@@ -206,5 +206,3 @@ Note that with Longformer style attention, we can still perform buffered inferen
 | \ + Limited Context       	|     9.92    	|    28.42   	|
 | \ \ + Global Token        	|     8.00    	|    20.68   	|
 | \ \ \ + Concat utterances 	|     7.85    	|    19.52   	|
-
-
