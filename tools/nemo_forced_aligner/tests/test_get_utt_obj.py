@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import asdict
-
 import prettyprinter
 import pytest
 from prettyprinter import pretty_call, register_pretty

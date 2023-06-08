@@ -151,7 +151,7 @@ def restore_token_case(word, word_tokens):
     word_tokens_cased = []
     word_char_pointer = 0
 
-    for token in enumerate(word_tokens):
+    for token in word_tokens:
         token_cased = ""
 
         for token_char in token:
