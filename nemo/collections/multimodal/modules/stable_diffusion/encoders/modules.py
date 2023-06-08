@@ -11,19 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
 from functools import partial
 
 import kornia
+import open_clip
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from omegaconf import OmegaConf
+from torch.utils.checkpoint import checkpoint
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 from transformers.models.clip.modeling_clip import CLIPTextTransformer
 
+from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
+from nemo.collections.multimodal.models.clip.megatron_clip_models import CLIPModel
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 
 class AbstractEncoder(nn.Module):
@@ -202,6 +212,198 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         seq_len = (z.shape[1] + 8 - 1) // 8 * 8
         z = torch.nn.functional.pad(z, (0, 0, 0, seq_len - z.shape[1]), value=0.0)
         return z
+
+    def encode(self, text):
+        return self(text)
+
+
+class FrozenOpenCLIPEmbedder(AbstractEncoder):
+    """
+    Uses the OpenCLIP transformer encoder for text
+    """
+
+    LAYERS = [
+        # "pooled",
+        "last",
+        "penultimate",
+    ]
+
+    def __init__(
+        self,
+        arch="ViT-H-14",
+        version="laion2b_s32b_b79k",
+        device="cuda",
+        max_length=77,
+        freeze=True,
+        layer="last",
+        use_fp16=False,
+    ):
+        super().__init__()
+        assert layer in self.LAYERS
+        model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
+        del model.visual
+        self.model = model
+
+        self.device = device
+        self.max_length = max_length
+        if freeze:
+            self.freeze()
+        self.layer = layer
+        if self.layer == "last":
+            self.layer_idx = 0
+        elif self.layer == "penultimate":
+            self.layer_idx = 1
+        else:
+            raise NotImplementedError()
+
+    def freeze(self):
+        self.model = self.model.eval()
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def forward(self, text):
+        tokens = open_clip.tokenize(text)
+        z = self.encode_with_transformer(tokens.to(self.device))
+        return z
+
+    def encode_with_transformer(self, text):
+        x = self.model.token_embedding(text)  # [batch_size, n_ctx, d_model]
+        x = x + self.model.positional_embedding
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.text_transformer_forward(x, attn_mask=self.model.attn_mask)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = self.model.ln_final(x)
+        return x
+
+    def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
+        for i, r in enumerate(self.model.transformer.resblocks):
+            if i == len(self.model.transformer.resblocks) - self.layer_idx:
+                break
+            if self.model.transformer.grad_checkpointing and not torch.jit.is_scripting():
+                x = checkpoint(r, x, attn_mask)
+            else:
+                x = r(x, attn_mask=attn_mask)
+        return x
+
+    def encode(self, text):
+        return self(text)
+
+
+class FrozenMegatronCLIPEmbedder(AbstractEncoder):
+    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, use_fp16=False):
+        super().__init__()
+        cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
+        self.build_tokenizer(cfg)
+        self.load_model(cfg, state_dict)
+
+        self.device = device
+        if freeze:
+            self.freeze()
+        self.layer = layer
+        if self.layer == "last":
+            self.layer_idx = 0
+        elif self.layer == "penultimate":
+            self.layer_idx = 1
+        else:
+            raise NotImplementedError()
+
+    def freeze(self):
+        self.model = self.model.eval()
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def load_config_and_state_from_nemo(self, nemo_path):
+        if torch.cuda.is_available():
+            map_location = torch.device('cuda')
+        else:
+            map_location = torch.device('cpu')
+        save_restore_connector = NLPSaveRestoreConnector()
+        cwd = os.getcwd()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
+
+                # Change current working directory to
+                os.chdir(tmpdir)
+                config_yaml = os.path.join(tmpdir, save_restore_connector.model_config_yaml)
+                cfg = OmegaConf.load(config_yaml)
+
+                model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                state_dict = save_restore_connector._load_state_dict_from_disk(
+                    model_weights, map_location=map_location
+                )
+            finally:
+                os.chdir(cwd)
+
+        return cfg, state_dict
+
+    def build_tokenizer(self, cfg):
+        legacy = cfg.tokenizer.sentencepiece_legacy
+        self.tokenizer = get_nmt_tokenizer(
+            library=cfg.tokenizer.library,
+            model_name=cfg.tokenizer.type,
+            tokenizer_model=cfg.tokenizer.model,
+            vocab_file=cfg.tokenizer.vocab_file,
+            merges_file=cfg.tokenizer.merge_file,
+            delimiter=cfg.tokenizer.get('delimiter', None),
+            legacy=legacy,
+        )
+
+        _, self.text_transform = get_preprocess_fns(cfg, self.tokenizer, is_train=False,)
+
+    def load_model(self, cfg, state_dict):
+        padded_vocab_size = self._vocab_size_with_padding(
+            orig_vocab_size=self.tokenizer.vocab_size,
+            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
+            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+        )
+        model = CLIPModel(
+            model_cfg=cfg,
+            padded_vocab_size=padded_vocab_size,
+            pre_process=cfg.text.pre_process,
+            post_process=cfg.text.post_process,
+        )
+
+        clip_state_dict = {}
+        for key, value in state_dict.items():
+            key = key[6:]
+            clip_state_dict[key] = value
+        model.load_state_dict(clip_state_dict)
+
+        del model.vision_encoder
+        self.model = model.text_encoder
+
+    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
+        after = orig_vocab_size
+        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
+        while (after % multiple) != 0:
+            after += 1
+        return after
+
+    def forward(self, text):
+        texts = self.text_transform(text)
+        z = self.encode_with_transformer(texts.to(self.device))
+        # # Pad the seq length to multiple of 8
+        seq_len = (z.shape[1] + 8 - 1) // 8 * 8
+        z = torch.nn.functional.pad(z, (0, 0, 0, seq_len - z.shape[1]), value=0.0)
+        return z
+
+    def encode_with_transformer(self, text):
+        x = self.model.language_model.embedding.word_embeddings(text)
+        x += self.model.language_model.embedding.position_embeddings
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.text_transformer_forward(x, attn_mask=self.model.attn_mask)
+        x = self.model.language_model.encoder.final_layernorm(x)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        return x
+
+    def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
+        for i, r in enumerate(self.model.language_model.encoder.layers):
+            if i == len(self.model.language_model.encoder.layers) - self.layer_idx:
+                break
+            x = r(x, attn_mask)
+        return x
 
     def encode(self, text):
         return self(text)

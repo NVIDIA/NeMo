@@ -125,7 +125,8 @@ def main(cfg):
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    prepare_reg_data(cfg)
+    if cfg.model.with_prior_preservation:
+        prepare_reg_data(cfg)
     parallel_state.destroy_model_parallel()
 
     callbacks = []

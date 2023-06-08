@@ -98,7 +98,7 @@ def random_dropout(embeddings, drop_rate):
         drop_rate (float): Rate of dropping the embedding.
     """
     nsamples = embeddings.shape[0]
-    zero_flag = torch.ones(nsamples, 1, 1).to(embeddings.dtype) * (1 - drop_rate)
+    zero_flag = torch.ones(nsamples, 1, 1, device=torch.cuda.current_device()).to(embeddings.dtype) * (1 - drop_rate)
     zero_flag = torch.bernoulli(zero_flag).cuda(non_blocking=True)
     embeddings = embeddings * zero_flag
     return embeddings
