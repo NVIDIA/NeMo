@@ -5,7 +5,7 @@ fasttext
 flask_restful
 ftfy
 gdown
-gradio==3.28.3
+gradio>=3.28.3
 h5py
 ijson
 inflect
@@ -14,7 +14,6 @@ markdown2
 matplotlib>=3.3.2
 megatron_core==0.1.0
 nltk>=3.6.5
-numpy
 opencc
 pangu
 rapidfuzz
