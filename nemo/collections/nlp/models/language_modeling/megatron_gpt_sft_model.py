@@ -93,20 +93,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
         self.virtual_tokens = 0
-        self.summarize()
-        if self.cfg.get("unfreeze_layers", "all") == "all":
-            return
-        else:
-            self.freeze()
-            _unfreeze_layers = [int(i) for i in self.cfg.unfreeze_layers.split(",")]
-            for n, m in self.named_modules():
-                if isinstance(m, ParallelTransformerLayer):
-                    print(m.layer_number)
-                    if m.layer_number in _unfreeze_layers:
-                        for p in m.parameters():
-                            p.requires_grad = True
-
-            self.summarize()
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
