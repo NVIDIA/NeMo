@@ -201,6 +201,7 @@ class BertModel(MegatronModule):
 
         init_method = init_method_normal(init_method_std)
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        params_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
@@ -221,8 +222,8 @@ class BertModel(MegatronModule):
             post_process=self.post_process,
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
+            params_dtype=params_dtype,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             activations_checkpoint_method=activations_checkpoint_method,

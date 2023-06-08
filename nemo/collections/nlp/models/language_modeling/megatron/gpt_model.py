@@ -125,6 +125,7 @@ class GPTModel(MegatronModule):
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
         megatron_amp_O2=False,
+        use_fsdp=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
@@ -177,7 +178,7 @@ class GPTModel(MegatronModule):
         self.sequence_parallel = sequence_parallel
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        params_dtype = utils_funcs.dtype_from_precision(precision, use_fsdp or megatron_amp_O2)
 
         if kv_channels is None:
             assert (
@@ -211,8 +212,8 @@ class GPTModel(MegatronModule):
             post_process=self.post_process,
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
+            params_dtype=params_dtype,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             activations_checkpoint_method=activations_checkpoint_method,
@@ -258,7 +259,7 @@ class GPTModel(MegatronModule):
                 init_method=init_method_normal(init_method_std),
                 vocab_size=vocab_size,
                 hidden_size=hidden_size,
-                param_dtype=self.dtype,
+                param_dtype=params_dtype,
             )
 
     def set_input_tensor(self, input_tensor):

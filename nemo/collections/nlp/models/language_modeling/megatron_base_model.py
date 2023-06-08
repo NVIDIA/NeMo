@@ -167,6 +167,8 @@ class MegatronBaseModel(NLPModel):
             gc.disable()
             self.validation_global_step = 1
 
+        self.use_fsdp = cfg.get('fsdp', False)
+
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
@@ -304,7 +306,12 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
                 parameters = self.get_parameters_with_grad()
-            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+            grad_norm = clip_grad_norm_fp32(
+                parameters=parameters,
+                max_norm=clip_val,
+                use_fsdp=self.use_fsdp,
+                param_attributes=getattr(self.trainer.strategy, 'param_attributes', None),
+            )
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
@@ -569,11 +576,16 @@ class MegatronBaseModel(NLPModel):
                 )
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
-
-        if self.cfg.get('gradient_accumulation_fusion', False) and not self.cfg.get('megatron_amp_O2', False):
-            logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
-            with open_dict(self.cfg):
-                self.cfg.gradient_accumulation_fusion = False
+            if self.cfg.get('fsdp', False):
+                logging.info(
+                    "When using FSDP, gradient accumulation done on a gradient shard, which is handled by FSDP runtime hook."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
+            if not self.cfg.get('megatron_amp_O2', False):
+                logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
 
         if self.cfg.get('use_emha', False):
             raise ValueError('use_emha is not yet supported please set to False')

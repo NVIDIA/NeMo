@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+import functools
 import itertools
 import os
 import shutil
@@ -23,19 +25,28 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Opti
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.utilities.optimizer import _optimizers_to_device
 from omegaconf import OmegaConf
 from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.strategies.fully_sharded_native import DDPFullyShardedNativeStrategy
+from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
+from pytorch_lightning.utilities.model_helpers import is_overridden
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.fsdp import BackwardPrefetch, MixedPrecision, ShardingStrategy
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -245,6 +256,202 @@ class NLPDDPStrategy(DDPStrategy):
 
         else:
             return super(NLPDDPStrategy, self).distributed_sampler_kwargs
+
+
+@dataclasses.dataclass
+class ParamAttributes:
+    """
+    Store the model-parallel parameter attributes
+    """
+
+    tensor_model_parallel: bool = None
+    sequence_parallel: bool = None
+    shared: bool = None
+
+
+class NLPFSDPStrategy(DDPFullyShardedNativeStrategy):
+    """ FSDP plugin for Pytorch Lightning with the support for tensor-parallelism.
+
+    Args:
+        use_transformer_engine: The flag for the use of Transformer Engine.
+        param_dtype: Data type for FSDP parameter AllGather and inputs for operators.
+        reduce_dtype: Data type for FSDP gradient shard ReduceScatter.
+    """
+
+    def __init__(
+        self,
+        parallel_devices: Optional[List[torch.device]] = None,
+        cluster_environment: ClusterEnvironment = None,
+        checkpoint_io: Optional[CheckpointIO] = None,
+        use_transformer_engine=False,
+        param_dtype: Union[int, str] = 'bf16',
+        reduce_dtype: Union[int, str] = 32,
+        **kwargs: Union[Any, Dict[str, Any]],
+    ) -> None:
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        # Set the FSDP mixed precision recipe. We only adjust param AG and grad RS data types.
+        kwargs['mixed_precision'] = MixedPrecision(
+            param_dtype=utils_funcs.dtype_from_precision(param_dtype, None),
+            reduce_dtype=utils_funcs.dtype_from_precision(reduce_dtype, None),
+            buffer_dtype=torch.float,
+        )
+        # Use the default FSDP backward-prefetch policy for proper communication overlap.
+        kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
+        # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
+        self.fsdp_wrap_module = AutocastTransformerLayer if use_transformer_engine else ParallelTransformerLayer
+        kwargs['auto_wrap_policy'] = functools.partial(
+            transformer_auto_wrap_policy,
+            transformer_layer_cls={self.fsdp_wrap_module}
+        )
+        # Set FSDP sharding strategy.
+        fsdp_sharding_strategy = {
+            'full': ShardingStrategy.FULL_SHARD,
+            'hybrid': ShardingStrategy.HYBRID_SHARD,
+            'grad': ShardingStrategy.SHARD_GRAD_OP,
+        }
+        assert kwargs['sharding_strategy'] in list(fsdp_sharding_strategy.keys()), "Not a supported sharding strategy."
+        assert kwargs['sharding_strategy'] != 'hybrid', "Hybrid sharding is currrently not supported."
+        kwargs['sharding_strategy'] = fsdp_sharding_strategy[kwargs['sharding_strategy']]
+
+        super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
+
+    def belongs_fsdp_wrap_module(self, model: torch.nn.Module, attr_names: str) -> bool:
+        """
+        Check if the paramter belong to a FSDP sharding module.
+        """
+        cur_attr = model
+        for attr_name in attr_names.split('.'):
+            cur_attr = getattr(cur_attr, attr_name)
+            if isinstance(cur_attr, self.fsdp_wrap_module):
+                return True
+        return False
+
+    def store_param_attributes(self):
+        """
+        Store the original parameter attributes before flattening and sharding. The attributes are stored
+        in the order of parameter traversal to match with the order for the flattened parameters.
+        The parameters that do not belong Transformer layers (FSDP wrapping granularity) are placed at the end.
+        """
+        self.param_attributes = []
+        non_transformer_param_attributes = []
+        for name, param in self.model.named_parameters():
+            param_attribute = ParamAttributes()
+            param_attribute.numel = param.numel()
+            for f in dataclasses.fields(ParamAttributes):
+                setattr(param_attribute, f.name, getattr(param, f.name, None))
+            if self.belongs_fsdp_wrap_module(self.model, name):
+                self.param_attributes.append(param_attribute)
+            else:
+                non_transformer_param_attributes.append(param_attribute)
+        self.param_attributes = non_transformer_param_attributes + self.param_attributes
+
+    def setup_environment(self) -> None:
+        """
+        Overriding to set parallel states.
+        """
+        super().setup_environment()
+
+        # init model parallel if needed
+        if not parallel_state.model_parallel_is_initialized():
+            app_state = AppState()
+            self.init_model_parallel(app_state.global_rank, app_state.world_size)
+
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        We override `setup` function to apply FSDP-wrapping to the top-level model instead of lightening model.
+        This keeps the module hierarchy of flattened parameters not broken.
+        """
+        self.store_param_attributes()
+
+        assert self.accelerator is not None
+        self.accelerator.setup(trainer)
+        # share ddp pids to all processes
+        self._rank_0_will_call_children_scripts = self.broadcast(self._rank_0_will_call_children_scripts)
+
+        if trainer.state.fn == TrainerFn.FITTING and self._layer_sync:
+            assert self.model is not None
+            self.model = self._layer_sync.apply(self.model)
+
+        # we set the device so that optimizers can be created with distributed comms.
+        assert self.lightning_module is not None
+        self.lightning_module._device = self.root_device
+
+        assert isinstance(self.model, pl.LightningModule)
+
+        if is_overridden("configure_sharded_model", self.lightning_module):
+            rank_zero_info(
+                "You have overridden `LightningModule.configure_sharded_model` hook. It will assume that all the layers"
+                " are already wrapped for sharding and won't wrap the entire model using `FullyShardedDataParallel`."
+            )
+        else:
+            # Wrap the target top model with FSDP blocking instead of wrapping the lightening model
+            # This is to avoid losing the flattened parameter information at top-level modules, which
+            # are actually used in forward-backward functions.
+            self.model.model = self._setup_model(self.model.model)
+            # Keep the full precision master parameters
+            self.model = self.model.float()
+        self.model = _LightningModuleWrapperBase(self.model)
+        self.barrier()
+
+        self.setup_optimizers(trainer)
+        _optimizers_to_device(self.optimizers, self.root_device)
+
+        self.setup_precision_plugin()
+
+    def init_model_parallel(self, global_rank: int, world_size: int) -> None:
+        """ Initializes Megatron-LM model parallel if using model parallelism.
+
+        Args:
+            global_rank (int): the global process index.
+            world_size (int): the total number of GPUs, num_nodes * num_devices
+            is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
+        """
+        app_state = AppState()
+
+        # we initialize megatron-lm model parallel and data parallel groups
+        # after initializing DDP with PTL.
+        if app_state.model_parallel_size is not None:
+            # destroy groups in case they have already been created
+            # this happens with multiple calls to trainer.test for example
+            parallel_state.destroy_model_parallel()
+            assert app_state.pipeline_model_parallel_size == 1, "FSDP does not support pipeline parallelism"
+            if self.kwargs['sharding_strategy'] == ShardingStrategy.HYBRID_SHARD:
+                assert app_state.tensor_model_parallel_size == 1, \
+                    "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
+            if torch.distributed.is_initialized():
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+                    virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                    use_fp8=app_state.use_fp8,
+                )
+
+                # assert that fake tp and pp rank match after model parallel init
+                assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
+                assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+
+                app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
+                app_state.data_parallel_group = parallel_state.get_data_parallel_group()
+                app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
+                app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
+                app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+
+                # Set the FSDP process group as DP process group
+                self._process_group = parallel_state.get_data_parallel_group()
+
+                # create MPI process group for UCX-based communication APIs
+                if app_state.init_mpi_proc_group:
+                    torch.distributed.new_group(backend='mpi')
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
