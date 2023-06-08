@@ -64,7 +64,7 @@ We therefore extend [Longformer](https://arxiv.org/abs/2004.05150) to the Confor
 <img src="https://github.com/NVIDIA/NeMo/releases/download/v1.18.0/asset-post-fast-conformer-local-attn.png" width="100%">
 </div>
 
-By switching to limited context attention, we extend the maximum duration that the model can process at once on a single A100 GPU by 7x: from 10 minutes for Conformer to 18 minutes for Fast Conformer. Furthermore, you can use a pre-trained Fast Conformer model and readily convert its attention to Longformer attention without any further training ! While this will not use the global attention token, it will still be able to process 70-minute long audio clips.`
+By switching to limited context attention, we extend the maximum duration that the model can process at once on a single A100 GPU by ~4x: from 10 minutes for Conformer to 18 minutes for Fast Conformer. Furthermore, you can use a pre-trained Fast Conformer model and readily convert its attention to Longformer attention without any further training ! While this will not use the global attention token, it will still be able to process 70-minute long audio clips.`
 
 ## Checkpoints
 
