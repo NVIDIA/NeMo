@@ -12,7 +12,7 @@ inference:
 
 
 trainer:
-  devices: 8
+  devices: 1
   num_nodes: 1
   accelerator: gpu
   logger: False # logger provided by exp_manager

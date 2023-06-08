@@ -14,6 +14,7 @@
 
 
 import torch.multiprocessing as mp
+import os
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -24,6 +25,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
+    NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
@@ -32,6 +34,55 @@ from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
 
+def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
+    """
+    This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
+    The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
+    """
+    OmegaConf.set_struct(gpt_cfg, True)
+    OmegaConf.resolve(cfg)
+    with open_dict(gpt_cfg):
+        gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
+        gpt_cfg.micro_batch_size = cfg.model.micro_batch_size
+        gpt_cfg.global_batch_size = cfg.model.global_batch_size
+        gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
+        gpt_cfg.activations_checkpoint_granularity = cfg.model.get("activations_checkpoint_granularity", None)
+        gpt_cfg.activations_checkpoint_num_layers = cfg.model.get("activations_checkpoint_num_layers", None)
+        gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
+        gpt_cfg.use_cpu_initialization = cfg.model.get("use_cpu_initialization", False)
+        gpt_cfg.data = cfg.model.data
+        gpt_cfg.optim = cfg.model.optim
+        gpt_cfg.seed  = cfg.model.seed
+        gpt_cfg.precision = cfg.trainer.precision
+        gpt_cfg.restore_from_path = cfg.model.restore_from_path
+        gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
+        gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
+        gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
+        gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
+        gpt_cfg.ffn_dropout = cfg.model.get('ffn_dropout', 0.0)
+        sft_cls = MegatronLLAMAModel
+        gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
+
+        # This is needed when modifying a hparam file directly to load `.ckpt` files.
+        # This is not needed to modify the cfg in `.nemo` files.
+        if add_cfg_to_tree:
+            OmegaConf.resolve(gpt_cfg)
+            gpt_cfg.cfg = gpt_cfg
+
+    return gpt_cfg
+
+def load_from_nemo(cls, cfg, trainer, gpt_cfg, modify_confg_fn):
+    gpt_cfg = modify_confg_fn(gpt_cfg, cfg, add_cfg_to_tree=False)
+    save_restore_connector = NLPSaveRestoreConnector()
+    if os.path.isdir(cfg.model.restore_from_path):
+        save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+    model = cls.restore_from(
+        restore_path=cfg.model.restore_from_path,
+        trainer=trainer,
+        override_config_path=gpt_cfg,
+        save_restore_connector=save_restore_connector,
+    )
+    return model
 
 @hydra_runner(config_path="conf", config_name="megatron_llama_config")
 def main(cfg) -> None:
@@ -81,7 +132,79 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = MegatronLLAMAModel(cfg.model, trainer)
+    if cfg.model.get('restore_from_path', None):
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.model.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        gpt_cfg = MegatronLLAMAModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
+        )
+        gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
+        model = load_from_nemo(MegatronLLAMAModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+        #gpt_cfg.tokenizer.model = '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/tokenizer.model' 
+        #with open_dict(gpt_cfg):
+        #    #gpt_cfg.make_vocab_size_divisible_by = 128
+        #    #gpt_cfg.virtual_pipeline_model_parallel_size = None
+        #    #gpt_cfg.hysteresis = 2
+        #    #gpt_cfg.apply_query_key_layer_scaling = True
+        #    #gpt_cfg.native_amp_growth_interval = 1000
+        #    #gpt_cfg.kv_channels = None
+        #    #gpt_cfg.use_scaled_init_method = True
+        #    #gpt_cfg.normalize_attention_scores = True
+        #    #gpt_cfg.do_layer_norm_weight_decay = False
+        #    #gpt_cfg.headscale = False
+        #    #gpt_cfg.grad_allreduce_chunk_size_mb = 125
+        #    #gpt_cfg.persist_layer_norm = True
+        #    #gpt_cfg.native_amp_init_scale = 4294967296
+        #    #gpt_cfg.fp32_residual_connection = False
+        #    #gpt_cfg.transformer_engine = False
+        #    #gpt_cfg.grad_div_ar_fusion = True
+        #    #gpt_cfg.fp8_interval =1
+        #    #gpt_cfg.sync_batch_comm = False
+        #    #gpt_cfg.use_emha = False
+        #    #gpt_cfg.activations_checkpoint_layers_per_pipeline = None
+        #    #gpt_cfg.fp8_amax_history_len = 1
+        #    #gpt_cfg.fp16_lm_cross_entropy = False
+        #    #gpt_cfg.rotary_percentage = 1.0
+        #    #gpt_cfg.fp8 = False
+        #    #gpt_cfg.masked_softmax_fusion = True
+        #    #gpt_cfg.openai_gelu = False
+        #    #gpt_cfg.reduce_amax = True
+        #    #gpt_cfg.attention_type = 'multihead'
+        #    #gpt_cfg.fp8_margin = 0
+        #    #gpt_cfg.fp8_amax_compute_algo = 'most_recent'
+        #    #gpt_cfg.gradient_accumulation_fusion = False
+        #    #gpt_cfg.apex_transformer_log_level = 30
+        #    #gpt_cfg.num_micro_batches_with_partial_activation_checkpoints = None
+        #    #gpt_cfg.onnx_safe  = False
+        #    #gpt_cfg.fp8_hybrid = False
+        #    #gpt_cfg.fp8_e4m3 = False
+        #    #gpt_cfg.nemo_version = None
+        #    #gpt_cfg.original_amp_o2 = None
+        #    #gpt_cfg.target = None
+        #    #gpt_cfg.original_cpu_init = None
+        #    #gpt_cfg.share_embeddings_and_output_weights = True
+        #    #gpt_cfg.tokenizer = {'type': None, 'library': 'sentencepiece', 'model': '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/tokenizer.model', 'vocab_file': None, 'merge_file': None, 'delimiter': None, 'sentencepiece_legacy': False}
+        #    gpt_cfg.tokenizer.sentencepiece_legacy = False
+        #second_dict = OmegaConf.to_container(gpt_cfg)
+        #first_dict = OmegaConf.to_container(cfg.model)
+        #value = { k : second_dict[k] for k in set(second_dict) - set(first_dict) }
+        #for k, v in first_dict.items():
+        #    if k not in second_dict:
+        #        print(f'miss key: {k}, value: {v}')
+        #    else:
+        #        if v != second_dict[k]:
+        #            print(f'wrong key: {k}, value: {v}, {second_dict[k]}')
+        #print(gpt_cfg)
+        #print(cfg.model)
+        #print(set(second_dict) - set(first_dict))
+        #model = MegatronLLAMAModel(gpt_cfg, trainer)
+    else:
+        model = MegatronLLAMAModel(cfg.model, trainer)
+        print(cfg.model)
 
     trainer.fit(model)
 

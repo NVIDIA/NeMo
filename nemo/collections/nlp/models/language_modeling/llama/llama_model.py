@@ -77,8 +77,7 @@ def post_language_model_processing(
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
     rank = torch.distributed.get_rank()
-    torch.save(output, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/logits_nemo_"+str(rank)+".pt")
-    raise ValueError('finished first inference step')
+    #torch.save(output, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/logits_nemo_"+str(rank)+".pt")
 
     if get_key_value:
         output = [output, presents]
