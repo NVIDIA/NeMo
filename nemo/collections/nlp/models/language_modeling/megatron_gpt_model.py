@@ -734,7 +734,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
-    def get_batch_on_this_sequence_parallel_rank(batch):
+    def get_batch_on_this_sequence_parallel_rank(self, batch):
         sequence_parallel_size = parallel_state.get_sequence_parallel_world_size()
         if sequence_parallel_size > 1:
             sequence_parallel_rank = parallel_state.get_sequence_parallel_rank()
