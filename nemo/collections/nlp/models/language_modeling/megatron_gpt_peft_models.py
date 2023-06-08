@@ -16,7 +16,6 @@
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -26,6 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
 )
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
 
@@ -130,6 +130,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
+
 class MegatronGPTLayerSectionModel(MegatronGPTPEFTModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer,
@@ -139,13 +140,13 @@ class MegatronGPTLayerSectionModel(MegatronGPTPEFTModel):
         self.unfreeze_layers = cfg.peft.layer_selection.unfreeze_layers
         for n, m in self.named_modules():
             if isinstance(m, ParallelTransformerLayer):
-                if m.layer_number in  self.unfreeze_layers:
+                if m.layer_number in self.unfreeze_layers:
                     for np, p in m.named_parameters():
                         self.adapter_keys.add('.'.join((n, np)))
-    
+
     def init_peft_modules(self):
         return True
-    
+
     def setup_optimizer_param_groups(self):
         """
         ModelPT override. Optimizer will get self._optimizer_param_groups. 
@@ -159,7 +160,7 @@ class MegatronGPTLayerSectionModel(MegatronGPTPEFTModel):
         self.freeze()  # Freeze the entire model
         opt_params = []
         for n, p in self.named_parameters():
-            if n in self.adapter_keys: 
+            if n in self.adapter_keys:
                 p.requires_grad = True
                 opt_params.append(p)
         self._optimizer_param_groups = ({"params": opt_params},)
