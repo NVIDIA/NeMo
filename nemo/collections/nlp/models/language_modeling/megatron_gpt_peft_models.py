@@ -16,6 +16,7 @@
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformerLayer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -126,6 +127,41 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
 
+        self._optimizer_param_groups = ({"params": opt_params},)
+        logging.info(f"Optimizer groups set:\n{self.summarize()}")
+
+class MegatronGPTLayerSectionModel(MegatronGPTPEFTModel):
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        super().__init__(cfg, trainer)
+        self.peft_name_keys = []
+        self.unfreeze_layers = cfg.peft.layer_selection.unfreeze_layers
+        for n, m in self.named_modules():
+            if isinstance(m, ParallelTransformerLayer):
+                if m.layer_number in  self.unfreeze_layers:
+                    for np, p in m.named_parameters():
+                        self.adapter_keys.add('.'.join((n, np)))
+    
+    def init_peft_modules(self):
+        return True
+    
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Makes two optimizer param groups, one for the frozen model params
+        and one for the prompt-table/prompt-encoder params. The learning 
+        rate for the frozen model's params will always be zero effectively
+        freezing the model's params but still allowing for the needed gradients
+        to be passed around in pipeline parallel models. The prompt-encoder 
+        and/or prompt table will use the learning rate set by the user. 
+        """
+        self.freeze()  # Freeze the entire model
+        opt_params = []
+        for n, p in self.named_parameters():
+            if n in self.adapter_keys: 
+                p.requires_grad = True
+                opt_params.append(p)
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 

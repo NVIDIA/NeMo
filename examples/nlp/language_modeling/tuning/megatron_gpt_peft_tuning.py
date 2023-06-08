@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTIA3Model,
     MegatronGPTLoRAModel,
     MegatronGPTPTuningModel,
+    MegatronGPTLayerSectionModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -120,6 +121,8 @@ def _get_peft_scheme(cfg):
         peft_cls = MegatronGPTAdapterPTuningModel
     elif cfg.peft.peft_scheme == "lora":
         peft_cls = MegatronGPTLoRAModel
+    elif cfg.peft.peft_scheme == "layer_selection":
+        peft_cls = MegatronGPTLayerSectionModel
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls

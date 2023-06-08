@@ -101,6 +101,11 @@ model:
       bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
       embedding_dim: 1024  # the size of the prompt encoder embeddings
       init_std: 0.023
+    
+    layer_selection:
+      unfreeze_layers: 
+      - 12
+      - 1 
 
   data:
     train_ds:
