@@ -134,13 +134,13 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         precision=16,
+        params_dtype=torch.float16,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         persist_layer_norm=False,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
@@ -178,7 +178,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
-        self.param_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
@@ -214,6 +213,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 )
             else:
                 self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            # FSDP: Pre-cast LN params to the training data type to match other params of the Transformer layer
+            self.input_layernorm = self.input_layernorm.to(params_dtype)
 
             self.self_attention = ParallelAttention(
                 init_method=init_method,
@@ -224,10 +225,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 attention_type=AttnType.self_attn,
                 attn_mask_type=self_attn_mask_type,
                 precision=precision,
+                params_dtype=params_dtype,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 multi_query_attention=multi_query_attention,
@@ -282,6 +283,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 )
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+        # FSDP: Pre-cast LN params to the training data type to match other params of the Transformer layer
+        self.post_attention_layernorm = self.post_attention_layernorm.to(params_dtype)
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
             self.inter_attention = ParallelAttention(
@@ -293,11 +296,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 attention_type=AttnType.cross_attn,
                 attn_mask_type=AttnMaskType.padding,
                 precision=precision,
+                params_dtype=params_dtype,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 multi_query_attention=multi_query_attention,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
@@ -342,10 +345,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 num_attention_heads=num_attention_heads,
                 hidden_size=hidden_size,
                 precision=precision,
+                params_dtype=params_dtype,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
@@ -388,7 +391,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 use_cpu_initialization=use_cpu_initialization,
-                dtype=self.param_dtype,
+                dtype=params_dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
@@ -409,7 +412,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 use_cpu_initialization=use_cpu_initialization,
-                dtype=self.param_dtype,
+                dtype=params_dtype,
                 bias_activation_fusion=bias_activation_fusion,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
@@ -639,6 +642,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         precision=16,
+        params_dtype=torch.float16,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         layernorm_epsilon=1e-5,
@@ -646,7 +650,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         bias_dropout_add_fusion=True,
         persist_layer_norm=False,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
@@ -681,6 +684,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             self_attn_mask_type=self_attn_mask_type,
             fp32_residual_connection=fp32_residual_connection,
             precision=precision,
+            params_dtype=params_dtype,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             layernorm_epsilon=layernorm_epsilon,
@@ -688,7 +692,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             persist_layer_norm=persist_layer_norm,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
@@ -882,6 +885,7 @@ class ParallelTransformer(MegatronModule):
         pre_process=True,
         post_process=True,
         precision=16,
+        params_dtype=torch.float16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=None,
@@ -890,7 +894,6 @@ class ParallelTransformer(MegatronModule):
         attention_dropout=0.1,
         ffn_dropout=0.0,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
@@ -1051,7 +1054,7 @@ class ParallelTransformer(MegatronModule):
                     kv_channels=kv_channels,
                     self_attn_mask_type=self_attn_mask_type.name,
                     tp_size=parallel_state.get_tensor_model_parallel_world_size(),
-                    params_dtype=torch.float32,  # dtype params are initialized in
+                    params_dtype=params_dtype,
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     fuse_wgrad_accumulation=gradient_accumulation_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
@@ -1077,13 +1080,13 @@ class ParallelTransformer(MegatronModule):
                     layer_type=lt,
                     self_attn_mask_type=self_attn_mask_type,
                     precision=precision,
+                    params_dtype=params_dtype,
                     fp32_residual_connection=fp32_residual_connection,
                     layernorm_epsilon=layernorm_epsilon,
                     hidden_dropout=hidden_dropout,
                     attention_dropout=attention_dropout,
                     ffn_dropout=ffn_dropout,
                     use_cpu_initialization=use_cpu_initialization,
-                    megatron_amp_O2=megatron_amp_O2,
                     bias_activation_fusion=bias_activation_fusion,
                     bias_dropout_add_fusion=bias_dropout_add_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,

@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
+def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False, param_attributes=None):
     """Clips gradient norm of an iterable of parameters whose gradients
        are in fp32.
     This is adapted from torch.nn.utils.clip_grad.clip_grad_norm_ and
@@ -66,6 +66,8 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
         max_norm (float or int): max norm of the gradients
         norm_type (float or int): type of the used p-norm. Can be ``'inf'`` for
             infinity norm.
+        use_fsdp (bool): Use of Fully-Shared Data Parallelism
+        param_attributes (list of dataclass): Dataclass of parameter attributes
     Returns:
         Total norm of the parameters (viewed as a single vector).
     """
@@ -79,17 +81,45 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
     #   - should not be a replica due to tensor model parallelism
     grads = []
     grads_for_norm = []
-    for param in parameters:
-        grad_not_none = param.grad is not None
-        is_not_shared = param_is_not_shared(param)
-        is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
-        if grad_not_none:
-            grad = param.grad.detach()
-            # Make sure the grads are in fp32
-            assert isinstance(param.grad, torch.cuda.FloatTensor)
-            grads.append(grad)
-        if grad_not_none and is_not_shared and is_not_tp_duplicate:
-            grads_for_norm.append(grad)
+
+    if use_fsdp:
+        # After parameter flattening with FSDP, the original parameter attribute is lost.
+        # Use pre-constructed parameter attributes to index into shards of flattened gradients.
+        assert param_attributes is not None
+        param_idx = 0
+        for param in parameters:
+            if param.grad is not None:
+                grad_shards = param.grad.detach()
+                # Make sure the grads are in fp32
+                assert isinstance(grad_shards, torch.cuda.FloatTensor)
+                grads.append(grad_shards)
+                offset = 0
+                for param_numel in param._numels:
+                    assert param_attributes[param_idx].numel == param_numel
+                    assert (
+                        param_numel % parallel_state.get_data_parallel_world_size() == 0
+                    ), "Flattened parameter elements are not divided by DP size."
+                    param_shard_numel = param_numel // parallel_state.get_data_parallel_world_size()
+                    grad_shard = grad_shards[offset : offset + param_shard_numel]
+                    is_not_shared = param_is_not_shared(param_attributes[param_idx])
+                    is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param_attributes[param_idx])
+                    if is_not_shared and is_not_tp_duplicate:
+                        grads_for_norm.append(grad_shard)
+                    offset += param_shard_numel
+                    param_idx += 1
+            else:
+                param_idx += len(param._numels)
+    else:
+        for param in parameters:
+            if param.grad is not None:
+                is_not_shared = param_is_not_shared(param)
+                is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
+                grad = param.grad.detach()
+                # Make sure the grads are in fp32
+                assert isinstance(param.grad, torch.cuda.FloatTensor)
+                grads.append(grad)
+                if is_not_shared and is_not_tp_duplicate:
+                    grads_for_norm.append(grad)
 
     if not grads_for_norm:
         logging.warning("No grads found, consider disabling gradient clipping")
@@ -105,9 +135,12 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             total_norm = max(grad.abs().max() for grad in grads_for_norm)
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
         # Take max across all model-parallel GPUs.
-        torch.distributed.all_reduce(
-            total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
-        )
+        if use_fsdp:
+            torch.distributed.all_reduce(total_norm_cuda, op=torch.distributed.ReduceOp.MAX)
+        else:
+            torch.distributed.all_reduce(
+                total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+            )
         total_norm = total_norm_cuda[0].item()
 
     else:
@@ -135,9 +168,12 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
         total_norm_cuda = torch.cuda.FloatTensor(
             [float(total_norm)]
         )  # (@adithyare) total_norm can be a float at this point so we convert it to cuda.FloatTensor
-        torch.distributed.all_reduce(
-            total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
-        )
+        if use_fsdp:
+            torch.distributed.all_reduce(total_norm_cuda, op=torch.distributed.ReduceOp.SUM)
+        else:
+            torch.distributed.all_reduce(
+                total_norm_cuda, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+            )
         total_norm = total_norm_cuda[0].item()
         total_norm = total_norm ** (1.0 / norm_type)
 

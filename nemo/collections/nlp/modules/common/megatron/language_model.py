@@ -75,11 +75,11 @@ def get_language_model(
     post_process=True,
     init_method_std=0.02,
     use_cpu_initialization=False,
-    megatron_amp_O2=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
     ffn_dropout=0.0,
     precision=16,
+    params_dtype=torch.float16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
     activations_checkpoint_num_layers=1,
@@ -152,11 +152,11 @@ def get_language_model(
         pre_process=pre_process,
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
-        megatron_amp_O2=megatron_amp_O2,
         hidden_dropout=hidden_dropout,
         attention_dropout=attention_dropout,
         ffn_dropout=ffn_dropout,
         precision=precision,
+        params_dtype=params_dtype,
         fp32_residual_connection=fp32_residual_connection,
         activations_checkpoint_method=activations_checkpoint_method,
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -257,8 +257,6 @@ class Embedding(MegatronModule):
         init_method,
         num_tokentypes=0,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
-        dtype=torch.float32,
         fp32_residual_connection=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
@@ -274,17 +272,13 @@ class Embedding(MegatronModule):
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size,
-            self.hidden_size,
-            init_method=self.init_method,
-            use_cpu_initialization=use_cpu_initialization,
-            params_dtype=dtype,
+            vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
         )
         self._word_embeddings_key = 'word_embeddings'
 
         if self.position_embedding_type == 'learned_absolute':
             # Position embedding (serial).
-            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size, dtype=dtype)
+            self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
@@ -295,7 +289,7 @@ class Embedding(MegatronModule):
         # token types and add them as needed.
         self._tokentype_embeddings_key = 'tokentype_embeddings'
         if self.num_tokentypes > 0:
-            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size, dtype=dtype)
+            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes, self.hidden_size)
             # Initialize the token-type embeddings.
             self.init_method(self.tokentype_embeddings.weight)
         else:
@@ -459,11 +453,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
         precision=16,
+        params_dtype=torch.float16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -520,7 +514,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
 
@@ -538,12 +531,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 init_method=self.init_method,
                 num_tokentypes=self.num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 embedding_dropout_prob=self.hidden_dropout,
                 sequence_parallel=sequence_parallel,
                 position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
-                dtype=self.dtype,
             )
             self._embedding_key = 'embedding'
 
@@ -568,6 +559,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             pre_process=self.pre_process,
             post_process=self.post_process,
             precision=precision,
+            params_dtype=params_dtype,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -577,7 +569,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
@@ -625,6 +616,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 pre_process=self.pre_process,
                 post_process=self.post_process,
                 precision=precision,
+                params_dtype=params_dtype,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -633,7 +625,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
@@ -660,7 +651,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                     self.hidden_size,
                     self.vocab_size,
                     use_cpu_initialization=use_cpu_initialization,
-                    params_dtype=self.dtype,
+                    params_dtype=params_dtype,
                     bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
                     init_method=self.init_method,
                 )
