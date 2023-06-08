@@ -1209,11 +1209,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get('megatron_amp_O2', 'False'):
                 # when using O2 additional module key is added that casts the weights
                 for layer in module.module.language_model.encoder.layers:
-                    layer.set_sequence_parallel_running(parallel_state.get_sequence_parallel_group(), sp_stream)
+                    layer.set_sequence_parallel_running(parallel_state.get_sequence_parallel_group(),
+                                                        parallel_state.get_sequence_parallel_global_ranks(),
+                                                        sp_stream)
 
             else:
                 for layer in module.language_model.encoder.layers:
-                    layer.set_sequence_parallel_running(parallel_state.get_sequence_parallel_group(), sp_stream)
+                    layer.set_sequence_parallel_running(parallel_state.get_sequence_parallel_group(),
+                                                        parallel_state.get_sequence_parallel_global_ranks(),
+                                                        sp_stream)
 
     def setup_transformer_engine_sp_running(self):
         """ This should be called after model parallel groups have been initialized
