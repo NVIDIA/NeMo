@@ -301,6 +301,7 @@ class VitBackbone(MegatronModule):
             sequence_parallel=model_cfg.sequence_parallel,
             activations_checkpoint_granularity=model_cfg.activations_checkpoint_granularity,
             gradient_accumulation_fusion=model_cfg.gradient_accumulation_fusion,
+            activation=model_cfg.activation,
         )
 
     def set_input_tensor(self, input_tensor):

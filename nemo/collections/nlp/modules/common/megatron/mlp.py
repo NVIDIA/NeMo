@@ -24,7 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, QuickGELUActivation, erf_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.core import adapter_mixins
@@ -93,7 +93,6 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dropout = dropout
         self.dtype = dtype
         self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
-
         supported_activations = [
             'gelu',
             'geglu',
@@ -103,6 +102,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             'fast-geglu',
             'fast-swiglu',
             'fast-reglu',
+            'quick-gelu',
         ]
 
         if activation not in supported_activations:
@@ -180,6 +180,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             self.activation_func = openai_gelu_func
         elif activation in ["gelu", "geglu", "fast-geglu"]:
             self.activation_func = F.gelu
+        elif activation == 'quick-gelu':
+            self.activation_func = QuickGELUActivation
         elif onnx_safe:
             self.activation_func = erf_gelu
         elif activation in ["reglu", "fast-reglu"]:

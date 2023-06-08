@@ -137,10 +137,17 @@ model:
       target: torch.nn.Identity
 
   cond_stage_config:
-    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
-    version: openai/clip-vit-large-patch14
+    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
+    restore_from_path: /ckpts/openai.nemo
     device: cuda
-    max_length: 77
+    freeze: True
+    layer: "last"
+    #    For compatibility of history version that uses HF clip model
+    #    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
+    #    version: openai/clip-vit-large-patch14
+    #    device: cuda
+    #    max_length: 77
+
 
   # miscellaneous
   seed: 1234

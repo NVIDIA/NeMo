@@ -186,6 +186,7 @@ class CLIPTextTransformer(MegatronModule):
             fp8_amax_compute_algo=model_cfg.fp8_amax_compute_algo,
             reduce_amax=model_cfg.get('reduce_amax', True),
             use_emha=model_cfg.use_emha,
+            activation=model_cfg.activation,
         )
 
         self.initialize_word_embeddings(
