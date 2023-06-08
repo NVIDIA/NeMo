@@ -697,6 +697,7 @@ def sample_sequence_batch(
                 if output_logits is None:
                     output = F.log_softmax(output[:, :context_length, :], 2)
                     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
+                    indices[(indices >= output.size(-1))] = 0
                     output_logits = torch.gather(output, 2, indices).squeeze(2)
                     all_generated_indices = indices[:, :, 0]
                     if all_probs:
@@ -704,6 +705,7 @@ def sample_sequence_batch(
                 else:
                     output = F.log_softmax(output, 2)
                     indices = torch.unsqueeze(new_tokens, 1).unsqueeze(2)
+                    indices[(indices >= output.size(-1))] = 0
                     new_output_logits = torch.gather(output, 2, indices).squeeze(2)
 
                     # TODO(rprenger) we're copying output_logits every time.  Should pre-allocate
