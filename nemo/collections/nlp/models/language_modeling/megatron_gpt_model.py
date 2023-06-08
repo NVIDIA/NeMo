@@ -734,6 +734,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
+    def get_batch_on_this_sequence_parallel_rank(batch):
+        sequence_parallel_size = parallel_state.get_sequence_parallel_world_size()
+        if sequence_parallel_size > 1:
+            sequence_parallel_rank = parallel_state.get_sequence_parallel_rank()
+            for key, val in batch.items():
+                if val is not None:
+                    val = val.view(val.shape[0], 2*sequence_parallel_size, val.shape[1]//(2*sequence_parallel_size), *val.shape[2:])
+                    val = torch.cat([val[:, sequence_parallel_rank, ...], val[:, (2*sequence_parallel_size - sequence_parallel_rank - 1), ...]], dim=1)
+                    batch[key] = val
+
+        return batch
+
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
@@ -753,6 +765,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.get_attention_mask_from_fusion:
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+
+            batch = self.get_batch_on_this_sequence_parallel_rank(batch)
 
             # Model forward pass
             output_tensor = model(
