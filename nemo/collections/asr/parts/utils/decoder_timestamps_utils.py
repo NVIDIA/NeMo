@@ -444,7 +444,8 @@ class ASRDecoderTimeStamps:
             self.model_stride_in_secs = 0.08
 
         else:
-            raise ValueError(f"Cannot find the ASR model class for: {self.params['self.ASR_model_name']}")
+            import ipdb; ipdb.set_trace()
+            raise ValueError(f"Cannot find the ASR model class for: {self.ASR_model_name}")
 
         if self.ASR_model_name.endswith('.nemo'):
             asr_model = self.encdec_class.restore_from(restore_path=self.ASR_model_name)

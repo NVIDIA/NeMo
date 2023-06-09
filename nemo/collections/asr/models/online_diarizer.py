@@ -548,6 +548,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 window=window,
                 shift=shift,
             )
+            
             self.segment_raw_audio[scale_idx] = audio_sigs
             self.segment_range_ts[scale_idx] = segment_ranges
             self.segment_indexes[scale_idx] = range_inds

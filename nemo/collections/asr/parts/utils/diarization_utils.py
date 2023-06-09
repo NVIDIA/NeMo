@@ -27,7 +27,6 @@ from omegaconf import OmegaConf
 from sklearn.preprocessing import OneHotEncoder
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections import nlp as nemo_nlp
 from nemo.collections.asr.metrics.der import (
     concat_perm_word_error_rate,
     get_online_DER_stats,

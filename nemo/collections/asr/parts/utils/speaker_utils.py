@@ -938,6 +938,8 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
     Returns:
         subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment
     """
+    if duration < 0:
+        raise ValueError(f"duration cannot be negative duration:{duration}")
     subsegments: List[List[float]] = []
     start = offset
     slice_end = start + duration
@@ -1144,6 +1146,7 @@ def get_online_segments_from_slices(
 
         if start_sec > buffer_end:
             continue
+        
         ind_offset += 1
 
         buffer_len = buffer_end - buffer_start
@@ -1163,12 +1166,13 @@ def get_online_segments_from_slices(
         end_abs_sec = buffer_start + end_sec
 
         sigs_list.append(signal)
+        if end_abs_sec < start_abs_sec:
+            raise ValueError("end_abs_sec < start_abs_sec")
         sig_rangel_list.append([start_abs_sec, end_abs_sec])
         sig_indexes.append(ind_offset)
 
     if not len(sigs_list) == len(sig_rangel_list) == len(sig_indexes):
         raise ValueError("Signal information lists have a mismatch.")
-
     return ind_offset, sigs_list, sig_rangel_list, sig_indexes
 
 
@@ -1224,7 +1228,8 @@ def get_online_subsegments_from_buffer(
     for idx, range_spl in enumerate(speech_labels_for_update):
         range_offs = [float(range_spl[0].item() - buffer_start), float(range_spl[1].item() - buffer_start)]
         range_t = [max(0, range_offs[0]), range_offs[1]]
-
+        if (range_t[1] - range_t[0]) < 0:
+            continue
         subsegments = get_subsegments(
             offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0]),
         )
