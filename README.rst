@@ -283,7 +283,8 @@ Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 Flash Attention
 ~~~~~~~~~~~~~~~~~~~~
-Install flash-attn <https://github.com/HazyResearch/flash-attention> if you want to use Flash Attention to reduce memory overhead. 
+Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models or use with attention bias (introduced from position encoding, e.g. Alibi), please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. 
+
 .. code-block:: bash
 
   pip install flash-attn

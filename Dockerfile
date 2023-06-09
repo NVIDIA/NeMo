@@ -74,7 +74,8 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 
 # install flash attention dependencies
 RUN pip install flash-attn
-RUN pip install triton==2.0.0.dev20221202
+# pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
+RUN pip install triton==2.0.0.dev20221202 
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
