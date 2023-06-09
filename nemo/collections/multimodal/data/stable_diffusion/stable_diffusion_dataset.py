@@ -48,12 +48,14 @@ def build_train_valid_datasets(
         text_transform = identical_transform
         return img_transform(image), text_transform(text)
 
+    filter_cfg = data_cfg.train.get('filterings', None)
+    filter_fn = build_resolution_filter(**filter_cfg.resolution) if filter_cfg else None
     train_data = WebDatasetCommon(
         dataset_cfg=data_cfg,
         consumed_samples=consumed_samples,
         map_fn=transform_fn,
         compose_fn=tuple_to_dict,
-        filter_fn=build_resolution_filter,
+        filter_fn=filter_fn,
         is_train=True,
     )
 
@@ -64,7 +66,7 @@ def build_train_valid_datasets(
             consumed_samples=consumed_samples,
             map_fn=transform_fn,
             compose_fn=tuple_to_dict,
-            filter_fn=build_resolution_filter,
+            filter_fn=filter_fn,
             is_train=False,
         )
 

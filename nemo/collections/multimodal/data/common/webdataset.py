@@ -177,7 +177,7 @@ class WebDatasetCommon(NeMoIterableDataset):
 
         if self.filterings is not None:
             if self.filterings.resolution is not None:
-                train_dataset = train_dataset.select(filter_fn(**self.filterings.resolution))
+                train_dataset = train_dataset.select(filter_fn)
 
         # traindataset.to_tuple("").map_tuple(fns)
         train_dataset = train_dataset.map(map_fn)
