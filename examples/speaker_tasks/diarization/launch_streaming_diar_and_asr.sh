@@ -5,7 +5,7 @@ function check_path() {
 
 ### Step 1 Pull NeMo streaming mul-spk ASR branch https://github.com/NVIDIA/NeMo/tree/streaming_mulspk_asr
 NEMO_BASE_PATH="<your path to NeMo/examples/speaker_tasks/diarization>"
-EMO_ENV_PATH="<your path to NeMo>"
+NEMO_ENV_PATH="<your path to NeMo>"
 # branch=_streaming_mulspk_asr
 # NEMO_BASE_PATH=/home/taejinp/projects/$branch/NeMo/examples/speaker_tasks/diarization
 # NEMO_ENV_PATH=/home/taejinp/projects/$branch/NeMo
