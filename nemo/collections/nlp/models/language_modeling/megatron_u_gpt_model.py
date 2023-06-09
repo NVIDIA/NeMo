@@ -159,7 +159,7 @@ class MegatronUGPTModel(MegatronGPTModel):
                     # change state of current model
                     # update logic here to deal with decoder update
 
-                    self.model.module.language_model.output_layer.weight.set_(new_output_layer)
+                    # self.model.module.language_model.output_layer.weight.set_(new_output_layer)
                     # Broadcast the embeddings from rank 0 to all other embedding ranks.
                     '''
                     torch.distributed.all_reduce(

@@ -156,17 +156,17 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
-    model_class = MegatronGPTModel if not cfg.get('u_gpt', False) else MegatronUGPTModel
-    if cfg.get('u_gpt', False):
-        OmegaConf.set_struct(cfg, True)
-        with open_dict(cfg):
-            cfg.local_rank = None
-        _, _, _ = initialize_distributed(cfg)
-        parallel_state.initialize_model_parallel(
-            tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
-            pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
-            pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
-        )
+    model_class = MegatronGPTModel # if not cfg.get('u_gpt', False) else MegatronUGPTModel
+    # if cfg.get('u_gpt', False):
+    #     OmegaConf.set_struct(cfg, True)
+    #     with open_dict(cfg):
+    #         cfg.local_rank = None
+    #     _, _, _ = initialize_distributed(cfg)
+    #     parallel_state.initialize_model_parallel(
+    #         tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
+    #         pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
+    #         pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
+    #     )
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
