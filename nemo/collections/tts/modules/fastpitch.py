@@ -234,6 +234,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker_embedding": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
+            "speaker_embedding_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -253,10 +255,10 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "energy_tgt": NeuralType(('B', 'T_audio'), RegressionValuesType()),
         }
 
-    def get_speaker_embedding(self, batch_size, speaker, reference_spec, reference_spec_lens):
+    def get_speaker_embedding(self, batch_size, speaker, reference_spec, reference_spec_lens, speaker_embedding, speaker_embedding_lens):
         """spk_emb: Bx1xD"""
         if self.speaker_encoder is not None:
-            spk_emb = self.speaker_encoder(batch_size, speaker, reference_spec, reference_spec_lens).unsqueeze(1)
+            spk_emb = self.speaker_encoder(batch_size, speaker, reference_spec, reference_spec_lens, speaker_embedding, speaker_embedding_lens).unsqueeze(1)
         elif self.speaker_emb is not None:
             if speaker is None:
                 raise ValueError('Please give speaker id to get lookup speaker embedding.')
@@ -282,6 +284,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         input_lens=None,
         reference_spec=None,
         reference_spec_lens=None,
+        speaker_embedding=None,
+        speaker_embedding_lens=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -294,6 +298,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             speaker=speaker,
             reference_spec=reference_spec,
             reference_spec_lens=reference_spec_lens,
+            speaker_embedding=speaker_embedding,
+            speaker_embedding_lens=speaker_embedding_lens,
         )
 
         # Input FFT

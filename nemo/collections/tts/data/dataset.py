@@ -55,6 +55,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     TTSDataType,
     Voiced_mask,
     WithLens,
+    SpeakerEmbedding,
 )
 from nemo.core.classes import Dataset
 from nemo.utils import logging
@@ -235,6 +236,7 @@ class TTSDataset(Dataset):
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "speaker_id": item["speaker"] if "speaker" in item else None,
+                        "ref_audio_filepath": item["ref_audio_filepath"] if "ref_audio_filepath" in item else None,
                     }
 
                     if "normalized_text" in item:
@@ -491,6 +493,13 @@ class TTSDataset(Dataset):
         for i, d in enumerate(self.data):
             self.speaker_to_index_map[d['speaker_id']].add(i)
 
+    def add_speaker_embedding(self, **kwargs):
+        print(kwargs)
+        self.speaker_embedding_folder = kwargs.pop("speaker_embedding_folder", None)
+        self.speaker_embedding_folder = Path(self.speaker_embedding_folder)
+        if self.speaker_embedding_folder is None:
+            raise Exception("speaker_embedding_folder should not be None, but found None")
+
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
@@ -710,6 +719,20 @@ class TTSDataset(Dataset):
             )
             reference_audio_length = torch.tensor(reference_audio.shape[0]).long()
 
+        speaker_embedding, speaker_embedding_length = None, None
+        if SpeakerEmbedding in self.sup_data_types_set:
+            ref_rel_audio_path = Path(sample["ref_audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+            ref_rel_audio_path_as_text_id = str(ref_rel_audio_path).replace("/", "_")
+            speaker_embedding_path = self.speaker_embedding_folder / f"{ref_rel_audio_path_as_text_id}.pt"
+            if speaker_embedding_path.exists():
+                device = torch.device('cpu')
+                speaker_embedding = torch.load(speaker_embedding_path, map_location=device).float()
+                # if speaker_embedding.is_cuda:
+                #     speaker_embedding = speaker_embedding.to("cpu")
+            else:
+                raise Exception(f"{ref_rel_audio_path_as_text_id} does not exist.")
+            speaker_embedding_length = torch.tensor(len(speaker_embedding)).long()
+
         return (
             audio,
             audio_length,
@@ -729,6 +752,8 @@ class TTSDataset(Dataset):
             audio_shifted,
             reference_audio,
             reference_audio_length,
+            speaker_embedding,
+            speaker_embedding_length
         )
 
     def __len__(self):
@@ -764,6 +789,8 @@ class TTSDataset(Dataset):
             _,
             _,
             reference_audio_lengths,
+            _,
+            speaker_embedding_lengths
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -774,6 +801,9 @@ class TTSDataset(Dataset):
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
         max_reference_audio_len = (
             max(reference_audio_lengths).item() if ReferenceAudio in self.sup_data_types_set else None
+        )
+        max_speaker_embedding_len = (
+            max(speaker_embedding_lengths).item() if SpeakerEmbedding in self.sup_data_types_set else None
         )
 
         if LogMel in self.sup_data_types_set:
@@ -800,7 +830,9 @@ class TTSDataset(Dataset):
             p_voiceds,
             audios_shifted,
             reference_audios,
+            speaker_embeddings,
         ) = (
+            [],
             [],
             [],
             [],
@@ -834,6 +866,8 @@ class TTSDataset(Dataset):
                 audio_shifted,
                 reference_audio,
                 reference_audios_length,
+                speaker_embedding,
+                speaker_embedding_length,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -877,6 +911,11 @@ class TTSDataset(Dataset):
                     general_padding(reference_audio, reference_audios_length.item(), max_reference_audio_len)
                 )
 
+            if SpeakerEmbedding in self.sup_data_types_set:
+                speaker_embeddings.append(
+                    general_padding(speaker_embedding, speaker_embedding_length.item(), max_speaker_embedding_len)
+                )
+
         data_dict = {
             "audio": torch.stack(audios),
             "audio_lens": torch.stack(audio_lengths),
@@ -897,6 +936,12 @@ class TTSDataset(Dataset):
             "reference_audio": torch.stack(reference_audios) if ReferenceAudio in self.sup_data_types_set else None,
             "reference_audio_lens": torch.stack(reference_audio_lengths)
             if ReferenceAudio in self.sup_data_types_set
+            else None,
+            "speaker_embedding": torch.stack(speaker_embeddings) 
+            if SpeakerEmbedding in self.sup_data_types_set
+            else None,
+            "speaker_embedding_lens": torch.stack(speaker_embedding_lengths) 
+            if SpeakerEmbedding in self.sup_data_types_set
             else None,
         }
 

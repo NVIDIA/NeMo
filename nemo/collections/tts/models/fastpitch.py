@@ -328,6 +328,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             # reference_* data is used for multi-speaker FastPitch training
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker_embedding": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
+            "speaker_embedding_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
     )
     def forward(
@@ -345,6 +347,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         input_lens=None,
         reference_spec=None,
         reference_spec_lens=None,
+        speaker_embedding=None,
+        speaker_embedding_lens=None,
     ):
         return self.fastpitch(
             text=text,
@@ -359,6 +363,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             input_lens=input_lens,
             reference_spec=reference_spec,
             reference_spec_lens=reference_spec_lens,
+            speaker_embedding=speaker_embedding,
+            speaker_embedding_lens=speaker_embedding_lens,
         )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
@@ -409,6 +415,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             speaker = batch_dict.get("speaker_id", None)
             reference_audio = batch_dict.get("reference_audio", None)
             reference_audio_len = batch_dict.get("reference_audio_lens", None)
+            speaker_embedding = batch_dict.get("speaker_embedding", None)
+            speaker_embedding_len = batch_dict.get("speaker_embedding_lens", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -445,6 +453,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             attn_prior=attn_prior,
             mel_lens=spec_len,
             input_lens=text_lens,
+            speaker_embedding=speaker_embedding,
+            speaker_embedding_lens=speaker_embedding_len,
         )
         if durs is None:
             durs = attn_hard_dur
@@ -522,6 +532,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             speaker = batch_dict.get("speaker_id", None)
             reference_audio = batch_dict.get("reference_audio", None)
             reference_audio_len = batch_dict.get("reference_audio_lens", None)
+            speaker_embedding = batch_dict.get("speaker_embedding", None)
+            speaker_embedding_len = batch_dict.get("speaker_embedding_lens", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -546,6 +558,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             attn_prior=attn_prior,
             mel_lens=mel_lens,
             input_lens=text_lens,
+            speaker_embedding=speaker_embedding,
+            speaker_embedding_lens=speaker_embedding_len,
         )
         if durs is None:
             durs = attn_hard_dur

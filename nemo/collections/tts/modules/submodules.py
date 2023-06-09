@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Tuple
+from collections import OrderedDict
 
 import torch
 from torch import Tensor
@@ -21,7 +22,7 @@ from torch.nn import functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from nemo.core.classes import NeuralModule, adapter_mixins
-from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType
+from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType, RegressionValuesType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
@@ -577,6 +578,60 @@ class Conv2DReLUNorm(torch.nn.Module):
         x = self.norm(x)
         x = self.dropout(x)
         return x
+    
+
+def sample(mu, logvar, use_mean_during_sampling=False):
+    if use_mean_during_sampling:
+        return mu
+
+    z = torch.randn(mu.size(), device=mu.get_device())
+    return mu + torch.exp(0.5 * logvar) * z
+
+
+class Conv1DReLUNorm(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, mid_channels=[], kernel_size=1, stride=1, padding=0, bias=True, dropout=0.0, is_vae=False):
+        super(Conv1DReLUNorm, self).__init__()
+        self.is_vae = is_vae
+        self.out_channels = out_channels
+        if self.is_vae:
+            out_channels = 2 * out_channels
+
+        mid_channels.append(out_channels)
+        mid_channels = [in_channels] + mid_channels
+
+        self.layers = []
+        for i in range(len(mid_channels) - 1):
+            self.layers.append(torch.nn.Conv1d(
+                mid_channels[i], mid_channels[i+1], kernel_size=kernel_size, stride=stride, padding=padding, bias=bias
+                )
+            )
+            self.layers.append(torch.nn.LayerNorm(mid_channels[i+1]))
+            self.layers.append(torch.nn.Dropout(dropout))
+        self.layers = torch.nn.ModuleList(self.layers)
+
+
+    def forward(self, x, x_mask=None):
+        for layer in self.layers:
+            if isinstance(layer, torch.nn.Conv1d):
+                if x_mask is not None:
+                    x = x * x_mask
+                x = x.unsqueeze(2)
+
+                # bhwc -> bchw
+                x = x.contiguous()
+                x = F.relu(layer(x))
+                # bchw -> bhwc
+                x = x.contiguous()
+                x = x.squeeze(2)
+            else:
+                x = layer(x)
+                
+        if self.is_vae:
+            mu = x[:, :self.out_channels]
+            logvar = x[:, self.out_channels:]
+            x = sample(mu, logvar, use_mean_during_sampling=False)
+
+        return x
 
 
 class ReferenceEncoder(NeuralModule):
@@ -709,7 +764,7 @@ class SpeakerEncoder(NeuralModule):
     This module can combine GST (global style token) based speaker embeddings and lookup table speaker embeddings.
     """
 
-    def __init__(self, lookup_module=None, gst_module=None, precomputed_embedding_dim=None):
+    def __init__(self, lookup_module=None, gst_module=None, speaker_emb_module=None, precomputed_embedding_dim=None):
         """
         lookup_module: Torch module to get lookup based speaker embedding
         gst_module: Neural module to get GST based speaker embedding
@@ -723,6 +778,8 @@ class SpeakerEncoder(NeuralModule):
         # Reference speaker embedding
         self.gst_module = gst_module
 
+        self.speaker_emb_module = speaker_emb_module
+
         if precomputed_embedding_dim is not None:
             self.precomputed_emb = torch.nn.Parameter(torch.empty(precomputed_embedding_dim))
         else:
@@ -735,6 +792,8 @@ class SpeakerEncoder(NeuralModule):
             "speaker": NeuralType(('B'), Index(), optional=True),
             "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker_embedding": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
+            "speaker_embedding_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -746,7 +805,15 @@ class SpeakerEncoder(NeuralModule):
     def overwrite_precomputed_emb(self, emb):
         self.precomputed_emb = torch.nn.Parameter(emb)
 
-    def forward(self, batch_size=None, speaker=None, reference_spec=None, reference_spec_lens=None):
+    def forward(
+            self, 
+            batch_size=None, 
+            speaker=None, 
+            reference_spec=None, 
+            reference_spec_lens=None,
+            speaker_embedding=None,
+            speaker_embedding_lens=None
+            ):
         embs = None
 
         # Get Precomputed speaker embedding
@@ -764,5 +831,11 @@ class SpeakerEncoder(NeuralModule):
                 embs = out if embs is None else embs + out
             else:
                 logging.warning("You may add `gst_module` in speaker_encoder to use reference_audio.")
+
+        if speaker_embedding is not None:
+            if embs is None:
+                embs = self.speaker_emb_module(speaker_embedding)
+            else:
+                embs += self.speaker_emb_module(speaker_embedding)
 
         return embs
