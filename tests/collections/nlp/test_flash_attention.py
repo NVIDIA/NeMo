@@ -44,6 +44,16 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TRITON = False
 
+import pynvml
+
+
+def HAVE_AMPERE_GPU():
+    pynvml.nvmlInit()
+    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+    device_arch = pynvml.nvmlDeviceGetArchitecture(handle)
+    pynvml.nvmlShutdown()
+    return device_arch == pynvml.NVML_DEVICE_ARCH_AMPERE
+
 
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
@@ -160,6 +170,10 @@ class TestFlashAttention:
 
     @pytest.mark.skipif(not HAVE_FA, reason="flash-attention is not installed")
     @pytest.mark.skipif(not HAVE_TRITON, reason="triton is not installed")
+    @pytest.mark.skipif(
+        not HAVE_AMPERE_GPU(),
+        reason="should only run on AMPERE GPU. Please see https://github.com/HazyResearch/flash-attention/issues/245",
+    )
     @pytest.mark.unit
     def test_flash_attention_triton(self, cfg):
         device = cfg['device']

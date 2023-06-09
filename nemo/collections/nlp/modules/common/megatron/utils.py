@@ -387,3 +387,16 @@ def get_iterator_k_split(batch: List[torch.Tensor], num_microbatches: int) -> It
         microbatches = [[elem[i] for elem in split_batch] for i in range(num_microbatches)]
 
     return itertools.chain(microbatches)
+
+
+def _cast_if_autocast_enabled(tensor):
+    if torch.is_autocast_enabled():
+        if isinstance(tensor, torch.Tensor):
+            if tensor.device.type == 'cuda':
+                dtype = torch.get_autocast_gpu_dtype()
+            elif tensor.device.type == 'cpu':
+                dtype = torch.get_autocast_cpu_dtype()
+            else:
+                raise NotImplementedError()
+            return tensor.to(dtype=dtype)
+    return tensor

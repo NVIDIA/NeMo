@@ -167,6 +167,9 @@ model:
   reduce_amax: True # Perform reduction to sync amax tensors across GPUs after every iteration
   use_emha: False # Use fused multi-head attention for large sequence-length. Note this is not yet supported. Please set to False.
 
+  ## Flash Attention
+  use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
+  
   data:
    # Path to data must be specified by the user.
     # Supports List, String and Dictionary
