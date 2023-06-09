@@ -298,7 +298,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.cfg.get('megatron_core_gpt', False):
-            transformer_config = self.build_transformer_config()
+            self.set_transformer_config()
             logging.info('done')
         else:
             model = GPTModel(
