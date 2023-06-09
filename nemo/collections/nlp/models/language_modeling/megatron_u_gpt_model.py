@@ -123,6 +123,8 @@ class MegatronUGPTModel(MegatronGPTModel):
     def _maybe_resize_output_layer(self):
         # Maybe resize the output layer if using untied embeddings and output weights.
         self._output_layer_resized = False
+
+        # Attribute for sentinal
         if not self.cfg.get('share_embeddings_and_output_weights', True):
             # Resize the model embedding layer.
             if self.cfg.megatron_amp_O2:
@@ -144,7 +146,20 @@ class MegatronUGPTModel(MegatronGPTModel):
                     new_output_layer.normal_(mean=mean, std=std)
                     new_output_layer[:-num_added_tokens] = output_layer_weight
                     # TODO: Fix this later.
-                    # self.model.module.language_model.output_layer.weight.set_(new_output_layer)
+                    # Issue: restore from a basic GPT model and continue training.
+                    # Dont deal with initial noise - just copy the weights.
+                    # 0..999 tokens already exist - copy the last N tokens duplicated.
+
+                    # Todo
+                    # O2 vs O1 - .module missing
+                    # VP will list of models, only last have some decoder
+                    # Property for self.model (in main)
+                    # guerantee - called something.output_layer
+
+                    # change state of current model
+                    # update logic here to deal with decoder update
+
+                    self.model.module.language_model.output_layer.weight.set_(new_output_layer)
                     # Broadcast the embeddings from rank 0 to all other embedding ranks.
                     '''
                     torch.distributed.all_reduce(
