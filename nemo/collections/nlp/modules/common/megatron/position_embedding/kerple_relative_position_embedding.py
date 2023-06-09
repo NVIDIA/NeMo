@@ -65,8 +65,8 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
 
         # initialize the slopes
         self.kerple_b = torch.nn.Parameter(build_slopes(num_attention_heads, num_attention_heads_kerple))
-        self.kerple_a = torch.nn.Parameter(torch.rand_like(self.kerple_b))
-        self.kerple_p = torch.nn.Parameter(torch.rand_like(self.kerple_b))
+        self.kerple_a = torch.nn.Parameter(torch.ones_like(self.kerple_b))
+        self.kerple_p = torch.nn.Parameter(torch.ones_like(self.kerple_b))
 
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
         # if we use causal attention (not bidrectional), we can use singleton relative position
