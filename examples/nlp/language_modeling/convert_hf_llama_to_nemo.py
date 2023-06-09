@@ -108,7 +108,7 @@ def get_args():
     parser.add_argument("--tensor_model_parallel_size", type=int, required=False, default=1)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
 
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', 0))
 
     parser.add_argument("--model_type", type=str, required=False, default="gpt", choices=["gpt", "t5", "bert"])
 
@@ -140,7 +140,7 @@ def load_config(llama_config):
     nemo_config = {}
     nemo_config['cfg'] = {}
     nemo_config['cfg']['encoder_seq_length']      = llama_config['max_sequence_length']
-    nemo_config['cfg']['num_layers']              = int(llama_config['num_hidden_layers'] / 2)
+    nemo_config['cfg']['num_layers']              = int(llama_config['num_hidden_layers'] )
     nemo_config['cfg']['hidden_size']             = llama_config['hidden_size']
     nemo_config['cfg']['ffn_hidden_size']         = llama_config['intermediate_size']
     nemo_config['cfg']['num_attention_heads']     = llama_config['num_attention_heads']
@@ -151,22 +151,35 @@ def load_config(llama_config):
     nemo_config['cfg']['pre_process']             = True
     nemo_config['cfg']['post_process']            = True
     nemo_config['cfg']['bias']                    = False
+    nemo_config['cfg']['hidden_dropout']          = 0.0
+    nemo_config['cfg']['attention_dropout']       = 0.0
+    nemo_config['cfg']['ffn_dropout']             = 0.0
     nemo_config['cfg']['bias_dropout_add_fusion'] = False
     nemo_config['cfg']['bias_activation_fusion']  = False
+    nemo_config['cfg']['use_cpu_initialization']  = False
     nemo_config['cfg']['share_embeddings_and_output_weights'] = False
+    nemo_config['cfg']['make_vocab_size_divisible_by'] = 128
     nemo_config['cfg']['activation']              = 'swiglu'
     nemo_config['cfg']['transformer_block_type']  = 'pre_ln'
     nemo_config['cfg']['position_embedding_type'] = 'rope'
     nemo_config['cfg']['precision']               = 32
     nemo_config['cfg']['optim']                   = {'name': 'fused_adam'}
     nemo_config['cfg']['tokenizer']               = {}
-    nemo_config['cfg']['tokenizer']['library']    = 'huggingface'
-    nemo_config['cfg']['tokenizer']['type']       = 'hf-internal-testing/llama-tokenizer'
-    nemo_config['cfg']['tokenizer']['model']      = 'null'
+    nemo_config['cfg']['tokenizer']['library']    = 'sentencepiece'
+    nemo_config['cfg']['tokenizer']['type']       = 'null'
+    nemo_config['cfg']['tokenizer']['model']      = 'tokenizer.model'
     nemo_config['cfg']['tokenizer']['vocab_file'] = 'null'
     nemo_config['cfg']['tokenizer']['merge_file'] = 'null'
+    nemo_config['cfg']['tokenizer']['tokenizer_model'] = 'null'
+    nemo_config['cfg']['tokenizer']['sentencepiece_legacy'] = False
     nemo_config['cfg']['micro_batch_size']        = 1
     nemo_config['cfg']['global_batch_size']       = 1
+
+    nemo_config['cfg']['use_scaled_init_method']  = True
+    nemo_config['cfg']['normalize_attention_scores']  = True
+    nemo_config['cfg']['grad_allreduce_chunk_size_mb'] = 125
+    nemo_config['cfg']['persist_layer_norm'] = True
+    nemo_config['cfg']['masked_softmax_fusion'] = True
     print(nemo_config)
     return nemo_config
 
@@ -228,7 +241,7 @@ def convert(local_rank, rank, world_size, args):
     rotary_embed_weight_base_name = f'model.language_model.rotary_pos_emb.inv_freq'
     checkpoint['state_dict'][rotary_embed_weight_base_name] = rotary_embed_weight
 
-    for l in range(int(num_layers / 2)):
+    for l in range(int(num_layers)):
         print(f"converting layer {l}")
         # first merge QKV into a single weight
         # concat direct to FT shape: [hidden_size, 3, head_num, head_size]
@@ -309,7 +322,7 @@ def convert(local_rank, rank, world_size, args):
 if __name__ == '__main__':
     args = get_args()
     if args.local_rank == -1:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device("cuda" if torch.cuda.is_available()  else "cpu")
         rank = args.local_rank
         local_rank = rank
         world_size = 1

@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ---- Start of patch ----
+# Workaround for https://github.com/pydantic/pydantic/issues/5821
+#
+# Add this code once at the start of your program. It plays nice with mypy.
+#
+# It patches `typing.Literal` to refer to `typing_extensions.Literal`,
+# and thereby avoids a bug in Pydantic<=1.10.7 code for is_literal_type.
+import typing_extensions
+import typing
+typing.Literal = typing_extensions.Literal  # type: ignore
+# ---- End of patch ----
 
 import torch.multiprocessing as mp
 import os
@@ -56,6 +67,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.precision = cfg.trainer.precision
         gpt_cfg.restore_from_path = cfg.model.restore_from_path
         gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
+        gpt_cfg.grad_allreduce_chunk_size_mb = cfg.model.get('grad_allreduce_chunk_size_mb', 125)
         gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
         gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
@@ -144,67 +156,8 @@ def main(cfg) -> None:
         )
         gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
         model = load_from_nemo(MegatronLLAMAModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
-        #gpt_cfg.tokenizer.model = '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/tokenizer.model' 
-        #with open_dict(gpt_cfg):
-        #    #gpt_cfg.make_vocab_size_divisible_by = 128
-        #    #gpt_cfg.virtual_pipeline_model_parallel_size = None
-        #    #gpt_cfg.hysteresis = 2
-        #    #gpt_cfg.apply_query_key_layer_scaling = True
-        #    #gpt_cfg.native_amp_growth_interval = 1000
-        #    #gpt_cfg.kv_channels = None
-        #    #gpt_cfg.use_scaled_init_method = True
-        #    #gpt_cfg.normalize_attention_scores = True
-        #    #gpt_cfg.do_layer_norm_weight_decay = False
-        #    #gpt_cfg.headscale = False
-        #    #gpt_cfg.grad_allreduce_chunk_size_mb = 125
-        #    #gpt_cfg.persist_layer_norm = True
-        #    #gpt_cfg.native_amp_init_scale = 4294967296
-        #    #gpt_cfg.fp32_residual_connection = False
-        #    #gpt_cfg.transformer_engine = False
-        #    #gpt_cfg.grad_div_ar_fusion = True
-        #    #gpt_cfg.fp8_interval =1
-        #    #gpt_cfg.sync_batch_comm = False
-        #    #gpt_cfg.use_emha = False
-        #    #gpt_cfg.activations_checkpoint_layers_per_pipeline = None
-        #    #gpt_cfg.fp8_amax_history_len = 1
-        #    #gpt_cfg.fp16_lm_cross_entropy = False
-        #    #gpt_cfg.rotary_percentage = 1.0
-        #    #gpt_cfg.fp8 = False
-        #    #gpt_cfg.masked_softmax_fusion = True
-        #    #gpt_cfg.openai_gelu = False
-        #    #gpt_cfg.reduce_amax = True
-        #    #gpt_cfg.attention_type = 'multihead'
-        #    #gpt_cfg.fp8_margin = 0
-        #    #gpt_cfg.fp8_amax_compute_algo = 'most_recent'
-        #    #gpt_cfg.gradient_accumulation_fusion = False
-        #    #gpt_cfg.apex_transformer_log_level = 30
-        #    #gpt_cfg.num_micro_batches_with_partial_activation_checkpoints = None
-        #    #gpt_cfg.onnx_safe  = False
-        #    #gpt_cfg.fp8_hybrid = False
-        #    #gpt_cfg.fp8_e4m3 = False
-        #    #gpt_cfg.nemo_version = None
-        #    #gpt_cfg.original_amp_o2 = None
-        #    #gpt_cfg.target = None
-        #    #gpt_cfg.original_cpu_init = None
-        #    #gpt_cfg.share_embeddings_and_output_weights = True
-        #    #gpt_cfg.tokenizer = {'type': None, 'library': 'sentencepiece', 'model': '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/tokenizer.model', 'vocab_file': None, 'merge_file': None, 'delimiter': None, 'sentencepiece_legacy': False}
-        #    gpt_cfg.tokenizer.sentencepiece_legacy = False
-        #second_dict = OmegaConf.to_container(gpt_cfg)
-        #first_dict = OmegaConf.to_container(cfg.model)
-        #value = { k : second_dict[k] for k in set(second_dict) - set(first_dict) }
-        #for k, v in first_dict.items():
-        #    if k not in second_dict:
-        #        print(f'miss key: {k}, value: {v}')
-        #    else:
-        #        if v != second_dict[k]:
-        #            print(f'wrong key: {k}, value: {v}, {second_dict[k]}')
-        #print(gpt_cfg)
-        #print(cfg.model)
-        #print(set(second_dict) - set(first_dict))
-        #model = MegatronLLAMAModel(gpt_cfg, trainer)
     else:
         model = MegatronLLAMAModel(cfg.model, trainer)
-        print(cfg.model)
 
     trainer.fit(model)
 
