@@ -368,6 +368,8 @@ class GPTDataset(Dataset):
 
     def _get_text(self, idx: int) -> np.ndarray:
 
+        if idx < 0:
+            idx = 0
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
         # Start and end documents and offsets.
