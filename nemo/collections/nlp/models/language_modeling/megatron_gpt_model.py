@@ -88,7 +88,7 @@ try:
 
     HAVE_TE = True
 
-except (ImportError, ModuleNotFoundError):
+except (ImportError, ModuleNotFoundError, TypeError):
     HAVE_TE = False
 
 
