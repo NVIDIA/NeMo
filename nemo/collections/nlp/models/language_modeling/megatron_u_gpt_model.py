@@ -87,6 +87,63 @@ class MegatronUGPTModel(MegatronGPTModel):
                 sentinel_tokens.add(token_id)
         return sorted(list(sentinel_tokens))
 
+    def expand_module_embedding_dim(self, weight, num_tokens_added: int, new_size: list):
+        if 'ul2_token_expansion_init' not in self.cfg:
+            ul2_token_expansion_init = 'normal'
+        else:
+            ul2_token_expansion_init = self.cfg.ul2_token_expansion_init
+
+        assert ul2_token_expansion_init in [
+            'normal',
+            'copy',
+            'zero',
+        ], "UL2 token expansion init must be one of 'normal', 'copy', 'zero'"
+
+        if ul2_token_expansion_init == 'normal':
+            mean = weight.mean().item()
+            std = weight.std().item()
+
+            new_embeddings = weight.new_empty(*new_size)
+            new_embeddings.normal_(mean=mean, std=std)
+            new_embeddings[:-num_tokens_added] = weight
+
+        elif ul2_token_expansion_init == 'copy':
+            num_sentinel_tokens = len(self.sentinel_tokens)
+            new_embeddings = weight.new_zeros(*new_size)
+            new_embeddings[:-num_tokens_added] = weight
+
+            # Copy the sentinel tokens.
+            sentinal_start_index = len(weight) - num_sentinel_tokens - 1  # old size - num sentinel tokens - 1
+            sentinal_cur_index = sentinal_start_index
+            expanded_start_index = len(new_embeddings) - num_tokens_added - 1  # new size - num tokens added - 1
+
+            largest_slice_size = min(num_sentinel_tokens, num_tokens_added)
+
+            while expanded_start_index < len(new_embeddings):
+                slice_size = min(largest_slice_size, len(new_embeddings) - expanded_start_index)
+
+                if slice_size == 0:
+                    break
+
+                sentinal_slice = weight[sentinal_cur_index : sentinal_cur_index + slice_size]
+                new_embeddings[expanded_start_index : expanded_start_index + slice_size] = sentinal_slice
+
+                if sentinal_cur_index + slice_size >= len(
+                    weight
+                ):  # if we have reached the end of the old embeddings
+                    sentinal_cur_index = sentinal_start_index
+
+                expanded_start_index += slice_size
+
+        elif ul2_token_expansion_init == 'zero':
+            new_embeddings = weight.new_zeros(*new_size)
+            new_embeddings[:-num_tokens_added] = weight
+
+        else:
+            raise ValueError(f"Unknown UL2 token expansion init: {ul2_token_expansion_init}")
+
+        return new_embeddings
+
     def _resize_model_embeddings(self):
         # Resize the model embedding layer.
         self._model_embeddings_resized = False
@@ -94,20 +151,18 @@ class MegatronUGPTModel(MegatronGPTModel):
         if num_added_tokens > 0:
             logging.info(f"Resizing the model's embedding layer by adding {num_added_tokens} tokens.")
             with torch.no_grad():
-                mean = self.model.word_embeddings_weight().mean().item()
-                std = self.model.word_embeddings_weight().std().item()
-                new_embeddings = self.model.word_embeddings_weight().new_empty(
-                    len(self.tokenizer.vocab), self.model.word_embeddings_weight().size(1)
-                )
-                new_embeddings.normal_(mean=mean, std=std)
-                new_embeddings[:-num_added_tokens] = self.model.word_embeddings_weight()
-                self.model.word_embeddings_weight().set_(new_embeddings)
-                # Broadcast the embeddings from rank 0 to all other embedding ranks.
-                # torch.distributed.all_reduce(
-                #     self.model.word_embeddings_weight().data,
-                #     group=parallel_state.get_embedding_group(),
-                #     op=torch.distributed.ReduceOp.AVG,
+                # mean = self.model.word_embeddings_weight().mean().item()
+                # std = self.model.word_embeddings_weight().std().item()
+                # new_embeddings = self.model.word_embeddings_weight().new_empty(
+                #     len(self.tokenizer.vocab), self.model.word_embeddings_weight().size(1)
                 # )
+                # new_embeddings.normal_(mean=mean, std=std)
+                # new_embeddings[:-num_added_tokens] = self.model.word_embeddings_weight()
+                new_size = [len(self.tokenizer.vocab), self.model.word_embeddings_weight().size(1)]
+                new_embeddings = self.expand_module_embedding_dim(
+                    self.model.word_embeddings_weight(), num_added_tokens, new_size
+                )
+                self.model.word_embeddings_weight().set_(new_embeddings)
 
                 self._model_embeddings_resized = True
 
@@ -120,69 +175,103 @@ class MegatronUGPTModel(MegatronGPTModel):
                 op=torch.distributed.ReduceOp.AVG,
             )
 
+    def get_output_layers_ul2(self) -> list[torch.nn.Module]:
+        if self.cfg.megatron_amp_O2:
+            model = self.model.module
+        else:
+            model = self.model
+
+        def find_output_layer(m):
+            if hasattr(m, 'language_model'):
+                lm = m.language_model
+                if hasattr(lm, 'output_layer'):
+                    output_layer = lm.output_layer
+                else:
+                    output_layer = None
+
+            elif hasattr(m, 'output_layer'):
+                output_layer = m.output_layer
+            else:
+                output_layer = None
+
+            return output_layer
+
+        # Perform search
+        if isinstance(model, (list, tuple)):
+            # Virtual parallel model
+            output = []
+            for model_ in model:
+                output_layer = find_output_layer(model_)
+                output.append(output_layer)
+
+            return output
+
+        else:
+            # Tensor / Pipeline parallel model
+            output_layer = find_output_layer(model)
+            output = [output_layer]
+            return output
+
     def _maybe_resize_output_layer(self):
         # Maybe resize the output layer if using untied embeddings and output weights.
         self._output_layer_resized = False
 
         # Attribute for sentinal
         if not self.cfg.get('share_embeddings_and_output_weights', True):
+            output_layers = self.get_output_layers_ul2()
+
+            if len(output_layers) > 1:
+                raise NotImplemented("Virtual Parallel support for UL2 is currently not implemented")
+
+            output_layer = output_layers[0]  # type: torch.nn.Module
+            if output_layer is None:
+                raise ValueError("Could not detect output layer for resize in UL2!")
+
             # Resize the model embedding layer.
             if self.cfg.megatron_amp_O2:
-                num_added_tokens = len(
-                    self.tokenizer.vocab
-                ) - self.model.module.language_model.output_layer.weight.size(0)
-                output_layer_weight = self.model.module.language_model.output_layer.weight
+                num_added_tokens = len(self.tokenizer.vocab) - output_layer.weight.size(0)
+                output_layer_weight = output_layer.weight
             else:
-                num_added_tokens = len(self.tokenizer.vocab) - self.model.language_model.output_layer.weight.size(0)
-                output_layer_weight = self.model.language_model.output_layer.weight
+                num_added_tokens = len(self.tokenizer.vocab) - output_layer.weight.size(0)
+                output_layer_weight = output_layer.weight
+
             logging.info(f"Resizing the model's output layer by adding {num_added_tokens} tokens.")
             if num_added_tokens > 0:
                 with torch.no_grad():
-                    mean = output_layer_weight.mean().item()
-                    std = output_layer_weight.std().item()
-                    new_output_layer = output_layer_weight.new_empty(
-                        len(self.tokenizer.vocab), output_layer_weight.size(1)
+                    # mean = output_layer_weight.mean().item()
+                    # std = output_layer_weight.std().item()
+                    # new_output_layer = output_layer_weight.new_empty(
+                    #     len(self.tokenizer.vocab), output_layer_weight.size(1)
+                    # )
+                    # new_output_layer.normal_(mean=mean, std=std)
+                    # new_output_layer[:-num_added_tokens] = output_layer_weight
+                    new_size = [len(self.tokenizer.vocab), output_layer_weight.size(1)]
+                    new_output_layer = self.expand_module_embedding_dim(
+                        output_layer_weight, num_added_tokens, new_size
                     )
-                    new_output_layer.normal_(mean=mean, std=std)
-                    new_output_layer[:-num_added_tokens] = output_layer_weight
                     # TODO: Fix this later.
                     # Issue: restore from a basic GPT model and continue training.
-                    # Dont deal with initial noise - just copy the weights.
-                    # 0..999 tokens already exist - copy the last N tokens duplicated.
 
-                    # Todo
-                    # O2 vs O1 - .module missing
-                    # VP will list of models, only last have some decoder
-                    # Property for self.model (in main)
-                    # guerantee - called something.output_layer
-
-                    # change state of current model
-                    # update logic here to deal with decoder update
-
-                    # self.model.module.language_model.output_layer.weight.set_(new_output_layer)
-                    # Broadcast the embeddings from rank 0 to all other embedding ranks.
-                    '''
-                    torch.distributed.all_reduce(
-                        output_layer_weight.data, group=parallel_state.get_embedding_group(),
-                        op=torch.distributed.ReduceOp.AVG
-                    )
-                    '''
+                    # TODO !!!!!!!!!!!!!! Uncomment this before PR Merge.
+                    output_layer_weight.set_(new_output_layer)
 
                     self._output_layer_resized = True
 
     def _maybe_resize_output_layer_broadcast(self):
         if self._output_layer_resized:
-            # TODO: Cleanup before merge
-            pass
-            # if self.cfg.megatron_amp_O2:
-            #     output_layer_weight = self.model.module.language_model.output_layer.weight
-            # else:
-            #     output_layer_weight = self.model.language_model.output_layer.weight
-            # # Broadcast the embeddings from rank 0 to all other embedding ranks.
-            # torch.distributed.all_reduce(
-            #     output_layer_weight.data, group=parallel_state.get_embedding_group(),
-            #     op=torch.distributed.ReduceOp.AVG
-            # )
+            output_layers = self.get_output_layers_ul2()
+
+            if len(output_layers) > 1:
+                raise NotImplemented("Virtual Parallel support for UL2 is currently not implemented")
+
+            output_layer = output_layers[0]  # type: torch.nn.Module
+
+            if output_layer is not None:
+                # Broadcast the embeddings from rank 0 to all other embedding ranks.
+                torch.distributed.all_reduce(
+                    output_layer.weight.data, group=parallel_state.get_embedding_group(),
+                    op=torch.distributed.ReduceOp.AVG
+                )
 
     def setup(self, stage=None):
         super().setup(stage)
