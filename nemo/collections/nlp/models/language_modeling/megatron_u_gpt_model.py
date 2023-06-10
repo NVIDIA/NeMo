@@ -175,7 +175,7 @@ class MegatronUGPTModel(MegatronGPTModel):
                 op=torch.distributed.ReduceOp.AVG,
             )
 
-    def get_output_layers_ul2(self) -> list[torch.nn.Module]:
+    def get_output_layers_ul2(self) -> list:
         if self.cfg.megatron_amp_O2:
             model = self.model.module
         else:
