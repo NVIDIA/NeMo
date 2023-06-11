@@ -1,99 +1,71 @@
-NeMo NLP collection API
+NeMo Megatron API
 =======================
 
-Model Classes
--------------
+Pretraining Model Classes
+-------------------------
 
-.. autoclass:: nemo.collections.nlp.models.TextClassificationModel
+.. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel
     :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact, classifytext
+    :no-members:
+    :members: generate, training_step, validation_step, build_train_valid_test_datasets, setup, on_save_checkpoint, on_load_checkpoint
 
-.. autoclass:: nemo.collections.nlp.models.GLUEModel
-    :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_bert_model.MegatronBertModel
+    :no-members:
+    :members: training_step, validation_step, build_train_valid_test_datasets, build_LDDL_data, setup, on_save_checkpoint, on_load_checkpoint
 
-.. autoclass:: nemo.collections.nlp.models.PunctuationCapitalizationModel
-    :show-inheritance:
-    :members:
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_retrieval_model.MegatronRetrievalModel
+    :no-members:
+    :members: generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
-.. autoclass:: nemo.collections.nlp.models.TokenClassificationModel
-    :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
-    
-.. autoclass:: nemo.collections.nlp.models.QAModel
-    :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model
+    :no-members:
+    :members: complete, encode, decode, add_special_tokens_to_tokenizer, training_step, validation_step, build_train_valid_test_datasets, setup
 
-.. autoclass:: nemo.collections.nlp.models.DuplexTaggerModel
-    :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+Customization Model Classes
+---------------------------
 
-.. autoclass:: nemo.collections.nlp.models.DuplexDecoderModel
-    :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model.MegatronGPTSFTModel
+    :no-members:
+    :members: generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
-.. autoclass:: nemo.collections.nlp.models.BERTLMModel
-    :show-inheritance:
-    :members: setup_training_data, setup_optimization
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model.MegatronGPTAdapterLearningModel
+    :no-members:
+    :members: __init__, state_dict, generate, training_step, validation_step, build_train_valid_test_datasets, setup
+
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model.MegatronGPTInfusedAdapterModel
+    :no-members:
+    :members: __init__, state_dict, generate, training_step, validation_step, build_train_valid_test_datasets, setup
+
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model.MegatronGPTPromptLearningModel
+    :no-members:
+    :members: built_virtual_prompt_dataset, generate, training_step, validation_step, build_train_valid_test_datasets, setup
+
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5AdapterLearningModel
+    :no-members:
+    :members: __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
+
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5AdapterLearningModel
+    :no-members:
+    :members: _add_adapters_to_component, __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
+
+.. autoclass:: 
+    :show-inheritance: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5InfusedAdapterModel
+    :no-members:
+    :members: _add_adapters_to_component, __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
 
 Modules
 -------
 
-.. autoclass:: nemo.collections.nlp.modules.BertModule
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.AlbertEncoder
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.BertEncoder
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.DistilBertEncoder
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.RobertaEncoder
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.SequenceClassifier
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.SequenceRegression
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.SequenceTokenClassifier
-    :show-inheritance:
-    :members:
-
-.. autofunction::  nemo.collections.nlp.modules.get_lm_model
-
-.. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_models_list
-
-.. autofunction::  nemo.collections.nlp.modules.common.megatron.get_megatron_lm_models_list
 
 Datasets
 --------
 
-.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset
-    :show-inheritance:
-    :members:
-    :special-members: __getitem__
-
-.. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.create_tarred_dataset
-
-.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset
-    :show-inheritance:
-    :members:
-    :special-members: __iter__
-    :exclude-members: reinforce_type
-
-.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.BertPunctuationCapitalizationInferDataset
-    :show-inheritance:
-    :members:
-    :special-members: __getitem__
