@@ -7,9 +7,7 @@ body {
 /* Width of template */
 
 .wy-nav-content {
-	max-width: 100%;
-	border: 5px solid red !important;
-	/* just for testing */
+	max-width: 1200px !important;
 }
 
 
@@ -257,7 +255,7 @@ article ul {
 	}
 }
 
-@media (min-width: 1400px) {
+@media (min-width: none) {
 	body {
 		font-size: 18px;
 	}
