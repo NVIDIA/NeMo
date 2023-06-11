@@ -108,7 +108,7 @@ def get_args():
     parser.add_argument("--tensor_model_parallel_size", type=int, required=False, default=1)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
 
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', 0))
+    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
 
     parser.add_argument("--model_type", type=str, required=False, default="gpt", choices=["gpt", "t5", "bert"])
 
@@ -116,7 +116,7 @@ def get_args():
     return args
 
 def load_model(cls, checkpoint, strict, **kwargs):
-    print(type(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]))
+    print(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
@@ -156,7 +156,7 @@ def load_config(llama_config):
     nemo_config['cfg']['ffn_dropout']             = 0.0
     nemo_config['cfg']['bias_dropout_add_fusion'] = False
     nemo_config['cfg']['bias_activation_fusion']  = False
-    nemo_config['cfg']['use_cpu_initialization']  = False
+    nemo_config['cfg']['use_cpu_initialization']  = True
     nemo_config['cfg']['share_embeddings_and_output_weights'] = False
     nemo_config['cfg']['make_vocab_size_divisible_by'] = 128
     nemo_config['cfg']['activation']              = 'swiglu'
@@ -206,7 +206,7 @@ def convert(local_rank, rank, world_size, args):
     num_nodes = world_size // args.gpus_per_node
     assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
 
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
     #checkpoint_path = megatron_lm_inject_model_parallel_rank(
     #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
     #)
