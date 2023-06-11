@@ -12,18 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# ---- Start of patch ----
-# Workaround for https://github.com/pydantic/pydantic/issues/5821
-#
-# Add this code once at the start of your program. It plays nice with mypy.
-#
-# It patches `typing.Literal` to refer to `typing_extensions.Literal`,
-# and thereby avoids a bug in Pydantic<=1.10.7 code for is_literal_type.
-import typing_extensions
-import typing
-typing.Literal = typing_extensions.Literal  # type: ignore
-# ---- End of patch ----
-
 import torch.multiprocessing as mp
 import os
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -64,6 +52,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.data = cfg.model.data
         gpt_cfg.optim = cfg.model.optim
         gpt_cfg.seed  = cfg.model.seed
+        gpt_cfg.transformer_engine  = cfg.model.get('transformer_engine', False)
         gpt_cfg.precision = cfg.trainer.precision
         gpt_cfg.restore_from_path = cfg.model.restore_from_path
         gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint

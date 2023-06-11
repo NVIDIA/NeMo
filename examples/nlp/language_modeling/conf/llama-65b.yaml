@@ -1,5 +1,5 @@
-name: megatron_llama
-restore_from_path: null  # used when starting from a .nemo file
+name: megatron_llama_65b
+restore_from_path: null # used when starting from a .nemo file
 
 trainer:
   devices: 8
@@ -11,10 +11,9 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 300000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  #max_time: "00:00:05:00"
   log_every_n_steps: 10
   val_check_interval: 300
-  limit_val_batches: 10
+  limit_val_batches: 50
   limit_test_batches: 50
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
@@ -24,15 +23,15 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_llama
+  name: megatron_llama_65b
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
     name: null
+  max_time_per_run: "00:03:45:00"
   resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
-  max_time_per_run: "00:00:05:00"
   checkpoint_callback_params:
     monitor: val_loss
     save_top_k: 10
@@ -49,26 +48,26 @@ exp_manager:
 model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 2 # limited by GPU memory
-  global_batch_size: 512 # will use more micro batches to reach global batch size
-  tensor_model_parallel_size: 2 # intra-layer model parallelism
+  micro_batch_size: 1 # limited by GPU memory
+  global_batch_size: 128 # will use more micro batches to reach global batch size
+  tensor_model_parallel_size: 8 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: NULL # interleaved pipeline
 
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: 2048
-  num_layers: 32
-  hidden_size: 4096
-  ffn_hidden_size: 11008 # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 32
+  num_layers: 80
+  hidden_size: 8192
+  ffn_hidden_size: 22016 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 64
   init_method_std: 0.01 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
   attention_dropout: 0.0 # Dropout probability for attention
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
-  normalization: 'layernorm' # Type of normalization layers
+  normalization: 'rmsnorm' # Type of normalization layers
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -84,16 +83,12 @@ model:
   position_embedding_type: 'rope'
   rotary_percentage: 1.0
   attention_type: 'multihead'
-  share_embeddings_and_output_weights: True
+  share_embeddings_and_output_weights: False
 
   tokenizer:
-          #library: 'megatron'
-          #type: 'GPT2BPETokenizer'
-          #library: 'huggingface'
-          #type: 'hf-internal-testing/llama-tokenizer'
+    library: 'sentencepiece'
     type: null
-    library: sentencepiece
-    model: '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/tokenizer.model'
+    model: '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/tokenizer.model' 
     vocab_file: null
     merge_file: null 
     delimiter: null # only used for tabular tokenizer
@@ -112,7 +107,7 @@ model:
 
   # Fusion
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
-  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
+  gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
   bias_activation_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
   bias_dropout_add_fusion: False # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
@@ -121,8 +116,6 @@ model:
   # Miscellaneous
   seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from
-  #restore_from_path: '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/checkpoints/llama/7B/llama-7B-tp2.nemo' # load from .nemo checkpoint file
-  #restore_from_path: '/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/nemo_repo/internal/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_llama/checkpoints/megatron_llama.nemo' # load from .nemo checkpoint file
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
@@ -189,71 +182,69 @@ model:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
     #data_prefix: {train: [/lustre/fsw/mlperf/mlperft-dlrm/hongbinl/data/enron/enron_text_document], validation: [/lustre/fsw/mlperf/mlperft-dlrm/hongbinl/data/enron/enron_text_document], test: [/lustre/fsw/mlperf/mlperft-dlrm/hongbinl/data/enron/enron_text_document]}
     data_prefix:
-      - 1.0
-      - /lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/data/Pile/my_llama_00_text_document
-        #- 0.5
-        #- /lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/data/Pile/my_llama_01_text_document
-        #data_prefix:
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_00_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_01_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_02_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_03_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_04_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_05_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_06_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_07_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_08_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_09_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_10_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_11_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_12_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_13_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_14_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_15_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_16_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_17_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_18_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_19_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_20_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_21_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_22_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_23_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_24_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_25_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_26_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_27_text_document
-        #  - 0.0333
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_28_text_document
-        #  - 0.0334
-        #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_29_text_document
+       - 1.0
+       - /lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/data/Pile/my_llama_00_text_document 
+    #data_prefix:
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_00_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_01_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_02_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_03_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_04_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_05_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_06_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_07_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_08_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_09_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_10_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_11_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_12_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_13_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_14_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_15_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_16_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_17_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_18_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_19_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_20_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_21_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_22_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_23_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_24_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_25_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_26_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_27_text_document
+    #  - 0.0333
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_28_text_document
+    #  - 0.0334
+    #  - /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_29_text_document
 
     #data_base: /lustre/fsw/adlr/adlr-nlp-large/data/gpt3
     #data_prefix:
@@ -287,9 +278,6 @@ model:
     name: distributed_fused_adam
     lr: 1e-4
     weight_decay: 0.1 
-    bucket_cap_mb: 200
-    contiguous_grad_buffer: True
-    grad_sync_dtype: bf16
     betas: 
     - 0.9
     - 0.95

@@ -259,7 +259,7 @@ class Float16Module(MegatronModule):
             raise ImportError(
                 "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__()
+        super().__init__(share_token_embeddings=module.share_token_embeddings)
         self.precision = precision
 
         if precision == 'bf16':
