@@ -7,7 +7,9 @@ body {
 /* Width of template */
 
 .wy-nav-content {
-	max-width: 1200px !important;
+	max-width: 100%;
+	border: 5px solid red !important;
+	/* just for testing */
 }
 
 

@@ -65,6 +65,11 @@ Customization Model Classes
 Modules
 -------
 
+.. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5InfusedAdapterModel
+    :show-inheritance: 
+    :no-members:
+    :members: _add_adapters_to_component, __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
+
 
 Datasets
 --------
