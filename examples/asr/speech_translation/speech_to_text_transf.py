@@ -45,10 +45,11 @@ python speech_to_text_transf.py \
 
 """
 
-import torch
-import pytorch_lightning as pl
-from omegaconf import OmegaConf
 from collections import OrderedDict
+
+import pytorch_lightning as pl
+import torch
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecTransfModelBPE
 from nemo.core.config import hydra_runner
