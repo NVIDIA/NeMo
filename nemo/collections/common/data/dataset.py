@@ -13,15 +13,12 @@
 # limitations under the License.
 
 import logging
-import os
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
-
-from nemo.collections.common import tokenizers
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
@@ -48,7 +45,6 @@ class ConcatDataset(IterableDataset):
     def __init__(
         self,
         datasets: List[Any],
-        tokenizer: 'TokenizerSpec',
         shuffle: bool = True,
         sampling_technique: str = 'temperature',
         sampling_temperature: int = 5,
@@ -67,7 +63,6 @@ class ConcatDataset(IterableDataset):
 
         supported_sampling_techniques = ['temperature', 'random', 'round-robin']
         self.datasets = datasets
-        self.tokenizer = tokenizer
         self.iterables = [None] * len(datasets)
         self.shuffle = shuffle
         self.global_rank = global_rank
@@ -171,21 +166,6 @@ class ConcatDataset(IterableDataset):
                 # otherwise we do nothing and just retry
                 # this means we are restarting one of the datasets
 
-    # The original logic
-    #            n += 1
-    #            try:
-    #                ind = next(ind_gen)
-    #            except StopIteration:
-    #                return
-    #            try:
-    #                val = next(self.iterables[ind])
-    #                if self.kind == 'map':
-    #                    val = self.datasets[ind][val]
-    #                yield val
-    #            except StopIteration:
-    #                self.iterables[ind] = self.get_iterable(self.datasets[ind])
-    #                n -= 1
-
     def pull_concatenated_sample(self, ind_gen):
         """
         Return a concatenated sample as well the number of samples pulled
@@ -194,26 +174,18 @@ class ConcatDataset(IterableDataset):
 
         _f = None
         _fl = 0
+        _fl_secs = 0 # total audio length in sec
         _t = None
         _tl = 0
         _num_concatenated_samples = 0
 
-        sample_rate = 16000  # placeholder just to get in the loop
-
-        while _fl < self.concat_samples_min_length * sample_rate:
+        while _fl_secs < self.concat_samples_min_length:
 
             (f, fl, t, tl), sample_rate, _ = self.pull_sample(ind_gen)
             self.samples_pulled += 1
 
-            logging.debug(f'pulled f: {f.type()} {f.size()}')
-            logging.debug(f'pulled fl:{fl.type()}  {fl}')
-            logging.debug(f'pulled t: {t.type() } {t}')
-            logging.debug(f'pulled tl: {tl.type()}  {tl}')
-
-            if _fl + fl > self.concat_samples_max_length * sample_rate:
+            if _fl_secs + fl / sample_rate + self.concat_samples_joining_pause > self.concat_samples_max_length:
                 # just try another sample if this one is too long.
-                # print(f'sample too big: we are at {_fl}, new sample is {fl}, more than {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}, min: {_CONCAT_SAMPLES_MIN_LENGTH*_SAMPLING_RATE}')
-                # print(f'_fl: {_fl}, fl: {fl}, csm;xSR: {_CONCAT_SAMPLES_MAX_LENGTH*_SAMPLING_RATE}')
                 self.samples_retried += 1
                 if self.samples_pulled % 1000 == 0:
                     fr = self.samples_retried / self.samples_pulled
@@ -222,7 +194,7 @@ class ConcatDataset(IterableDataset):
 
             pause_len = int(self.concat_samples_joining_pause * sample_rate)
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, pause_len)
-            # _t, _tl = self.concat_with_space(_t, _tl, t, tl)
+            _fl_secs += fl / sample_rate + self.concat_samples_joining_pause
 
             if _t is None or _t.size()[0] == 0:
                 _t = t
@@ -233,10 +205,6 @@ class ConcatDataset(IterableDataset):
 
             _num_concatenated_samples += 1
 
-        logging.debug(f'returning _f: {_f.type()} {_f.size()}')
-        logging.debug(f'returning _fl:{_fl.type()}  {_fl}')
-        logging.debug(f'returning _t: {_t.type()} {_t}')
-        logging.debug(f'returning _tl: {_tl.type()}  {_tl}')
         logging.debug(f'returning num concat samples: {_num_concatenated_samples}')
 
         self.samples_served += 1
@@ -246,39 +214,11 @@ class ConcatDataset(IterableDataset):
 
         return (_f, _fl, _t, _tl), _num_concatenated_samples
 
-    def concat_with_space(self, t1, tl1, t2, tl2):
-        if t1 is None or t1.size()[0] == 0:  # no need to add space etc
-            return t2, tl2
-
-        tl = tl1
-        t = t1
-        last_token_id = t1[-1].item()
-
-        if isinstance(self.tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
-            # space_id = SPACE_ID_LOOKUP_TABLE[last_token_id]
-            lid = self.tokenizer.langs_by_token_id[last_token_id]
-            space_id = self.tokenizer.token_to_id('▁', lid)
-            # space_id = last_token_id - self.tokenizer.offset_token_ids_by_token_id[last_token_id]
-            logging.debug(f'last token id: {last_token_id}, space id: {space_id}')
-        else:
-            space_id = self.tokenizer.token_to_id('▁')
-
-        if last_token_id != space_id:
-            space_id = torch.tensor([space_id], dtype=torch.long)
-            logging.debug(f'concatenating space {space_id} to t {t1}')
-            t = torch.concat((t1, space_id))  # likely needs to be concat
-            tl += 1  # space
-
-        t = torch.concat((t, t2))
-        tl += tl2
-        return t, tl
-
     def concat_with_pause(self, f1, fl1, f2, fl2, pause_len):
 
         fl = fl1 + fl2 + pause_len
         fl = torch.tensor(fl, dtype=torch.long)
         # get a blank sample
-        # _blank = torch.from_numpy(np.zeros(pause_len))
         _blank = torch.zeros(pause_len, dtype=torch.float)
         if f1 is not None:
             f = torch.concat((f1, _blank, f2))
@@ -306,7 +246,7 @@ class ConcatDataset(IterableDataset):
                 if self.kind == 'map':
                     _sample = self.datasets[ind][_sample]
 
-                if self.concat_samples:  ## AttributeError: 'Subset' object has no attribute 'featurizer' ?
+                if self.concat_samples: 
                     _sample_rate = self.datasets[ind].featurizer.sample_rate
 
             except StopIteration:

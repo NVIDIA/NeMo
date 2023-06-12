@@ -110,7 +110,6 @@ def get_concat_char_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        tokenizer=None,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
         sampling_scale=config.get('concat_sampling_scale', 1),
@@ -199,7 +198,6 @@ def get_concat_bpe_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        tokenizer=tokenizer,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
         sampling_scale=config.get('concat_sampling_scale', 1),
@@ -294,7 +292,6 @@ def get_concat_tarred_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        tokenizer=tokenizer,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
         sampling_scale=config.get('concat_sampling_scale', 1),
