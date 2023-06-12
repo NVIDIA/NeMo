@@ -297,7 +297,7 @@ class CodeSwitchedDataset(IterableDataset):
     to create synthetic code-switched samples of up to N languages per call
     Args:
         datasets (dict): A dict of datasets by language, with keys as language (str) and value as that's language's dataset
-        lang_probs (list): The probability of drawing each language randomly to build each CS sample
+        lang_probs (dict): A dict of language keys to the probability of drawing each language randomly to build each CS sample
         shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
             Defaults to True.
         min_duration (int): the minimum duration (secs) of each synthetic code-switched sample. Will draw randomly until this is hit.
