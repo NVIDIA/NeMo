@@ -31,10 +31,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
 )
-from nemo.core.classes.mixins import adapter_mixins
-
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import AppState, logging
 
 try:

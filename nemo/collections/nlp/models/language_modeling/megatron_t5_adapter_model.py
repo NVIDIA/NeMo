@@ -626,7 +626,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
             raise ValueError(f"Adapter Key {adapter_key} is unknown.")
 
         return cfg
-    
+
     @classmethod
     def list_available_models(cls):
         pass

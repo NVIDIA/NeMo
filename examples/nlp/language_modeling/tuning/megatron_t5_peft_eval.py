@@ -22,9 +22,10 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import (
     MegatronT5AdapterLearningModel,
-    MegatronT5LoraModel,
     MegatronT5InfusedAdapterModel,
+    MegatronT5LoraModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
     MegatronT5PromptLearningModel,
 )
@@ -32,15 +33,13 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_init
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-
-
 
 mp.set_start_method("spawn", force=True)
 """
  
 
 """
+
 
 def _get_peft_scheme(cfg):
     if cfg.peft.peft_scheme == "adapter":
@@ -58,7 +57,7 @@ def _get_peft_scheme(cfg):
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_peft_eval_config")
 def main(cfg) -> None:
-    
+
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
@@ -98,9 +97,7 @@ def main(cfg) -> None:
     if cfg.get("peft_model_file", None) is not None and cfg.get("language_model_path", None) is not None:
         # Update frozen T5 model path in case it has changed
         peft_cls = _get_peft_scheme(cfg)
-        adapter_tuning_cfg = peft_cls.restore_from(
-            cfg.peft_model_file, trainer=trainer, return_config=True
-        )
+        adapter_tuning_cfg = peft_cls.restore_from(cfg.peft_model_file, trainer=trainer, return_config=True)
         with open_dict(adapter_tuning_cfg):
             adapter_tuning_cfg.language_model_path = cfg.language_model_path
             adapter_tuning_cfg.pretrained_language_model_path = cfg.language_model_path
@@ -166,7 +163,6 @@ def main(cfg) -> None:
     else:
         print(response)
     print("***************************")
-
 
 
 if __name__ == "__main__":

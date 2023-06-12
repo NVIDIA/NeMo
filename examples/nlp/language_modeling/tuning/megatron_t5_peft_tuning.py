@@ -25,13 +25,13 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import (
     MegatronT5AdapterLearningModel,
-    MegatronT5LoraModel,
     MegatronT5InfusedAdapterModel,
+    MegatronT5LoraModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
     MegatronT5PromptLearningModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
