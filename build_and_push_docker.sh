@@ -2,13 +2,15 @@
 
 set -euo pipefail
 
+: "${LDAP:?Must set LDAP}"
+
 IMAGE="us-central1-docker.pkg.dev/supercomputer-testing/crankshaw-nemo-stagetest/nemo"
 
 cd ../Megatron-LM
 MEGATRON_VER=$(git rev-parse --short HEAD)
 cd -
 
-TAG="$(git rev-parse --short HEAD)-$MEGATRON_VER"
+TAG="$(git rev-parse --short HEAD)-${MEGATRON_VER}-${LDAP}"
 
 IMAGE_FULL=$IMAGE:$TAG
 

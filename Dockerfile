@@ -98,7 +98,8 @@ RUN apt-get update && apt-get install -y net-tools gawk bc
 # NVIDIA DLProf components
 RUN pip install nvidia-pyindex &&\
   pip install nvidia-dlprof[pytorch] &&\
-  pip install nvtx
+  pip install nvtx &&\
+  pip install --upgrade requests yq
 
 RUN pip install --upgrade git+https://github.com/NVIDIA/TransformerEngine.git@stable
 
