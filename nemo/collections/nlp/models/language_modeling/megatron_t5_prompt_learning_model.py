@@ -31,6 +31,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
 )
+from nemo.core.classes.mixins import adapter_mixins
+
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -171,6 +173,23 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
+
+    def get_peft_state_dict(self,):
+        """ 
+        Gets the keys associated with the adapters only.
+        """
+        state_dict_ = {}
+
+        for name, module in self.frozen_model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.get_adapter_module(adapter_key)
+                    if adapter_module:
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        state_dict_[state_adapter_key] = adapter_module.state_dict()
+                module.set_enabled_adapters(enabled=True)
+
+        return state_dict_
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """

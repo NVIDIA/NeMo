@@ -207,15 +207,15 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
+        encoder_type = PromptEncoderType(self.cfg.peft.p_tuning.get("encoder_type", "tpmlp").lower())
         self.prompt_encoder = PromptEncoder(
             encoder_type=encoder_type,
             total_virtual_tokens=total_virtual_tokens,
             token_dim=self.hidden_size,
-            hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
-            lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
-            num_layers=self.cfg.p_tuning.get("num_layers", 2),
-            init_std=self.cfg.p_tuning.get("init_std", 0.023),
+            hidden_size=self.cfg.peft.p_tuning.get("encoder_hidden", self.hidden_size // 2),
+            lstm_dropout=self.cfg.peft.p_tuning.get("dropout", 0.0),
+            num_layers=self.cfg.peft.p_tuning.get("num_layers", 2),
+            init_std=self.cfg.peft.p_tuning.get("init_std", 0.023),
             taskname=new_task,
         )
 
@@ -223,8 +223,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """Freeze params of existing virtual prompts that should not be tuned further
         """
         # Make sure word embeddings are frozen
-        for params in self.word_embeddings.parameters():
-            params.requires_grad = False
+        if hasattr(self, 'word_embeddings'):
+            for params in self.word_embeddings.parameters():
+                params.requires_grad = False
 
     def state_dict(self):
         """
@@ -252,7 +253,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 if self.prompt_encoder is None:
                     self.init_prompt_encoder()
-                self.prompt_encoder.load_state_dict(state_dict, strict)
+                if 'prompt_table' in state_dict:
+                    self.prompt_encoder.load_state_dict(state_dict, strict)
             else:
                 raise ValueError("invalid virtual prompt source")
 

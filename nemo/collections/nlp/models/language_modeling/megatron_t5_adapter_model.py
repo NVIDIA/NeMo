@@ -58,6 +58,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.adapter_name_keys = []
+        self.setup_complete = False
 
     def forward(
         self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
@@ -93,6 +94,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         if stage == 'predict':
             self.frozen_model.freeze()
             return
+        super().setup(stage)
+        self.setup_complete = True
 
         self.setup_test_data()
         if stage == 'test':
@@ -252,16 +255,14 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         This ensures that this wrapper class will only checkpoint the adapter
         weights and not the rest of the base GPT Model.
         """
-        state_dict_ = {}
-        for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.get_adapter_module(adapter_key)
-                    if adapter_module:
-                        state_adapter_key = ':'.join([name, adapter_key])
-                        state_dict_[state_adapter_key] = adapter_module.state_dict()
-                module.set_enabled_adapters(enabled=True)
-        return state_dict_
+        if self.setup_complete:
+            # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
+            return self.get_peft_state_dict()
+        else:
+            # we want all the params with the same keys as calling self.state_dict()
+            # but we can't call self.state_dict() here as it would be a recursive call.
+            # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
+            return self.frozen_model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
@@ -274,7 +275,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                     adapter_module = module.get_adapter_module(adapter_key)
                     if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
-                        adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+                        adapter_module.load_state_dict(state_dict[state_adapter_key], False)
                 module.set_enabled_adapters(enabled=True)
 
     def validation_epoch_end(self, outputs):
@@ -343,11 +344,11 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        assert cfg.adapter_tuning.get('adapter_dim', 0) > 0, "adapter_dim has not been set."
+        assert cfg.peft.adapter_tuning.get('adapter_dim', 0) > 0, "adapter_dim has not been set."
         assert (
-            cfg.adapter_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
+            cfg.peft.adapter_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
         ), "The adapter dim should be divisible by tensor_model_parallel_size."
-        assert cfg.adapter_tuning.type in [
+        assert cfg.peft.adapter_tuning.type in [
             'linear_adapter',
             'parallel_adapter',
         ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
@@ -390,11 +391,11 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
             component_cfg = frozen_model_cfg.get(component_name)
             with open_dict(component_cfg):
                 component_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
-                component_cfg.adapter_tuning = cfg.adapter_tuning
+                component_cfg.adapter_tuning = cfg.peft.adapter_tuning
         else:
             component_cfg = frozen_model_cfg
             with open_dict(component_cfg):
-                component_cfg.adapter_tuning = cfg.adapter_tuning
+                component_cfg.adapter_tuning = cfg.peft.adapter_tuning
         return component_cfg
 
     def _get_adapter_cfg(self, component_cfg):
@@ -430,10 +431,10 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        # assert cfg.lora_tuning.get('adapter_dim', 0) > 0, "adapter_dim has not been set."
-        # assert (
-        #     cfg.lora_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
-        # ), "The adapter dim should be divisible by tensor_model_parallel_size."
+        assert cfg.peft.lora_tuning.get('kqv_adapter_dim', 0) > 0, "adapter_dim has not been set."
+        assert (
+            cfg.peft.lora_tuning.kqv_adapter_dim % cfg.tensor_model_parallel_size == 0
+        ), "The adapter dim should be divisible by tensor_model_parallel_size."
 
         encoder_adapter_name_keys = [AdapterName.LORA_KQV_ADAPTER]
         decoder_adapter_name_keys = [
@@ -483,11 +484,11 @@ class MegatronT5LoraModel(MegatronT5BaseAdapterModel):
             component_cfg = frozen_model_cfg.get(component_name)
             with open_dict(component_cfg):
                 component_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
-                component_cfg.lora_tuning = cfg.lora_tuning
+                component_cfg.lora_tuning = cfg.peft.lora_tuning
         else:
             component_cfg = frozen_model_cfg
             with open_dict(component_cfg):
-                component_cfg.lora_tuning = cfg.lora_tuning
+                component_cfg.lora_tuning = cfg.peft.lora_tuning
         return component_cfg
 
     def _get_adapter_cfg(self, component_cfg, adapter_key):
@@ -625,59 +626,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
             raise ValueError(f"Adapter Key {adapter_key} is unknown.")
 
         return cfg
-
-    def _component_state_dict(self, component_name, component, adapter_name_keys):
-        state_dict_ = {}
-        for name, module in component.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                for adapter_key in adapter_name_keys:
-                    adapter_module = module.get_adapter_module(adapter_key)
-                    if adapter_module:
-                        state_adapter_key = ':'.join([component_name, name, adapter_key])
-                        state_dict_[state_adapter_key] = adapter_module.state_dict()
-                module.set_enabled_adapters(enabled=True)
-        return state_dict_
-
-    def _load_component_state_dict(
-        self, component_name, component, adapter_name_keys, state_dict, strict: bool = True
-    ):
-        for name, module in component.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                for adapter_key in adapter_name_keys:
-                    adapter_module = module.get_adapter_module(adapter_key)
-                    if adapter_module:
-                        state_adapter_key = ':'.join([component_name, name, adapter_key])
-                        adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
-                module.set_enabled_adapters(enabled=True)
-
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """
-        Creates a state_dict using only the adapter parameters.
-        This ensures that this wrapper class will only checkpoint the adapter
-        weights and not the rest of the base GPT Model.
-        """
-        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
-        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
-        encoder_state_dict = self._component_state_dict('encoder', encoder, self.adapter_name_keys) if encoder else {}
-        decoder_state_dict = self._component_state_dict('decoder', decoder, self.adapter_name_keys) if decoder else {}
-        state_dict_ = {
-            **encoder_state_dict,
-            **decoder_state_dict,
-        }  # merge the two state dicts (does not check for collisions in keys)
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict: bool = True):
-        """
-        Loads a state_dict expecting the state_dict to contain key,values 
-        only for the adapter parameters.
-        """
-        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
-        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
-        if encoder:
-            self._load_component_state_dict('encoder', encoder, self.adapter_name_keys, state_dict, strict)
-        if decoder:
-            self._load_component_state_dict('decoder', decoder, self.adapter_name_keys, state_dict, strict)
-
+    
     @classmethod
     def list_available_models(cls):
         pass

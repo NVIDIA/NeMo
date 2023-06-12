@@ -1,0 +1,68 @@
+name: megatron_t5_peft_${model.peft.peft_scheme}_tuning
+
+trainer:
+  devices: 1
+  accelerator: gpu
+  num_nodes: 1
+  precision: 16
+  logger: False # logger provided by exp_manager
+
+peft:
+  peft_scheme: "ptuning"  # can be either lora, adapter,ia3, or ptuning
+  restore_from_path: null
+  
+  # Used for adapter peft training
+  adapter_tuning:
+    type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
+    adapter_dim: 32
+    adapter_dropout: 0.0
+    norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+    column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
+  
+  lora_tuning:
+    kqv_adapter_dim: 24
+    kv_adapter_dim: 16
+    q_adapter_dim: 8
+    adapter_dropout: 0.1
+    column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+  
+  # Used for p-tuning peft training
+  p_tuning:
+    virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
+    bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
+    embedding_dim: 1024  # the size of the prompt encoder embeddings
+    init_std: 0.023
+
+data:
+  test_ds: ???
+  num_workers: 1
+  global_batch_size: 4
+  micro_batch_size: 4
+
+inference:
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
+  top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+  top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+  temperature: 1.0 # sampling temperature
+  add_BOS: True # add the bos token at the begining of the prompt
+  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  all_probs: False  # whether return the log prob for all the tokens in vocab
+  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
+  compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
+  output_file: ???
+
+  
+tensor_model_parallel_size: -1
+pipeline_model_parallel_size: -1
+pipeline_model_parallel_split_rank: -1 # used for encoder and decoder model (0 for others)
+language_model_path: ??? # t5 nemo file path # used when starting from a .nemo file
+peft_model_file: ??? # .nemo file saved during training (using megatron_t5_peft_tuning.py)
+pred_file_path: null # save predictions to this file
+checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the t5 training
+checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
+hparams_file: null # model configuration file, only used for PTL checkpoint loading
+batch_size: 8 

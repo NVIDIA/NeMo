@@ -33,22 +33,22 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 """
-This is the script to train an Adapter infused GPT Model for text generation.
-A base GPT Model is required as a starting point. This script will then insert
+This is the script to train an Adapter infused T5 Model for text generation.
+A base T5 Model is required as a starting point. This script will then insert
 Adapters into each Transformer layer and will train/update only these adapters
-during training. The base GPT Model weights will remain frozen.
+during training. The base T5 Model weights will remain frozen.
 
 During training this script will only save the newly trained Adapter weights
 in checkpoints. At the end of training a .nemo file of Adapter weights will 
 be saved.
 
 Usage:
-    Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
-    a. run a training run for a base gpt nemo file:
-        python megatron_gpt_adapter_tuning.py \
+    Assuming the base model is a 125m T5 Model, with TP=1, PP=1:
+    a. run a training run for a base T5 nemo file:
+        python megatron_T5_adapter_tuning.py \
             "model.data.train_ds=[PATH TO TRAINING JSONL FILE]",
             "model.data.validation_ds=[PATH TO VALIDATION JSONL FILE]",
-            model.language_model_path="PATH TO BASE GPT MODEL .nemo FILE"
+            model.language_model_path="PATH TO BASE T5 MODEL .nemo FILE"
             name="NAME OF TRAINING RUN"
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
             trainer.max_epochs=2
@@ -92,7 +92,7 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    # load existing or init new soft prompt GPT model
+    # load existing or init new soft prompt T5 model
     if cfg.model.get("restore_path", None):
         model = MegatronT5LoraModel.restore_from(
             cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
