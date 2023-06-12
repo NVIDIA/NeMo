@@ -80,7 +80,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
    
     RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
-    nsys profile --sample=none --trace=cuda,nvxt -o $PROFILING_DIR/node_${NODE_RANK:?}_local_rank_${LOCAL_RANK} \
+    nsys profile --sample=none --trace=cuda,nvtx -o $PROFILING_DIR/node_${NODE_RANK:?}_local_rank_${LOCAL_RANK} \
         --capture-range=cudaProfilerApi --capture-range-end=stop \
      python /workspacenemo/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
       --config-path="$EXPERIMENT_ROOT_DIR/config" \
