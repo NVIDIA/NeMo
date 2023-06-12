@@ -445,13 +445,21 @@ def get_code_switched_dataset(
         datasets[lang] = dataset
 
     config = OmegaConf.to_container(config)
+    
+    if('code_switch_probabilities' in config and 
+        config['code_switch_probabilities'] is not None and 
+        len(config['code_switch_probabilities']) == len(config['code_switch_languages'])):
+        cs_probs_dict = {l:config['code_switch_probabilities'][i] for i,l in enumerate(config['code_switch_languages'])}
+    else:
+        cs_probs_dict = None
+    
     dataset = CodeSwitchedDataset(
         datasets,
         shuffle=config.get('code_switch_shuffle', True),
         min_duration=config.get('code_switch_min_duration', 16),
         max_duration=config.get('code_switch_max_duration', 20),
         min_monolingual=config.get('code_switch_min_monolingual', 0.2),
-        lang_probs=config.get('code_switch_probabilities', None),
+        lang_probs=cs_probs_dict,
         db_norm=config.get('code_switch_db_norm', -25.0),
         pause_start=config.get('code_switch_pause_start', 20),
         pause_join=config.get('code_switch_pause_join', 80),

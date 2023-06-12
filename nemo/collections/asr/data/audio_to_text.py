@@ -625,6 +625,9 @@ class AudioToBPEDataset(_AudioTextDataset):
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        language (str): If reading a data source which does not have the language property in the manifest json
+                        and you're using AggTokenizer, then you can pass this optional parameter which will
+                        pass this language id to the AggTokenizer
     """
 
     @property
@@ -1226,6 +1229,9 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        language (str): If reading a data source which does not have the language property in the manifest json
+                        and you're using AggTokenizer, then you can pass this optional parameter which will
+                        pass this language id to the AggTokenizer
     """
 
     def __init__(
