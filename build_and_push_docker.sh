@@ -4,7 +4,7 @@ set -euo pipefail
 
 : "${LDAP:?Must set LDAP}"
 
-IMAGE="us-central1-docker.pkg.dev/supercomputer-testing/crankshaw-nemo-stagetest/nemo"
+IMAGE="us-central1-docker.pkg.dev/supercomputer-testing/redrock-dev/nemo"
 
 cd ../Megatron-LM
 MEGATRON_VER=$(git rev-parse --short HEAD)

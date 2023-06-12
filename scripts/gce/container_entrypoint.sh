@@ -7,7 +7,7 @@ set -o pipefail
 : "${NODE_RANK:?Must set NODE_RANK}"
 : "${GCS_BUCKET:?Must set GCS_BUCKET}"
 : "${JOB_TIMESTAMP:?Must set JOB_TIMESTAMP}"
-: "${TRAINING_DIRECTORY:?Must set TRAINING_DIRECTORY}"
+: "${EXPERIMENT_ROOT_DIR:?Must set EXPERIMENT_ROOT_DIR}"
 : "${CONFIG_FILE:?Must set CONFIG_FILE}"
 
 
@@ -15,17 +15,25 @@ gcsfuse --max-conns-per-host 65535 "$GCS_BUCKET" /gcs
 
 export MASTER_PORT=6002
 GPUS_PER_NODE=8
-NNODES=$(yq -r ".trainer.num_nodes" "${TRAINING_DIRECTORY}/config/${CONFIG_FILE}")
+NNODES=$(yq -r ".trainer.num_nodes" "${EXPERIMENT_ROOT_DIR}/config/${CONFIG_FILE}")
 export WORLD_SIZE=$((NNODES * GPUS_PER_NODE))
 
-PROFILING_DIR=$TRAINING_DIRECTORY/nsys_profiles
+PROFILING_DIR=$EXPERIMENT_ROOT_DIR/nsys_profiles
 mkdir -p $PROFILING_DIR
 
-LOG_DIR=$TRAINING_DIRECTORY/training_logs
+LOG_DIR=$EXPERIMENT_ROOT_DIR/training_logs
 mkdir -p $LOG_DIR
 
-EXPERIMENTS_DIR=$TRAINING_DIRECTORY/nemo_experiments
+EXPERIMENTS_DIR=$EXPERIMENT_ROOT_DIR/nemo_experiments
 mkdir -p $EXPERIMENTS_DIR
+
+DEBUG_DIR=$EXPERIMENT_ROOT_DIR/debug
+mkdir -p $DEBUG_DIR
+
+export NCCL_TOPO_DUMP_FILE=$DEBUG_DIR/nccl_topo_${JOB_TIMESTAMP}.xml
+
+export HYDRA_FULL_ERROR=1
+export OMP_NUM_THREADS=12 
 
 
 
@@ -66,19 +74,14 @@ non_blocking_wait() {
 
 PIDS=()
 
-PROFILING_CMD=""
-
-
-
-
 for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
    
-   OMP_NUM_THREADS=12 RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
+    RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
     nsys profile --sample=none --trace=cuda,nvxt -o $NSIGHT_PATH/node_${NODE_RANK:?}_local_rank_${LOCAL_RANK} \
         --capture-range=cudaProfilerApi --capture-range-end=stop \
      python /workspacenemo/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-      --config-path="$TRAINING_DIRECTORY/config" \
+      --config-path="$EXPERIMENT_ROOT_DIR/config" \
       --config-name="$CONFIG_FILE" \
       > >(tee "$LOG_DIR/pretrain_gpt_rank$RANK.log") 2>&1 &
    PID=$!
