@@ -22,7 +22,7 @@ Pretraining Model Classes
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_bart_model.MegatronBARTModel
     :show-inheritance: 
     :no-members:
-    :members: training_step, validation_step, build_train_valid_test_datasets, build_LDDL_data, setup, on_save_checkpoint, on_load_checkpoint
+    :members: training_step, validation_step, build_train_valid_test_datasets, setup, on_save_checkpoint, on_load_checkpoint
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_retrieval_model.MegatronRetrievalModel
     :show-inheritance: 
@@ -132,6 +132,7 @@ Datasets
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.t5_dataset.T5Dataset
     :show-inheritance: 
+    :exclude-members: MAX_SEQ_LENGTH_DELTA
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset.T5PromptLearningDataset
     :show-inheritance: 
