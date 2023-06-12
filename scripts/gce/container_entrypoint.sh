@@ -18,6 +18,8 @@ GPUS_PER_NODE=8
 NNODES=$(yq -r ".trainer.num_nodes" "${EXPERIMENT_ROOT_DIR}/config/${CONFIG_FILE}")
 export WORLD_SIZE=$((NNODES * GPUS_PER_NODE))
 
+cat ${EXPERIMENT_ROOT_DIR}/config/${CONFIG_FILE}
+
 PROFILING_DIR=$EXPERIMENT_ROOT_DIR/nsys_profiles
 mkdir -p $PROFILING_DIR
 
@@ -78,7 +80,7 @@ for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
    RANK=$(($GPUS_PER_NODE*$NODE_RANK + $LOCAL_RANK))
    
     RANK=$RANK LOCAL_RANK=$LOCAL_RANK \
-    nsys profile --sample=none --trace=cuda,nvxt -o $NSIGHT_PATH/node_${NODE_RANK:?}_local_rank_${LOCAL_RANK} \
+    nsys profile --sample=none --trace=cuda,nvxt -o $PROFILING_DIR/node_${NODE_RANK:?}_local_rank_${LOCAL_RANK} \
         --capture-range=cudaProfilerApi --capture-range-end=stop \
      python /workspacenemo/examples/nlp/language_modeling/megatron_gpt_pretraining.py \
       --config-path="$EXPERIMENT_ROOT_DIR/config" \
