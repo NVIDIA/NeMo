@@ -30,7 +30,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTLoRAModel,
     MegatronGPTPTuningModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel, MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -110,7 +110,9 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
 
 def _get_peft_scheme(cfg):
-    if cfg.peft.peft_scheme == "adapter":
+    if cfg.peft.peft_scheme is None:
+        peft_cls = MegatronGPTSFTModel
+    elif cfg.peft.peft_scheme == "adapter":
         peft_cls = MegatronGPTAdapterModel
     elif cfg.peft.peft_scheme == "ia3":
         peft_cls = MegatronGPTIA3Model
@@ -224,12 +226,16 @@ def main(cfg) -> None:
             save_restore_connector=base_model_save_restore_connector,
         )
         base_model_cfg = _modify_config(base_model_cfg, cfg, add_cfg_to_tree=False)
-        save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
-        )
-        if os.path.isdir(cfg.model.restore_from_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
         peft_cls = _get_peft_scheme(cfg.model)
+        if peft_cls == MegatronGPTSFTModel:
+            save_restore_connector = base_model_save_restore_connector
+        else:
+            save_restore_connector = PEFTSaveRestoreConnector(
+                peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
+            )
+            if os.path.isdir(cfg.model.restore_from_path):
+                save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+
         model = peft_cls.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
@@ -237,7 +243,7 @@ def main(cfg) -> None:
             save_restore_connector=save_restore_connector,
         )
     else:
-        raise RuntimeError("PEFT training needs a trained base model present.")
+        raise RuntimeError("PEFT/SFT training needs a trained base model present.")
 
     trainer.fit(model)
 

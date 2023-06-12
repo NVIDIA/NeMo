@@ -27,14 +27,14 @@ exp_manager:
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: validation_${model.data.validation_ds.metric.name}
-    save_top_k: 1
+    save_top_k: 2
     mode: min
-    save_nemo_on_train_end: True
+    save_nemo_on_train_end: False
     filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     always_save_nemo: False
     save_best_model: True
-  create_early_stopping_callback: True
+  create_early_stopping_callback: False
   early_stopping_callback_params:
     monitor: "val_loss"
     mode: "min"
@@ -43,11 +43,11 @@ exp_manager:
     verbose: True
     strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
 
+
 model:
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  
   global_batch_size: 128
   micro_batch_size: 4
   restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
@@ -103,6 +103,7 @@ model:
       init_std: 0.023
 
   data:
+    chat: False # whether use chatbot data or not
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names: 
@@ -163,6 +164,7 @@ model:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
+
   test_ds:
       file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
@@ -184,7 +186,7 @@ model:
       output_file_path_prefix: null # Prefix of the file to write predictions to.
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: ${model.data.train_ds.prompt_template}
+      prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
 
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
@@ -192,16 +194,9 @@ model:
         num_classes: null
 
   optim:
-    name: fused_adam
-    lr: 1e-4
+    name: fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
+    lr: 3e-5
     weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 50
-      min_lr: 0.0 # min_lr must be 0.0 for prompt learning when pipeline parallel > 1
-      constant_steps: 0 # Constant steps should also be 0 when min_lr=0
-      monitor: val_loss
-      reduce_on_plateau: false

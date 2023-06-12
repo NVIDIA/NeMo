@@ -28,11 +28,20 @@ exp_manager:
   checkpoint_callback_params:
     monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 2
-    mode: max
+    mode: min
     save_nemo_on_train_end: False 
     filename: 'megatron_gpt_sft--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
+  create_early_stopping_callback: False
+  early_stopping_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 10
+    verbose: True
+    strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
+
 
 model:
   seed: 1234
@@ -40,7 +49,7 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   global_batch_size: 128
   micro_batch_size: 4
-  restore_from_path: ??? # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
+  restore_from_path: ??? # .nemo sft model file
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
   sync_batch_comm: False
@@ -58,12 +67,39 @@ model:
   # of each chunk at the specified granularity
   # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: null # not used with 'selective'
-  answer_only_loss: False # not used right now
+  answer_only_loss: True 
   gradient_as_bucket_view: False
 
   hidden_dropout: 0.0
   attention_dropout: 0.0
   ffn_dropout: 0.0
+
+  peft:
+    peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
+    restore_from_path: null
+    
+    # Used for adapter peft training
+    adapter_tuning:
+      type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
+      adapter_dim: 32
+      adapter_dropout: 0.0
+      norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+      column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
+    
+    lora_tuning:
+      adapter_dim: 32
+      adapter_dropout: 0.0
+      column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    
+    # Used for p-tuning peft training
+    p_tuning:
+      virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
+      bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
+      embedding_dim: 1024  # the size of the prompt encoder embeddings
+      init_std: 0.023
 
   data:
     chat: False # whether use chatbot data or not
@@ -79,7 +115,7 @@ model:
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
-      num_workers: 4
+      num_workers: 0
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -98,19 +134,19 @@ model:
       separate_prompt_and_response_with_newline: False
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
 
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
-      shuffle: True
-      num_workers: 4
+      shuffle: False
+      num_workers: 0
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
-      drop_last: True
+      drop_last: False
       context_key: 'input'
       label_key: 'output'
       add_eos: ${model.data.train_ds.add_eos}
@@ -128,17 +164,17 @@ model:
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
-    test_ds:
-      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+  test_ds:
+      file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
-      shuffle: True
+      shuffle: False
       num_workers: 4
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
-      drop_last: True
+      drop_last: False
       context_key: 'input'
       label_key: 'output'
       add_eos: ${model.data.train_ds.add_eos}
