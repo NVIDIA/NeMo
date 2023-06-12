@@ -25,6 +25,7 @@ from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
     clip_grad_norm_fp32,
@@ -83,6 +84,12 @@ class MegatronBaseModel(NLPModel):
 
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+
+        if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
+            raise ImportError(
+                "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
+                "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
+            )
 
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
@@ -205,9 +212,10 @@ class MegatronBaseModel(NLPModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
             model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
+            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
+            use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=legacy,
         )
@@ -240,14 +248,16 @@ class MegatronBaseModel(NLPModel):
         )
         return after
 
-    def _get_parameters(self):
+    def get_parameters_with_grad(self):
         """
-        private method to load all the trainable parameters from optimizer param groups
+        Get all parameters with grad from optimizer param groups
         """
         params = []
         for param_group in self._optimizer_param_groups:
             for param in param_group['params']:
-                if param.requires_grad:  # (@adithyare) adapter training with pp>1 can result in params with no grads
+                if (
+                    param.grad is not None
+                ):  # (@adithyare) adapter training with pp>1 can result in params with no grads
                     params.append(param)
         return params
 
@@ -272,9 +282,9 @@ class MegatronBaseModel(NLPModel):
         else:
             if self.megatron_amp_o2:
                 # grep fp32 master parameters for gradient clipping
-                parameters = self._optimizer.get_parameters()
+                parameters = self._optimizer.get_parameters_with_grad()
             else:
-                parameters = self._get_parameters()
+                parameters = self.get_parameters_with_grad()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
@@ -479,10 +489,20 @@ class MegatronBaseModel(NLPModel):
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
-        consumed_samples = (
-            self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
-        )
+
+        if self.cfg.get('rampup_batch_size', None):
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'current_global_batch_size', 1)
+            consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
+        else:
+            consumed_samples = (
+                self.init_consumed_samples
+                + steps_since_resume
+                * app_state.data_parallel_size
+                * self.cfg.micro_batch_size
+                * get_num_microbatches()
+            )
         return int(consumed_samples)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
