@@ -374,8 +374,10 @@ class CodeSwitchedDataset(IterableDataset):
         if lang_probs is None:
             self.prob_dict = {l: 1.0 / len(self.langs) for l in self.langs}
         else:
-            assert len(self.langs) == len(lang_probs), "Size mismatch between languages and respective probs in CodeSwitchedDataset"
-            self.prob_dict = {l:lang_probs[l] for l in self.langs}
+            assert len(self.langs) == len(
+                lang_probs
+            ), "Size mismatch between languages and respective probs in CodeSwitchedDataset"
+            self.prob_dict = {l: lang_probs[l] for l in self.langs}
         self.lang_probs = np.array(list(self.prob_dict.values()))
         if sampling_scales is not None and not isinstance(sampling_scales, list):
             self.sampling_scales = {k: sampling_scales for k in self.langs}
