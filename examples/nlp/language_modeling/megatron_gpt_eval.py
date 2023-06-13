@@ -165,30 +165,29 @@ def remove_padded_prompts(response, nb_paddings):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
-
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
-        )
-
-        with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
-
-    assert (
-        cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
-
     if cfg.gpt_model_file:
+        if (
+                cfg.tensor_model_parallel_size < 0
+                or cfg.pipeline_model_parallel_size < 0
+                or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+        ):
+            model_config = MegatronGPTModel.restore_from(
+                restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+            )
+
+            with open_dict(cfg):
+                cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+                cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+                cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+
+        assert (
+                cfg.trainer.devices * cfg.trainer.num_nodes
+                == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
+
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.gpt_model_file):
             save_restore_connector.model_extracted_dir = cfg.gpt_model_file
