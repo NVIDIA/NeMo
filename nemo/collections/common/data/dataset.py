@@ -349,7 +349,7 @@ class CodeSwitchedDataset(IterableDataset):
         augmentor: Optional['AudioAugmentor'] = None,
     ):
         super().__init__()
-        
+
         if len(datasets) == 0:
             raise ValueError("CodeSwitchedDataset must receive a non-zero length datasets dict object")
 
@@ -411,10 +411,23 @@ class CodeSwitchedDataset(IterableDataset):
         # self.collate_fn = self.datasets[self.langs[0]].collate_fn
         if hasattr(self.datasets[self.langs[0]], 'collate_fn'):
             self.collate_fn = self.datasets[self.langs[0]].collate_fn
-        elif hasattr(self.datasets[self.langs[0]], 'datasets') and isinstance(self.datasets[self.langs[0]].datasets, list) and len(self.datasets[self.langs[0]].datasets) > 0 and hasattr(self.datasets[self.langs[0]].datasets[0], 'collate_fn'):
+        elif (
+            hasattr(self.datasets[self.langs[0]], 'datasets')
+            and isinstance(self.datasets[self.langs[0]].datasets, list)
+            and len(self.datasets[self.langs[0]].datasets) > 0
+            and hasattr(self.datasets[self.langs[0]].datasets[0], 'collate_fn')
+        ):
             # support datasets that are lists of entries
             self.collate_fn = self.datasets[self.langs[0]].datasets[0].collate_fn
-        elif hasattr(self.datasets[self.langs[0]], 'datasets') and isinstance(self.datasets[self.langs[0]].datasets, list) and len(self.datasets[self.langs[0]].datasets) > 0 and hasattr(self.datasets[self.langs[0]].datasets[0], 'datasets') and isinstance(self.datasets[self.langs[0]].datasets[0].datasets, list) and len(self.datasets[self.langs[0]].datasets[0].datasets) > 0 and hasattr(self.datasets[self.langs[0]].datasets[0].datasets[0], 'collate_fn'):
+        elif (
+            hasattr(self.datasets[self.langs[0]], 'datasets')
+            and isinstance(self.datasets[self.langs[0]].datasets, list)
+            and len(self.datasets[self.langs[0]].datasets) > 0
+            and hasattr(self.datasets[self.langs[0]].datasets[0], 'datasets')
+            and isinstance(self.datasets[self.langs[0]].datasets[0].datasets, list)
+            and len(self.datasets[self.langs[0]].datasets[0].datasets) > 0
+            and hasattr(self.datasets[self.langs[0]].datasets[0].datasets[0], 'collate_fn')
+        ):
             # support datasets that are lists of lists
             self.collate_fn = self.datasets[self.langs[0]].datasets[0].datasets[0].collate_fn
         else:

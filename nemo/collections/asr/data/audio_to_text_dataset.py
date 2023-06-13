@@ -425,12 +425,12 @@ def get_code_switched_dataset(
         manifest_filepaths = config['manifest_filepath'][0]
     if tarred_audio_filepaths is None:
         tarred_audio_filepaths = [None] * len(manifest_filepaths)
-    
+
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
             f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of items."
         )
-    
+
     datasets = {}
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
@@ -459,10 +459,12 @@ def get_code_switched_dataset(
 
     config = OmegaConf.to_container(config)
 
-    if('probs' in cs_config and 
-        cs_config['probs'] is not None and 
-        len(cs_config['probs']) == len(cs_config['languages'])):
-        cs_probs_dict = {l:cs_config['probs'][i] for i,l in enumerate(cs_config['languages'])}
+    if (
+        'probs' in cs_config
+        and cs_config['probs'] is not None
+        and len(cs_config['probs']) == len(cs_config['languages'])
+    ):
+        cs_probs_dict = {l: cs_config['probs'][i] for i, l in enumerate(cs_config['languages'])}
     else:
         cs_probs_dict = None
 
@@ -645,9 +647,15 @@ def get_audio_to_text_char_dataset_from_config(
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         if not ('code_switched' in config and config['code_switched'] is not None):
-            logging.warning(f"Code switched dataset requires `*_ds.code_switched.*` dict but it was not provided. Config: {config}")
+            logging.warning(
+                f"Code switched dataset requires `*_ds.code_switched.*` dict but it was not provided. Config: {config}"
+            )
             return None
-        if ('probs' in config['code_switched']) and (config['code_switched']['probs'] is not None) and (not isclose(sum(config['code_switched']['probs']), 1, abs_tol=1e-6)):
+        if (
+            ('probs' in config['code_switched'])
+            and (config['code_switched']['probs'] is not None)
+            and (not isclose(sum(config['code_switched']['probs']), 1, abs_tol=1e-6))
+        ):
             logging.warning(f"`.code_switched.probs` need to sum to 1. Config: {config['code_switched']}")
             return None
 
@@ -765,9 +773,15 @@ def get_audio_to_text_bpe_dataset_from_config(
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         if not ('code_switched' in config and config['code_switched'] is not None):
-            logging.warning(f"Code switched dataset requires `*_ds.code_switched.*` dict but it was not provided. Config: {config}")
+            logging.warning(
+                f"Code switched dataset requires `*_ds.code_switched.*` dict but it was not provided. Config: {config}"
+            )
             return None
-        if ('probs' in config['code_switched']) and (config['code_switched']['probs'] is not None) and (not isclose(sum(config['code_switched']['probs']), 1, abs_tol=1e-6)):
+        if (
+            ('probs' in config['code_switched'])
+            and (config['code_switched']['probs'] is not None)
+            and (not isclose(sum(config['code_switched']['probs']), 1, abs_tol=1e-6))
+        ):
             logging.warning(f"`.code_switched.probs` need to sum to 1. Config: {config['code_switched']}")
             return None
 
