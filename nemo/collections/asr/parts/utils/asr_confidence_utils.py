@@ -367,8 +367,13 @@ class ConfidenceMixin(ABC):
         if self.preserve_frame_confidence is False:
             if self.cfg.strategy in ['greedy', 'greedy_batch']:
                 self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_measure_cfg = self.cfg.greedy.get(
+                confidence_measure_cfg = self.cfg.greedy.get(
                     'confidence_measure_cfg', self.cfg.greedy.get("confidence_method_cfg", None)
+                )
+                self.confidence_measure_cfg = (
+                    OmegaConf.structured(ConfidenceMeasureConfig())
+                    if confidence_measure_cfg is None
+                    else OmegaConf.structured(ConfidenceMeasureConfig(**confidence_measure_cfg))
                 )
 
     @abstractmethod

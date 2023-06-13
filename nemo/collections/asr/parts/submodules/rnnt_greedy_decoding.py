@@ -2204,6 +2204,13 @@ class GreedyRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_measure_cfg: Optional[ConfidenceMeasureConfig] = ConfidenceMeasureConfig()
+    confidence_method_cfg: str = "DEPRECATED"
+
+    def __post_init__(self):
+        if self.confidence_method_cfg != "DEPRECATED":
+            logging.warning(
+                "`confidence_method_cfg` is deprecated and will be ignored. Please use `confidence_measure_cfg` instead."
+            )
 
 
 @dataclass
@@ -2212,6 +2219,13 @@ class GreedyBatchedRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_measure_cfg: Optional[ConfidenceMeasureConfig] = ConfidenceMeasureConfig()
+    confidence_method_cfg: str = "DEPRECATED"
+
+    def __post_init__(self):
+        if self.confidence_method_cfg != "DEPRECATED":
+            logging.warning(
+                "`confidence_method_cfg` is deprecated and will be ignored. Please use `confidence_measure_cfg` instead."
+            )
 
 
 class GreedyTDTInfer(_GreedyRNNTInfer):
