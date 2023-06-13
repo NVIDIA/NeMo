@@ -171,9 +171,9 @@ def main(cfg) -> None:
 
     if cfg.gpt_model_file:
         if (
-                cfg.tensor_model_parallel_size < 0
-                or cfg.pipeline_model_parallel_size < 0
-                or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+            cfg.tensor_model_parallel_size < 0
+            or cfg.pipeline_model_parallel_size < 0
+            or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
         ):
             model_config = MegatronGPTModel.restore_from(
                 restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
@@ -185,8 +185,8 @@ def main(cfg) -> None:
                 cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
 
         assert (
-                cfg.trainer.devices * cfg.trainer.num_nodes
-                == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            cfg.trainer.devices * cfg.trainer.num_nodes
+            == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
         ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
         save_restore_connector = NLPSaveRestoreConnector()
