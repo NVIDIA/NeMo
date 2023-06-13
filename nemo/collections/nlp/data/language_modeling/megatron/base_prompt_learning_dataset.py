@@ -74,6 +74,7 @@ class BasePromptLearningDataset(Dataset):
     def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
         """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
         total_inserted_tokens = 0
+        # print(f"_insert_virtual_token_placeholders {input_example} {virtual_token_splits}")
 
         for idx in range(len(virtual_token_splits)):
             split_start = total_inserted_tokens
@@ -157,7 +158,7 @@ class BasePromptLearningDataset(Dataset):
 
         # Check if input example has fields not present in template
         keys_not_in_template = list(set(prompt_template_fields) - set(doc.keys()) - set(['taskname']))
-        print(f"keys_not_in_template {keys_not_in_template}")
+        # print(f"keys_not_in_template {keys_not_in_template}")
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."

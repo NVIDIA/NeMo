@@ -225,14 +225,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
             enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-            print(f"enc_input {enc_input.size()}")
-            print(f"dec_input {dec_input.size()}")
-            print(f"labels {labels.size()}")
-            print(f"loss_mask {loss_mask.size()}")
-            print(f"enc_mask {enc_mask.size()}")
-            print(f"dec_mask {dec_mask.size()}")
-            print(f"position_ids {position_ids.size()}")
-            print(f"taskname_ids {taskname_ids.size()}")
 
             output_tensor, encoder_input = model(
                 enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False

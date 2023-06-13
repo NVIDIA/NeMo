@@ -493,16 +493,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             decoder_self_attention_relative_position_bias,
             decoder_cross_attention_relative_position_bias,
         ) = (None, None, None)
-        print(f"self.share_token_embeddings {self.share_token_embeddings}")
-        print(f"self.share_decoder_tokens_head_embeddings {self.share_decoder_tokens_head_embeddings}")
-        print(f"enc_input_ids {enc_input_ids}")
-        print(f"enc_input {enc_input}")
-        print(f"dec_input_ids {dec_input_ids}")
-        print(f"labels {labels}")
-        print(f"token_type_ids {token_type_ids}")
-        print(f"enc_output {enc_output}")
-        print(f"enc_output_attn_mask {enc_output_attn_mask}")
-        print(f"output_enc_hidden_only {output_enc_hidden_only}")
 
         if enc_input is not None and enc_output is not None:
             raise ValueError(

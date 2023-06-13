@@ -81,8 +81,8 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/data/speech/LibriTTS2/LibriTTS/train_clean_100_normalized_speechlm.json"]
-    validation_ds: ["/data/speech/LibriTTS2/LibriTTS/dev_clean_normalized_speechlm.json"]
+    train_ds: ["/data/speech/LibriTTS2/LibriTTS/train_clean_100_normalized_speechlm_subset.json"]
+    validation_ds: ["/data/speech/LibriTTS2/LibriTTS/dev_clean_normalized_speechlm_subset.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
