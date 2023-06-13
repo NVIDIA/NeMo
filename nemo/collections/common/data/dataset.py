@@ -218,18 +218,18 @@ class ConcatDataset(IterableDataset):
 
         fl = fl1 + fl2 + pause_len
         fl = torch.tensor(fl, dtype=torch.long)
-        # get a blank sample
-        _blank = torch.zeros(pause_len, dtype=torch.float)
+
+        pause = torch.zeros(pause_len, dtype=torch.float)
         if f1 is not None:
-            f = torch.concat((f1, _blank, f2))
+            f = torch.concat((f1, pause, f2))
         else:
-            f = torch.concat((_blank, f2))
+            f = torch.concat((pause, f2))
         return f, fl
 
     def pull_sample(self, ind_gen):
         """
-        Return a sample as well the number of samples pulled
-        If the index generator ended, we return None, None
+        Return a sample, its sampling rate, as well the number of samples pulled
+        If the index generator ended, we return None, None, None
         If one of the dataset iterators ended, we return None, 0
         """
         _sample = None
