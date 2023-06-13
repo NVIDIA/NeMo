@@ -331,24 +331,27 @@ class CodeSwitchedDataset(IterableDataset):
         datasets: dict,
         lang_probs: Optional[dict] = None,
         shuffle: bool = True,
-        min_duration: int = 16,
+        min_duration: int = 4,
         max_duration: int = 20,
-        min_monolingual: float = 0.2,
+        min_monolingual: float = 0.3,
         db_norm: float = -25.0,
-        pause_start: int = 20,
-        pause_join: int = 80,
-        pause_end: int = 20,
+        pause_start: int = 0,
+        pause_join: int = 0,
+        pause_end: int = 0,
         sampling_scales: Optional[Union[float, List[float]]] = None,
         seed: Optional[int] = None,
         global_rank: int = 0,
         world_size: int = 1,
         pure_random: bool = False,
-        force_monochannel: bool = False,
+        force_monochannel: bool = True,
         infinity_mode: bool = False,
         sample_rate: int = 16000,
         augmentor: Optional['AudioAugmentor'] = None,
     ):
         super().__init__()
+        
+        if len(datasets) == 0:
+            raise ValueError("CodeSwitchedDataset must receive a non-zero length datasets dict object")
 
         self.datasets = datasets
         self.langs = list(datasets.keys())
@@ -408,13 +411,17 @@ class CodeSwitchedDataset(IterableDataset):
         # self.collate_fn = self.datasets[self.langs[0]].collate_fn
         if hasattr(self.datasets[self.langs[0]], 'collate_fn'):
             self.collate_fn = self.datasets[self.langs[0]].collate_fn
-        elif hasattr(self.datasets[self.langs[0]].datasets[0], 'collate_fn'):
+        elif hasattr(self.datasets[self.langs[0]], 'datasets') and isinstance(self.datasets[self.langs[0]].datasets, list) and len(self.datasets[self.langs[0]].datasets) > 0 and hasattr(self.datasets[self.langs[0]].datasets[0], 'collate_fn'):
             # support datasets that are lists of entries
             self.collate_fn = self.datasets[self.langs[0]].datasets[0].collate_fn
-        else:
+        elif hasattr(self.datasets[self.langs[0]], 'datasets') and isinstance(self.datasets[self.langs[0]].datasets, list) and len(self.datasets[self.langs[0]].datasets) > 0 and hasattr(self.datasets[self.langs[0]].datasets[0], 'datasets') and isinstance(self.datasets[self.langs[0]].datasets[0].datasets, list) and len(self.datasets[self.langs[0]].datasets[0].datasets) > 0 and hasattr(self.datasets[self.langs[0]].datasets[0].datasets[0], 'collate_fn'):
             # support datasets that are lists of lists
             self.collate_fn = self.datasets[self.langs[0]].datasets[0].datasets[0].collate_fn
+        else:
+            raise RuntimeError("CodeSwitchedDataset could not locate a valid dataset collate_fn to bind to")
 
+    # this method returns an iterator object for a given language ID
+    # it correctly handles whether the underlying dataset is IterableDataset or mappable
     def get_iterable_by_lang(self, lang):
         dataset = self.datasets[lang]
 
@@ -426,15 +433,26 @@ class CodeSwitchedDataset(IterableDataset):
                 np.random.shuffle(indices)
             return iter(indices)
 
+    # this method is the main function which builds and returns a composite, synthetic code-switched
+    # utterance on the fly. It automatically works with all of the class-based variables stored to create
+    # the synthetic utterance
     def build_single_CS_sample(self):
+        # get_sample_from_language returns a LongTensor for the transcripts so we create a LongTensor to hold
+        # all returned transcripts
         comp_text = torch.LongTensor([])
         created_sample_duration_sec = 0
         created_sample_langs = []
         created_sample_audios = []
 
+        # if min_monolingual fires, it means we will just return a single, original monolingual utterance
+        # from one of our languages based on that language's probability
         pure_mono = np.random.rand() <= self.min_monolingual
 
+        # we continue to add to the composite utterance until we hit the min_duration
         while created_sample_duration_sec < self.min_duration:
+            # we sample from only those languages which haven't already been sampled for this particular
+            # synthetic utterance, unless pure_random=True, in which case, you just sample with replacement
+            # every time
             if (self.pure_random and not pure_mono) or (
                 len(set(created_sample_langs)) == 0 or len(set(created_sample_langs)) == len(self.langs)
             ):
@@ -443,12 +461,15 @@ class CodeSwitchedDataset(IterableDataset):
             #    use this approach if you want synthetic utterances which are all monolingual
             #    lang_id = created_sample_langs[0]
             else:
+                # this code is for when we need to sample from only those languages which haven't been sampled
+                # yet for this utterance
                 p = np.array(list(map(self.prob_dict.get, list(self.langs_set - set(created_sample_langs)))))
                 p = p / p.sum()
                 lang_id = np.random.choice(list(self.langs_set - set(created_sample_langs)), p=p)
 
             audio, audio_len, labels, labels_len, *_ = self.get_sample_from_language(lang_id)
 
+            # in case you get an audio which is all silence we keep sampling
             if audio.count_nonzero().item() == 0:
                 continue
 
@@ -468,9 +489,11 @@ class CodeSwitchedDataset(IterableDataset):
             created_sample_audios.append(audio.cpu().numpy())
             comp_text = torch.cat([comp_text, labels], dim=0)
 
+            # we want a real, non-synth pure_mono sample so we break soon as we have one
             if pure_mono:
                 break
 
+        # check that all samples have the same number of channels
         sample_channels = list(set([s.ndim for s in created_sample_audios]))
         if len(sample_channels) > 1:
             raise RuntimeError(
@@ -479,6 +502,7 @@ class CodeSwitchedDataset(IterableDataset):
 
         multichannel = sample_channels[0] > 1
 
+        # we start with pause_start amount of silence (zero array) which needs the correct shape for multi/mono channel
         if multichannel:
             comp_audio = np.zeros(
                 shape=(int(self.pause_start * self.sample_rate / 1000.0), created_sample_audios[0].shape[-1]),
@@ -489,12 +513,17 @@ class CodeSwitchedDataset(IterableDataset):
                 shape=(int(self.pause_start * self.sample_rate / 1000.0),), dtype=created_sample_audios[0].dtype
             )
 
+        # iterate over all mono-lingual samples to build the final composite
         for idx, wav in enumerate(created_sample_audios):
             if not multichannel:
+                # this function only works if mono-channel
                 wav = np.trim_zeros(wav)
 
+            # normalise to provided DB level
             wav_norm = wav * (10.0 ** (self.db_norm / 20.0) / np.maximum(0.01, (wav ** 2).mean(axis=0) ** 0.5))
 
+            # this part appends the normed waveform to the existing waveform, and inserts pause_join amount of silence
+            # if necessary, otherwise just a straight append
             if idx < len(created_sample_audios) - 1:
                 if multichannel:
                     wav_norm = np.append(
@@ -515,8 +544,10 @@ class CodeSwitchedDataset(IterableDataset):
                         axis=0,
                     )
 
+            # this is the penultimate composite wavform, just need to add pause_end silence
             comp_audio = np.append(comp_audio, wav_norm, axis=0)
 
+        # here we add the pause_end amount of silence, in correct channel shape
         if multichannel:
             comp_audio = np.append(
                 comp_audio,
@@ -533,6 +564,10 @@ class CodeSwitchedDataset(IterableDataset):
                 axis=0,
             )
 
+        # we only want augmentation to happen on the final, synthetic utterance, and not on any of the individual
+        # languages, which is why we set augmentor=None when building the individual language datasets in audio_to_text_dataset.get_code_switched_dataset
+        # here we now apply augmentation to the final, synthetic utterance only
+        # all of this logic here happens in-memory, nothing is written to disk
         if self.augmentor is not None:
             # import here to avoid circular import error
             from nemo.collections.asr.parts.preprocessing import AudioSegment
@@ -551,6 +586,8 @@ class CodeSwitchedDataset(IterableDataset):
             torch.tensor(len(comp_text), device=labels_len.device).long(),
         )
 
+    # this is a helper method which prepares all of the iterator objects for all languages
+    # based on whether that language's underlying dataset is a map or an IterableDataset
     def prep_underlying_datasets(self):
         worker_info = pt_data.get_worker_info()
         if worker_info is None:
@@ -575,6 +612,10 @@ class CodeSwitchedDataset(IterableDataset):
 
         return max_elements
 
+    # returns a sample (audio and transcript) from any underlying language stored by the class on instantiation
+    # the sample returned is a tensor for the audio and a tensor of ints for the transcript
+    # this method automatically handles StopIteration errors for the underyling language and rebuilds
+    # the iterator if necessary
     def get_sample_from_language(self, lang):
         while True:
             try:
@@ -586,6 +627,8 @@ class CodeSwitchedDataset(IterableDataset):
                 self.lang_iterables[lang] = self.get_iterable_by_lang(lang)
 
     def __iter__(self):
+        # we create primed iterators for all languages and return the grand total of samples for each
+        # underlying language as a sum
         max_elements = self.prep_underlying_datasets()
 
         if self.infinity_mode:

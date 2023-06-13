@@ -409,8 +409,15 @@ def get_code_switched_dataset(
     augmentor: Optional['AudioAugmentor'] = None,
 ) -> CodeSwitchedDataset:
 
-    tarred_audio_filepaths = config.get('tarred_audio_filepaths', None)
+    if 'manifest_filepath' not in config:
+        raise ValueError("`manifest_filepath` must be provided in the dataset config if `is_code_switched=True`")
+    if 'code_switched' not in config:
+        raise ValueError("`code_switched` param group must be in the dataset config if `is_code_switched=True`")
+
     manifest_filepaths = config['manifest_filepath']
+    tarred_audio_filepaths = config.get('tarred_audio_filepaths', None)
+
+    cs_config = OmegaConf.to_container(config['code_switched'])
 
     # needed to support validation Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
@@ -418,11 +425,17 @@ def get_code_switched_dataset(
         manifest_filepaths = config['manifest_filepath'][0]
     if tarred_audio_filepaths is None:
         tarred_audio_filepaths = [None] * len(manifest_filepaths)
+    
+    if len(manifest_filepaths) != len(tarred_audio_filepaths):
+        raise ValueError(
+            f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of items."
+        )
+    
     datasets = {}
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
     ):
-        lang = config['code_switch_languages'][dataset_idx]
+        lang = cs_config['languages'][dataset_idx]
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         with open_dict(conf):
@@ -446,35 +459,31 @@ def get_code_switched_dataset(
 
     config = OmegaConf.to_container(config)
 
-    if (
-        'code_switch_probabilities' in config
-        and config['code_switch_probabilities'] is not None
-        and len(config['code_switch_probabilities']) == len(config['code_switch_languages'])
-    ):
-        cs_probs_dict = {
-            l: config['code_switch_probabilities'][i] for i, l in enumerate(config['code_switch_languages'])
-        }
+    if('probs' in cs_config and 
+        cs_config['probs'] is not None and 
+        len(cs_config['probs']) == len(cs_config['languages'])):
+        cs_probs_dict = {l:cs_config['probs'][i] for i,l in enumerate(cs_config['languages'])}
     else:
         cs_probs_dict = None
 
     dataset = CodeSwitchedDataset(
         datasets,
-        shuffle=config.get('code_switch_shuffle', True),
-        min_duration=config.get('code_switch_min_duration', 16),
-        max_duration=config.get('code_switch_max_duration', 20),
-        min_monolingual=config.get('code_switch_min_monolingual', 0.2),
+        shuffle=cs_config.get('shuffle', True),
+        min_duration=cs_config.get('min_duration', 4),
+        max_duration=cs_config.get('max_duration', 20),
+        min_monolingual=cs_config.get('min_monolingual', 0.3),
         lang_probs=cs_probs_dict,
-        db_norm=config.get('code_switch_db_norm', -25.0),
-        pause_start=config.get('code_switch_pause_start', 20),
-        pause_join=config.get('code_switch_pause_join', 80),
-        pause_end=config.get('code_switch_pause_end', 20),
-        sampling_scales=config.get('code_switch_sampling_scales', None),
-        seed=config.get('code_switch_seed', None),
+        db_norm=cs_config.get('db_norm', -25.0),
+        pause_start=cs_config.get('pause_start', 0),
+        pause_join=cs_config.get('pause_join', 0),
+        pause_end=cs_config.get('pause_end', 0),
+        sampling_scales=cs_config.get('sampling_scales', None),
+        seed=cs_config.get('seed', None),
         global_rank=global_rank,
         world_size=world_size,
-        pure_random=config.get('code_switch_pure_random', False),
-        force_monochannel=config.get('code_switch_force_monochannel', False),
-        infinity_mode=config.get('code_switch_infinity_mode', False),
+        pure_random=cs_config.get('pure_random', False),
+        force_monochannel=cs_config.get('force_monochannel', True),
+        infinity_mode=cs_config.get('infinity_mode', False),
         sample_rate=config['sample_rate'],
         augmentor=augmentor,
     )
@@ -631,21 +640,15 @@ def get_audio_to_text_char_dataset_from_config(
         return dataset
 
     # Instantiate a code-switched dataset if config is present
-    if config.get('is_code_switch', False):
+    if config.get('is_code_switched', False):
         if 'manifest_filepath' in config and config['manifest_filepath'] is None:
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
-        if not 'code_switch_languages' in config:
-            logging.warning(
-                f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}"
-            )
+        if not ('code_switched' in config and config['code_switched'] is not None):
+            logging.warning(f"Code switched dataset requires `*_ds.code_switched.*` dict but it was not provided. Config: {config}")
             return None
-        if (
-            ('code_switch_probabilities' in config)
-            and (config['code_switch_probabilities'] is not None)
-            and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6))
-        ):
-            logging.warning(f"`code_switch_probabilities` need to sum to 1. Config: {config}")
+        if ('probs' in config['code_switched']) and (config['code_switched']['probs'] is not None) and (not isclose(sum(config['code_switched']['probs']), 1, abs_tol=1e-6)):
+            logging.warning(f"`.code_switched.probs` need to sum to 1. Config: {config['code_switched']}")
             return None
 
         shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
@@ -757,21 +760,15 @@ def get_audio_to_text_bpe_dataset_from_config(
         return dataset
 
     # Instantiate a code-switched dataset if config is present
-    if config.get('is_code_switch', False):
+    if config.get('is_code_switched', False):
         if 'manifest_filepath' in config and config['manifest_filepath'] is None:
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
-        if not 'code_switch_languages' in config:
-            logging.warning(
-                f"Code switched dataset requires `code_switch_languages` list but it was not provided. Config: {config}"
-            )
+        if not ('code_switched' in config and config['code_switched'] is not None):
+            logging.warning(f"Code switched dataset requires `*_ds.code_switched.*` dict but it was not provided. Config: {config}")
             return None
-        if (
-            ('code_switch_probabilities' in config)
-            and (config['code_switch_probabilities'] is not None)
-            and (not isclose(sum(config['code_switch_probabilities']), 1, abs_tol=1e-6))
-        ):
-            logging.warning(f"`code_switch_probabilities` need to sum to 1. Config: {config}")
+        if ('probs' in config['code_switched']) and (config['code_switched']['probs'] is not None) and (not isclose(sum(config['code_switched']['probs']), 1, abs_tol=1e-6)):
+            logging.warning(f"`.code_switched.probs` need to sum to 1. Config: {config['code_switched']}")
             return None
 
         shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
