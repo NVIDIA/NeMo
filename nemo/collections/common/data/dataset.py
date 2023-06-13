@@ -174,7 +174,7 @@ class ConcatDataset(IterableDataset):
 
         _f = None
         _fl = 0
-        _fl_secs = 0 # total audio length in sec
+        _fl_secs = 0  # total audio length in sec
         _t = None
         _tl = 0
         _num_concatenated_samples = 0
@@ -246,7 +246,7 @@ class ConcatDataset(IterableDataset):
                 if self.kind == 'map':
                     _sample = self.datasets[ind][_sample]
 
-                if self.concat_samples: 
+                if self.concat_samples:
                     _sample_rate = self.datasets[ind].featurizer.sample_rate
 
             except StopIteration:
