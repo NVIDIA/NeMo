@@ -36,6 +36,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLE
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
+import omegaconf
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -220,6 +221,10 @@ class MegatronBaseModel(NLPModel):
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=legacy,
         )
+
+        if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
+            tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
 
     def on_train_start(self) -> None:
         super().on_train_start()
