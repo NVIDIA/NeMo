@@ -597,7 +597,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             # rnnt + ctc loss is available in metrics as "val_final_loss" now
             tensorboard_logs['val_loss'] = loss_value
         tensorboard_logs.update(additional_logs)
-
+        self.validation_step_outputs.append(tensorboard_logs)
         # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
@@ -607,6 +607,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
+        self.test_step_outputs.append(test_logs)
         return test_logs
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):

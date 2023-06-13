@@ -106,7 +106,8 @@ class ExampleModel(ModelPT):
         return output
 
     def validation_step(self, batch, batch_idx):
-        return self(batch)
+        self.loss = self(batch)
+        return self.loss
 
     def training_step(self, batch, batch_idx):
         return self(batch)
@@ -124,8 +125,8 @@ class ExampleModel(ModelPT):
     def setup_validation_data(self):
         pass
 
-    def on_validation_epoch_end(self, loss):
-        self.log("val_loss", torch.stack(loss).mean())
+    def on_validation_epoch_end(self):
+        self.log("val_loss", torch.stack([self.loss]).mean())
 
 
 class DoNothingModel(ExampleModel):
@@ -599,8 +600,8 @@ class TestExpManager:
         trainer = pl.Trainer(
             accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1, val_check_interval=0.33
         )
-        loop = CustomLoop()
-        loop.trainer = trainer
+        ## _TrainingEpochLoop in PTL 2.0 takes trainer as an arg
+        loop = CustomLoop(trainer)
         trainer.fit_loop.epoch_loop = loop
         with pytest.warns(UserWarning, match="Detected custom epoch loop"):
             exp_manager(trainer, {"explicit_log_dir": str(tmp_path)})

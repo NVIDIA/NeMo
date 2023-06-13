@@ -85,7 +85,8 @@ class ExampleModel(ModelPT):
         return self(batch)
 
     def validation_step(self, batch, batch_idx):
-        return self(batch)
+        self.loss = self(batch)
+        return self.loss
 
     def test_step(self, batch, batch_idx):
         return self(batch)
@@ -105,8 +106,8 @@ class ExampleModel(ModelPT):
     def setup_test_data(self, val_data_config: Union[DictConfig, Dict]):
         pass
 
-    def on_validation_epoch_end(self, loss: torch.tensor = [torch.tensor([0.0])]):
-        self.log("val_loss", torch.stack(loss).mean())
+    def on_validation_epoch_end(self):
+        self.log("val_loss", torch.stack([self.loss]).mean())
 
 
 class TestEMAConfig:

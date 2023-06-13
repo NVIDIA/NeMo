@@ -60,7 +60,8 @@ class ExampleModel(ModelPT):
         return (self.l1(batch) - batch.mean(dim=1)).mean()
 
     def validation_step(self, batch, batch_idx):
-        return (self.l1(batch) - batch.mean(dim=1)).mean()
+        self.loss = (self.l1(batch) - batch.mean(dim=1)).mean()
+        return self.loss
 
     def training_step(self, batch, batch_idx):
         return (self.l1(batch) - batch.mean(dim=1)).mean()
@@ -74,10 +75,10 @@ class ExampleModel(ModelPT):
     def setup_validation_data(self):
         pass
 
-    def on_validation_epoch_end(self, loss):
-        if not loss:
+    def on_validation_epoch_end(self):
+        if not self.loss:
             return
-        self.log("val_loss", torch.stack(loss).mean(), sync_dist=True)
+        self.log("val_loss", torch.stack([self.loss]).mean(), sync_dist=True)
 
 
 class TestStatelessTimer:

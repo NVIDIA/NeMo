@@ -122,6 +122,10 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
+        #TODO: Add a list for validation_step_outputs and test_step_outputs to support multiple dataloaders 
+        # by retrieving if there are more than 1 dataloaders from trainer ??
+        self.validation_step_outputs = []
+        self.test_step_outputs = []
         self.set_trainer(trainer)
 
         self._save_restore_connector = SaveRestoreConnector()
@@ -850,11 +854,7 @@ class ModelPT(LightningModule, Model):
             return self._test_dl
 
     #TODO: Confirm if outputs default vals are required
-    def on_validation_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]] = [{'val_loss':torch.tensor(0.), 'val_wer_num':torch.tensor(0.), 'val_wer_denom':torch.tensor(0.),
-                                    'val_final_loss': torch.tensor(0.), 'val_inter_ctc_loss_l2': torch.tensor(0.), 'val_inter_ctc_loss_l4': torch.tensor(0.), 'val_inter_wer_l2': torch.tensor(0.)}]
-        #[[torch.tensor(0)], [torch.tensor(0)]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+    def on_validation_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
         Default DataLoader for Validation set which automatically supports multiple data loaders
         via `multi_validation_epoch_end`.
@@ -876,23 +876,24 @@ class ModelPT(LightningModule, Model):
             along with merged logs from all data loaders.
         """
         # Case where we dont provide data loaders
-        if outputs is not None and len(outputs) == 0:
+        if self.validation_step_outputs is not None and len(self.validation_step_outputs) == 0:
             return {}
 
         # Case where we provide exactly 1 data loader
-        if type(outputs[0]) == dict:
-            output_dict = self.multi_validation_epoch_end(outputs, dataloader_idx=0)
+        if type(self.validation_step_outputs[0]) == dict:
+            output_dict = self.multi_validation_epoch_end(self.validation_step_outputs, dataloader_idx=0)
 
             if output_dict is not None and 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
+            self.validation_step_outputs.clear() # free memory
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
-            for dataloader_idx, val_outputs in enumerate(outputs):
+            for dataloader_idx, val_outputs in enumerate(self.validation_step_outputs):
                 # Get prefix and dispatch call to multi epoch end
                 dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
                 dataloader_logs = self.multi_validation_epoch_end(val_outputs, dataloader_idx=dataloader_idx)
@@ -944,12 +945,11 @@ class ModelPT(LightningModule, Model):
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
+            self.validation_step_outputs.clear() # free memory
             # return everything else
             return output_dict
 
-    def on_test_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+    def on_test_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
         Default DataLoader for Test set which automatically supports multiple data loaders
         via `multi_test_epoch_end`.
@@ -971,23 +971,24 @@ class ModelPT(LightningModule, Model):
             along with merged logs from all data loaders.
         """
         # Case where we dont provide data loaders
-        if outputs is not None and len(outputs) == 0:
+        if self.test_step_outputs is not None and len(self.test_step_outputs) == 0:
             return {}
 
         # Case where we provide exactly 1 data loader
-        if type(outputs[0]) == dict:
-            output_dict = self.multi_test_epoch_end(outputs, dataloader_idx=0)
+        if type(self.test_step_outputs[0]) == dict:
+            output_dict = self.multi_test_epoch_end(self.test_step_outputs, dataloader_idx=0)
 
             if output_dict is not None and 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
+            self.test_step_outputs.clear() # free memory
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
-            for dataloader_idx, test_outputs in enumerate(outputs):
+            for dataloader_idx, test_outputs in enumerate(self.test_step_outputs):
                 # Get prefix and dispatch call to multi epoch end
                 dataloader_prefix = self.get_test_dataloader_prefix(dataloader_idx)
                 dataloader_logs = self.multi_test_epoch_end(test_outputs, dataloader_idx=dataloader_idx)
@@ -1037,6 +1038,7 @@ class ModelPT(LightningModule, Model):
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
+            self.test_step_outputs.clear() # free memory
             # return everything else
             return output_dict
 

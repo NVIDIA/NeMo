@@ -598,7 +598,8 @@ def check_resume(
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer._checkpoint_connector._ckpt_path = str(checkpoint)
+    #PTL 2.0 supports ckpt_path instead of resume_from_checkpoint as the trainer flag
+    trainer.ckpt_path = str(checkpoint)
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
