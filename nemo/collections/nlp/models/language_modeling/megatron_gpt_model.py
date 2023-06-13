@@ -439,7 +439,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        tensor_shape = [self.cfg.encoder_seq_length // self.cfg.get('sequence_parallel_size', 1), self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -736,7 +736,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # return DataIteratorList(iters)
 
     def get_batch_on_this_sequence_parallel_rank(self, batch):
-        sequence_parallel_size = parallel_state.get_sequence_parallel_world_size()
+        sequence_parallel_size = self.cfg.get('sequence_parallel_size', 1)
         if sequence_parallel_size > 1:
             sequence_parallel_rank = parallel_state.get_sequence_parallel_rank()
             for key, val in batch.items():
