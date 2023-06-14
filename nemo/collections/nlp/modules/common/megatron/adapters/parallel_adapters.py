@@ -328,7 +328,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:
-            output_embeds = self.get_inference_table().unsqueeze(0)
+            output_embeds = self.get_inference_table().unsqueeze(1)
         else:
             if self.training:
                 if self.inference_table.is_inference_ready:
