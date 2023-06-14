@@ -22,7 +22,6 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5PromptLearningDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -145,12 +144,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                     enc_input=encoder_input,
                 )
 
-        print(f"output {output}")
-        print(f"output.size() {output.size()}")
-        print("===============")
-        print(f"encoder_input {encoder_input}")
-        print(f"encoder_input.size() {encoder_input.size()}")
-
         return output, encoder_input
 
     def load_frozen_model(self, cfg, trainer):
@@ -178,7 +171,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-        print(f"self.frozen_model {self.frozen_model}")
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
@@ -417,7 +409,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
-        # dataset = T5SpeechLMDataset(
         dataset = T5PromptLearningDataset(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,

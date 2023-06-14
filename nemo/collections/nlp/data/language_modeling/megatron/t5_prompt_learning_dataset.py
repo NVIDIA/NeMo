@@ -54,8 +54,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         self.add_eos_to_decoder_output = add_eos_to_decoder_output
         self.add_sentinel_to_input = add_sentinel_to_input
         self.ul2_prompt_token = ul2_prompt_token
-        print(f"task_templates {task_templates}")
-        print(f"max_seq_length {max_seq_length}")
         super().__init__(
             datasets=datasets,
             tokenizer=tokenizer,
@@ -89,8 +87,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 doc = json_line
             else:
                 doc = json.loads(json_line)
-            print(f"doc: {doc}")
-            print("================")
 
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
@@ -114,13 +110,10 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
 
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc, answer_field)
-            print(f"_insert_text_in_template input_example {input_example}")
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
-            print(f"_insert_virtual_token_placeholders input_example {input_example}")
 
             # a trick to align with the data format in t5 pretraining
             input_ids = self.tokenizer.text_to_ids(input_example)
-            print(f"input_ids {input_ids}")
             if self.add_sentinel_to_input:
                 input_ids = input_ids + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
 
@@ -172,9 +165,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 if answer_field in doc.keys():  # training and validation
                     dec_input = answer_text_ids[:-1]
                     dec_labels = answer_text_ids[1:]
-                print(f"input_ids {input_ids}")
-                print(f"dec_input {dec_input}")
-                print(f"dec_labels {dec_labels}")
 
                 self.examples.append((taskname_id, input_ids, dec_input, dec_labels))
             else:
