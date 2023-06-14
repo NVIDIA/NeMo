@@ -27,8 +27,8 @@ from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_const, init_method_normal
-from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.collections.nlp.modules.common.prompt_encoder import InferenceTable
+from nemo.core.classes.mixins import adapter_mixin_strategies
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -66,9 +66,7 @@ class AdapterName(str, enum.Enum):
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(
-        self, in_features: int,
-    ) -> None:
+    def __init__(self, in_features: int,) -> None:
         super().__init__()
         self.scalers = nn.Parameter(torch.ones(in_features))
         # Setup adapter strategy
@@ -248,12 +246,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
 
     def __init__(
-        self,
-        virtual_tokens: int,
-        bottleneck_dim: int,
-        embedding_dim: int,
-        init_std: float,
-        output_dim: int,
+        self, virtual_tokens: int, bottleneck_dim: int, embedding_dim: int, init_std: float, output_dim: int,
     ):
         """
         Initializes the Tensor Model parallel MLP PromptEncoderMLP module.
@@ -313,7 +306,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
     def get_inference_table(self,):
         return self.inference_table.get_prompt_table()
-    
+
     def _forward(self,):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
@@ -322,7 +315,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         output_embeds = output_embeds + bias_parallel
         output_embeds = output_embeds.transpose(0, 1)
         return output_embeds
-    
+
     def forward(self, batch_size: int, use_cached_reps: bool = False) -> torch.Tensor:
         """ 
         Forward pass through the encoder with caching of prompt representations
@@ -342,7 +335,6 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
         output_embeds = output_embeds.expand(self.virtual_tokens, batch_size, self.output_dim)
         return output_embeds
-
 
 
 @dataclass
