@@ -37,6 +37,12 @@ class ConcatDataset(IterableDataset):
             Defaults to 5.
         sampling_scale: Gives you the ability to upsample / downsample the dataset. Defaults to 1.
         sampling_probabilities (list): Probability values for sampling. Only used when sampling_technique = 'random'.
+        concat_samples: toggles concatenation of samples. Defaults to False.
+        concat_samples_count_as_one: should the concatenated samples count as one sample or actual num. defeaults to True.
+        concat_samples_max_length: max audio length of concatenated samples in s.
+        concat_samples_min_length: min audio length of concatenated samples in s.
+        concat_samples_joining_pause: joining pause in s.
+        concat_samples_normalize_db: if not None, normalize the audio signal to a target RMS value (e.g. -20)
         seed: Optional value to seed the numpy RNG.
         global_rank (int): Worker rank, used for partitioning map style datasets. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning map style datasets. Defaults to 1.
@@ -55,6 +61,7 @@ class ConcatDataset(IterableDataset):
         concat_samples_max_length=20,
         concat_samples_min_length=16,
         concat_samples_joining_pause=0.1,
+        concat_samples_normalize_db=None,
         seed: Optional[int] = None,
         global_rank: int = 0,
         world_size: int = 1,
@@ -75,6 +82,7 @@ class ConcatDataset(IterableDataset):
         self.concat_samples_min_length = concat_samples_min_length
         self.concat_samples_max_length = concat_samples_max_length
         self.concat_samples_joining_pause = concat_samples_joining_pause
+        self.concat_samples_normalize_db= concat_samples_normalize_db
 
         if sampling_technique == 'temperature':
             self.index_generator = ConcatDataset.temperature_generator
@@ -191,6 +199,15 @@ class ConcatDataset(IterableDataset):
                     fr = self.samples_retried / self.samples_pulled
                     logging.info(f'concat samples retried: {fr:.2f} out of pulled: {self.samples_pulled}')
                 continue
+
+            if self.concat_samples_normalize_db is not None:
+                mean_square = max(np.mean(f ** 2, axis=0))
+
+                mean_square = np.where(np.isclose(mean_square, 0), 0.0001, mean_square)
+
+                rms_db = 10 * np.log10(mean_square)
+                gain = self.concat_samples_normalize_db - rms_db
+                f *= 10.0 ** (gain / 20.0)
 
             pause_len = int(self.concat_samples_joining_pause * sample_rate)
             _f, _fl = self.concat_with_pause(_f, _fl, f, fl, pause_len)
