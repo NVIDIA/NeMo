@@ -40,7 +40,7 @@ __all__ = ['T5SpeechLMDataset']
 
 class T5SpeechLMDataset(BasePromptLearningDataset):
     """
-    The dataset class for prompt-tuning or p-tuning pretrained T5 models.
+    The dataset class for prompt-tuning or p-tuning pretrained T5 SpeechLM models.
     """
 
     def __init__(
@@ -73,6 +73,20 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         speech_offset: Optional[int] = None,
         **kwargs,
     ):
+        """
+        Only speech parameters are explained here.
+        segment_max_duration: Optional[int] = None, - Speech max segment duration
+        trim: bool = False, - speech parameter
+        trim_ref: Optional[float] = None, - speech parameter
+        trim_top_db: Optional[int] = None, - speech parameter
+        trim_frame_length: Optional[int] = None, - speech parameter
+        trim_hop_length: Optional[int] = None, - speech parameter
+        pad_multiple: int = 1, - speech parameter
+        pitch_augment: bool = False, - speech parameter
+        sup_data_path: Optional[Union[Path, str]] = None, - Supplementary folder path where codecs are stored.
+        speech_offset: Optional[int] = None, - if speech tokens then add this offset to the token indices to distinguish between text and speech tokens.
+        **kwargs,
+        """
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
         self.decoder_starts_with_pad = decoder_starts_with_pad
         self.add_eos_to_decoder_output = add_eos_to_decoder_output
@@ -134,6 +148,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         """
         copy_dataset = list(dataset)
         audio_filelist = []
+        # This loop is needed to calculate self.base_data_dir.
         for json_line in copy_dataset:
             if type(json_line) == dict:
                 doc = json_line
@@ -182,9 +197,11 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             )
 
             # Format the input example according to the template
+            # Get context, question and answer codes in a dict.
             input_dict = self._insert_data_in_template(input_example, prompt_template_fields, doc, answer_field)
             context_tokens = input_dict['context']
             question_tokens = input_dict['question']
+            # Get virtual tokens
             virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
@@ -247,8 +264,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 virtual_tokens, virtual_tokens_len = self.list_to_tensor(virtual_tokens)
                 context_tokens, context_tokens_len = self.list_to_tensor(context_tokens)
                 question_tokens, question_tokens_len = self.list_to_tensor(question_tokens)
-                dec_input, dec_input_len = self.list_to_tensor(dec_input)
-                dec_labels, dec_labels_len = self.list_to_tensor(dec_labels)
+                dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
+                dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
 
                 self.examples.append((
                     taskname_id, 
@@ -267,7 +284,14 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
-    def list_to_tensor(self, element):
+    def list_to_tensor(self, element, fill=False):
+        """
+        Convert list to tensor. The list might contain integers, 2D-tensors (speech tokens) and combination of two.
+        If all of them are ints, simply convert to tensor
+        If combination of 2D-tensor and ints. Convert int to the dimension of the tensor.
+        example: [2, 4, 5] -> torch.tensor([2, 4, 5])
+        example: [2, torch.tensor([[4, 5, 6], [6, 7, 8]])] -> torch.tensor( [[-1, 4, 5, 6], [2, 6, 7, 8]] )
+        """
         ret, ln = None, None
         if element is None:
             return ret, ln
@@ -280,7 +304,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             ret = []
             for e in element:
                 if isinstance(e, int):
-                    tmp = torch.full((8,1), -1)
+                    tmp = torch.full((8,1), e if fill else -1)
                     tmp[7] = e
                 else:
                     tmp = e

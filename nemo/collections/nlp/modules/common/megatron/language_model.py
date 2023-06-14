@@ -278,10 +278,6 @@ class Embedding(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             params_dtype=dtype,
         )
-        print("self.word_embeddings")
-        print(self.word_embeddings.weight)
-        print(self.word_embeddings.weight.size())
-        print("=======================")
         self._word_embeddings_key = 'word_embeddings'
 
         if self.position_embedding_type == 'learned_absolute':

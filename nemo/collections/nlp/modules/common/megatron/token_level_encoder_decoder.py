@@ -472,6 +472,19 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         else:
             raise Exception('Stage must have at least either encoder or decoder')
 
+    def get_decoder_embeddings(self, dec_input_ids, dec_position_ids, token_type_ids):
+        if dec_input_ids.dim() <= 2:
+            dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
+        else:
+            dec_input = None
+            for i in range(dec_input_ids.size()[1]):
+                current = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
+                if dec_input is None:
+                    dec_input = current
+                else:
+                    dec_input = dec_input + current
+        return dec_input
+
     def forward(
         self,
         enc_input_ids=None,
@@ -555,7 +568,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     dec_position_ids = build_position_ids(dec_input_ids)
                 else:
                     dec_position_ids = None
-                dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
+                dec_input = self.get_decoder_embeddings(dec_input_ids, dec_position_ids, token_type_ids)
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
@@ -607,7 +620,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         assert token_logits.dtype == torch.half
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()

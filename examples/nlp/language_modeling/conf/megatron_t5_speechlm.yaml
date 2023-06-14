@@ -48,13 +48,14 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 8 
-  micro_batch_size: 8 # micro batch size should equal global batch size when pipeline parallel = 1
+  global_batch_size: 4 
+  micro_batch_size: 4 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
   report_validation_metric: False
   validation_metric: accuracy
+  num_speech_tokens: 9000 # Vocabulary size pertaining to speech
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required

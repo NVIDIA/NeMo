@@ -49,7 +49,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -86,6 +86,28 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
+        
+        # Expanding existing text vocabulary with speech vocabulary
+        self.new_embeddings = tensor_parallel.VocabParallelEmbedding(
+            num_embeddings=self.word_embeddings.num_embeddings + cfg.num_speech_tokens, 
+            embedding_dim=self.word_embeddings.embedding_dim
+        )
+        new_weight = self.new_embeddings.weight.clone()
+        new_weight[:self.word_embeddings.num_embeddings, :] = self.word_embeddings.weight.clone()
+        new_weight = torch.nn.Parameter(new_weight)
+        self.new_embeddings.weight = new_weight
+        self.word_embeddings = self.new_embeddings
+        del self.new_embeddings
+        del new_weight
+        self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings = self.word_embeddings
+        self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings = self.word_embeddings
+        
+        # Expand the dimension of bias of tokens head
+        bias_size = self.frozen_model.enc_dec_model.tokens_head.bias.size()[0]
+        new_parameter = torch.nn.Parameter(torch.zeros(bias_size + cfg.num_speech_tokens))
+        new_parameter.data[:bias_size] = self.frozen_model.enc_dec_model.tokens_head.bias.data.clone()
+        self.frozen_model.enc_dec_model.tokens_head.bias = new_parameter
+        del new_parameter
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -344,8 +366,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids)
-            # input_embeds = self.embed_input(input_ids, taskname_ids, False)
+            input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids, inference)
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
