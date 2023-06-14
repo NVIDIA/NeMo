@@ -381,7 +381,7 @@ class MegatronBaseModel(NLPModel):
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
         if self.gc_interval > 0:
-            if (self.validation_global_step % self.gc_interval == 0):
+            if self.validation_global_step % self.gc_interval == 0:
                 gc.collect()
             self.validation_global_step += 1
 
