@@ -620,7 +620,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         assert token_logits.dtype == torch.half
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing) # TODO(sugh) Currently works to calculate loss of only one quantizer state, Make this work for 8 quantizer states.
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
