@@ -423,6 +423,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         """
         Args:
             path2audio_file: path to an audio wav file
+            max_duration: audio duration limit in seconds
 
         Returns:
             emb: speaker embeddings (Audio representations)
@@ -433,7 +434,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         if max_duration:
-            audio = audio[: 16000 * max_duration]
+            audio = audio[: target_sr * max_duration]
         audio_length = audio.shape[0]
         device = self.device
         audio = np.array([audio])
@@ -457,6 +458,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Returns label of path2audio_file from classes the model was trained on.
         Args:
             path2audio_file: path to audio wav file
+            duration_limit: audio duration limit in seconds
 
         Returns:
             label: label corresponding to the trained model
