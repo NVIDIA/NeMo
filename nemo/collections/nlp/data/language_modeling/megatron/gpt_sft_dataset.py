@@ -46,12 +46,22 @@ class GPTSFTDataset(Dataset):
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
+        segment_max_duration: Optional[int] = None,
+        trim: bool = False,
+        trim_ref: Optional[float] = None,
+        trim_top_db: Optional[int] = None,
+        trim_frame_length: Optional[int] = None,
+        trim_hop_length: Optional[int] = None,
+        pad_multiple: int = 1,
+        pitch_augment: bool = False,
+        sup_data_path: Optional[Union[Path, str]] = None,
+        speech_offset: Optional[int] = None,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
@@ -92,6 +102,35 @@ class GPTSFTDataset(Dataset):
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+        # Speech related variables
+        self.encodec_model = EncodecModel.encodec_model_24khz()
+        self.encodec_model.set_target_bandwidth(6.0)
+        self.base_data_dir = None
+        self.segment_max_duration = segment_max_duration
+        self.sample_rate = sample_rate
+        self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
+        self.pad_multiple = pad_multiple
+        self.pitch_augment = pitch_augment
+        self.trim = trim
+        self.trim_ref = trim_ref if trim_ref is not None else np.max
+        self.trim_top_db = trim_top_db if trim_top_db is not None else 60
+        self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
+        self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
+        self.speech_offset = speech_offset if speech_offset is not None else 3
+
+        # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
+        if sup_data_path is not None:
+            Path(sup_data_path).mkdir(parents=True, exist_ok=True)
+            self.sup_data_path = sup_data_path
+
+        self.codec_folder = kwargs.pop('codec_folder', None)
+        if self.codec_folder is None:
+            self.codec_folder = Path(self.sup_data_path) / "codec"
+        elif isinstance(self.codec_folder, str):
+            self.codec_folder = Path(self.codec_folder)
+
+        self.codec_folder.mkdir(exist_ok=True, parents=True)
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
 

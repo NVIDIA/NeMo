@@ -78,6 +78,25 @@ def post_language_model_processing(
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
 
+    # Could split into two vocabs
+    # Make the model decide between between predicting text and speech -> and going into different decoders
+
+    # Get a bunch of speech mask and text masks
+    # Always predict further speech tokens and just mask out text portions
+    # Inefficient for now but it works
+    # output is [token_size, b, h]
+    # speech_output is [token_size, b, h, speech_layers]
+    #jasoli: if output in 1k speech tokens, do further predictions
+    # if output is speech:
+    text_token_size = 256000
+    speech_mask = argmax(output) > text_token_size
+    speech_layers = 7
+    last_layer_output = output
+    output.extend(zeros(output.shape)*7)
+    for i in range(speech_layers):
+        last_layer_output = residual_module(last_layer_output, speech_mask, i)
+        output[::-1] = last_layer_output
+
     if get_key_value:
         output = [output, presents]
 
@@ -292,6 +311,7 @@ class GPTModel(MegatronModule):
             return post_language_model_processing(
                 lm_output,
                 labels,
+                #jasoli: self.language_model.output_layer.weight needs to be words+1k
                 self.language_model.output_layer.weight
                 if not self.share_embeddings_and_output_weights
                 else self.word_embeddings_weight(),

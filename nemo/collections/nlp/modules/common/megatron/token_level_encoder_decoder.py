@@ -390,9 +390,14 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
+                # Need to subtract 1024*7, the last 7 heads of encodec
                 self.tokens_head = MegatronTokenLevelHead(
-                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
+                    self.word_embeddings_weight().size(0)-1024*7, parallel_output, bias=tokens_head_bias
                 )
+                self.speech_tokens_head = MegatronTokenLevelHead(
+                    1024, parallel_output, bias=tokens_head_bias
+                )
+                self.speech_residual_model = SimplestModule(decoder_cfg.hidden_size)
             else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
@@ -604,7 +609,21 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_output, enc_output = output  # [s, b, h]
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
-                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
+                    # @jasoli: Will have to check that this is indexed properly
+                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:1024*7,:]) # s, b, vocab
+                    # @jasoli: We will have to define a speech_mask whether this is from the
+                    # datalayer or we infer it from model output as below
+                    text_token_size = 256000
+                    speech_mask = torch.nn.argmax(token_logits, dim=-1) > text_token_size
+                    speech_layers = 7
+                    last_layer_output = dec_output
+                    last_layer_logits = token_logits
+                    speech_logits = torch.nn.zeros([*token_logits.shape, speech_layers])
+                    for i in range(speech_layers):
+                        last_layer_output = self.speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
+                        # Need to check that the below line is correct
+                        last_layer_logits = self.speech_tokens_head(last_layer_output, self.word_embeddings_weight()[-1024*(7-i):-1024*(7-i),:])
+                        speech_logits[:,:,:,i] = last_layer_logits
                 else:
                     token_logits = self.tokens_head(dec_output)[0]
 
@@ -620,7 +639,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         assert token_logits.dtype == torch.half
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing) # TODO(sugh) Currently works to calculate loss of only one quantizer state, Make this work for 8 quantizer states.
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
+                        for i in range(speech_layers):
+                            # What is labels[:7, :, :] if this is text?
+                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float() * mask, labels[i, :, :], label_smoothing)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
@@ -666,3 +688,19 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+
+
+class SimplestModule(torch.nn.Module):
+    def __init__(self, dec_hid_size, kernel_size=15, dropout=0.5):
+        super().__init__()
+        self.conv = torch.nn.Conv1d(dec_hid_size+2, dec_hid_size, kernel_size=kernel_size, padding=(kernel_size // 2))
+        self.norm = torch.nn.LayerNorm(dec_hid_size)
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, dec_hidden, dec_logits, layer_i, mask):
+        out = torch.stack([dec_hidden, dec_logits, layer_i.unsqueeze(0).unsqueeze(0)], dim=-1) * mask
+        out = torch.nn.functional.relu(self.conv(signal))
+        out = self.norm(out.transpose(1, 2)).transpose(1, 2)
+        out = self.dropout(out) * mask
+
+        return out
