@@ -82,7 +82,7 @@ class ConcatDataset(IterableDataset):
         self.concat_samples_min_length = concat_samples_min_length
         self.concat_samples_max_length = concat_samples_max_length
         self.concat_samples_joining_pause = concat_samples_joining_pause
-        self.concat_samples_normalize_db= concat_samples_normalize_db
+        self.concat_samples_normalize_db = concat_samples_normalize_db
 
         if sampling_technique == 'temperature':
             self.index_generator = ConcatDataset.temperature_generator
