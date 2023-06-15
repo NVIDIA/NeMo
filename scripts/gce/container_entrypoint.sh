@@ -14,8 +14,8 @@ set -o pipefail
 gcsfuse --max-conns-per-host 65535 "$GCS_BUCKET" /gcs
 
 export MASTER_PORT=6002
-GPUS_PER_NODE=8
 NNODES=$(yq -r ".trainer.num_nodes" "${EXPERIMENT_ROOT_DIR}/config/${CONFIG_FILE}")
+GPUS_PER_NODE=$(yq -r ".trainer.devices" "${EXPERIMENT_ROOT_DIR}/config/${CONFIG_FILE}")
 export WORLD_SIZE=$((NNODES * GPUS_PER_NODE))
 
 cat ${EXPERIMENT_ROOT_DIR}/config/${CONFIG_FILE}
