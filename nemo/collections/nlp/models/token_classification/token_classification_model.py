@@ -144,15 +144,15 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        self.validation_outputs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-        return self.validation_outputs
+        self.validation_step_outputs.append({'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp})
+        return self.validation_step_outputs
 
     def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in self.validation_outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
@@ -177,11 +177,11 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        self.test_outputs = {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-        return self.test_outputs
+        self.test_step_outputs.append({'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp})
+        return self.test_step_outputs
 
     def on_test_epoch_end(self):
-        avg_loss = torch.stack([x['test_loss'] for x in self.test_outputs]).mean()
+        avg_loss = torch.stack([x['test_loss'] for x in self.test_step_outputs]).mean()
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
         logging.info(report)
