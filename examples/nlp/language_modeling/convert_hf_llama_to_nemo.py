@@ -156,7 +156,7 @@ def load_config(llama_config):
     nemo_config['cfg']['ffn_dropout']             = 0.0
     nemo_config['cfg']['bias_dropout_add_fusion'] = False
     nemo_config['cfg']['bias_activation_fusion']  = False
-    nemo_config['cfg']['use_cpu_initialization']  = True
+    nemo_config['cfg']['use_cpu_initialization']  = False
     nemo_config['cfg']['share_embeddings_and_output_weights'] = False
     nemo_config['cfg']['make_vocab_size_divisible_by'] = 128
     nemo_config['cfg']['activation']              = 'swiglu'
