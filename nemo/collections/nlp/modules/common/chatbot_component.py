@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from gradio.components import *
 from markdown2 import Markdown
+from enum import Enum
 
 
 class _Keywords(Enum):
