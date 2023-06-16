@@ -19,8 +19,6 @@ Fix a markdown render problem.
 """
 from __future__ import annotations
 
-from enum import Enum
-
 from gradio.components import *
 from markdown2 import Markdown
 
