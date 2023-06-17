@@ -741,8 +741,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             sequence_parallel_rank = parallel_state.get_sequence_parallel_rank()
             for key, val in batch.items():
                 if val is not None:
-                    val = val.view(val.shape[0], 2*sequence_parallel_size, val.shape[1]//(2*sequence_parallel_size), *val.shape[2:])
-                    val = torch.cat([val[:, sequence_parallel_rank, ...], val[:, (2*sequence_parallel_size - sequence_parallel_rank - 1), ...]], dim=1)
+                    if key == 'attention_mask':
+                        val = val.view(val.shape[0:2], 2*sequence_parallel_size, val.shape[2]//(2*sequence_parallel_size), *val.shape[3:])
+                        val = torch.cat([val[:, :, sequence_parallel_rank, ...], val[:, :, (2*sequence_parallel_size - sequence_parallel_rank - 1), ...]], dim=2)
+                    else:
+                        val = val.view(val.shape[0], 2*sequence_parallel_size, val.shape[1]//(2*sequence_parallel_size), *val.shape[2:])
+                        val = torch.cat([val[:, sequence_parallel_rank, ...], val[:, (2*sequence_parallel_size - sequence_parallel_rank - 1), ...]], dim=1)
                     batch[key] = val
 
         return batch
