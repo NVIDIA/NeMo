@@ -736,17 +736,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # return DataIteratorList(iters)
 
     def get_batch_on_this_sequence_parallel_rank(self, batch):
-        sequence_parallel_size = self.cfg.get('sequence_parallel_size', 1)
-        if sequence_parallel_size > 1:
-            sequence_parallel_rank = parallel_state.get_sequence_parallel_rank()
+        sp_size = self.cfg.get('sequence_parallel_size', 1)
+        if sp_size > 1:
+            sp_rank = parallel_state.get_sequence_parallel_rank()
             for key, val in batch.items():
                 if val is not None:
-                    if key == 'attention_mask':
-                        val = val.view(val.shape[0:2], 2*sequence_parallel_size, val.shape[2]//(2*sequence_parallel_size), *val.shape[3:])
-                        val = torch.cat([val[:, :, sequence_parallel_rank, ...], val[:, :, (2*sequence_parallel_size - sequence_parallel_rank - 1), ...]], dim=2)
-                    else:
-                        val = val.view(val.shape[0], 2*sequence_parallel_size, val.shape[1]//(2*sequence_parallel_size), *val.shape[2:])
-                        val = torch.cat([val[:, sequence_parallel_rank, ...], val[:, (2*sequence_parallel_size - sequence_parallel_rank - 1), ...]], dim=1)
+                    seq_dim = 1 if key != 'attnetion_mask' else 2
+                    val = val.view(*val.shape[0:seq_dim], 2*sp_size, val.shape[seq_dim]//(2*sp_size), *val.shape[(seq_dim+1):])
+                    index = torch.tensor([sp_rank, (2*sp_size-sp_rank-1)], device=val.device)
+                    val = val.index_select(seq_dim, index)
+                    val = val.view(*val.shape[0:seq_dim], len(index)*val.shape[seq_dim+1], *val.shape[(seq_dim+2):])
                     batch[key] = val
 
         return batch
