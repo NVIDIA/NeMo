@@ -59,6 +59,11 @@ jobs:
     
     steps:
     - uses: actions/checkout@v2
+    - name: Download wheel file
+        uses: actions/download-artifact@v2
+        with:
+          name: nemo-wheel-file
+          path: ./dist
     - name: Test ASR Domain Imports
       run: |
         # Install NeMo Domain
@@ -74,14 +79,14 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
-  - name: Download wheel file
-      uses: actions/download-artifact@v2
-      with:
-        name: nemo-wheel-file
-        path: ./dist
 
     steps:
     - uses: actions/checkout@v2
+    - name: Download wheel file
+        uses: actions/download-artifact@v2
+        with:
+          name: nemo-wheel-file
+          path: ./dist
     - name: Test TTS Domain Imports
       run: |
         # Install NeMo Domain
@@ -97,14 +102,14 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
-  - name: Download wheel file
-      uses: actions/download-artifact@v2
-      with:
-        name: nemo-wheel-file
-        path: ./dist
 
     steps:
     - uses: actions/checkout@v2
+    - name: Download wheel file
+        uses: actions/download-artifact@v2
+        with:
+          name: nemo-wheel-file
+          path: ./dist
     - name: Test NLP Domain Imports
       run: |
         # Install NeMo Domain
