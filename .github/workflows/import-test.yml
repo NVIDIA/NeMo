@@ -25,7 +25,6 @@ jobs:
     - name: Install nemo dependencies
       id: nemo-wheel
       run:  |
-        # install Cython
         pip install Cython
         # install test requirements
         pip install -r requirements/requirements_test.txt
