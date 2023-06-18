@@ -79,6 +79,8 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
+    steps:
+    - uses: actions/checkout@v2
     - name: Test NLP Domain Imports
       run: |
         # Install NeMo Domain
