@@ -7,7 +7,7 @@ on:
       - "**"
 
 jobs:
-  ci-import-check:
+  build-nemo:
     runs-on: ubuntu-latest
 
     # Check https://hub.docker.com/r/pytorch/pytorch/tags for latest tags
@@ -25,6 +25,8 @@ jobs:
     - name: Install nemo dependencies
       id: nemo-wheel
       run:  |
+        # install Cython
+        pip install Cython
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
@@ -34,6 +36,17 @@ jobs:
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
 
+    outputs:
+      dist_file: ${{ steps.nemo-wheel.outputs.DIST_FILE }}
+    
+  test-asr-imports:
+    needs: build-nemo
+    runs-on: ubuntu-latest
+    container:
+      image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+    
+    steps:
+    - uses: actions/checkout@v2
     - name: Test ASR Domain Imports
       run: |
         # Install NeMo Domain
@@ -43,6 +56,14 @@ jobs:
         # Uninstall NeMo
         pip uninstall -y nemo_toolkit
 
+  test-tts-imports:
+    needs: build-nemo
+    runs-on: ubuntu-latest
+    container:
+      image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+
+    steps:
+    - uses: actions/checkout@v2
     - name: Test TTS Domain Imports
       run: |
         # Install NeMo Domain
@@ -51,6 +72,12 @@ jobs:
         python tests/core_ptl/check_imports.py --domain "tts"
         # Uninstall NeMo
         pip uninstall -y nemo_toolkit
+
+  test-nlp-imports:
+    needs: build-nemo
+    runs-on: ubuntu-latest
+    container:
+      image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
     - name: Test NLP Domain Imports
       run: |
