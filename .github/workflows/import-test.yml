@@ -49,7 +49,7 @@ jobs:
     - name: Test ASR Domain Imports
       run: |
         # Install NeMo Domain
-        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[asr]"
+        pip install "${{ needs.build-nemo.outputs.dist_file }}[asr]"
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "asr"
         # Uninstall NeMo
@@ -66,7 +66,7 @@ jobs:
     - name: Test TTS Domain Imports
       run: |
         # Install NeMo Domain
-        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[tts]"
+        pip install "${{ needs.build-nemo.outputs.dist_file }}[tts]"
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "tts"
         # Uninstall NeMo
@@ -83,7 +83,7 @@ jobs:
     - name: Test NLP Domain Imports
       run: |
         # Install NeMo Domain
-        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
+        pip install "${{ needs.build-nemo.outputs.dist_file }}[nlp]"
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "nlp"
         # Uninstall NeMo
