@@ -16,12 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
     - name: Update base dependencies
       run: |
         apt-get update && apt-get install -y build-essential
         apt-get install -y libsndfile1 make
-
     - name: Install nemo dependencies
       id: nemo-wheel
       run:  |
@@ -34,13 +32,11 @@ jobs:
         # Preserve wheel location
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
-
     - name: Upload wheel as artifact
       uses: actions/upload-artifact@v2
       with:
         name: nemo-wheel-file
         path: ${{ steps.nemo-wheel.outputs.DIST_FILE }}
-
     outputs:
       dist_file: ${{ steps.nemo-wheel.outputs.DIST_FILE }}
 
@@ -50,13 +46,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
-
-  - name: Download wheel file
-      uses: actions/download-artifact@v2
-      with:
-        name: nemo-wheel-file
-        path: ./dist
-    
     steps:
     - uses: actions/checkout@v2
     - name: Download wheel file
@@ -78,8 +67,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
-
-
     steps:
     - uses: actions/checkout@v2
     - name: Download wheel file
@@ -101,8 +88,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
-
-
     steps:
     - uses: actions/checkout@v2
     - name: Download wheel file
