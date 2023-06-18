@@ -15,7 +15,8 @@ jobs:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout repo
+      uses: actions/checkout@v2
     - name: Update base dependencies
       run: |
         apt-get update && apt-get install -y build-essential
@@ -47,8 +48,10 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/download-artifact@v2
+    - name: Checkout repo
+      uses: actions/checkout@v2
+    - name: Download wheel as artifact
+      uses: actions/download-artifact@v2
       with:
         name: nemo-wheel-file
         path: ./dist
@@ -67,8 +70,10 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/download-artifact@v2
+    - name: Checkout repo
+      uses: actions/checkout@v2
+    - name: Download wheel as artifact
+      uses: actions/download-artifact@v2
       with:
         name: nemo-wheel-file
         path: ./dist
@@ -87,8 +92,10 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/download-artifact@v2
+    - name: Checkout repo
+      uses: actions/checkout@v2
+    - name: Download wheel as artifact
+      uses: actions/download-artifact@v2
       with:
         name: nemo-wheel-file
         path: ./dist
