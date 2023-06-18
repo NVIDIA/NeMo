@@ -35,14 +35,27 @@ jobs:
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
 
+    - name: Upload wheel as artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: nemo-wheel-file
+        path: ${{ steps.nemo-wheel.outputs.DIST_FILE }}
+
     outputs:
       dist_file: ${{ steps.nemo-wheel.outputs.DIST_FILE }}
+
     
   test-asr-imports:
     needs: build-nemo
     runs-on: ubuntu-latest
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+
+  - name: Download wheel file
+      uses: actions/download-artifact@v2
+      with:
+        name: nemo-wheel-file
+        path: ./dist
     
     steps:
     - uses: actions/checkout@v2
@@ -61,6 +74,12 @@ jobs:
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
+  - name: Download wheel file
+      uses: actions/download-artifact@v2
+      with:
+        name: nemo-wheel-file
+        path: ./dist
+
     steps:
     - uses: actions/checkout@v2
     - name: Test TTS Domain Imports
@@ -77,6 +96,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+
+  - name: Download wheel file
+      uses: actions/download-artifact@v2
+      with:
+        name: nemo-wheel-file
+        path: ./dist
 
     steps:
     - uses: actions/checkout@v2
