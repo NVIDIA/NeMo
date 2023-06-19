@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import fields
 import gc
 import os
 import re
+from dataclasses import fields
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
@@ -50,7 +50,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import parallel_state, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 
@@ -810,5 +810,4 @@ class MegatronBaseModel(NLPModel):
             else:
                 raise ValueError(f"cfg does not have field.name: {field.name} from model_parallel_config.")
 
-        return model_parallel_config
-
+            return model_parallel_config

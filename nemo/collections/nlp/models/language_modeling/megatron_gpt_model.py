@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import asdict
 import itertools
 import queue
 import warnings
+from dataclasses import asdict
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
-from omegaconf import OmegaConf
 import torch
+import yaml
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
-import yaml
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,

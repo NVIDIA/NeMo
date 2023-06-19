@@ -14,6 +14,7 @@
 
 """Transformer based language model."""
 from ast import Mod
+
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -52,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
     LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 

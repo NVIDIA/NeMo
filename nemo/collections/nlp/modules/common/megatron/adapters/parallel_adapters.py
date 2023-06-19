@@ -18,11 +18,11 @@ import enum
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
-from MeCab import Model
 
 import torch
 import torch.nn as nn
 import torch.nn.init as init
+from MeCab import Model
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
