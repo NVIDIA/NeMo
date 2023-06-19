@@ -31,6 +31,7 @@ from nemo.collections.asr.models.msdd_models import autocast
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
     clip_grad_norm_fp32,
@@ -66,18 +67,19 @@ __all__ = ["MegatronBaseModel"]
 
 class MegatronBaseModel(NLPModel):
     """
-    Megatron base class
-    It does the following things:
-    1. Initialize the model parallel for nemo given the model parallel parameters.
-    2. Turn on all the nvidia optimizations.
-    3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. If using distributed optimizer, configure to be compatible with
-       O2-level optimizations and/or model parallelism.
-    5. Perform gradient clipping: `grad_clip_pl_default` triggers the
-       PyTorch Lightning default implementation, `with_distributed_adam`
-       triggers the distributed optimizer's implementation,
-       `megatron_amp_o2` triggers gradient clipping on the main grads,
-       and otherwise gradient clipping is performed on the model grads.
+    Megatron base class. All NeMo Megatron models inherit from this class.
+
+    - Initialize the model parallel world for nemo.
+    - Turn on all of the nvidia optimizations.
+    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the 
+      correct size for tensor model parallelism.
+    - If using distributed optimizer, configure to be compatible
+      with O2 level optimizations and/or model parallelism.
+    - Perform gradient clipping: `grad_clip_pl_default` triggers
+      the PyTorch Lightning default implementation, `with_distributed_adam` triggers
+      the distributed optimizer's implementation, `megatron_amp_o2` triggers gradient clipping on the main grads,
+      and otherwise gradient clipping is performed on the model grads.
+
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
@@ -89,6 +91,12 @@ class MegatronBaseModel(NLPModel):
 
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+
+        if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
+            raise ImportError(
+                "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
+                "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
+            )
 
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
@@ -214,9 +222,10 @@ class MegatronBaseModel(NLPModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
             model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
+            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
+            use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=legacy,
         )
@@ -490,10 +499,20 @@ class MegatronBaseModel(NLPModel):
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
-        consumed_samples = (
-            self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
-        )
+
+        if self.cfg.get('rampup_batch_size', None):
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+            current_global_batch_size = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'current_global_batch_size', 1)
+            consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
+        else:
+            consumed_samples = (
+                self.init_consumed_samples
+                + steps_since_resume
+                * app_state.data_parallel_size
+                * self.cfg.micro_batch_size
+                * get_num_microbatches()
+            )
         return int(consumed_samples)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
