@@ -180,7 +180,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     cm,
                     torch.distributed.all_reduce(
                         main_param.grad, op=torch.distributed.ReduceOp.AVG, group=self.process_group, async_op=True,
-                    )
+                    ),
                 )
         cm.wait()
         self._fp32_optim_grad_sync_needed = False
