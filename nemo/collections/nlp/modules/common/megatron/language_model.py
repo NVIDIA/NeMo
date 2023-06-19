@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Transformer based language model."""
+from ast import Mod
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -51,7 +52,7 @@ except (ImportError, ModuleNotFoundError):
     LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -61,6 +62,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def get_language_model(
+    config: ModelParallelConfig,
     hidden_size,
     ffn_hidden_size,
     num_layers,
@@ -139,6 +141,7 @@ def get_language_model(
 
     # Language model.
     language_model = TransformerLanguageModel(
+        config=config,
         init_method=init_method,
         output_layer_init_method=scaled_init_method,
         encoder_attn_mask_type=encoder_attn_mask_type,
@@ -255,21 +258,20 @@ class Embedding(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         hidden_size,
         vocab_size,
         max_sequence_length,
         embedding_dropout_prob,
         init_method,
         num_tokentypes=0,
-        use_cpu_initialization=False,
-        megatron_amp_O2=False,
         dtype=torch.float32,
         fp32_residual_connection=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
         transpose_batch_sequence=True,
     ):
-        super(Embedding, self).__init__()
+        super(Embedding, self).__init__(config=config)
 
         self.hidden_size = hidden_size
         self.init_method = init_method
@@ -279,11 +281,7 @@ class Embedding(MegatronModule):
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size,
-            self.hidden_size,
-            init_method=self.init_method,
-            use_cpu_initialization=use_cpu_initialization,
-            params_dtype=dtype,
+            vocab_size, self.hidden_size, init_method=self.init_method, config=config,
         )
         self._word_embeddings_key = 'word_embeddings'
 
@@ -446,6 +444,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         encoder_attn_mask_type,
@@ -506,7 +505,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_emha=False,
         use_flash_attention=False,
     ):
-        super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
+        super(TransformerLanguageModel, self).__init__(
+            config=config, share_token_embeddings=share_embeddings_and_output_weights
+        )
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -536,13 +537,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # Embeddings.
         if self.pre_process:
             self.embedding = Embedding(
+                config=config,
                 hidden_size=self.hidden_size,
                 vocab_size=self.vocab_size,
                 max_sequence_length=self.max_position_embeddings,
                 init_method=self.init_method,
                 num_tokentypes=self.num_tokentypes,
-                use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 embedding_dropout_prob=self.hidden_dropout,
                 sequence_parallel=sequence_parallel,
                 position_embedding_type=position_embedding_type,
@@ -594,6 +594,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
         # Transformer.
         self.encoder = ParallelTransformer(
+            config=config,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
@@ -651,6 +652,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # Decoder
         if self.add_decoder:
             self.decoder = ParallelTransformer(
+                config=config,
                 layer_type=LayerType.decoder,
                 self_attn_mask_type=self.decoder_attn_mask_type,
                 init_method=self.init_method,
@@ -700,8 +702,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 self.output_layer = tensor_parallel.ColumnParallelLinear(
                     self.hidden_size,
                     self.vocab_size,
-                    use_cpu_initialization=use_cpu_initialization,
-                    params_dtype=self.dtype,
+                    config=config,
                     bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
                     init_method=self.init_method,
                 )

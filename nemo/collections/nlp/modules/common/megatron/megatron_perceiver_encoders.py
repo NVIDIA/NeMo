@@ -36,6 +36,16 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
+
 __all__ = ["MegatronPerceiverEncoderModule"]
 
 
@@ -45,6 +55,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -83,8 +94,9 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         normalize_attention_scores=True,
         megatron_legacy=False,
     ):
-        super(MegatronPerceiverEncoderModule, self).__init__()
+        super(MegatronPerceiverEncoderModule, self).__init__(config=config)
 
+        self.config = config
         self.pre_process = pre_process
         self.post_process = post_process
         self.hidden_size = hidden_size
@@ -146,6 +158,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
     def _build_cross_attn_layer(self):
         return ParallelTransformer(
+            config=self.config,
             layer_type=LayerType.decoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
@@ -186,6 +199,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
     def _build_self_attn_layer(self):
         return ParallelTransformer(
+            config=self.config,
             layer_type=LayerType.encoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,

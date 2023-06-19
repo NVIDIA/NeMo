@@ -254,10 +254,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    converted_model.append(
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                    )
                 self.model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                )
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
@@ -304,10 +308,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.cfg.get('megatron_core_gpt', False):
-            self.set_transformer_config()
+            self.transformer_config = self.build_transformer_config()
             logging.info('done')
         else:
             model = GPTModel(
+                config=self.model_parallel_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 hidden_size=self.cfg.hidden_size,
                 max_position_embeddings=self.cfg.max_position_embeddings,
@@ -454,7 +459,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -476,7 +480,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
+            seq_length=self.cfg.encoder_seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
@@ -1302,8 +1307,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
 
-    def set_transformer_config(self):
-        """ Sets the megatron core gpt transformer config for the model."""
+    def build_transformer_config(self):
+        """ Builds the megatron core gpt transformer config for the model."""
         if self.cfg.get('kv_channels', None) is None:
             assert (
                 self.cfg.hidden_size % self.cfg.num_attention_heads == 0
@@ -1347,8 +1352,4 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             recompute_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
         )
 
-        self._transformer_config = transformer_config
-
-    def get_transformer_config(self):
-        """ Returns the megatron core gpt transformer config for this model."""
-        return self._transformer_config
+        return transformer_config

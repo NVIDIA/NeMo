@@ -33,6 +33,15 @@ except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
     HAVE_APEX = False
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 MIN_DIM_HEAD = 32
 
 
@@ -42,6 +51,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -83,7 +93,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         turn_off_rop=False,
         version=1,  # model version
     ):
-        super(MegatronRetrievalTransformerEncoderModule, self).__init__()
+        super(MegatronRetrievalTransformerEncoderModule, self).__init__(config=config)
 
         self.transformer_block_type = transformer_block_type
         self.pre_process = pre_process
@@ -106,6 +116,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         # Transformer.
         self.model = ParallelTransformer(
+            config=config,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
@@ -327,6 +338,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -368,7 +380,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         turn_off_rop=False,
         version=1,  # model version
     ):
-        super(MegatronRetrievalTransformerDecoderModule, self).__init__()
+        super(MegatronRetrievalTransformerDecoderModule, self).__init__(config=config)
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -390,6 +402,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
         # Transformer.
         self.model = ParallelTransformer(
+            config=config,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
