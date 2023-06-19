@@ -59,7 +59,8 @@ class TextGenerationStrategy:
             model=[self.forward_model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
-            tensor_shape=tensor_shape,
+            seq_length=tensor_shape[0],
+            micro_batch_size=tensor_shape[1],
             dtype=self.model.autocast_dtype,
             enable_autocast=self.model.enable_autocast,
         )

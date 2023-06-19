@@ -52,7 +52,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -104,6 +104,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         encoder_cfg: DictConfig,
         decoder_cfg: DictConfig,
         vocab_size: int,  # TODO: This should eventually go inside encoder_cfg and decoder_cfg when separate enc/dec tokenizers are supported.
@@ -125,7 +126,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         share_decoder_tokens_head_embeddings=True,
         tokens_head_bias=True,
     ):
-        super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
+        super(MegatronTokenLevelEncoderDecoderModule, self).__init__(config=config)
 
         self.encoder_cfg = encoder_cfg
         self.decoder_cfg = decoder_cfg
@@ -410,11 +411,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
                     output_size=vocab_size,
+                    config=config,
                     bias=tokens_head_bias,
                     gather_output=not self.parallel_output,
                     init_method=init_method_normal(decoder_cfg.init_method_std),
-                    use_cpu_initialization=use_cpu_initialization,
-                    params_dtype=self.dtype,
                 )
 
             self._tokens_head_key = 'tokens_head'

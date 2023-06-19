@@ -105,7 +105,7 @@ class MegatronBaseModel(NLPModel):
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         # set the megatron core model parallel config
-        self.set_model_parallel_config()
+        self.model_parallel_config = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
@@ -699,7 +699,7 @@ class MegatronBaseModel(NLPModel):
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
 
-    def set_model_parallel_config(self):
+    def build_model_parallel_config(self):
         """ Sets the model parallel config for megatron core based on the model config"""
         cfg = OmegaConf.to_container(self.cfg, resolve=True)
         model_parallel_config = ModelParallelConfig()
@@ -810,5 +810,5 @@ class MegatronBaseModel(NLPModel):
             else:
                 raise ValueError(f"cfg does not have field.name: {field.name} from model_parallel_config.")
 
-            self.model_parallel_config = model_parallel_config
+            return model_parallel_config
 

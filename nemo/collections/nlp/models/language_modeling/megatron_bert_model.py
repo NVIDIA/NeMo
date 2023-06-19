@@ -132,10 +132,14 @@ class MegatronBertModel(MegatronBaseModel):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
+                    converted_model.append(
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                    )
+                self.model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                )
 
         if hasattr(self, '_nsys_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
@@ -326,7 +330,8 @@ class MegatronBertModel(MegatronBaseModel):
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=False,
-            tensor_shape=tensor_shape,
+            seq_length=self.cfg.encoder_seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
@@ -428,9 +433,8 @@ class MegatronBertModel(MegatronBaseModel):
         prefix = "test" if self.trainer.testing else "val"
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = dataloader_iter.iterator.get_seqlen()
-            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
-            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            seq_length = self.cfg.encoder_seq_length
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -440,7 +444,8 @@ class MegatronBertModel(MegatronBaseModel):
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
-            tensor_shape=tensor_shape,
+            seq_length=seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
             dtype=self.autocast_dtype,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
             enable_autocast=self.enable_autocast,

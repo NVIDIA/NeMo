@@ -35,6 +35,15 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 __all__ = ["MegatronTransformerEncoderModule"]
 
 
@@ -43,6 +52,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -85,7 +95,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         position_embedding_type='learned_absolute',
         use_flash_attention=False,
     ):
-        super(MegatronTransformerEncoderModule, self).__init__()
+        super(MegatronTransformerEncoderModule, self).__init__(config=config)
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -109,6 +119,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
 
         # Transformer.
         self.model = ParallelTransformer(
+            config=config,
             layer_type=LayerType.encoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,

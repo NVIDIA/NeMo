@@ -36,6 +36,15 @@ except (ImportError, ModuleNotFoundError):
     LayerType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 
 __all__ = ["MegatronTransformerDecoderModule"]
 
@@ -46,6 +55,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -88,7 +98,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         position_embedding_type='learned_absolute',
         use_flash_attention=False,
     ):
-        super(MegatronTransformerDecoderModule, self).__init__()
+        super(MegatronTransformerDecoderModule, self).__init__(config=config)
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -110,6 +120,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
 
         # Transformer.
         self.model = ParallelTransformer(
+            config=config,
             layer_type=LayerType.decoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,

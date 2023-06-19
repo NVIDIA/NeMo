@@ -18,6 +18,7 @@ import enum
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
+from MeCab import Model
 
 import torch
 import torch.nn as nn
@@ -40,6 +41,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
+    from megatron.core import ModelParallelConfig
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 
     HAVE_MEGATRON_CORE = True
@@ -100,6 +102,7 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
+        config: ModelParallelConfig,
         in_features: int,
         out_features: int,
         dim: int,
@@ -122,17 +125,27 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.norm_position = norm_position
 
         self.linear_in = ColumnParallelLinear(
-            in_features, dim, bias=False, gather_output=True, init_method=self._get_init_fn(column_init_method)
+            in_features,
+            dim,
+            config=config,
+            bias=False,
+            gather_output=True,
+            init_method=self._get_init_fn(column_init_method),
         )
         if gather_output:
             self.linear_out = RowParallelLinear(
-                dim, out_features, bias=False, init_method=self._get_init_fn(row_init_method)
+                dim, out_features, config=config, bias=False, init_method=self._get_init_fn(row_init_method)
             )
         else:
             # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
             # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
             self.linear_out = ColumnParallelLinear(
-                dim, out_features, bias=False, gather_output=False, init_method=self._get_init_fn(row_init_method)
+                dim,
+                out_features,
+                config=config,
+                bias=False,
+                gather_output=False,
+                init_method=self._get_init_fn(row_init_method),
             )
 
         if self.norm_position in ["pre", "post"]:
@@ -246,7 +259,13 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
 
     def __init__(
-        self, virtual_tokens: int, bottleneck_dim: int, embedding_dim: int, init_std: float, output_dim: int,
+        self,
+        config: ModelParallelConfig,
+        virtual_tokens: int,
+        bottleneck_dim: int,
+        embedding_dim: int,
+        init_std: float,
+        output_dim: int,
     ):
         """
         Initializes the Tensor Model parallel MLP PromptEncoderMLP module.
@@ -272,24 +291,20 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.first = ColumnParallelLinear(
             self.embedding_dim,
             self.bottleneck_dim,
+            config=config,
             gather_output=False,
             init_method=init_method_normal(init_std),
             skip_bias_add=True,
-            use_cpu_initialization=False,
             bias=True,
-            sequence_parallel_enabled=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
         self.second = RowParallelLinear(
             self.bottleneck_dim,
             self.output_dim,
+            config=config,
             input_is_parallel=True,
             init_method=init_method_normal(init_std),
             skip_bias_add=True,
-            use_cpu_initialization=False,
             bias=True,
-            sequence_parallel_enabled=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())

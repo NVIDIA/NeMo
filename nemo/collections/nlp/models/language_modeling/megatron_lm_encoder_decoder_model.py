@@ -59,7 +59,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -124,7 +124,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
+            self.enc_dec_model = Float16Module(
+                config=self.model_parallel_config, module=self.enc_dec_model, precision=cfg.precision
+            )
 
         if self.cfg.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
@@ -262,6 +264,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             embedding_dropout = self.cfg.embedding_dropout
 
         model = MegatronTokenLevelEncoderDecoderModule(
+            config=self.model_parallel_config,
             encoder_cfg=self.cfg.encoder,
             decoder_cfg=self.cfg.decoder,
             vocab_size=self.padded_vocab_size,
@@ -318,8 +321,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Get seq length of batch
-        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -329,7 +330,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             model=[self.enc_dec_model],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
+            seq_length=self.max_encoder_seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
             decoder_seq_length=self.max_decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,

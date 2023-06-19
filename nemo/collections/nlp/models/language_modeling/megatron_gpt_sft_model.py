@@ -308,7 +308,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
         _, seq_length = batch['tokens'].shape
-        tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         # handle asynchronous grad reduction
@@ -328,7 +327,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
+            seq_length=seq_length,
+            micro_batch_size=get_micro_batch_size(),
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),

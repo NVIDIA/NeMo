@@ -43,7 +43,7 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -157,6 +157,7 @@ class BertModel(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         vocab_size,
         hidden_size,
         max_position_embeddings,
@@ -190,7 +191,7 @@ class BertModel(MegatronModule):
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
     ):
-        super(BertModel, self).__init__()
+        super(BertModel, self).__init__(config=config)
         # args = get_args()
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head
@@ -203,6 +204,7 @@ class BertModel(MegatronModule):
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
 
         self.language_model, self._language_model_key = get_language_model(
+            config=config,
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             hidden_dropout=hidden_dropout,

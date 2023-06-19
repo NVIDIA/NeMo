@@ -14,6 +14,7 @@
 
 """GPT-2 model."""
 
+from MeCab import Model
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
@@ -39,7 +40,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -108,6 +109,7 @@ class GPTModel(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         vocab_size,
         hidden_size,
         max_position_embeddings,
@@ -168,7 +170,7 @@ class GPTModel(MegatronModule):
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
     ):
-        super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
+        super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -191,6 +193,7 @@ class GPTModel(MegatronModule):
             else init_method_normal(init_method_std)
         )
         self.language_model, self._language_model_key = get_language_model(
+            config=config,
             vocab_size=vocab_size,
             hidden_size=hidden_size,
             hidden_dropout=hidden_dropout,

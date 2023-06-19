@@ -300,7 +300,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         encoder_seq_length = batch[0].size(1)
         decoder_seq_length = batch[1].size(1)
 
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         fwd_bwd_function = get_forward_backward_func()
@@ -311,7 +310,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             model=[self.enc_dec_model],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
+            seq_length=encoder_seq_length,
+            micro_batch_size=get_micro_batch_size(),
             decoder_seq_length=decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
