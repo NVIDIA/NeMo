@@ -18,7 +18,6 @@ import enum
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
-from MeCab import Model
 
 import torch
 import torch.nn as nn

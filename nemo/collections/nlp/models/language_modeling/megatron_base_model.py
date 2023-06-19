@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import fields
 import gc
 import itertools
 import os
@@ -22,6 +21,7 @@ from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
+from MeCab import Model
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
