@@ -21,7 +21,7 @@ from torch.nn.parameter import Parameter
 from nemo.utils import logging
 
 try:
-    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 

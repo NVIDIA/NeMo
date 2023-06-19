@@ -12,24 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import fields
 import gc
-from math import e
 import os
 import re
+from dataclasses import fields
+from math import e
 from typing import Any, Dict, Optional, Union
-from MeCab import Model
-import pip
 
+import pip
 import torch
+from MeCab import Model
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.asr.models.msdd_models import autocast
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
-
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import parallel_state, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 
@@ -777,4 +777,3 @@ class MegatronBaseModel(NLPModel):
                 raise ValueError(f"cfg does not have field.name: {field.name} from model_parallel_config.")
 
             return model_parallel_config
-
