@@ -18,6 +18,7 @@ import enum
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
+from MeCab import Model
 
 import torch
 import torch.nn as nn
@@ -102,6 +103,7 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
+        config: ModelParallelConfig,
         in_features: int,
         out_features: int,
         dim: int,

@@ -14,6 +14,7 @@
 
 """GPT-2 model."""
 
+from MeCab import Model
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
