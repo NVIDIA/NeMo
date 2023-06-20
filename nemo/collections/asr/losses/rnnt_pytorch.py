@@ -72,7 +72,7 @@ class RNNTLossPytorch(Loss):
         B, T, V = acts.shape
         D = duration_acts.shape[-1]
         U = torch.max(label_lens).item()
-        log_alpha = torch.zeros(B, T, U + 1) - 9999
+        log_alpha = torch.zeros(B, T, U + 2) - 9999
         log_alpha = log_alpha.to(acts.device)
         d1 = torch.reshape(duration_acts, [B, T, 1, D])
         d2 = torch.reshape(duration_acts, [B, 1, T, D])
@@ -83,13 +83,11 @@ class RNNTLossPytorch(Loss):
         for b in range(B):
             T, U = act_lens[b], label_lens[b]
             for t in range(T):
-                for u in range(U + 1):
+                for u in range(U + 2):
                     if u == 0 and t == 0:
                         log_alpha[b, t, u] = 0.0
-                    elif u > t:
-                        log_alpha[b, t, u] = -9999
                     else:
-                        label = labels[b, u - 1] if u >= 1 else -1
+                        label = labels[b, u - 2] if u >= 2 else -1
                         for tt in range(t):
                             if u - 1 >= 0:
                                 log_alpha[b, t, u] = torch.logsumexp(
@@ -110,17 +108,18 @@ class RNNTLossPytorch(Loss):
             # here we need to add the final blank emission weights.
             t = act_lens[b]
             u = label_lens[b]
-            to_append = log_alpha[b, t - 1, u] + acts[b, t - 1, -1]
+            to_append = log_alpha[b, t - 1, u + 1] + acts[b, t - 1, -1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
+        print()
         return log_prob
 
     def compute_backward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
         B, T, V = acts.shape
         D = duration_acts.shape[-1]
         U = torch.max(label_lens).item()
-        log_beta = torch.zeros(B, T, U + 1) - 9999
+        log_beta = torch.zeros(B, T, U + 2) - 9999
         log_beta = log_beta.to(acts.device)
         d1 = torch.reshape(duration_acts, [B, T, 1, D])
         d2 = torch.reshape(duration_acts, [B, 1, T, D])
@@ -131,15 +130,13 @@ class RNNTLossPytorch(Loss):
         for b in range(B):
             T, U = act_lens[b], label_lens[b]
             for t in range(T - 1, -1, -1):
-                for u in range(U, -1, -1):
-                    if u == U and t == T - 1:
-                        log_beta[b, t, u] = 0.0
-                    elif u > t:
-                        log_beta[b, t, u] = -9999
+                for u in range(U + 1, -1, -1):
+                    if u == U + 1 and t == T - 1:
+                        log_beta[b, t, u] = acts[b, t, -1]
                     else:
-                        label = labels[b, u] if u < U else -1
+                        label = labels[b, u - 1] if ( u - 1 < U and u - 1 >= 0) else -1
                         for tt in range(t + 1, T):
-                            if u + 1 <= U:
+                            if u <= U:
                                 log_beta[b, t, u] = torch.logsumexp(
                                     torch.stack(
                                         [
@@ -150,15 +147,14 @@ class RNNTLossPytorch(Loss):
                                     dim=0,
                                 )
 
-
-#                        print('beta', b, t, u, log_beta[b, t, u])
+#                    print('beta', b, t, u, log_beta[b, t, u])
 
         log_probs = []
         for b in range(B):
             # here we need to add the final blank emission weights.
 #            t = act_lens[b]
 #            u = label_lens[b]
-            to_append = log_beta[b, 0, 0] + acts[b, 0, -1]
+            to_append = log_beta[b, 0, 0] # + acts[b, 0, -1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
@@ -167,12 +163,15 @@ class RNNTLossPytorch(Loss):
 
 
 if __name__ == "__main__":
-    B, T, U, V, D = 1, 6, 4, 3, 2
+    B, T, U, V, D = 1, 3, 1, 1, 2
+    B, T, U, V, D = 4, 15, 7, 24, 4 
     loss = RNNTLossPytorch(V, 'sum')
     acts = torch.rand([B, T, V + D], dtype=torch.float)
-    labels = torch.ones([B, U], dtype=torch.long)
-    act_lens = torch.ones([B], dtype=torch.long) * T
-    label_lens = torch.ones([B], dtype=torch.long) * U
+
+    labels = torch.randint_like(input=torch.zeros([B, U], dtype=torch.long),high=V - 1)
+    act_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), high=T)
+
+    label_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), high=U)
     l = loss(acts, labels, act_lens, label_lens)
 
 
