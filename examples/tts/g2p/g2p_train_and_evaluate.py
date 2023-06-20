@@ -25,7 +25,7 @@ from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
 
 """
-This script supports training of G2PModels 
+This script supports training of G2PModels
 (for T5G2PModel use g2p_t5.yaml, for CTCG2PModel use either g2p_conformer.yaml or g2p_t5_ctc.yaml)
 
 # Training T5G2PModel and evaluation at the end of training:
@@ -37,9 +37,9 @@ This script supports training of G2PModels
         trainer.devices=1 \
         do_training=True \
         do_testing=True
-    
+
     Example of the config file: NeMo/examples/tts/g2p/conf/g2p_t5.yaml
-        
+
 # Training Conformer-G2P Model and evaluation at the end of training:
     python examples/text_processing/g2p/g2p_train_and_evaluate.py \
         # (Optional: --config-path=<Path to dir of configs> --config-name=<name of config without .yaml>) \
@@ -50,9 +50,9 @@ This script supports training of G2PModels
         trainer.devices=1 \
         do_training=True \
         do_testing=True
-        
+
     Example of the config file: NeMo/examples/text_processing/g2p/conf/g2p_conformer_ctc.yaml
-        
+
 # Run evaluation of the pretrained model:
     python examples/text_processing/g2p/g2p_train_and_evaluate.py \
         # (Optional: --config-path=<Path to dir of configs> --config-name=<name of config without .yaml>) \

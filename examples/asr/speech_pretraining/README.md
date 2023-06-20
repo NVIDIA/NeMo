@@ -1,6 +1,6 @@
 # Speech Pre-training via Self Supervised Learning
 
-This directory contains example scripts to train ASR models using various Self Supervised Losses. 
+This directory contains example scripts to train ASR models using various Self Supervised Losses.
 
 The model's pretrained here can further be finetuned on specific labeled data in further steps.
 

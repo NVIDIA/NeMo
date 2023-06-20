@@ -46,7 +46,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
         pipeline_model_parallel_size=4 \
         trainer.precision=bf16 \
         gpt_model_file=/path/to/megatron_gpt_tp_1_pp4.nemo
-    
+
     from PTL checkpoint:
     python megatron_gpt_validate.py \
         trainer.devices=4 \

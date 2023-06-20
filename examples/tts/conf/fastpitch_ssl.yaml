@@ -58,12 +58,12 @@ model:
   lowfreq: ${lowfreq}
   highfreq: ${highfreq}
   window: ${window}
-  
+
   content_emb_indim: 174
   speaker_emb_indim: 256
   content_emb_outdim: 192
   speaker_emb_outdim: 192
-  
+
   train_ds:
     dataset:
       _target_: nemo.collections.tts.data.dataset.FastPitchSSLDataset
@@ -112,7 +112,7 @@ model:
       num_workers: 0
       pin_memory: true
 
-  # both encoder and decoder have same architecture, FFTransformerDecoder 
+  # both encoder and decoder have same architecture, FFTransformerDecoder
   encoder: #n_embed and padding_idx are added by the model
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
     n_layer: 6
@@ -179,6 +179,6 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
-    monitor: v_loss 
+    monitor: v_loss
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

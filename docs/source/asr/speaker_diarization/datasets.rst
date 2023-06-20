@@ -3,20 +3,20 @@ Datasets
 
 This page is about formatting a dataset for diarization training and inference. To train or fine-tune the speaker diarization system, you could either train/fine-tune speaker embedding extractor model separately or you can train/fine-tune speaker embedding extractor and neural diarizer at the same time.
 
-* To train or fine-tune a speaker embedding extractor model separately, please go check out these pages: :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` for preparing datasets for training and validating VAD and speaker embedding models respectively.   
+* To train or fine-tune a speaker embedding extractor model separately, please go check out these pages: :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` for preparing datasets for training and validating VAD and speaker embedding models respectively.
 
 
 * To train or fine-tune speaker embedding extractor and neural diarizer together, please follow the dataset preparation process in this page.
 
-Data Preparation for Training 
+Data Preparation for Training
 -----------------------------
 
 .. image:: images/msdd_train_and_infer.png
         :align: center
         :width: 800px
-        :alt: MSDD training and inference 
+        :alt: MSDD training and inference
 
-As shown in the above figure, a full-fledged speaker diarization process through speaker embedding extractor, clustering algorithm and neural diarizer. Note that only speaker embedding extractor and neural diarizer are trainable models and they can be train/fine-tune together on diarization datasets. We recommend to use a speaker embedding extractor model that is trained on large amount of single-speaker dataset and use it for training a neural diarizer model. 
+As shown in the above figure, a full-fledged speaker diarization process through speaker embedding extractor, clustering algorithm and neural diarizer. Note that only speaker embedding extractor and neural diarizer are trainable models and they can be train/fine-tune together on diarization datasets. We recommend to use a speaker embedding extractor model that is trained on large amount of single-speaker dataset and use it for training a neural diarizer model.
 
 Speaker diarization training is also managed by Hydra configurations based on ``.yaml`` files, just as in other NeMo neural models. See :doc:`NeMo Speaker Diarization Configuration Files <./configs>` for setting up the input Hydra configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
 
@@ -25,14 +25,14 @@ Speaker diarization training is also managed by Hydra configurations based on ``
 Speaker diarization training and inference both require the same type of manifest files. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py``. The following example shows how to run ``pathfiles_to_diarize_manifest.py`` by providing path list files.
 
 .. code-block:: shell-session
-    
+
    python NeMo/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py \
         --paths2audio_files='/path/to/audio_file_path_list.txt' \
         --paths2rttm_files='/path/to/rttm_file_list.txt' \
-        --manifest_filepath='/path/to/manifest_filepath/train_manifest.json 
+        --manifest_filepath='/path/to/manifest_filepath/train_manifest.json
 
 
-All three arguments are required. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd01.wav``, the rttm file should be named as ``abcd01.rttm`` and the transcription file should be named as ``abcd01.txt``. 
+All three arguments are required. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd01.wav``, the rttm file should be named as ``abcd01.rttm`` and the transcription file should be named as ``abcd01.txt``.
 
 - Example audio file path list ``audio_file_path_list.txt``
 
@@ -40,7 +40,7 @@ All three arguments are required. Note that we need to maintain consistency on u
 
   /path/to/abcd01.wav
   /path/to/abcd02.wav
-  
+
 
 To train a diarization model, one needs to provide Rich Transcription Time Marked (RTTM) files as ground truth label files. Here is one line from a RTTM file as an example:
 
@@ -54,7 +54,7 @@ Make a list of RTTM files for the audio files you have in ``audio_file_path_list
 - Example RTTM file path list ``rttm_file_path_list.txt``
 
 .. code-block:: bash
-  
+
   /path/to/abcd01.rttm
   /path/to/abcd02.rttm
 
@@ -82,9 +82,9 @@ Note that you should specify window length and shift length of the base scale of
         --pairwise_rttm_output_folder='path/to/rttm_output_folder' \
         --window=0.5 \
         --shift=0.25 \
-        --step_count=50 
+        --step_count=50
 
-All arguments are required to generate a new manifest file. Specify a session-wise diarization manifest file to ``--input_manifest_path`` and specify an output file name in ``--output_manifest_path``. In the folder that is specified for ``--pairwise_rttm_output_folder``, the script will create multiple two-speaker RTTM files from the given RTTM file and create manifest file that only contains two speakers in the specified RTTM range. 
+All arguments are required to generate a new manifest file. Specify a session-wise diarization manifest file to ``--input_manifest_path`` and specify an output file name in ``--output_manifest_path``. In the folder that is specified for ``--pairwise_rttm_output_folder``, the script will create multiple two-speaker RTTM files from the given RTTM file and create manifest file that only contains two speakers in the specified RTTM range.
 
 
 For example, if ``abcd01.wav`` has three speakers (``1911,1988,192``), the three RTTM files will be created: ``abcd01.1911_1988.rttm``, ``abcd01.1911_192.rttm`` and ``abcd01.1988_192.rttm``. Subsequently, the segments will be only generated from the newly generated two-speaker RTTM files.
@@ -95,7 +95,7 @@ Specify ``window`` and ``shift`` of the base-scale in your MSDD model. In this e
 - Example manifest file ``train_manifest.50step.json``.
 
 .. code-block:: bash
-    
+
     {"audio_filepath": "/path/to/abcd01.wav", "offset": 0.007, "duration": 14.046, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "simulated_train/abcd01.1919_1988.rttm"}
     {"audio_filepath": "/path/to/abcd01.wav", "offset": 13.553, "duration": 16.429, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "simulated_train/abcd01.1919_1988.rttm"}
     {"audio_filepath": "/path/to/abcd02.wav", "offset": 0.246, "duration": 15.732, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "path/to/rttm_output_folder/abcd02.777_5694.rttm"}
@@ -123,7 +123,7 @@ Data Preparation for Inference
 ------------------------------
 
 As in dataset preparation for diarization trainiing, diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See :doc:`NeMo Speaker Diarization Configuration Files <./configs>` for setting up the input Hydra configuration file for speaker diarization inference. Input data should be provided in line delimited JSON format as below:
-	
+
 .. code-block:: bash
 
   {"audio_filepath": "/path/to/abcd.wav", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/abcd.rttm", "uem_filepath": "/path/to/uem/abcd.uem"}
@@ -131,15 +131,15 @@ As in dataset preparation for diarization trainiing, diarization inference is ba
 In each line of the input manifest file, ``audio_filepath`` item is mandatory while the rest of the items are optional and can be passed for desired diarization setting. We refer to this file as a manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py``. The following example shows how to run ``pathfiles_to_diarize_manifest.py`` by providing path list files.
 
 .. code-block:: bash
-   
+
     python pathfiles_to_diarize_manifest.py --paths2audio_files /path/to/audio_file_path_list.txt \
                                             --paths2txt_files /path/to/transcript_file_path_list.txt \
                                             --paths2rttm_files /path/to/rttm_file_path_list.txt \
                                             --paths2uem_files /path/to/uem_file_path_list.txt \
                                             --paths2ctm_files /path/to/ctm_file_path_list.txt \
-                                            --manifest_filepath /path/to/manifest_output/input_manifest.json 
+                                            --manifest_filepath /path/to/manifest_output/input_manifest.json
 
-The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. 
+The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``.
 
 - Example audio file path list ``audio_file_path_list.txt``
 
@@ -151,15 +151,15 @@ The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. 
 - Example RTTM file path list ``rttm_file_path_list.txt``
 
 .. code-block:: bash
-  
+
   /path/to/abcd01.rttm
   /path/to/abcd02.rttm
-   
+
 
 The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_diarize_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configuration as shown below:
 
 .. code-block:: yaml
-   
+
 	diarizer.manifest_filepath="path/to/manifest/input_manifest.json"
 
 The following are descriptions about each field in an input manifest JSON file.
@@ -168,15 +168,15 @@ The following are descriptions about each field in an input manifest JSON file.
 	We expect all the provided files (e.g. audio, rttm, text) to have the same base name and the name should be unique (uniq-id).
 
 ``audio_filepath`` (Required):
-  
+
   a string containing absolute path to the audio file.
 
 ``num_speakers`` (Optional):
-  
-  If the number of speakers is known, provide the integer number or assign null if not known. 
-	
+
+  If the number of speakers is known, provide the integer number or assign null if not known.
+
 ``rttm_filepath`` (Optional):
-  
+
   To evaluate a diarization system with known rttm files, one needs to provide Rich Transcription Time Marked (RTTM) files as ground truth label files. If RTTM files are provided, the diarization evaluation will be initiated. Here is one line from a RTTM file as an example:
 
 .. code-block:: bash
@@ -199,18 +199,18 @@ The following are descriptions about each field in an input manifest JSON file.
   Example lines of UEM file:
 
 .. code-block:: bash
-  
+
     TS3012d.Mix-Headset 1 12.31 108.98
     TS3012d.Mix-Headset 1 214.00 857.09
 
 ``ctm_filepath`` (Optional):
-    
-  CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>`` Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM. 
+
+  CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>`` Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM.
 
   Example lines of CTM file:
 
 .. code-block:: bash
-  
+
    TS3012d.Mix-Headset MTD046ID 12.879 0.32 okay 0
    TS3012d.Mix-Headset MTD046ID 13.203 0.24 yeah 0
 
@@ -228,10 +228,10 @@ The following are the suggested parameters for reproducing the diarization perfo
 .. code-block:: bash
 
   diarizer.manifest_filepath="/path/to/AMItest_input_manifest.json"
-  diarizer.oracle_num_speakers=null # Performing unknown number of speaker case 
+  diarizer.oracle_num_speakers=null # Performing unknown number of speaker case
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
-  diarizer.ignore_overlap=True 
+  diarizer.ignore_overlap=True
   diarizer.speaker_embeddings.model_path="titanet_large"
 
 We provide a helper script to download the dataset and format it into a NeMo manifest.
@@ -244,7 +244,7 @@ We provide a helper script to download the dataset and format it into a NeMo man
 CallHome American English Speech (CHAES), LDC97S42
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We use the CH109 set which is a subset of the CHAES dataset which has only two speakers in one session. 
+We use the CH109 set which is a subset of the CHAES dataset which has only two speakers in one session.
 The following are the suggested parameters for reproducing the diarization performance for the CH109 set and this setting is based on telephonic domain configuration in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/inference/diar_infer_telephonic.yaml``
 
 .. code-block:: bash
@@ -252,7 +252,7 @@ The following are the suggested parameters for reproducing the diarization perfo
   diarizer.manifest_filepath="/path/to/ch109_input_manifest.json"
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
-  diarizer.ignore_overlap=True 
+  diarizer.ignore_overlap=True
   diarizer.speaker_embeddings.model_path="titanet_large"
 
 

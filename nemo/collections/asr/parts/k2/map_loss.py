@@ -49,9 +49,9 @@ class MAPLoss(MLLoss):
     """
     Maximum a Posteriori Probability criterion.
     It implements Lattice-Free Maximum Mutual Information (LF-MMI) and LF-boosted-MMI (LF-bMMI) losses.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -91,8 +91,8 @@ class MAPLoss(MLLoss):
         self.graph_compiler = None  # expected to be initialized in .update_graph(...)
         if token_lm is None:
             logging.warning(
-                f"""token_lm is empty. 
-                            Trainable token_lm is not supported yet. 
+                f"""token_lm is empty.
+                            Trainable token_lm is not supported yet.
                             Please call .update_graph(token_lm) before using."""
             )
         else:
@@ -112,7 +112,7 @@ class MAPLoss(MLLoss):
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
         """Inner intersection method.
         Does joint (simultaneous) exact intersection of dense_fsa_vec against num_graphs and den_graph.
-        
+
         Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
@@ -174,7 +174,7 @@ class MAPLoss(MLLoss):
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
         """Inner intersection method.
         Does exact intersection of dense_fsa_vec against num_graphs and pruned intersection against den_graph.
-        
+
         Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device

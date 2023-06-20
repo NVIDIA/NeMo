@@ -37,10 +37,10 @@ class Code(object):
         @params:
             col_name: name of the column
             code_len: number of tokens used to code the column.
-            start_id: offset for token_id. 
+            start_id: offset for token_id.
             fillall: if True, reserve space for digit number even the digit number is
             not present in the data_series. Otherwise, only reserve space for the numbers
-            in the data_series. 
+            in the data_series.
             hasnan: if True, reserve space for nan
         """
         self.name = col_name

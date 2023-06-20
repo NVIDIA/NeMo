@@ -13,7 +13,7 @@
 # limitations under the License.
 
 pretrained_model: null # pretrained model from list_available_models()
-do_training: true # true for training mode, false for testing 
+do_training: true # true for training mode, false for testing
 trainer:
   devices: [0] # 0 for CPU, or list of the GPUs to use e.g. [0, 1] or [0]
   num_nodes: 1
@@ -52,7 +52,7 @@ model:
     #   useful for extractive datasets like SQuAD
     # if false, all context spans/chunks are treated as relevant for answering given query,
     #   useful for generative datasets where answer is not necessarily in the context
-    # used by S2SQAModel and GPTQAModel   
+    # used by S2SQAModel and GPTQAModel
     check_if_answer_in_context: true
 
     # if all, keep all doc spans
@@ -95,7 +95,7 @@ model:
     batch_size: 24 # per GPU
     shuffle: false
     num_samples: -1
-    
+
     # default values for the following params are retrieved from dataset config section, but you may override them
     num_workers: ${model.dataset.num_workers}
     drop_last: ${model.dataset.drop_last}

@@ -24,7 +24,7 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 8) `Intro_to_Transducers`: Previous tutorials discuss ASR models in context of the Connectionist Temporal Classification Loss. In this tutorial, we introduce the Transducer loss, and the components of this loss function that are constructed in the config file. This tutorial is a prerequisite to the `ASR_with_Transducers` tutorial.
 
-9) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model. 
+9) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model.
 
 10) `Self_Supervised_Pre_Training`: It can often be difficult to obtain labeled data for ASR training. In this tutorial, we demonstrate how to pre-train a speech model in an unsupervised manner, and then fine-tune with CTC loss.
 

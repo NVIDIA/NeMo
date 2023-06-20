@@ -44,7 +44,7 @@ exp_manager:
 
 base_model:
   version: 1 # indicate the retro model version
-  # model parallelism 
+  # model parallelism
   micro_batch_size: 4
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
@@ -76,7 +76,7 @@ base_model:
     type: 'GPT2BPETokenizer'
     model: null
     vocab_file: null
-    merge_file: null 
+    merge_file: null
     delimiter: null # only used for tabular tokenizer
 
   # precision
@@ -89,7 +89,7 @@ base_model:
 
 delta_model:
   version: 1 # indicate the retro model version
-  # model parallelism 
+  # model parallelism
   micro_batch_size: 4
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
@@ -121,7 +121,7 @@ delta_model:
     type: 'GPT2BPETokenizer'
     model: null
     vocab_file: null
-    merge_file: null 
+    merge_file: null
     delimiter: null # only used for tabular tokenizer
 
   # precision
@@ -134,7 +134,7 @@ delta_model:
 model:
   version: 1 # indicate the retro model version
   shape_file: null  # the path to the shape file
-  # model parallelism 
+  # model parallelism
   micro_batch_size: 4
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
@@ -164,7 +164,7 @@ model:
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
 
-  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity
@@ -178,7 +178,7 @@ model:
     type: 'GPT2BPETokenizer'
     model: null
     vocab_file: null
-    merge_file: null 
+    merge_file: null
     delimiter: null # only used for tabular tokenizer
 
   # precision
@@ -192,8 +192,8 @@ model:
   data:
     # Path to data must be specified by the user.
     # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
-    # Or see example below: 
-    # data_prefix: 
+    # Or see example below:
+    # data_prefix:
     #   - .5
     #   - /raid/data/pile/my-gpt3_00_text_document
     #   - .5
@@ -209,12 +209,12 @@ model:
     num_workers: 0
     dataloader_type: single # cyclic
     neighbors: 2  # number of retrieved neighbors
-  
+
   optim:
     name: muadamw
     lr: 1e-4
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     sched:

@@ -11,9 +11,9 @@
 NEMO_PATH=
 
 ## name or local path to pretrained model, e.g. ./nemo_experiments/training.nemo
-PRETRAINED_MODEL=   
+PRETRAINED_MODEL=
 
-## path to input and reference files 
+## path to input and reference files
 # (see the last steps in examples/nlp/text_normalization_as_tagging/prepare_dataset_en.sh,
 #   starting from "python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/evaluation/get_multi_reference_vocab.py"
 #)

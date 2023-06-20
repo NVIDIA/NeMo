@@ -67,8 +67,8 @@ class EncDecK2SeqModel(EncDecCTCModel, ASRK2Mixin):
         if self.use_graph_lm:
             self.token_lm = None
             logging.warning(
-                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`, 
-                a new token_lm has to be set manually: call .update_k2_modules(new_cfg) 
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
+                a new token_lm has to be set manually: call .update_k2_modules(new_cfg)
                 or update .graph_module_cfg.backend_cfg.token_lm before calling this method."""
             )
 
@@ -150,8 +150,8 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE, ASRK2Mixin):
         if self.use_graph_lm:
             self.token_lm = None
             logging.warning(
-                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`, 
-                a new token_lm has to be set manually: call .update_k2_modules(new_cfg) 
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
+                a new token_lm has to be set manually: call .update_k2_modules(new_cfg)
                 or update .graph_module_cfg.backend_cfg.token_lm before calling this method."""
             )
 
@@ -200,7 +200,7 @@ class EncDecK2RnntSeqModel(EncDecRNNTModel, ASRK2Mixin):
         criterion_type = cfg.graph_module_cfg.get("criterion_type", "ml")
         if loss_type != "rnnt" or criterion_type != "ml":
             raise ValueError(
-                f"""Class {self.__class__.__name__} does not support 
+                f"""Class {self.__class__.__name__} does not support
             `criterion_type`={criterion_type} with `loss_type`={loss_type}"""
             )
         super().__init__(cfg=cfg, trainer=trainer)
@@ -237,8 +237,8 @@ class EncDecK2RnntSeqModel(EncDecRNNTModel, ASRK2Mixin):
         if self.use_graph_lm:
             self.token_lm = None
             logging.warning(
-                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`, 
-                a new token_lm has to be set manually: call .update_k2_modules(new_cfg) 
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
+                a new token_lm has to be set manually: call .update_k2_modules(new_cfg)
                 or update .graph_module_cfg.backend_cfg.token_lm before calling this method."""
             )
 
@@ -253,7 +253,7 @@ class EncDecK2RnntSeqModelBPE(EncDecRNNTBPEModel, ASRK2Mixin):
         criterion_type = cfg.graph_module_cfg.get("criterion_type", "ml")
         if loss_type != "rnnt" or criterion_type != "ml":
             raise ValueError(
-                f"""Class {self.__class__.__name__} does not support 
+                f"""Class {self.__class__.__name__} does not support
             `criterion_type`={criterion_type} with `loss_type`={loss_type}"""
             )
         super().__init__(cfg=cfg, trainer=trainer)
@@ -290,8 +290,8 @@ class EncDecK2RnntSeqModelBPE(EncDecRNNTBPEModel, ASRK2Mixin):
         if self.use_graph_lm:
             self.token_lm = None
             logging.warning(
-                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`, 
-                a new token_lm has to be set manually: call .update_k2_modules(new_cfg) 
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
+                a new token_lm has to be set manually: call .update_k2_modules(new_cfg)
                 or update .graph_module_cfg.backend_cfg.token_lm before calling this method."""
             )
 

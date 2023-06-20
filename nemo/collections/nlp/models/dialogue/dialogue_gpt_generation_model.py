@@ -222,7 +222,7 @@ class DialogueGPTGenerationModel(NLPModel):
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
         """
-        # adapted from MegatronGPTModel._bucketize_gpt_inference 
+        # adapted from MegatronGPTModel._bucketize_gpt_inference
         """
         batch_size = labels.size(0)
         prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None

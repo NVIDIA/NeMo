@@ -15,8 +15,8 @@
 
 """
 # This script would evaluate an N-gram language model trained with KenLM library (https://github.com/kpu/kenlm) in
-# fusion with beam search decoders on top of a trained ASR model with CTC decoder. To evaluate a model with 
-# Transducer (RNN-T) decoder use another script 'scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py'. 
+# fusion with beam search decoders on top of a trained ASR model with CTC decoder. To evaluate a model with
+# Transducer (RNN-T) decoder use another script 'scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py'.
 # NeMo's beam search decoders are capable of using the KenLM's N-gram models
 # to find the best candidates. This script supports both character level and BPE level
 # encodings and models which is detected automatically from the type of the model.
@@ -113,7 +113,7 @@ class EvalBeamSearchNGramConfig:
 
     decoding_strategy: str = "beam"
     decoding: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=128)
-    
+
     text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
         punctuation_marks = ".,?",
         separate_punctuation = False,

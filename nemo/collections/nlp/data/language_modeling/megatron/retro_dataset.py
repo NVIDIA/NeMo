@@ -59,7 +59,7 @@ class RETRODataset(Dataset):
 
     It constructs single data record from the training/retrieval indexed retrieval dataset and knn index file.
     The KNN index file maps data chunk id to K-nearest neighbors in the the retrieval dataset chunk ids.
-    First, it loads a long sequence (2048) from training dataset. Then for each chunk in the sequence, it finds the kNN 
+    First, it loads a long sequence (2048) from training dataset. Then for each chunk in the sequence, it finds the kNN
     chunks from the retrieval dataset using the KNN index. Lastly, compute the masks based on pad id.
     """
 
@@ -157,7 +157,7 @@ class RETRODataset(Dataset):
 
     def _get_chunks(self, chunk_id: int, num_chunks: int, chunks: List):
         """
-        starting from chunk_id, loop for num_chunks, get the 
+        starting from chunk_id, loop for num_chunks, get the
         KNN chunk ids from retrieval dataset, and get the chunk token ids,
         put them into the chunks list
         """

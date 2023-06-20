@@ -8,7 +8,7 @@ Sometimes punctuation and capitalization cannot be restored based only on text. 
 Like in these examples:
 
 .. code::
-  
+
   Oh yeah? or Oh yeah.
 
   We need to go? or We need to go.
@@ -90,7 +90,7 @@ For creating of tarred dataset with audio you will need data in NeMo format:
         --num_batches_per_tarfile 100 \
         --use_audio \
         --audio_file <PATH/TO/AUDIO/PATHS/FILE> \
-        --sample_rate 16000 
+        --sample_rate 16000
 
 .. note::
   You can change sample rate to any positive integer. It will be used in constructor of :class:`~nemo.collections.asr.parts.preprocessing.AudioSegment`. It is recomended to set ``sample_rate`` to the same value as data which was used during training of ASR model.
@@ -124,7 +124,7 @@ model.
      - **Data type**
      - **Default value**
      - **Description**
-   * - **audio_encoder** 
+   * - **audio_encoder**
      - :ref:`audio encoder config<audio-encoder-config-label>`
      - :ref:`audio encoder config<audio-encoder-config-label>`
      - A configuration for audio encoder.
@@ -169,12 +169,12 @@ Data config
    * - **use_bucketing**
      - bool
      - ``true``
-     - If set to True will sort samples based on their audio length and assamble batches more efficently (less padding in batch). If set to False dataset will return ``batch_size`` batches instead of ``number_of_tokens`` tokens. 
+     - If set to True will sort samples based on their audio length and assamble batches more efficently (less padding in batch). If set to False dataset will return ``batch_size`` batches instead of ``number_of_tokens`` tokens.
    * - **preload_audios**
      - bool
      - ``true``
      - If set to True batches will include waveforms, if set to False will store audio_filepaths instead and load audios during ``collate_fn`` call.
-    
+
 
 .. _audio-encoder-config-label:
 

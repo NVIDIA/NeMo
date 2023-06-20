@@ -89,8 +89,8 @@ def cal_write_wer(
     use_cer: bool = False,
     output_filename: str = None,
 ) -> Tuple[str, dict, str]:
-    """ 
-    Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text) 
+    """
+    Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text)
     We use WER in function name as a convention, but Error Rate (ER) currently support Word Error Rate (WER) and Character Error Rate (CER)
     """
     samples = []

@@ -44,7 +44,7 @@ exp_manager:
 model:
   version: 1 # indicate the retro model version
 
-  # model parallelism 
+  # model parallelism
   micro_batch_size: 4
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
@@ -81,7 +81,7 @@ model:
     type: 'GPT2BPETokenizer'
     model: null
     vocab_file: null
-    merge_file: null 
+    merge_file: null
     delimiter: null # only used for tabular tokenizer
 
   # precision
@@ -95,8 +95,8 @@ model:
   data:
     # Path to data must be specified by the user.
     # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
-    # Or see example below: 
-    # data_prefix: 
+    # Or see example below:
+    # data_prefix:
     #   - .5
     #   - /raid/data/pile/my-gpt3_00_text_document
     #   - .5
@@ -112,12 +112,12 @@ model:
     num_workers: 0
     dataloader_type: single # cyclic
     neighbors: 2  # number of retrieved neighbors
-  
+
   optim:
     name: fused_adam
     lr: 1e-4
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     sched:

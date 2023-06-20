@@ -13,7 +13,7 @@ Features
 
 The simulator is reconfigurable and has several options including:
 
-* Amount of overlapping speech 
+* Amount of overlapping speech
   - The percentage of overlapping speech out of the total speaker time.
 * Percentage of silence
   - The percentage of the overall audio session that has no speakers talking.
@@ -21,11 +21,11 @@ The simulator is reconfigurable and has several options including:
   - The distribution of sentence lengths that is used for sampling (the parameters passed in are for a negative binomial distribution).
 * Number of speakers per session
 * Length of each session
-* Variance in speaker dominance 
-  - Determines what portion of the speaking time will be used by each speaker in a session. Increasing this value will make it more likely that a few speakers dominate the conversation. 
-* Turn taking 
+* Variance in speaker dominance
+  - Determines what portion of the speaking time will be used by each speaker in a session. Increasing this value will make it more likely that a few speakers dominate the conversation.
+* Turn taking
   - Determines how likely it is that a speaker keeps talking after completing an utterance.
-* Background noise 
+* Background noise
 
 The simulator can be used in two modes: near field (no Room Impulse Response) as well as far field (including synthetic RIR). When using synthetic RIR generation, multiple microphones can be placed in the simulated room environment for multichannel simulations.
 

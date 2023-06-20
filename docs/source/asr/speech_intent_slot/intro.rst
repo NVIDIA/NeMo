@@ -10,7 +10,7 @@ Speech Intent Classification and Slot Filling
         :alt: slurp_example
 
 
-Different from its counterpart in Natural Language Understanding (NLU) that takes text as input, here the model predicts the semantics directly from audio input. 
+Different from its counterpart in Natural Language Understanding (NLU) that takes text as input, here the model predicts the semantics directly from audio input.
 
 
 

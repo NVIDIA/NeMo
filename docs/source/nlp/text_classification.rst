@@ -18,7 +18,7 @@ This tutorial shows an example of how run the Text Classification model on a sen
 Data Format
 -----------
 
-The Text Classification model uses a simple text format as the dataset. It requires the data to be stored in TAB separated files 
+The Text Classification model uses a simple text format as the dataset. It requires the data to be stored in TAB separated files
 (``.tsv``) with two columns: sentence and label. Each line of the data file contains text sequences, where words are separated with spaces and the label is separated with ``[TAB]``, i.e.:
 
 .. code::
@@ -38,7 +38,7 @@ You may need separate files for train, validation, and test with this format.
 Dataset Conversion
 ------------------
 
-If your dataset is stored in another format, you need to convert it to NeMo's format to use this model. There are some conversion 
+If your dataset is stored in another format, you need to convert it to NeMo's format to use this model. There are some conversion
 scripts available for the following datasets:
 
 - SST2 :cite:`nlp-textclassify-socher2013`
@@ -158,7 +158,7 @@ training a model:
 Model Evaluation and Inference
 ------------------------------
 
-After saving the model in ``.nemo`` format, you can load the model and perform evaluation or inference on the model. You can find 
+After saving the model in ``.nemo`` format, you can load the model and perform evaluation or inference on the model. You can find
 some examples in the example script: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/text_classification/text_classification_with_bert.py>`__.
 
 References

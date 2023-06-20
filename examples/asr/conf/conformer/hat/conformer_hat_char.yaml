@@ -1,6 +1,6 @@
 # It contains the default values for training a Conformer-HAT (Hybrid Autoregressive Transducer - https://arxiv.org/abs/2003.07705) ASR model,
 # large size (~120M) with Transducer loss and char-based vocabulary.
-# The only difference from the standard Conformer-Transducer model (RNNT) is the use of "HATJiont" class (instead of "RNNTJoint") for joint module. 
+# The only difference from the standard Conformer-Transducer model (RNNT) is the use of "HATJiont" class (instead of "RNNTJoint") for joint module.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective

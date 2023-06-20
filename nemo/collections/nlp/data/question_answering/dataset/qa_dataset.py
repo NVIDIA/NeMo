@@ -150,7 +150,7 @@ class QADataset(Dataset):
             all_doc_tokens: list of all tokens in document
             max_tokens_for_doc: maximum number of tokens in each doc span
             doc_stride: stride size which sliding window moves with
-        
+
         Returns:
             doc_spans: all possible doc_spans from document
         """
@@ -179,7 +179,7 @@ class QADataset(Dataset):
             doc_span
             tok_start_position: start position of answer in document
             tok_end_position: end position of answer in document
-        
+
         Returns:
             average distance of doc_span to answer
         """
@@ -193,7 +193,7 @@ class QADataset(Dataset):
     @staticmethod
     def keep_relevant_docspans(doc_spans, tok_start_position, tok_end_position, mode):
         """
-        Filters out doc_spans, which might not be relevant to answering question, 
+        Filters out doc_spans, which might not be relevant to answering question,
         which can be helpful when document is extremely long leading to many doc_spans with no answers
 
         Args:
@@ -204,7 +204,7 @@ class QADataset(Dataset):
                 all: do not filter
                 only_positive: only keep doc_spans containing the answer
                 limited_negative: only keep 10 doc_spans that are nearest to answer
-        
+
         Returns:
             doc_spans: doc_spans after filtering
         """

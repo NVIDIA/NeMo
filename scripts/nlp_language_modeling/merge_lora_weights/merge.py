@@ -78,7 +78,7 @@ def load_lora(lora_nemo, tp):
 def merge(
     base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, curr_rank: int
 ):
-    """ 
+    """
     Iterate through all the self_attention.query_key_value projection feedforward weights in all the layers.
     Collect the corresponding lora weights for each layer and across tp ranks.
     Computes the "full rank" weight from the two low-rank weights and add it to the self_attention.query_key_value weight.

@@ -1,6 +1,6 @@
 # This file contains the default values for training a Conformer-TDT ASR model, large size (~120M) with sub-word encoding.
 
-# You can find detailed info about TDT models at https://arxiv.org/abs/2304.06795. 
+# You can find detailed info about TDT models at https://arxiv.org/abs/2304.06795.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
@@ -22,7 +22,7 @@
 #  | Large  (120M)|   512   |    8   |    17     |       31         |     1e-3     |           640            |        1        |
 #  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
 #  | XLarge (644M)|  1024   |    8   |    24     |        5         |     1e-3     |           640            |        2        |
-#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+  
+#  +--------------+---------+--------+-----------+------------------+--------------+--------------------------+-----------------+
 
 # Default learning parameters in this config are set for global batch size of 2K while you may use lower values.
 # To increase the global batch size with limited number of GPUs, you may use higher accumulate_grad_batches.
@@ -44,7 +44,7 @@ model:
     # variables for TDT configs.
     tdt_durations: [0, 1, 2, 3, 4]
     num_tdt_durations: 5
-    
+
 
   train_ds:
     manifest_filepath: ???

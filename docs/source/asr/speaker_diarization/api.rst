@@ -6,7 +6,7 @@ Model Classes
 -------------
 .. autoclass:: nemo.collections.asr.models.ClusteringDiarizer
     :show-inheritance:
-    :members:  
+    :members:
 
 .. autoclass:: nemo.collections.asr.models.EncDecDiarLabelModel
     :show-inheritance:

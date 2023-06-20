@@ -3,7 +3,7 @@
 Prompt Learning
 ---------------
 
-Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoids catastrophic forgetting issues often encountered when fine-tuning models. 
+Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoids catastrophic forgetting issues often encountered when fine-tuning models.
 
 Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt embeddings that can be optimized via gradient descent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
 
@@ -43,7 +43,7 @@ Using Both Prompt and P-Tuning
 
 A single pretrained GPT model can use both p-tuning and prompt-tuning. While you must decide to use either p-tuning or prompt-tuning for each task you want your model to perform, you can p-tune your model on a set of tasks *A*, then prompt tune your same model on a different set of tasks *B*, then finally run inference on tasks from both *A* and *B* at the same time. During prompt-tuning or p-tuning, tasks tuned at the same time must use the same number of virtual tokens. During inference, tasks using differing amounts of virtual tokens can be run at the same time.
 
-When p-tuning completes, prompt tuned virtual tokens from the p-tuning ``prompt_encoder`` are automatically moved to the ``prompt_table`` where all prompt tuned and p-tuned soft prompts are stored. The LSTM ``prompt_encoder`` is then removed from the model. This allows us to preserve previously p-tuned soft prompts while still maintaining the ability to add new p-tuned or prompt-tuned soft prompts in the future. The ``prompt_table`` uses the ``taskname`` as a key to look up the correct virtual tokens for a specified task. The ``prompt_table``'s hash table data structure also makes it possible for each task to flexibly use a different number of virtual tokens. 
+When p-tuning completes, prompt tuned virtual tokens from the p-tuning ``prompt_encoder`` are automatically moved to the ``prompt_table`` where all prompt tuned and p-tuned soft prompts are stored. The LSTM ``prompt_encoder`` is then removed from the model. This allows us to preserve previously p-tuned soft prompts while still maintaining the ability to add new p-tuned or prompt-tuned soft prompts in the future. The ``prompt_table`` uses the ``taskname`` as a key to look up the correct virtual tokens for a specified task. The ``prompt_table``'s hash table data structure also makes it possible for each task to flexibly use a different number of virtual tokens.
 
 P-tuning usually requires fewer virtual tokens per task to achieve good results but uses a higher number of parameters compared to prompt-tuning. For example, if you prompt tune a 125M parameter GPT model (with hidden size 768) on two tasks, using 100 virtual tokens per task, the total parameters tuned during prompt tuning would equal 153k (~.1% of the pre-trained model size). If you p-tune the same 125M GPT model on 2 tasks, using an LSTM with two layers and 10 tokens per task, you will be tuning 8.3M parameters (~6.6% of the pre-trained model size). The increased number of parameters used during p-tuning is mitigated by our ``prompt_table``. When p-tuned soft prompts are placed in the prompt table, only the parameters for the predicted virtual tokens are saved. This allows us to keep the benefit of tuning a larger number of parameters during training, while also preserving the parameter efficiency of prompt-tuning during inference and storing of the model.
 
@@ -66,9 +66,9 @@ The prompt learning dataset accepts a list of json/dictionary objects or a list 
     {"taskname": "sentiment", "sentence": [SENTENCE_TEXT1], "label": [SENTIMENT_LABEL1]},
     {"taskname": "sentiment", "sentence": [SENTENCE_TEXT2], "label": [SENTIMENT_LABEL2]},
   ]
-  
+
 These additional fields can be unlimited in number and will be used to help map different parts of the discrete text input to a prompt template that you define. We show how this mapping works and how to construct your prompt template in the Prompt Formatting section. Data examples for each dataset can all be passed to the dataset class in one file, or in separate ``.jsonl`` files in a list.
-  
+
 .. _data-example-label:
 
 Prompt Formatting
@@ -84,7 +84,7 @@ For example, given:
 
 the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home. VVV Premise: He didn't say a word. VVV Answer:``, where ``VVV`` are three virtual tokens.
 
-**We recommend you first try prompt learning by placing all virtual tokens at the very beginning of your prompt template** like we do with the ``sentiment`` task example below. We've found this gives strong performance. 
+**We recommend you first try prompt learning by placing all virtual tokens at the very beginning of your prompt template** like we do with the ``sentiment`` task example below. We've found this gives strong performance.
 .. code::
 
   config.model.task_templates = [
@@ -111,10 +111,10 @@ the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home.
 
 ``model.task_templates`` Config Parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. list-table:: 
+.. list-table::
     :widths: 15 15 25
     :header-rows: 1
-    
+
     * - **Parameter**
       - **Data type**
       - **Description**
@@ -132,11 +132,11 @@ the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home.
       - specifies the number of virtual tokens that belong at each ``<|VIRTUAL_PROMPT_#|>`` marker. ``virtual_token_splits`` values should add up to ``total_virtual_tokens``. The number of ``virtual_token_splits`` should match the number of ``<|VIRTUAL_PROMPT_#|>`` markers.
     * - **answer_only_loss**
       - bool
-      - Whether to limit loss calculation to only the answer portion of the prompt during tuning. Strongly recommended for long prompts. 
+      - Whether to limit loss calculation to only the answer portion of the prompt during tuning. Strongly recommended for long prompts.
     * - **answer_field**
       - string
-      - The field in the data json corresponding to the answer. The loss will only be calculated on this portion of the prompt if ``answer_only_loss`` is ``True``. The answer field must be at the end of the prompt template. 
-    * - **truncate_field** 
+      - The field in the data json corresponding to the answer. The loss will only be calculated on this portion of the prompt if ``answer_only_loss`` is ``True``. The answer field must be at the end of the prompt template.
+    * - **truncate_field**
       - string
       - specifies which field in the data json to truncate if the length of the input exceeds the maximum sequence length of the model. If ``truncate_field`` is set to ``None``, examples that are too long are simply dropped from the dataset.
 
@@ -145,7 +145,7 @@ Prompt Learning Specific Config Values
 .. list-table::
    :widths: 15 15 25
    :header-rows: 1
-   
+
    * - **Parameter**
      - **Data type**
      - **Description**
@@ -163,10 +163,10 @@ Prompt Learning Specific Config Values
      - Path to a .nemo file of existing ``MegatronGPTPromptLearningModel`` that has already been prompt tuned or p-tuned on at least one task. P-tuned or prompt tuned in this training session will be added to this model's `prompt_table`. Should be set to ``null`` if none.
    * - **model.new_tasks**
      - list of strings
-     - List of new tasknames to be prompt or p-tuned, 
+     - List of new tasknames to be prompt or p-tuned,
    * - **model.existing_tasks**
      - list of strings
-     - List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given. Should be set to ``[]`` if None. 
+     - List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given. Should be set to ``[]`` if None.
    * - **model.task_templates**
      - list
      - See the ``model.task_templates`` Config Parameters Table above
@@ -187,7 +187,7 @@ Prompt Learning Specific Config Values
      - intra-layer model parallelism, must match the ``tensor_model_parallel_size`` of the GPT model given at ``language_model_path``
    * - **model.batch_size**
      - int
-     - global batch size 
+     - global batch size
    * - **model.data.train_ds**
      - list of strings
      - list of ``.json`` or ``.jsonl`` training dataset files with json ojects that have the dataset format described above
@@ -196,7 +196,7 @@ Prompt Learning Specific Config Values
      - list of ``.json`` or ``.jsonl`` validation dataset files with json ojects that have the dataset format described above
    * - **model.data.add_eos**
      - bool
-     - Whether to add an EOS token at the end of each training example (recommended). 
+     - Whether to add an EOS token at the end of each training example (recommended).
 
 An example config file can be found at https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml
 
@@ -210,44 +210,44 @@ Example Multi-Task Prompt Tuning Config and Command
 First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_nemo_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` you set.
 
 .. code::
-  
+
   name: multitask_prompt_tuning
   trainer: ...
   exp_manager: ...
   model:
     seed: 1234
-    nemo_path: ${name}.nemo 
-    virtual_prompt_style: "prompt-tuning" 
-    encoder_seq_length: 2048 
-    tensor_model_parallel_size: 1 
-    pipeline_model_parallel_size: 1 
+    nemo_path: ${name}.nemo
+    virtual_prompt_style: "prompt-tuning"
+    encoder_seq_length: 2048
+    tensor_model_parallel_size: 1
+    pipeline_model_parallel_size: 1
     global_batch_size: 16
     micro_batch_size: 4
 
-    restore_path: null 
+    restore_path: null
     language_model_path: models/megatron_125M_gpt.nemo
     existing_tasks: []
-    new_tasks: ["sentiment", "intent_and_slot"] 
+    new_tasks: ["sentiment", "intent_and_slot"]
 
-    task_templates: 
-    - taskname: "sentiment" 
-      prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
-      total_virtual_tokens: 100 
-      virtual_token_splits: [100] 
+    task_templates:
+    - taskname: "sentiment"
+      prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}"
+      total_virtual_tokens: 100
+      virtual_token_splits: [100]
       truncate_field: null
       answer_only_loss: False
 
     - taskname: "intent_and_slot"
-      prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
-      total_virtual_tokens: 100 
+      prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}"
+      total_virtual_tokens: 100
       virtual_token_splits: [80, 20]
       truncate_field: null
       answer_only_loss: True
       answer_field: "label"
 
-    prompt_tuning: 
-      new_prompt_init_methods: ["text", "text"] 
-      new_prompt_init_text: ["financial sentiment analysis postive neutral negative", "intent and slot classification virtual assistant task bot please"] 
+    prompt_tuning:
+      new_prompt_init_methods: ["text", "text"]
+      new_prompt_init_text: ["financial sentiment analysis postive neutral negative", "intent and slot classification virtual assistant task bot please"]
 
     data:
       train_ds: ["data/financial_phrase_bank_train.jsonl", "data/assistent_train.jsonl"]
@@ -264,13 +264,13 @@ First define a config called ``multitask-prompt-learning.yaml`` demonstrated bel
 Then run the command
 
 .. code::
-  
+
   python megatron_gpt_prompt_learning.py --config-name=multitask-prompt-learning.yaml
-         
+
 
 Example Multi-Task P-Tuning Config and Command After Prompt-Tuning
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt learning runs and to use the ``.nemo`` file saved at the end of your last prompt learning session. Values different from the config above have stars commented next to them. 
+Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt learning runs and to use the ``.nemo`` file saved at the end of your last prompt learning session. Values different from the config above have stars commented next to them.
 
 In this example, the SQuAD task includes the question context as part of the prompt. Because the context is long, we recommend setting ``answer_only_loss`` to ``True`` for this task, and any task where a significant portion of the prompt is not a part of the answer. ``answer_only_loss`` tells the model to only calculate the cross-entropy loss on the answer portion of the training example. Though we recommend placing all virtual tokens at the beginning of the prompt, we place them throughout the prompt in this example to demonstrate how to do so.
 
@@ -281,37 +281,37 @@ In this example, the SQuAD task includes the question context as part of the pro
   exp_manager: ...
   model:
     seed: 1234
-    nemo_path: ${name}.nemo 
+    nemo_path: ${name}.nemo
     virtual_prompt_style: "p-tuning" # ***
-    encoder_seq_length: 2048 
-    tensor_model_parallel_size: 1 
-    pipeline_model_parallel_size: 1 
+    encoder_seq_length: 2048
+    tensor_model_parallel_size: 1
+    pipeline_model_parallel_size: 1
     global_batch_size: 16
     micro_batch_size: 4
 
     restore_path: multitask_prompt_tuning.nemo # ***
     language_model_path: models/megatron_125M_gpt.nemo
     existing_tasks: ["sentiment", "intent_and_slot"] # ***
-    new_tasks: ["squad"] 
+    new_tasks: ["squad"]
 
-    task_templates: 
-    - taskname: "sentiment" 
-      prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
-      total_virtual_tokens: 100 
-      virtual_token_splits: [100] 
+    task_templates:
+    - taskname: "sentiment"
+      prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}"
+      total_virtual_tokens: 100
+      virtual_token_splits: [100]
       truncate_field: null
       answer_only_loss: False
 
     - taskname: "intent_and_slot"
-      prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
-      total_virtual_tokens: 100 
+      prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}"
+      total_virtual_tokens: 100
       virtual_token_splits: [80, 20]
       truncate_field: null
       answer_only_loss: True
       answer_field: "label"
 
     - taskname: "squad" # ***
-      prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context {question} {context} Answer: {answer}" # *** 
+      prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context {question} {context} Answer: {answer}" # ***
       total_virtual_tokens: 9 # ***
       virtual_token_splits: [9] # ***
       truncate_field: context # ***
@@ -321,7 +321,7 @@ In this example, the SQuAD task includes the question context as part of the pro
     p_tuning: # ***
         dropout: 0.0 # ***
         num_layers: 2 # ***
-        
+
     data:
       train_ds: ["data/squad_train.jsonl"] # ***
       validation_ds: ["data/squad_val.jsonl"] # ***
@@ -335,13 +335,13 @@ In this example, the SQuAD task includes the question context as part of the pro
 Then run the command again:
 
 .. code::
-  
+
   python megatron_gpt_prompt_learning.py --config-name=multitask-prompt-learning.yaml
 
 
-Example Multi-Task Inference 
+Example Multi-Task Inference
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The inference file can contain a mix of prompts from all the tasks the model has been prompt tuned on. 
+The inference file can contain a mix of prompts from all the tasks the model has been prompt tuned on.
 
 .. code::
 
@@ -355,17 +355,17 @@ The inference file can contain a mix of prompts from all the tasks the model has
             tensor_model_parallel_size=1 \
             pipeline_model_parallel_size=1 \
             prompts=[prompt1,prompt2]
-            
-``virtual_prompt_model_file`` should be a path to a .nemo file saved after p-tuning/prompt tuning and ``model_file`` is still the path to the gpt model's .nemo file.   
 
-prompts in this case should be a list of .json or .jsonl files containing json objects similar to the ones used during prompt learning. They should have keys that match the fields specified in the prompt template. Fields can be dropped from the prompt dict and their corresponding section of the prompt template will be automatically removed. 
+``virtual_prompt_model_file`` should be a path to a .nemo file saved after p-tuning/prompt tuning and ``model_file`` is still the path to the gpt model's .nemo file.
+
+prompts in this case should be a list of .json or .jsonl files containing json objects similar to the ones used during prompt learning. They should have keys that match the fields specified in the prompt template. Fields can be dropped from the prompt dict and their corresponding section of the prompt template will be automatically removed.
 
 For example, say the prompt template during p-tuning/prompt-tuning looked like:
 
 .. code::
 
   '<|VIRTUAL_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}'
-  
+
 but you don't want to include the answer field during inference. Just don't include the answer field in the prompt dict like below:
 
 .. code::
@@ -373,7 +373,7 @@ but you don't want to include the answer field during inference. Just don't incl
   {"taskname": "squad", "context": "some paragraph", "question": "question related to paragraph"}
   {"taskname": "squad", "context": "another paragraph", "question": "a different question related to paragraph"}
 
-        
+
 And the dataset class will automatically format your input to have the form:
 
 .. code::
@@ -382,8 +382,8 @@ And the dataset class will automatically format your input to have the form:
       '<|VIRTUAL_PROMPT_0|> Context: some paragraph Question: question related to paragraph Answer: ',
       '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer: '
   ]
-        
-Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE`` to your command if you're using a p-tuned/prompt-tuned model. 
+
+Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE`` to your command if you're using a p-tuned/prompt-tuned model.
 
 Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
 

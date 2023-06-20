@@ -51,7 +51,7 @@ graph TD
     H1 --> H2(Setup Older Adapters)
     H2 --> H4{Adapter Name Provided}
     H4 --> |Yes| H5[Disable all Adapters, Enable selected Adapter]
-    H4 --> |No| H6[Disable all Adapters] 
+    H4 --> |No| H6[Disable all Adapters]
     H5 --> Ho[Freeze Weights]
     H6 --> Ho[Freeze Weights]
     Ho --> I["trainer.test(model)"]

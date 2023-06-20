@@ -40,7 +40,7 @@ model:
     se: true
     se_context_size: -1
     kernel_size_factor: 1.0
-    
+
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     normalize: "per_feature"
@@ -131,8 +131,8 @@ model:
 
   loss:
     _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
-    scale: 30    
-    margin: 0.2  
+    scale: 30
+    margin: 0.2
 
   optim:
     name: sgd

@@ -6,7 +6,7 @@ Model Classes
 -------------
 .. autoclass:: nemo.collections.asr.models.SLUIntentSlotBPEModel
     :show-inheritance:
-    :members: 
+    :members:
 
 
 Mixins

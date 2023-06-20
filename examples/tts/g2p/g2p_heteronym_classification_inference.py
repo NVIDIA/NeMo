@@ -45,7 +45,7 @@ Interactive inference:
 python g2p_heteronym_classification_inference.py \
     pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
     wordid_to_phonemes_file="<Path to a file with mapping from wordid predicted by the model to phonemes>" # Optional
-        
+
 """
 
 

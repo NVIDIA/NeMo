@@ -93,7 +93,7 @@ def test_warn_completion_is_not_empty():
     df_some_empty = pd.DataFrame({'prompt': ['prompt'] * 2, 'completion': ['', 'completion']})
 
     msg_some_empty = f"""TODO: completion contains {1} empty values at rows ({[0]})
-                Please check the original file that the fields for prompt template are 
+                Please check the original file that the fields for prompt template are
                 not empty and rerun dataset validation"""
 
     assert warn_completion_is_not_empty(df_some_empty) == msg_some_empty
@@ -304,8 +304,8 @@ def test_warn_and_drop_long_samples():
     df = pd.DataFrame({'prompt': ['a' * 12000, 'a' * 9000, 'a'], 'completion': ['b' * 12000, 'b' * 2000, 'b']})
 
     expected_df = pd.DataFrame({'prompt': ['a'], 'completion': ['b']})
-    message = f"""TODO: There are {2} / {3} 
-        samples that have its prompt and completion too long 
+    message = f"""TODO: There are {2} / {3}
+        samples that have its prompt and completion too long
         (over {10000} chars), which have been dropped."""
 
     assert expected_df.equals(warn_and_drop_long_samples(df, 10000)[0])

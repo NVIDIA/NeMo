@@ -5,7 +5,7 @@ Pretraining Model Classes
 -------------------------
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_base_model.MegatronBaseModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: __init__, configure_optimizers
 
@@ -15,22 +15,22 @@ Pretraining Model Classes
     :members: generate, training_step, validation_step, build_train_valid_test_datasets, setup, on_save_checkpoint, on_load_checkpoint
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_bert_model.MegatronBertModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: training_step, validation_step, build_train_valid_test_datasets, build_LDDL_data, setup, on_save_checkpoint, on_load_checkpoint
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_bart_model.MegatronBARTModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: training_step, validation_step, build_train_valid_test_datasets, setup, on_save_checkpoint, on_load_checkpoint
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_retrieval_model.MegatronRetrievalModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: complete, encode, decode, add_special_tokens_to_tokenizer, training_step, validation_step, build_train_valid_test_datasets, setup
 
@@ -38,37 +38,37 @@ Customization Model Classes
 ---------------------------
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model.MegatronGPTSFTModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model.MegatronGPTAdapterLearningModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: __init__, state_dict, generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model.MegatronGPTInfusedAdapterModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: __init__, state_dict, generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model.MegatronGPTPromptLearningModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: built_virtual_prompt_dataset, generate, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5AdapterLearningModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5AdapterLearningModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: _add_adapters_to_component, __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model.MegatronT5InfusedAdapterModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: _add_adapters_to_component, __init__, state_dict, training_step, validation_step, build_train_valid_test_datasets, setup
 
@@ -76,29 +76,29 @@ Modules
 -------
 
 .. autoclass:: nemo.collections.nlp.modules.common.megatron.module.MegatronModule
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.modules.common.megatron.module.Float16Module
-    :show-inheritance: 
+    :show-inheritance:
 
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron.gpt_model.GPTModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: forward
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron.bert_model.BertModel
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: forward
 
 .. autoclass:: nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder.MegatronTokenLevelEncoderDecoderModule
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: forward
 
 .. autoclass:: nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder.MegatronRetrievalTokenLevelEncoderDecoderModule
-    :show-inheritance: 
+    :show-inheritance:
     :no-members:
     :members: forward
 
@@ -107,36 +107,36 @@ Datasets
 --------
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset.BlendableDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset.GPTDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset.MockGPTDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.bert_dataset.BertDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset.BasePromptLearningDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTChatDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.retro_dataset.RETRODataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.t5_dataset.T5Dataset
-    :show-inheritance: 
+    :show-inheritance:
     :exclude-members: MAX_SEQ_LENGTH_DELTA
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset.T5PromptLearningDataset
-    :show-inheritance: 
+    :show-inheritance:
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset.UL2Dataset
-    :show-inheritance: 
+    :show-inheritance:
 

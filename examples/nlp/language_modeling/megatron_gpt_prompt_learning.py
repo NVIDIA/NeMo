@@ -35,7 +35,7 @@ mp.set_start_method("spawn", force=True)
 
 """
 This is an example of how to ptune/prompt-tune a pretrained GPT model.
-Be sure to use a .nemo gpt model with this code. If you've downloaded 
+Be sure to use a .nemo gpt model with this code. If you've downloaded
 a model from NGC or are otherwise using a MegatronLM model, please use
 either megatron_ckpt_to_nemo.py or megatron_lm_ckpt_to_nemo.py found
 withing this examples directory to convert your model to .nemo format.

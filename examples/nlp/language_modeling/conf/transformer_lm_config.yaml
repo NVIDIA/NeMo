@@ -4,7 +4,7 @@ do_training: True # set to False if only preprocessing data
 model:
   label_smoothing: 0.0
   preproc_out_dir: null # path to store data preprocessing outputs
-  
+
   train_ds:
     file_name: ??? # path to file with training data
     tokens_in_batch: 4096
@@ -28,7 +28,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    
+
   test_ds:
     file_name: ??? # path to file with test data
     tokens_in_batch: 512
@@ -38,7 +38,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    
+
   optim:
     name: adam
     lr: 0.001

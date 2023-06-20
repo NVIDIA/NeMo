@@ -45,16 +45,16 @@ Available Models
 Data Input for the BERT model
 -----------------------------
 
-Data preprocessing can be either done on-the-fly during training or offline before training. The latter is optimized and recommended 
-for large text corpora. This was also used in the original paper to train the model on Wikipedia and BookCorpus. For on-the-fly data 
-processing, provide text files with sentences for training and validation, where words are separated by spaces, i.e.: ``[WORD] [SPACE] [WORD] [SPACE] [WORD]``. 
+Data preprocessing can be either done on-the-fly during training or offline before training. The latter is optimized and recommended
+for large text corpora. This was also used in the original paper to train the model on Wikipedia and BookCorpus. For on-the-fly data
+processing, provide text files with sentences for training and validation, where words are separated by spaces, i.e.: ``[WORD] [SPACE] [WORD] [SPACE] [WORD]``.
 To use this pipeline in training, use the dedicated configuration file `NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_preprocessed_config.yaml`.
 
 To process data offline in advance, refer to the `BERT Quick Start Guide <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT#quick-start-guide>`__.
 To recreate the original Wikipedia and BookCorpus datasets, follow steps 1-5 in the Quick Start Guide and run the script ``./data/create_datasets_from_start.sh`` inside the Docker container.
 The ``downloaded`` folder should include two sub folders ``lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``
 and ``lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``, containing sequences of length 128 with a maximum of 20 masked tokens
-and sequences of length 512 with a maximum of 80 masked tokens respectively. To use this pipeline in training, use the dedicated configuration file ``NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml`` 
+and sequences of length 512 with a maximum of 80 masked tokens respectively. To use this pipeline in training, use the dedicated configuration file ``NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml``
 and specify the path to the created hd5f files.
 
 
@@ -104,8 +104,8 @@ More details about parameters for online data preprocessing can be found below:
 
 .. note::
 
-    For offline data preprocessing, **model.tokenizer** is null. For downstream task, use the same tokenizer that was used for 
-    offline preprocessing. For online data preprocessing, **model.tokenizer** needs to be specified. See also :ref:`nlp_model` for 
+    For offline data preprocessing, **model.tokenizer** is null. For downstream task, use the same tokenizer that was used for
+    offline preprocessing. For online data preprocessing, **model.tokenizer** needs to be specified. See also :ref:`nlp_model` for
     details.
 
 Example of the command for training the model:
@@ -122,7 +122,7 @@ Example of the command for training the model:
 Fine-tuning on Downstream Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To use a trained BERT model checkpoint on a NeMo NLP downstream task, e.g. :ref:`question_answering`, specify 
+To use a trained BERT model checkpoint on a NeMo NLP downstream task, e.g. :ref:`question_answering`, specify
 :code:`model.language_model.lm_checkpoint=<PATH_TO_CHECKPOINT>`.
 
 References

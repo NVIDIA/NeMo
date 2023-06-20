@@ -35,7 +35,7 @@ Usage:
 python edit_spt_model.py \
     --input_file <input_model_dir> \
     --output_file <output_model_dir> \
-    --tokens <space separated special tokens> 
+    --tokens <space separated special tokens>
 
 Example:
 python edit_spt_model.py \

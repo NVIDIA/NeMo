@@ -56,9 +56,9 @@ When training the model, the dataset should be first converted to the required d
   <tab> label``.
 
 - :code:`train_slot.tvs/test_slot.tsv` - A list that contains one line per query, when each word from the original text queries
-  is replaced by a token number from the slots dictionary file (``dict.slots.csv``), counted starting from ``0``. All the words 
+  is replaced by a token number from the slots dictionary file (``dict.slots.csv``), counted starting from ``0``. All the words
   which do not contain a relevant slot are replaced by ``out-of scope`` token number, which is also a part of the slot dictionary file,
-  usually as the last entry there. For example a line from these files should look similar to: "54 0 0 54 54 12 12" (the numbers are 
+  usually as the last entry there. For example a line from these files should look similar to: "54 0 0 54 54 12 12" (the numbers are
   separated by a space). These files do not contain a header line.
 
 
@@ -66,7 +66,7 @@ Dataset Conversion
 ------------------
 
 To convert to the format of the model data, use the ``import_datasets`` utility, which implements
-the conversion for the Assistant dataset. Download the dataset `here <https://github.com/xliuhw/NLU-Evaluation-Data>`_ or you can 
+the conversion for the Assistant dataset. Download the dataset `here <https://github.com/xliuhw/NLU-Evaluation-Data>`_ or you can
 write your own converter for the format that you are using for data annotation.
 
 For a dataset that follows your own annotation format, we recommend using one text file for all
@@ -107,12 +107,12 @@ After conversion, ``target_data_dir`` should contain the following files:
 Model Training
 --------------
 
-This is a pretrained BERT based model with 2 linear classifier heads on the top of it, one for classifying an intent of the query and 
-another for classifying slots for each token of the query. This model is trained with the combined loss function on the Intent and Slot 
+This is a pretrained BERT based model with 2 linear classifier heads on the top of it, one for classifying an intent of the query and
+another for classifying slots for each token of the query. This model is trained with the combined loss function on the Intent and Slot
 classification task on the given dataset. The model architecture is based on the paper `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/pdf/1902.10909.pdf>`__:cite:`nlp-jis-chen2019bert`.
 
-For each query, the model classifies it as one the intents from the intent dictionary and for each word of the query it will classify 
-it as one of the slots from the slot dictionary, including out of scope slot for all the remaining words in the query which does not 
+For each query, the model classifies it as one the intents from the intent dictionary and for each word of the query it will classify
+it as one of the slots from the slot dictionary, including out of scope slot for all the remaining words in the query which does not
 fall in another slot category. Out of scope slot (``O``) is a part of slot dictionary that the model is trained on.
 
 Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/intent_slot_classification/conf/intent_slot_classification.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml>`__.
@@ -174,7 +174,7 @@ Required Arguments for Training
 Optional Arguments
 ^^^^^^^^^^^^^^^^^^
 
-Most of the default parameters in the existing configuration file are already set appropriately, however, there are some parameters 
+Most of the default parameters in the existing configuration file are already set appropriately, however, there are some parameters
 you may want to experiment with.
 
 - ``trainer.max_epochs``: the number of training epochs (reasonable to be between 10 to 100)
@@ -184,15 +184,15 @@ you may want to experiment with.
 Training Procedure
 ^^^^^^^^^^^^^^^^^^
 
-At the start of evaluation, NeMo will print out a log of the experiment specification, a summary of the training dataset, and the 
+At the start of evaluation, NeMo will print out a log of the experiment specification, a summary of the training dataset, and the
 model architecture.
 
-As the model starts training, you should see a progress bar per epoch. During training, after each epoch, NeMo will display accuracy 
-metrics on the validation dataset for every intent and slot separately, as well as the total accuracy. You can expect these numbers 
-to grow up to 50-100 epochs, depending on the size of the trained data. Since this is a joint iIntent and slot training, usually 
+As the model starts training, you should see a progress bar per epoch. During training, after each epoch, NeMo will display accuracy
+metrics on the validation dataset for every intent and slot separately, as well as the total accuracy. You can expect these numbers
+to grow up to 50-100 epochs, depending on the size of the trained data. Since this is a joint iIntent and slot training, usually
 intent's accuracy will grow first for the initial 10-20 epochs, and after that, slot's accuracy will start improving as well.
 
-At the end of training, NeMo saves the best checkpoint on the validation dataset at the path specified by the experiment spec file 
+At the end of training, NeMo saves the best checkpoint on the validation dataset at the path specified by the experiment spec file
 before finishing.
 
 .. code::
@@ -230,7 +230,7 @@ before finishing.
 Model Evaluation and Inference
 ------------------------------
 
-There is no separate script for the evaluation and inference of this model in NeMo, however, inside of the example file `examples/nlp/intent_slot_classification/intent_slot_classification.py` 
+There is no separate script for the evaluation and inference of this model in NeMo, however, inside of the example file `examples/nlp/intent_slot_classification/intent_slot_classification.py`
 after the training part is finished, you can see the code that evaluates the trained model on an evaluation test set and then an example of doing inference using a list of given queries.
 
 For the deployment in the production environment, refer to `NVIDIA Riva <https://developer.nvidia.com/nvidia-riva-getting-started>`__ and `NVIDIA TLT documentation <https://docs.nvidia.com/metropolis/TLT/tlt-user-guide/text/nlp/index.html>`__.

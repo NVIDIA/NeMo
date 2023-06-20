@@ -1,8 +1,8 @@
 # ASR with Hybrid Transducer/CTC Models
 
-This directory contains example scripts to train ASR models with two decoders of Transducer and CTC Loss. 
+This directory contains example scripts to train ASR models with two decoders of Transducer and CTC Loss.
 
-Currently supported models are - 
+Currently supported models are -
 
 * Character based Hybrid RNNT/CTC model
 * Subword based Hybrid RNNT/CTC model

@@ -37,11 +37,11 @@ model:
   unfreeze_pitch_predictor: false
   learn_alignment: true
   bin_loss_warmup_epochs: 100
-  
+
   max_token_duration: 75
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3
-    
+
   pitch_fmin: ${pitch_fmin}
   pitch_fmax: ${pitch_fmax}
 
@@ -61,7 +61,7 @@ model:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: en
     input_case: cased
-    
+
   text_normalizer_call_kwargs:
     verbose: false
     punct_pre_process: true
@@ -79,13 +79,13 @@ model:
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
       phoneme_probability: 0.5
-      
+
   adapter:
     # Config of the adapter training/eval script.
     adapter_name: "adapter"  # Name of the adapter, used by the script
     adapter_module_name: "encoder+decoder+duration_predictor+pitch_predictor+aligner"  # Name of the adapter module. Combine multiple modules with '+' between module names.
     adapter_state_dict_name: "adapters.pt"  # If the individual adapters must be saved, a file name can be provided here. null disables this.
-    
+
     # Config of the adapter module itself
     _target_: nemo.collections.common.parts.adapter_modules.LinearAdapter
     in_features: ${model.symbols_embedding_dim}  # User must provide the output dimension of the layers of the model, which is the input dimension of this adapter.
@@ -111,7 +111,7 @@ model:
       check_duration_predictor_adapter: True  # determines whether to check if duration_predictor adapter modules is supported
       check_pitch_predictor_adapter: True  # determines whether to check if pitch_predictor adapter modules is supported
       check_aligner_adapter: True  # determines whether to check if aligner adapter modules is supported
-      
+
   train_ds:
     dataset:
       _target_: nemo.collections.tts.data.dataset.TTSDataset
@@ -136,7 +136,7 @@ model:
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
       use_beta_binomial_interpolator: true
-      
+
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -230,7 +230,7 @@ model:
     _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
     n_text_channels: ${model.symbols_embedding_dim}
     condition_types: [ "add" ] # options: [ "add", "concat" ]
-    
+
   duration_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
     input_size: ${model.symbols_embedding_dim}
@@ -264,7 +264,7 @@ model:
       reference_encoder:
         _target_: nemo.collections.tts.modules.submodules.ReferenceEncoder
         n_mels: ${model.n_mel_channels}
-        cnn_filters: [32, 32, 64, 64, 128, 128] 
+        cnn_filters: [32, 32, 64, 64, 128, 128]
         dropout: 0.2
         gru_hidden: ${model.symbols_embedding_dim}
         kernel_size: 3

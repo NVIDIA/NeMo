@@ -222,7 +222,7 @@ class BertInformationRetrievalDataset(BaseInformationRetrievalDataset):
     ):
         """
         Dataset for training information retrieval models.
-        
+
         Args:
             tokenizer: tokenizer
             passages: path to tsv with [psg_id, psg_text] entries

@@ -4,7 +4,7 @@ Exporting NeMo Models
 Exporting Models
 ----------------
 
-Most of the NeMo models can be exported to ONNX or TorchScript to be deployed for inference in optimized execution environments, such as Riva or Triton Inference Server.  
+Most of the NeMo models can be exported to ONNX or TorchScript to be deployed for inference in optimized execution environments, such as Riva or Triton Inference Server.
 Export interface is provided by the :class:`~nemo.core.classes.exportable.Exportable` mix-in class. If a model extends :class:`~nemo.core.classes.exportable.Exportable`, it can be exported by:
 
 .. code-block:: Python
@@ -17,8 +17,8 @@ Export interface is provided by the :class:`~nemo.core.classes.exportable.Export
    mymodel = MyExportableModel.from_pretrained(model_name="MyModelName")
    model.eval()
    model.to('cuda')  # or to('cpu') if you don't have GPU
-   
-   # exporting pre-trained model to ONNX file for deployment.	
+
+   # exporting pre-trained model to ONNX file for deployment.
    mymodel.export('mymodel.onnx', [options])
 
 
@@ -75,7 +75,7 @@ You should not normally need to override ``Exportable`` default methods. However
          """
         Generates input examples for tracing etc.
         Returns:
-            A tuple of input examples. 
+            A tuple of input examples.
 	 """
 
 This function should return a tuple of (normally) Tensors - one per each of model inputs (args to ``forward()``). The last element may be a ``Dict`` to specify non-positional arguments by name, as per Torch ``export()`` convention. For more information, refer to the `Using dictionaries to handle Named Arguments as model inputs
@@ -89,7 +89,7 @@ This function should return a tuple of (normally) Tensors - one per each of mode
     def input_types(self):
     @property
     def output_types(self):
-    
+
 Those are needed for inferring in/out names and dynamic axes. If your model derives from ``ModulePT``, those are already there. Another common scenario is that your model contains one or more modules that processes input and generates output. Then, you should override ``Exportable`` methods ``input_module()`` and ``output_module()`` to point to them, like in this example:
 
 .. code-block:: Python
@@ -106,7 +106,7 @@ Your model should also have an export-friendly ``forward()`` method - that can m
 
 .. code-block:: Python
 
-    # Uses forced named args, many default parameters. 
+    # Uses forced named args, many default parameters.
     def forward(
         self,
         *,
@@ -187,6 +187,6 @@ Most importantly, the actual Torch code in your model should be ONNX or TorchScr
 
 For more information, refer to the PyTorch documentation:
        - `List of supported operators <https://pytorch.org/docs/stable/onnx.html#supported-operators>`_
-       - `Tracing vs. scripting <https://pytorch.org/docs/stable/onnx.html#tracing-vs-scripting>`_ 
+       - `Tracing vs. scripting <https://pytorch.org/docs/stable/onnx.html#tracing-vs-scripting>`_
        - `AlexNet example <https://pytorch.org/docs/stable/onnx.html#example-end-to-end-alexnet-from-pytorch-to-onnx>`_
 

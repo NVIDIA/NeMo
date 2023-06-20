@@ -6,7 +6,7 @@ Model Classes
 -------------
 .. autoclass:: nemo.collections.asr.models.SpeechEncDecSelfSupervisedModel
     :show-inheritance:
-    :members: 
+    :members:
 
 
 Mixins

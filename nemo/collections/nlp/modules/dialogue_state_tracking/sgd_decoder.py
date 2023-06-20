@@ -30,7 +30,7 @@ class LogitsQA(nn.Module):
         Args:
           num_classes: An int containing the number of classes for which logits are to be generated.
           embedding_dim: hidden size of the BERT
-    
+
         Returns:
           A tensor of shape (batch_size, num_classes) containing the logits.
         """
@@ -185,7 +185,7 @@ class SGDDecoder(NeuralModule):
         return status_logits, span_logits
 
     def _get_negative_logits(self, logits):
-        """Returns tensor with negative logits that will be used to mask out unused values for a particular service 
+        """Returns tensor with negative logits that will be used to mask out unused values for a particular service
         Args:
             logits: logits whose shape and type will be used to create negative tensor
         """

@@ -60,7 +60,7 @@ class ConvFeatureEncoder(NeuralModule):
 		Encoder used to isolate features in raw audio for Wav2Vec style training.
 		Treated as preprocessor module in NeMo ASR training. Defaults values are
 		for base model found in Baeski et al (https://arxiv.org/abs/2006.11477),
-		save for use of layer normalization as default schema. (Chosen for stability.) 
+		save for use of layer normalization as default schema. (Chosen for stability.)
     """
 
     @property
@@ -80,7 +80,7 @@ class ConvFeatureEncoder(NeuralModule):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports. 
+        """Returns definitions of module output ports.
         For compatibility, processed features are treated as Spectrogram types
         processed_signal:
             0: AxisType(BatchTag)
@@ -215,12 +215,12 @@ class ConvFeatureEncoder(NeuralModule):
 
 class Wav2VecTransformerEncoder(TransformerEncoder):
     """
-		Encoder module following Transformer encoder paradigm 
+		Encoder module following Transformer encoder paradigm
 		as described in Vaswani et al. (https://arxiv.org/abs/1706.03762). Used for Wav2Vec
 		style encoding of context vectors as described by in Baeski et al (https://arxiv.org/abs/2006.11477).
 		Takes convolutional encodings of all time steps and adds to features before applying series
-		of self-attention layers. 
-		
+		of self-attention layers.
+
 		Example configs may be found at: https://github.com/NVIDIA/NeMo/tree/main/examples/asr/conf/wav2vec
 
 		Args:
@@ -230,12 +230,12 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
 			pos_embed: Config specifying parameters for contextual embedding convolutions. Module configures convolutional padding
 				to maintain number of time steps
 				Must contain following:
-					embedding_dim: Depth/number of channels of each time step from feature encoding 
+					embedding_dim: Depth/number of channels of each time step from feature encoding
 					conv_pos: Kernel size for convolution
 					conv_pos_groups: Number of groups for convolution
 			transformer: Config for transformer encoder. Uses self-attention layers found in: nemo.collections.nlp.modules.common.transformer
 				Must contain followign:
-					num_layers: Number of attention layers 
+					num_layers: Number of attention layers
 					hidden_size: Expected input depth (embedding size between model layers)
 					inner_size: Depth of embeddings within feed-forward sections of encoder layers
 					num_attention_heads: Number of attention heads
@@ -273,7 +273,7 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
 
     @property
     def input_types(self):
-        """Returns definitions of module output ports. 
+        """Returns definitions of module output ports.
         We treat features as SpectrogramType for Nemo compatibility
         audio_signal:
             0: AxisType(BatchTag)
@@ -289,7 +289,7 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports. 
+        """Returns definitions of module output ports.
         We're using SpectrogramType for now to keep things Nemo safe
         processed_signal:
             0: AxisType(BatchTag)

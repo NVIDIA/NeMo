@@ -3,12 +3,12 @@
 Token Classification (Named Entity Recognition) Model
 =====================================================
 
-Token Classification model supports named entity recognition (NER) and other token level classification tasks, as long as the data 
+Token Classification model supports named entity recognition (NER) and other token level classification tasks, as long as the data
 follows the format specified below.
 
-We're going to use NER task throughout this section. NER, also referred to as entity chunking, identification or extraction, is the 
-task of detecting and classifying key information (entities) in text. In other words, a NER model takes a piece of text as input and 
-for each word in the text, the model identifies a category the word belongs to. For example, in a sentence: ``Mary lives in Santa Clara 
+We're going to use NER task throughout this section. NER, also referred to as entity chunking, identification or extraction, is the
+task of detecting and classifying key information (entities) in text. In other words, a NER model takes a piece of text as input and
+for each word in the text, the model identifies a category the word belongs to. For example, in a sentence: ``Mary lives in Santa Clara
 and works at NVIDIA``, the model should detect that ``Mary`` is a person, ``Santa Clara`` is a location and ``NVIDIA`` is a company.
 
 Quick Start Guide
@@ -29,7 +29,7 @@ Quick Start Guide
 
 .. note::
 
-    We recommend you try this model in a Jupyter notebook (run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): 
+    We recommend you try this model in a Jupyter notebook (run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.):
     `NeMo/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`__.
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
@@ -96,9 +96,9 @@ The default names for the training and evaluation in the :code:`conf/token_class
 Training The Token Classification model
 ---------------------------------------
 
-In the Token Classification model, we are jointly training a classifier on top of a pre-trained language model, such as 
+In the Token Classification model, we are jointly training a classifier on top of a pre-trained language model, such as
 `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-ner-devlin2018bert`.
-Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
+Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model
 from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
 Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
@@ -157,8 +157,8 @@ Required Arguments for Training
 
 .. note::
 
-    While the arguments are defined in the spec file, if you want to override these parameter definitions in the spec file and 
-    experiment with them, use the command-line to define the parameter. For example, the sample spec file mentioned above has 
+    While the arguments are defined in the spec file, if you want to override these parameter definitions in the spec file and
+    experiment with them, use the command-line to define the parameter. For example, the sample spec file mentioned above has
     :code:`validation_ds.batch_size` set to ``64``. However, if the GPU utilization can be optimized further by
     using a larger batch size, override it to the desired value by adding the field :code:`validation_ds.batch_size=128` from
     the command-line. You can repeat this with any of the parameters defined in the sample spec file.

@@ -101,14 +101,14 @@ class DialogueGPTClassificationModel(NLPModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override for prompt learning. 
-        Optimizer will get self._optimizer_param_groups. 
+        ModelPT override for prompt learning.
+        Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         if not self.prompt_learning:
             super().setup_optimizer_param_groups()

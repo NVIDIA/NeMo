@@ -46,14 +46,14 @@ Get confidence metrics and curve plots for a given model, dataset, and confidenc
   pretrained_name: Name of pretrained ASR model (from NGC registry)
   dataset_manifest: Path to dataset JSON manifest file (in NeMo format)
   output_dir: Output directory to store a report and curve plot directories
-  
+
   batch_size: batch size during inference
   num_workers: number of workers during inference
-  
+
   cuda: Optional int to enable or disable execution of model on certain CUDA device
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
-  
+
   target_level: Word- or token-level confidence. Supported = word, token, auto (for computing both word and token)
   confidence_cfg: Config with confidence parameters
   grid_params: Dictionary with lists of parameters to iteratively benchmark on

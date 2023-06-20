@@ -16,8 +16,8 @@
 """
 Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
 
-The BPE sub-words are encoded using the Unicode table. 
-This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
+The BPE sub-words are encoded using the Unicode table.
+This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space.
 The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
 """
 
@@ -67,7 +67,7 @@ def get_train_list(args_train_path):
 
 
 def setup_tokenizer(nemo_model_file):
-    """ TOKENIZER SETUP 
+    """ TOKENIZER SETUP
         nemo_model_file (str): The path to the NeMo model file (.nemo).
     """
     logging.info(f"Loading nemo model '{nemo_model_file}' ...")

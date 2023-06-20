@@ -7,10 +7,10 @@ model:
   network_capacity: 16
   mixed_prob: 0.9
   fmap_max: 192
-  start_from_zero: true  # might give better results at downstream tasks 
+  start_from_zero: true  # might give better results at downstream tasks
 
   generator:
-    _target_: "nemo.collections.tts.modules.spectrogram_enhancer.Generator"  
+    _target_: "nemo.collections.tts.modules.spectrogram_enhancer.Generator"
     n_bands: ${model.n_bands}
     latent_dim: ${model.latent_dim}
     network_capacity: ${model.network_capacity}
@@ -64,11 +64,11 @@ trainer:
   gradient_clip_val: 1000.0
   log_every_n_steps: 1000
   # we don't really need validation
-  check_val_every_n_epoch: null  
+  check_val_every_n_epoch: null
   limit_val_batches: 0.0
   benchmark: false
   # provided by exp_manager
-  enable_checkpointing: False 
+  enable_checkpointing: False
   logger: false
 
 exp_manager:

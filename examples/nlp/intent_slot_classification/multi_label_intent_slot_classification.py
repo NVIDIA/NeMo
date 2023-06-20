@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" 
+"""
 Sample command to run the script:
 
 python multi_label_intent_slot_classification.py \

@@ -219,7 +219,7 @@ To train a model with `Chinese Polyphones with Pinyin (CPP) <https://github.com/
     mkdir -p ./cpp_manifest
     git clone https://github.com/kakaobrain/g2pM.git
     python3 export_zh_cpp_data_to_manifest.py --data_folder g2pM/data/ --output_folder ./cpp_manifest
-    
+
     # model training and evaluation
     python3 heteronym_classification_train_and_evaluate.py \
         --config-name "heteronym_classification_zh.yaml" \

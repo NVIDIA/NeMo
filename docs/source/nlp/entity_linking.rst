@@ -3,15 +3,15 @@
 Entity Linking
 ====================================
 
-Entity linking is the process of matching concepts mentioned in natural language to their unique IDs and canonical forms stored 
-in a knowledge base. For example, an entity linking model might match the phrase ``blood thinners`` mentioned in conversation 
-to the knowledge base concept UID45623 anticoagulant. Entity linking applications range from helping automate ingestion of 
+Entity linking is the process of matching concepts mentioned in natural language to their unique IDs and canonical forms stored
+in a knowledge base. For example, an entity linking model might match the phrase ``blood thinners`` mentioned in conversation
+to the knowledge base concept UID45623 anticoagulant. Entity linking applications range from helping automate ingestion of
 large amounts of data to assisting in real time concept normalization.
 
-Within NeMo we use the entity linking approach described in Liu et. al's NAACL 2021 "`Self-alignment Pre-training for Biomedical Entity Representations <https://arxiv.org/abs/2010.11784v2>`_" :cite:`nlp-entity_linking-liu2021selfalignment`. 
-The main idea behind this approach is to reshape an initial concept embedding space such that synonyms of the same concept are 
-pulled closer together and unrelated concepts are pushed further apart. The concept embeddings from this reshaped space can then 
-be used to build a knowledge base embedding index. 
+Within NeMo we use the entity linking approach described in Liu et. al's NAACL 2021 "`Self-alignment Pre-training for Biomedical Entity Representations <https://arxiv.org/abs/2010.11784v2>`_" :cite:`nlp-entity_linking-liu2021selfalignment`.
+The main idea behind this approach is to reshape an initial concept embedding space such that synonyms of the same concept are
+pulled closer together and unrelated concepts are pushed further apart. The concept embeddings from this reshaped space can then
+be used to build a knowledge base embedding index.
 
 .. image:: entity_linking_overview.jpg
   :alt: Entity-Linking-Overview

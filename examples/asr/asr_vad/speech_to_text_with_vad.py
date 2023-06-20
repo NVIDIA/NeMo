@@ -15,7 +15,7 @@
 """
 This file provides the ASR+VAD inference pipeline, with the option to perform only ASR or VAD alone.
 
-There are two types of input, the first one is a manifest passed to `manifest_filepath`, 
+There are two types of input, the first one is a manifest passed to `manifest_filepath`,
 and the other one is to pass a directory containing audios to `audio_dir` and specify `audio_type`.
 
 The input manifest must be a manifest json file, where each line is a Python dictionary. The fields ["audio_filepath", "offset", "duration",  "text"] are required. An example of a manifest file is:
@@ -40,14 +40,14 @@ To use only VAD, set `asr_model=None` and specify both `vad_model` and `vad_conf
 
 To enable profiling, set `profiling=True`, but this will significantly slow down the program.
 
-To use or disable feature masking/droping based on RTTM files, set `use_rttm` to `True` or `False`. 
+To use or disable feature masking/droping based on RTTM files, set `use_rttm` to `True` or `False`.
 There are two ways to use RTTM files, either by masking the features (`rttm_mode=mask`) or by dropping the features (`rttm_mode=drop`).
 For audios that have long non-speech audios between speech segments, dropping frames is recommended.
 
-To normalize feature before masking, set `normalize=pre_norm`, 
+To normalize feature before masking, set `normalize=pre_norm`,
 and set `normalize=post_norm` for masking before normalization.
 
-To use a specific value for feature masking, set `feat_mask_val` to the desired value. 
+To use a specific value for feature masking, set `feat_mask_val` to the desired value.
 Default is `feat_mask_val=None`, where -16.635 will be used for `post_norm` and 0 will be used for `pre_norm`.
 
 See more options in the `InferenceConfig` class.

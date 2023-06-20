@@ -47,8 +47,8 @@ class ViterbiDecoderWithGraph(NeuralModule):
 
         backend: Which backend to use for decoding. Currently only `k2` is supported.
 
-        dec_type: Type of decoding graph to use. Choices: `topo` and `token_lm`, 
-            with `topo` standing for the loss topology graph only 
+        dec_type: Type of decoding graph to use. Choices: `topo` and `token_lm`,
+            with `topo` standing for the loss topology graph only
             and `token_lm` for the topology composed with a token_lm graph.
 
         return_type: Type of output. Choices: `1best` and `lattice`.
@@ -59,8 +59,8 @@ class ViterbiDecoderWithGraph(NeuralModule):
             Whether to return input labels of a lattice (otherwise output labels).
 
         output_aligned: For return_type=`1best`.
-            Whether the tensors length will correspond to log_probs_length 
-            and the labels will be aligned to the frames of emission 
+            Whether the tensors length will correspond to log_probs_length
+            and the labels will be aligned to the frames of emission
             (otherwise there will be only the necessary labels).
 
         split_batch_size: Local batch size. Used for memory consumption reduction at the cost of speed performance.

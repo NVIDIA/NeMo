@@ -77,7 +77,7 @@ def get_in_domain_services(schema_path: str, service_set: set) -> set:
     Args:
         schema_path: path to schema file
         service_set: set of services
-    Returns: 
+    Returns:
         joint_services: joint services between schema path file and service set
     """
     joint_services = get_service_set(schema_path) & service_set
@@ -87,7 +87,7 @@ def get_in_domain_services(schema_path: str, service_set: set) -> set:
 def get_dataset_as_dict(file_path_patterns) -> dict:
     """Read the DSTC8/SGD json dialogue data as dictionary with dialog ID as keys.
     Args:
-        file_path_patterns: list or directory of files 
+        file_path_patterns: list or directory of files
     Returns:
         dataset_dict: dataset dictionary with dialog ID as keys
     """

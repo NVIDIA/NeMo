@@ -216,7 +216,7 @@ of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single 
   tag ``_CL_``. For SLURM based tasks, we suggest the use of the special tags for ease of use.
 
 As with non-tarred datasets, the manifest file should be passed in ``manifest_filepath``. The dataloader assumes that the length
-of the manifest after filtering is the correct size of the dataset for reporting training progress. 
+of the manifest after filtering is the correct size of the dataset for reporting training progress.
 
 The ``tarred_shard_strategy`` field of the config file can be set if you have multiple shards and are running an experiment with
 multiple workers. It defaults to ``scatter``, which preallocates a set of shards per worker which do not change during runtime.
@@ -244,8 +244,8 @@ is identical to the audio tarballs and there should be a 1:1 relationship betwee
 ``'/data/sharded_manifests/manifest__OP_1..64_CL_'`` in the above example. Using sharded manifests improves job startup times and
 decreases memory usage, as each worker only loads manifest shards for the corresponding audio shards instead of the entire manifest.
 
-To enable sharded manifest filename expansion, set the ``shard_manifests`` field of the config file to true. In addition, the 
-``defer_setup`` flag needs to be true as well, so that the dataloader will be initialized after the DDP and its length can be collected from 
+To enable sharded manifest filename expansion, set the ``shard_manifests`` field of the config file to true. In addition, the
+``defer_setup`` flag needs to be true as well, so that the dataloader will be initialized after the DDP and its length can be collected from
 the distributed workers.
 
 

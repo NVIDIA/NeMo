@@ -30,7 +30,7 @@ __all__ = ['GPTPromptLearningDataset']
 class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
-    
+
     Args:
         data (list[strings], list[dicts]): (1) paths to .jsonl or .json files, (2) dict objects corresponding to each input example
         tokenizer (tokenizer): Tokenizer from frozen language model
@@ -39,7 +39,7 @@ class GPTPromptLearningDataset(Dataset):
         pseudo_tokens (list[strings]): A list of virtual prompt token placeholders e.g [<prompt_1>, <prompt_2>, ...] up to max num virtual tokens
         pad_token_id (int): ID of pad token from tokenizer
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         for_train (bool): Whether you're creating a dataset for training or inference
@@ -112,9 +112,9 @@ class GPTPromptLearningDataset(Dataset):
     def load_data(self, dataset):
         """
         Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
-        the task templates with the actual virtual prompt token ids. 
+        with the information from each training/inference example. Converts all input
+        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in
+        the task templates with the actual virtual prompt token ids.
 
         params:
             dataset: A list of json objects or a dictionary objects each
@@ -402,7 +402,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def inference_collate_fn(self, batch):
         """
-        Used for loading inference data. 
+        Used for loading inference data.
         """
         task_id_nums, input_ids, answer_starts = zip(*batch)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])

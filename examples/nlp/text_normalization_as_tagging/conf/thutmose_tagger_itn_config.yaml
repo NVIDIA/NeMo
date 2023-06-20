@@ -33,7 +33,7 @@ model:
     weight_decay: 0.1
 
     sched:
-      name: WarmupAnnealing                      
+      name: WarmupAnnealing
 
       # pytorch lightning args
       monitor: val_loss

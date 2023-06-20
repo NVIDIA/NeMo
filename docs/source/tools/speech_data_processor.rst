@@ -5,7 +5,7 @@ Speech Data Processor (SDP) is a toolkit to make it easy to:
   1. write code to process a new dataset, minimizing the amount of boilerplate code required.
   2. share the steps for processing a speech dataset.
 
-SDP is hosted here: https://github.com/NVIDIA/NeMo-speech-data-processor. 
+SDP is hosted here: https://github.com/NVIDIA/NeMo-speech-data-processor.
 
 SDP's philosophy is to represent processing operations as 'processor' classes, which take in a path to a NeMo-style data manifest as input (or a path to the raw data directory if you do not have a NeMo-style manifest to start with), apply some processing to it, and then save the output manifest file.
 
@@ -26,7 +26,7 @@ Overview of how SDP processes a dataset
    c. instantiates the processor classes using ``hydra.utils.instantiate``
    d. runs the run-time processor tests by calling the ``processor.test()`` method (more details about testing :ref:`here<SDP Tests>`).
    e. runs the processing method (``processor.process()``) of each processor in order.
-  
+
 
 Layout of config YAML files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -35,7 +35,7 @@ The YAML config file for processing a dataset must contain a key ``processors``,
 
 SDP will run the processors specified in the ``processors`` list in the config file. It will also check for a ``processors_to_run`` key in the config file, which can be either the string ``"all"``, or any Python "slice" object like ``3:4``, ``2:`` etc. (if there is no ``processors_to_run`` key, then all of the processors will be run).
 
-.. note:: 
+.. note::
     SDP will run the processors in the order in which they are listed in the config YAML file. Make sure to list the processors in an order which makes sense, e.g. create an initial manifest first; make sure to run asr inference before doing any processing which looks at ``pred_text`` fields in the manifest.
 
 Processor classes
@@ -44,7 +44,7 @@ Processor classes
 **BaseProcessor**
 ~~~~~~~~~~~~~~~~~
 
-All processor classes inherit from the ``BaseProcessor`` class. This is a simple abstract class which has 2 empty methods: ``process()`` and ``test()``. 
+All processor classes inherit from the ``BaseProcessor`` class. This is a simple abstract class which has 2 empty methods: ``process()`` and ``test()``.
 These serve to remind us that SDP essentially just runs ``test()`` on all processors, and then ``process()`` on all processors (more details about testing :ref:`here<SDP Tests>`).
 
 ``ASRInference`` is a child class of ``BaseProcessor``. It has a simple ``process()`` method which runs transcription on every utterance in the input_manifest.
@@ -53,16 +53,16 @@ These serve to remind us that SDP essentially just runs ``test()`` on all proces
 
 **BaseParallelProcessor**
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-``BaseParallelProcessor`` inherits from the ``BaseProcessor`` class. Within the ``BaseParallelProcessor.process()`` method, it calls other methods and functions, which allow it to do more complex processing. 
+``BaseParallelProcessor`` inherits from the ``BaseProcessor`` class. Within the ``BaseParallelProcessor.process()`` method, it calls other methods and functions, which allow it to do more complex processing.
 Most importantly, it calls its ``BaseParallelProcessor.process_dataset_entry(data_entry)`` method on every utterance in the manifest, and it does this in parallel, allowing for more efficient processing.
 
 What is a **DataEntry**?
 ~~~~~~~~~~~~~~~~~~~~~~~~
 As mentioned above, ``BaseParallelProcessor.process_dataset_entry(data_entry)`` is called on a variable called ``data_entry`` which represents an utterance in our dataset.
-Most often, ``data_entry`` will be a dictionary containing items which represent the JSON manifest entry. 
+Most often, ``data_entry`` will be a dictionary containing items which represent the JSON manifest entry.
 Sometimes, such as in ``CreateInitialManifestMLS``, it will be a string containing a line for that utterance from the original raw MLS transcript.
 
-``BaseParallelProcessor.process_dataset_entry`` will process ``data_entry`` and output a ``DataEntry`` object. 
+``BaseParallelProcessor.process_dataset_entry`` will process ``data_entry`` and output a ``DataEntry`` object.
 
 The ``DataEntry`` class is a dataclass which contains 2 attributes:
 
@@ -84,13 +84,13 @@ We outline the ``BaseParallelProcessor.process()`` method below:
 **ModifyManifestTextProcessor**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``ModifyManifestTextProcessor`` inherits from the ``BaseParallelProcessor`` class. 
+``ModifyManifestTextProcessor`` inherits from the ``BaseParallelProcessor`` class.
 
-The ``ModifyManifestTextProcessor`` constructor takes in the following arguments: 
+The ``ModifyManifestTextProcessor`` constructor takes in the following arguments:
 * ``text_key`` (string) and ``pred_text_key`` (string): these parameters specify which keys in ``data_entry.data`` will be used for processing. (default: ``text_key="text"``, ``pred_text_key="pred_text"``, ie. by default the processor will refer to and modify the ``"text"`` and/or ``"pred_text"`` attributes of the input manifest).
 * ``test_cases`` (optional, list of dicts) - test cases for checking that the processor makes the changes that we are expecting.
 
-``ModifyManifestTextProcessor`` has the following methods: 
+``ModifyManifestTextProcessor`` has the following methods:
 * ``ModifyManifestTextProcessor.test()``: this method makes sure that the output from the processor matches the expected output specified in the ``test_cases`` parameter.
 * ``ModifyManifestTextProcessor.process_dataset_entry(data_entry)``: this method applies processing to a ``data_entry``. First, spaces are added to the start and end of the 'text' and 'pred_text' entries (if they exist), then the abstract method ``ModifyManifestTextProcessor._process_dataset_entry(data_entry)`` is called. Then, any extra spaces (e.g. two spaces next to each other '  ') are removed from 'text' and 'pred_text' entries.
 * ``ModifyManifestTextProcessor._process_dataset_entry(data_entry)``: this is an abstract method which will be over-written by children of ``ModifyManifestTextProcessor``.
@@ -162,5 +162,5 @@ It is important to make sure that your data processing code has the effect you i
 
 2. ``pytest`` tests which can be run locally with ``python -m pytest tests/`` and will be run during the GitHub CI process. There are 2 sub-types:
 
-   a. "End to end" tests (link) which run SDP on a mini version of the raw initial dataset, and make sure the final manifest matches the reference final manifest. 
+   a. "End to end" tests (link) which run SDP on a mini version of the raw initial dataset, and make sure the final manifest matches the reference final manifest.
    b. "Unit tests" for processors and utils (link).

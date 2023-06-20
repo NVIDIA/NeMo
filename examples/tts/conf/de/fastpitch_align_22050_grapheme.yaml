@@ -1,5 +1,5 @@
-# This config contains the default values for training FastPitch model with aligner using 22KHz sampling 
-# rate. If you want to train model on other dataset, you can change config values according to your dataset. 
+# This config contains the default values for training FastPitch model with aligner using 22KHz sampling
+# rate. If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
 name: FastPitch

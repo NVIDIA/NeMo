@@ -101,7 +101,7 @@ Usage:
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
             server=True
-        
+
         To send a request to the server, here is one example code:
         ```python
         import json

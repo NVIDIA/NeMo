@@ -46,13 +46,13 @@ An example TitaNet train and validation configuration could look like (``{NEMO_R
       batch_size: 32
       shuffle: False    # No need to shuffle the validation data
 
-      
+
 If you would like to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
 
 
 Preprocessor Configuration
 --------------------------
-Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
+Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model.
 For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
 
 
@@ -61,8 +61,8 @@ Augmentation Configurations
 
 For TitaNet training we use on-the-fly augmentations with MUSAN and RIR impulses using ``noise`` augmentor section
 
-The following example sets up musan augmentation with audio files taken from manifest path and 
-minimum and maximum SNR specified with min_snr and max_snr respectively. This section can be added to 
+The following example sets up musan augmentation with audio files taken from manifest path and
+minimum and maximum SNR specified with min_snr and max_snr respectively. This section can be added to
 ``train_ds`` part in model
 
 .. code-block:: yaml
@@ -75,8 +75,8 @@ minimum and maximum SNR specified with min_snr and max_snr respectively. This se
         noise:
           manifest_path: /path/to/musan/manifest_file
           prob: 0.2  # probability to augment the incoming batch audio with augmentor data
-          min_snr_db: 5 
-          max_snr_db: 15        
+          min_snr_db: 5
+          max_snr_db: 15
 
 
 See the :class:`nemo.collections.asr.parts.preprocessing.perturb.AudioAugmentor`  API section for more details.
@@ -106,11 +106,11 @@ for training models.
     decoder:
       _target_: nemo.collections.asr.modules.SpeakerDecoder
       feat_in: *enc_feat_out
-      num_classes: 7205  # Total number of classes in voxceleb1,2 training manifest file 
+      num_classes: 7205  # Total number of classes in voxceleb1,2 training manifest file
       pool_mode: attention # xvector, attention
       emb_sizes: 192 # number of intermediate emb layers. can be comma separated for additional layers like 512,512
       angular: true # if true then loss will be changed to angular softmax loss and consider scale and margin from loss section else train with cross-entropy loss
-    
+
     loss:
       scale: 30
       margin 0.2

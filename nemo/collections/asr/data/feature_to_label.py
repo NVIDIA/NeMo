@@ -26,7 +26,7 @@ def _feature_collate_fn(batch):
     """collate batch of feat sig, feat len, labels, labels len, assuming all features have the same shape.
     Args:
         batch (FloatTensor, LongTensor, LongTensor, LongTensor):  A tuple of tuples of feature, feature lengths,
-               encoded labels, and encoded labels length. 
+               encoded labels, and encoded labels length.
     """
     packed_batch = list(zip(*batch))
     if len(packed_batch) == 5:
@@ -61,7 +61,7 @@ def _audio_feature_collate_fn(batch, feat_pad_val, label_pad_id):
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
                LongTensor):  A tuple of tuples of feature, feature lengths,
-               labels, and label lengths.  This collate func assumes the 
+               labels, and label lengths.  This collate func assumes the
                features are torch tensors of Log-Melspectrogram (i.e. [N_MEL, T]).
     """
     packed_batch = list(zip(*batch))
@@ -162,18 +162,18 @@ def _vad_feature_segment_collate_fn(batch, window_length_in_sec, shift_length_in
 
 class _FeatureSeqSpeakerLabelDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to feature files, sequences of labels. 
+    Dataset that loads tensors via a json file containing paths to feature files, sequences of labels.
     Each new line is a different sample. Example below:
     and their target labels. JSON files should be of the following format:
         {"feature_filepath": "/path/to/feature_0.p", "seq_label": speakerA speakerB SpeakerA ....} \
         ...
-        {"feature_filepath": "/path/to/feature_n.p", "seq_label": target_seq_label_n} 
+        {"feature_filepath": "/path/to/feature_n.p", "seq_label": target_seq_label_n}
     target_seq_label_n is the string of sequence of speaker label, separated by space.
 
     Args:
         manifest_filepath (str): Dataset parameter. Path to JSON containing data.
         labels (Optional[list]): Dataset parameter. List of unique labels collected from all samples.
-        feature_loader : Dataset parameter. Feature loader to load (external) feature.       
+        feature_loader : Dataset parameter. Feature loader to load (external) feature.
     """
 
     @property
@@ -242,7 +242,7 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
     different sample. Example below:
     {"feature_filepath": "/path/to/feature_0.p", "seq_label": speakerA speakerB SpeakerA ....} \
     ...
-    {"feature_filepath": "/path/to/feature_n.p", "seq_label": target_seq_label_n} 
+    {"feature_filepath": "/path/to/feature_n.p", "seq_label": target_seq_label_n}
     target_seq_label_n is the string of sequence of speaker label, separated by space.
 
     Args:
@@ -250,7 +250,7 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
         labels (Optional[list]): String containing all the possible labels to map to
             if None then automatically picks from ASRFeatureSequenceLabel collection.
         feature_loader, Feature load to loader (external) feature.
-    
+
     """
 
     def _collate_fn(self, batch):
@@ -259,12 +259,12 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
 
 class FeatureToLabelDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to feature files and their labels. 
+    Dataset that loads tensors via a json file containing paths to feature files and their labels.
     Each new line is a different sample. Example below:
     and their target labels. JSON files should be of the following format:
         {"feature_filepath": "/path/to/audio_feature.pt", "label": "1"}
         ...
-        {"feature_filepath": "/path/to/audio_feature.pt", "label": "0"} 
+        {"feature_filepath": "/path/to/audio_feature.pt", "label": "0"}
     Args:
         manifest_filepath (str): Path to JSON containing data.
         labels (Optional[list]): List of unique labels collected from all samples.
@@ -375,12 +375,12 @@ class FeatureToLabelDataset(Dataset):
 
 class FeatureToMultiLabelDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to feature files and their labels. 
+    Dataset that loads tensors via a json file containing paths to feature files and their labels.
     Each new line is a different sample. Example below:
     and their target labels. JSON files should be of the following format:
         {"feature_filepath": "/path/to/audio_feature.pt", "label": "1 1 0 0 1"}
         ...
-        {"feature_filepath": "/path/to/audio_feature.pt", "label": "0 1 0 0"} 
+        {"feature_filepath": "/path/to/audio_feature.pt", "label": "0 1 0 0"}
     Args:
         manifest_filepath (str): Path to JSON containing data.
         labels (Optional[list]): List of unique labels collected from all samples.

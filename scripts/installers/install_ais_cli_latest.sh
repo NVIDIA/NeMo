@@ -24,7 +24,7 @@ echo "Extract"
 tar -xzvf ais-linux-amd64.tar.gz
 
 echo "Move to /usr/local/bin/"
-mv ./ais /usr/local/bin/. 
+mv ./ais /usr/local/bin/.
 
 echo "Cleanup"
 rm ais-linux-amd64.tar.gz

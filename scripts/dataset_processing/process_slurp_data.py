@@ -18,7 +18,7 @@ Usage:
 python process_slurp_data.py \
     --data_dir=<directory to store the data> \
     --text_key=<data to store in the 'text' field of manifests, choices=['semantics', 'transcript']> \
-    --suffix=<suffix to be added to manifest filenames, e.g., 'slu' or 'asr'> \ 
+    --suffix=<suffix to be added to manifest filenames, e.g., 'slu' or 'asr'> \
 
 Note that use text_key=semantics for end-to-end SLU, use text_key=transcript for trainng ASR models on SLURP
 """

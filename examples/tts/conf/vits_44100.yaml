@@ -52,7 +52,7 @@ model:
     verbose: false
     punct_pre_process: true
     punct_post_process: true
-  
+
   text_tokenizer:
     _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
     punct: true
@@ -88,7 +88,7 @@ model:
       trim: False
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
-    
+
     dataloader_params:
       num_workers: 8
       pin_memory: false
@@ -151,13 +151,13 @@ model:
     mag_power: 1.0
     exact_pad: true
     use_grads: true
-  
+
   synthesizer:
     _target_: nemo.collections.tts.modules.vits_modules.SynthesizerTrn
     inter_channels: 192
     hidden_channels: 192
     filter_channels: 768
-    n_heads: 2 
+    n_heads: 2
     n_layers: 6
     kernel_size: 3
     p_dropout: 0.1
@@ -175,7 +175,7 @@ model:
     lr: 2e-4
     betas: [0.9, 0.99]
     eps: 1e-9
-  
+
     sched:
       name: CosineAnnealing
       max_steps: 1000000

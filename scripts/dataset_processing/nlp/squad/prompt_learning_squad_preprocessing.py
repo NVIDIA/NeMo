@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 """
 Dataset preprocessing script for the SQuAD dataset: https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json
-Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
+Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo.
 
 Inputs:
     data-dir: (str) The directory where the squad dataset was downloaded, files will be saved here
@@ -30,17 +30,17 @@ Inputs:
                     example, the files would be saved as squad_train.jsonl, squad_val.jsonl, and squad_test.jsonl
     include-topic-name: Whether to include the topic name for the paragraph in the data json. See the squad explaination
                         below for more context on what is ment by 'topic name'.
-    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits. 
+    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits.
 
 Saves train, val, and test files for the SQuAD dataset. The val and test splits are the same data, because the given test
-split lacks ground truth answers. 
+split lacks ground truth answers.
 
 An example of the processed output written to file:
-    
+
     {
-        "taskname": "squad", 
-        "context": "Red is the traditional color of warning and danger. In the Middle Ages, a red flag announced that the defenders of a town or castle would fight to defend it, and a red flag hoisted by a warship meant they would show no mercy to their enemy. In Britain, in the early days of motoring, motor cars had to follow a man with a red flag who would warn horse-drawn vehicles, before the Locomotives on Highways Act 1896 abolished this law. In automobile races, the red flag is raised if there is danger to the drivers. In international football, a player who has made a serious violation of the rules is shown a red penalty card and ejected from the game.", 
-        "question": "What did a red flag signal in the Middle Ages?", 
+        "taskname": "squad",
+        "context": "Red is the traditional color of warning and danger. In the Middle Ages, a red flag announced that the defenders of a town or castle would fight to defend it, and a red flag hoisted by a warship meant they would show no mercy to their enemy. In Britain, in the early days of motoring, motor cars had to follow a man with a red flag who would warn horse-drawn vehicles, before the Locomotives on Highways Act 1896 abolished this law. In automobile races, the red flag is raised if there is danger to the drivers. In international football, a player who has made a serious violation of the rules is shown a red penalty card and ejected from the game.",
+        "question": "What did a red flag signal in the Middle Ages?",
         "answer": " defenders of a town or castle would fight to defend it"
     },
 

@@ -27,4 +27,3 @@ pred_file_path: ??? # Path will model predictions will be written
 max_seq_length: 8192 # this will filter out inputs whose length is longer than the set value form the generation process.
 data_paths: # paths to .jsonl files you want to perform inference on
 num_workers: 8
- 

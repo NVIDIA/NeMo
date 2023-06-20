@@ -26,7 +26,7 @@ model:
     parser: ru
 
   validation_ds:
-    manifest_filepath: golos/test/crowd/crowd.jsonl # Can be found at https://sc.link/Kqr 
+    manifest_filepath: golos/test/crowd/crowd.jsonl # Can be found at https://sc.link/Kqr
     sample_rate: 16000
     labels: *labels
     batch_size: 32
@@ -34,7 +34,7 @@ model:
     parser: ru
 
   test_ds:
-    manifest_filepath: golos/test/farfield/farfield.jsonl # Can be found at https://sc.link/Kqr 
+    manifest_filepath: golos/test/farfield/farfield.jsonl # Can be found at https://sc.link/Kqr
     sample_rate: 16000
     labels: *labels
     batch_size: 32

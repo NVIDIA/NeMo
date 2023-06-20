@@ -52,7 +52,7 @@ class BertExample(object):
             input_ids: indices of single characters (treated as subwords)
             input_mask: list of bools with 0s in place of input_ids to be masked
             segment_ids: list of ints from 0 to 10 to denote the text segment type (
-                0 - for tokens of ASR hypothesis, 
+                0 - for tokens of ASR hypothesis,
                 1 - for tokens of the first candidate
                 ...
                 10 - for tokens of the tenth candidate
@@ -60,7 +60,7 @@ class BertExample(object):
             input_ids_for_subwords: indices of real subwords (as tokenized by bert tokenizer)
             input_mask_for_subwords: list of bools with 0s in place of input_ids_for_subwords to be masked
             segment_ids_for_subwords: same as segment_ids but for input_ids_for_subwords
-            character_pos_to_subword_pos: list of size=len(input_ids), value=(position of corresponding subword in input_ids_for_subwords) 
+            character_pos_to_subword_pos: list of size=len(input_ids), value=(position of corresponding subword in input_ids_for_subwords)
             fragment_indices: list of tuples (start_position, end_position, candidate_id), end is exclusive, candidate_id can be -1 if not set
             labels_mask: bool tensor with 0s in place of label tokens to be masked
             labels: indices of semiotic classes which should be predicted from each of the
@@ -244,7 +244,7 @@ class BertExampleBuilder(object):
 
     def _get_spans(self, span_info_parts: List[str]) -> List[Tuple[int, int, int]]:
         """ Converts span_info string into a list of (class_id, start, end) where start, end are coordinates of starting and ending(exclusive) tokens in input_ids of BertExample
-            
+
             Example:
                 span_info_parts: ["CUSTOM 37 41", "CUSTOM 47 52", "CUSTOM 42 46", "CUSTOM 0 7"]
                 result: [(1, 38, 42), (1, 48, 53), (1, 43, 47), (1, 1, 8)]
@@ -270,9 +270,9 @@ class BertExampleBuilder(object):
         """ Build fragment indices for real candidates.
             This is used only at inference.
             After external candidate retrieval we know approximately, where the candidate is located in the text (from the positions of matched n-grams).
-            In this function we 
-               1) adjust start/end positions to match word borders (possibly in multiple ways). 
-               2) generate content for fragment_indices tensor (it will be used during inference to average all predictions inside each fragment). 
+            In this function we
+               1) adjust start/end positions to match word borders (possibly in multiple ways).
+               2) generate content for fragment_indices tensor (it will be used during inference to average all predictions inside each fragment).
 
             Args:
                 hyp: ASR-hypothesis where space separates single characters (real space is replaced to underscore).
@@ -453,7 +453,7 @@ class BertExampleBuilder(object):
             ref:  "didier saumon;astronomie;tristan guillot;tristesse;monade;christian;astronomer;solomon;dididididi;mercy"
             tags: None (not used for word-based case)
 
-            resulting token sequence: 
+            resulting token sequence:
                 '[CLS]', 'astronomers', 'did', '##ie', 'so', '##mon', 'and', 'tri', '##sti', '##an', 'g', '##llo', '[SEP]', 'did', '##ier', 'sa', '##um', '##on', '[SEP]', 'astro', '##no', '##mie', '[SEP]', 'tristan', 'gui', '##llo', '##t', '[SEP]', ..., '[SEP]', 'mercy', '[SEP]']
         """
 
@@ -542,9 +542,9 @@ class BertExampleBuilder(object):
             infer: If true, input examples do not contain target info.
 
         Returns:
-            examples: List of converted examples (BertExample). 
+            examples: List of converted examples (BertExample).
                or
-            (examples, hyps_refs): If infer==true, returns h 
+            (examples, hyps_refs): If infer==true, returns h
         """
 
         if not path.exists(input_filename):

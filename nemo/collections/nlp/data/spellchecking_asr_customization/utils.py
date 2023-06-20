@@ -120,7 +120,7 @@ def get_alignment_by_dp(
 ) -> List[Tuple[str, str, float, float, int, int, int]]:
     """Get best alignment path between a reference and (possibly) misspelled phrase using n-gram mappings vocabulary.
     Args:
-        ref_phrase: candidate reference phrase (letters separated by space, real space replaced by underscore) 
+        ref_phrase: candidate reference phrase (letters separated by space, real space replaced by underscore)
         hyp_phrase: (possibly) misspelled phrase (letters separated by space, real space replaced by underscore)
         dp_data: n-gram mapping vocabularies used by dynamic programming
     Returns:

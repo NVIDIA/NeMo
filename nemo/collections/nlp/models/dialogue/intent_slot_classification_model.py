@@ -308,7 +308,7 @@ class IntentSlotClassificationModel(NLPModel):
         Args:
             token_ids: IntTensor of size (max_seq_len, )
             token_masks: BoolTensor of size (max_seq_len, )
-        
+
         Returns
             token_list: List of Str (list of tokens with len <= max_seq_len)
         """

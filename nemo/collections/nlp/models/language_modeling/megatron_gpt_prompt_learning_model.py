@@ -69,21 +69,21 @@ __all__ = ['MegatronGPTPromptLearningModel']
 
 class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained GPT model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After ptuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
@@ -772,7 +772,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 def get_pseudo_tokens(num_virtual_tokens):
     """
     Takes in an integer and returns a list of strings where each string
-    is a numbered virtual token placeholder. If 
+    is a numbered virtual token placeholder. If
     num_virtual_tokens = 3, then this function returns:
 
     ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
@@ -780,7 +780,7 @@ def get_pseudo_tokens(num_virtual_tokens):
     Args:
         num_virtual_tokens: (int) Number of virtual token strings you want to make
 
-    returns a list of string. 
+    returns a list of string.
 
     """
     pseudo_tokens = [

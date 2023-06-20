@@ -15,7 +15,7 @@ A clear and concise description of what the bug is.
 
 Please list *minimal* steps or code snippet for us to be able to reproduce the bug.
 
-A  helpful guide on on how to craft a minimal bug report  http://matthewrocklin.com/blog/work/2018/02/28/minimal-bug-reports. 
+A  helpful guide on on how to craft a minimal bug report  http://matthewrocklin.com/blog/work/2018/02/28/minimal-bug-reports.
 
 
 **Expected behavior**

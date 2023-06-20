@@ -237,7 +237,7 @@ cp ${DATASET}/valid.tsv ${DATASET}/test.tsv
 
 echo "CARDINAL" > ${CORPUS_DIR}/semiotic_classes.txt
 echo "DATE" >> ${CORPUS_DIR}/semiotic_classes.txt
-echo "DECIMAL" >> ${CORPUS_DIR}/semiotic_classes.txt 
+echo "DECIMAL" >> ${CORPUS_DIR}/semiotic_classes.txt
 echo "DIGIT" >> ${CORPUS_DIR}/semiotic_classes.txt
 echo "ELECTRONIC" >> ${CORPUS_DIR}/semiotic_classes.txt
 echo "FRACTION" >> ${CORPUS_DIR}/semiotic_classes.txt

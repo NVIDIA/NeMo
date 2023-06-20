@@ -22,7 +22,7 @@ import pandas as pd
 
 def convert_atis_multi_label(source_dir: str, target_dir: str, mode: str) -> None:
     """
-    Converts single label atis nemo data to multi-label data. Previous 
+    Converts single label atis nemo data to multi-label data. Previous
     labels in atis mapped multi-labels to a single index rather than two separate indicies.
 
     Args:
@@ -70,8 +70,8 @@ def convert_atis_multi_label(source_dir: str, target_dir: str, mode: str) -> Non
 
 def convert_intent_dictionary(source_dir: str, target_dir: str) -> None:
     """
-    Converts original intent dictionary containing labels that represented multiple labels into 
-    dictionary with only single labels. Example: if index 5 was referring to label "a+b", it is no longer 
+    Converts original intent dictionary containing labels that represented multiple labels into
+    dictionary with only single labels. Example: if index 5 was referring to label "a+b", it is no longer
     a label in the new intent dictionary. Only labels "a" and "b" are included within the new dictionary
 
     Args:

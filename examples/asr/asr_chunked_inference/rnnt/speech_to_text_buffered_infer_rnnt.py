@@ -51,7 +51,7 @@ python speech_to_text_buffered_infer_rnnt.py \
     model_stride=4 \
     batch_size=32 \
     merge_algo="lcs" \
-    lcs_alignment_dir=<OPTIONAL: Some path to store the LCS alignments> 
+    lcs_alignment_dir=<OPTIONAL: Some path to store the LCS alignments>
 
 # NOTE:
     You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the

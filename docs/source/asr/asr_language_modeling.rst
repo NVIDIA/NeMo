@@ -21,8 +21,8 @@ best candidates. The beam search decoders in NeMo support language models traine
 `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM.
-Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh>`__ 
-on how to install them. Alternatively, you can build Docker image 
+Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh>`__
+on how to install them. Alternatively, you can build Docker image
 `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
 
 NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
@@ -315,7 +315,7 @@ The similar script to evaluate an RNNT/HAT model with beam search decoding and N
             maes_expansion_gamma=[<list of the maes expansion gammas, separated with commas>] \
             hat_subtract_ilm=<in case of HAT model: subtract internal LM or not (True/False)> \
             hat_ilm_weight=[<in case of HAT model: list of the HAT internal LM weights, separated with commas>] \
-           
+
 
 
 .. _neural_rescoring:
@@ -478,10 +478,10 @@ Combine N-gram Language Models
 Before combining N-gram LMs install required OpenGrm NGram library using `scripts/installers/install_opengrm.sh <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/install_opengrm.sh>`__.
 Alternatively, you can use Docker image `scripts/installers/Dockerfile.ngramtools <https://github.com/NVIDIA/NeMo/blob/stable/scripts/installers/Dockerfile.ngramtools>`__ with all the necessary dependencies.
 
-To combine two N-gram language models, you can use the script ngram_merge.py located at 
+To combine two N-gram language models, you can use the script ngram_merge.py located at
 `scripts/asr_language_modeling/ngram_lm/ngram_merge.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/ngram_merge.py>`__.
 
-This script interpolate two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.  
+This script interpolate two ARPA N-gram language models and creates a KenLM binary file that can be used with the beam search decoders on top of ASR models.
 You can specify weights (`--alpha` and `--beta`) for each of the models (`--ngram_a` and `--ngram_b`) correspondingly: `alpha` * `ngram_a` + `beta` * `ngram_b`.
 This script supports both character level and BPE level encodings and models which are detected automatically from the type of the model.
 

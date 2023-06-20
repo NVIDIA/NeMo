@@ -78,7 +78,7 @@ void build_blending_indices(py::array_t<uint8_t>& dataset_index,
 
     // Update the total samples.
     current_samples[max_error_index] += 1;
-    
+
   }
 
   // print info
@@ -88,7 +88,7 @@ void build_blending_indices(py::array_t<uint8_t>& dataset_index,
       auto ratio = static_cast<double>(current_samples[dataset_idx]) /
 	static_cast<double>(size);
       std::cout << "   dataset " << dataset_idx << ", input: " <<
-	weights_ptr[dataset_idx] << ", achieved: " << ratio << std::endl; 
+	weights_ptr[dataset_idx] << ", achieved: " << ratio << std::endl;
     }
   }
 
@@ -192,7 +192,7 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
                      {2*byte_size, byte_size}, // C-style contiguous strides
                      sample_idx, // the data pointer
                      free_when_done); // numpy array references
-    
+
 }
 
 

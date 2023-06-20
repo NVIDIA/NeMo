@@ -117,10 +117,10 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
 
             Example:
             >>> word_dict_seq_list = \
-            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
+            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
                  {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},
                    ...],
-    
+
     Returns:
         spk_hypothesis (list):
             Dictionary containing the hypothesis transcript for each speaker. A list containing the sequence
@@ -161,10 +161,10 @@ def convert_word_dict_seq_to_ctm(
 
             Example:
             >>> word_dict_seq_list = \
-            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.34, 'speaker': 'speaker_0'},  
+            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.34, 'speaker': 'speaker_0'},
                  {'word': 'and', 'start_time': 0.64, 'end_time': 0.81, 'speaker': 'speaker_1'},
                    ...],
-    
+
     Returns:
         ctm_lines_list (list):
             List containing the hypothesis transcript in CTM format.
@@ -782,7 +782,7 @@ class OfflineDiarWithASR:
 
                 Example:
                 >>> word_ts = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
-            
+
             word_ts_refined (list):
                 Dictionary containing the refined (end point fixed) word timestamps based on hypothesis
                 word timestamps. Indexed by unique IDs.
@@ -795,9 +795,9 @@ class OfflineDiarWithASR:
                 List containing word by word dictionary containing word, timestamps and speaker labels.
 
                 Example:
-                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
-                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
-                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
+                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
+                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},
+                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},
                      ...]
         """
         if word_rfnd_ts is None:
@@ -835,9 +835,9 @@ class OfflineDiarWithASR:
                 List containing words and corresponding word timestamps in dictionary format.
 
                 Example:
-                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
-                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
-                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
+                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
+                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},
+                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},
                      ...]
 
         Returns:
@@ -853,13 +853,13 @@ class OfflineDiarWithASR:
                         'session_id': 'my_audio_01',
                         'transcription': 'right and i really think ...',
                         'speaker_count': 2,
-                        'words': [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
-                                  {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
-                                  {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
+                        'words': [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
+                                  {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},
+                                  {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},
                                   ...
                                   ]
                         'sentences': [{'sentence': 'right',  'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
-                                      {'sentence': 'and i really think ...', 
+                                      {'sentence': 'and i really think ...',
                                        'start_time': 0.92, 'end_time': 4.12, 'speaker': 'speaker_0'},
                                       ...
                                       ]

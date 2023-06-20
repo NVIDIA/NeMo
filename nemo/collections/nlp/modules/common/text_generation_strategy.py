@@ -103,7 +103,7 @@ class TextGenerationStrategy:
            context_length (int): the context token length
            compute_attention_mask: bool: set to True to compute attention mask (not needed for FA)
         Args:
-            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated 
+            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated
         """
         pass
 

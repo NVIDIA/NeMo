@@ -19,7 +19,7 @@ Lexical only model:
 .. toctree::
    :maxdepth: 1
 
-   punctuation_and_capitalization   
+   punctuation_and_capitalization
 
 
 Lexical and audio model:

@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 """
 Dataset preprocessing script for the Assistant dataset: https://github.com/xliuhw/NLU-Evaluation-Data/archive/master.zip
-Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
+Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo.
 
 Inputs:
     source-dir: (str) The unziped directory where the assistant dataset was downloaded
@@ -31,14 +31,14 @@ Inputs:
     save-name-base: (str) The base name for each of the train, val, and test files. If save-name-base were 'assistant' for
                     example, the files would be saved as assistant_train.jsonl, assistant_val.jsonl, and assistant_test.jsonl
     make-ground-truth: (bool) If true, test files will include answers, if false, test files will not include answers
-    include-options: (bool) If true, all intent and slot options will be added to the jsonl file under the key names 
+    include-options: (bool) If true, all intent and slot options will be added to the jsonl file under the key names
                      'intent options' and 'slot_options'. This will be added in addition to 'taskname', 'utterance', and 'label'.
-    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits. 
+    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits.
 
 Saves train, val, and test files for the assitant dataset.
 
 Example Output format (with include-options = False):
-    
+
     {"taskname": "intent_and_slot", "utterance": "who was john dillinger", "label": "\nIntent: qa_factoid\nSlots: person(john dillinger)"}
     {"taskname": "intent_and_slot", "utterance": "can you play my favorite music", "label": "\nIntent: play_music\nSlots: None"}
     {"taskname": "intent_and_slot", "utterance": "is adele going to go on tour", "label": "\nIntent: qa_factoid\nSlots: artist_name(adele)"}
@@ -115,7 +115,7 @@ def process_data_for_prompt_learning(
     utterance_lines, slot_lines, intent_dict, slot_dict, save_path, include_options, make_ground_truth=False
 ):
     """
-    Formats each line in the utterance file as a json object 
+    Formats each line in the utterance file as a json object
     with intent and slot labels.
 
     """
@@ -160,9 +160,9 @@ def process_data_for_prompt_learning(
 
 def get_slots(slot_line, utterance, slot_dict):
     """
-    Formats slot labels for an utterance. Ensures the multiword 
+    Formats slot labels for an utterance. Ensures the multiword
     slot labels are grouped together. For example the words
-    'birthday party' should be grouped together under the 
+    'birthday party' should be grouped together under the
     same event_name label like event_name(birthday party)
     instead of event_name(birthday), event_name(party).
 

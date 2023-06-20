@@ -3,19 +3,19 @@
 Dialogue tasks
 ======================================
 
-This module consists of various tasks that are related to dialogue. 
+This module consists of various tasks that are related to dialogue.
 
 **Module Design**
 
-We decided to group dialogue tasks into a common module instead of having a module for each because they share many things in common, meaning that there can be more re-use of code. 
-This design can also support easier extension of this module, as developers can work on components of their interest while utilizing other components of dialogue pipeline. 
+We decided to group dialogue tasks into a common module instead of having a module for each because they share many things in common, meaning that there can be more re-use of code.
+This design can also support easier extension of this module, as developers can work on components of their interest while utilizing other components of dialogue pipeline.
 In particular, we wanted to decouple the task-dependent, model-independent components of DataProcessor and InputExample from the model-dependent, task-independent components of Model and Dataset.
 
 .. image:: dialogue_UML.png
   :alt: Dialogue-UML
   :width: 800px
 
-**Supported Tasks** 
+**Supported Tasks**
 
 Supported tasks fall into broad categories of intent / domain classification with slot filling, intent classification as well as sequence generation.
 
@@ -24,7 +24,7 @@ For each category of tasks, there exists several Data Processors to convert raw 
 Currently, the supported task categories are:
 
 +----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
-| **Task Category**                                        | **Tasks**                        |   **Models**                                                                     | **Supported Options for model.language_model.pretrained_model_name** | **Supported options for model.library**  |                                                                       
+| **Task Category**                                        | **Tasks**                        |   **Models**                                                                     | **Supported Options for model.language_model.pretrained_model_name** | **Supported options for model.library**  |
 +----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
 | Domain / Intent Classification                           | Schema Guided Dialogue           | Dialogue GPT Classification Model                                                | gpt2, gpt2-{medium, large, xl}, microsoft/DialoGPT-{small, medium}   | Huggingface, Megatron                    |
 + with slot filling                                        +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
@@ -43,7 +43,7 @@ Currently, the supported task categories are:
 |                                                          | MS Marco NLGen                   | Dialogue S2S Generation Model                                                    | facebook/bart-{base, large}, t5-{small, base, large, 3b, 11b}        | Huggingface, Megatron                    |
 +----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
 
-**Configuration** 
+**Configuration**
 
 Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/dialogue/conf/dialogue_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/dialogue/conf/dialogue_config.yaml>`__.
 
@@ -70,7 +70,7 @@ Arguments that very commonly need to be edited for all models and tasks
 - :code:`model.dataset.data_dir`: the dataset directory
 - :code:`model.dataset.dialogues_example_dir`: the directory to store prediction files
 - :code:`model.dataset.debug_mode`: whether to run in debug mode with a very small number of samples [True, False]
-- :code:`model.language_model.pretrained_model_name`: language model to use, which causes different Dialogue Models to be loaded (see table above for options in each model class) 
+- :code:`model.language_model.pretrained_model_name`: language model to use, which causes different Dialogue Models to be loaded (see table above for options in each model class)
 - :code:`model.library`: library to load language model from [huggingface or megatron]
 - :code:`model.language_model.lm_checkpoint`: specifying a trained checkpoint (.bin / .ckpt / .nemo). The only exception is for DialogueZeroShotIntentModel, which can be configured at :code:`model.original_nemo_checkpoint`` instead For trained checkpoints, see :code:`list_available_models()`` for each model class and then downloading the file to a local directory
 
@@ -93,11 +93,11 @@ Then remove unused samples (optional, but otherwise, this would require signific
 :code: `python ../NeMo/examples/nlp/dialogue/remove_ms_marco_samples_without_wellFormedAnswers.py --filename train_v2.1.json`
 :code: `python ../NeMo/examples/nlp/dialogue/remove_ms_marco_samples_without_wellFormedAnswers.py --filename dev_v2.1.json`
 
-Task: Assistant 
+Task: Assistant
 
 :code: `git clone https://github.com/xliuhw/NLU-Evaluation-Data`
 
-Then unzip it 
+Then unzip it
 
 Finally, convert the dataset into the required format
 
@@ -112,7 +112,7 @@ Finally, convert the dataset into the required format
 - :code:`target_data_dir`: the directory location where the converted dataset should be saved
 
 
-Unfortunately other datasets are currently not available publically 
+Unfortunately other datasets are currently not available publically
 
 **Training/Testing a model**
 

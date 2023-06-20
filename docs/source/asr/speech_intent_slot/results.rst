@@ -30,17 +30,17 @@ Where the model base class is the ASR model class of the original checkpoint, or
 
 Inference
 -----------------------
-   
+
 The audio files should be 16KHz monochannel wav files.
 
 **Transcribe Audios to Semantics:**
-  
+
 You may perform inference on a sample of speech after loading the model by using its 'transcribe()' method:
 
-.. code-block:: python 
+.. code-block:: python
 
   slu_model = nemo_asr.models.SLUIntentSlotBPEModel.from_pretrained(model_name="<MODEL_NAME>")
-  predictions = slu_model.transcribe([list of audio files],  batch_size="<BATCH_SIZE>") 
+  predictions = slu_model.transcribe([list of audio files],  batch_size="<BATCH_SIZE>")
 
 
 SLU Models

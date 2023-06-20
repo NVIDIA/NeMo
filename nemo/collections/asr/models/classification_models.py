@@ -1062,7 +1062,7 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
     def reshape_labels(self, logits, labels, logits_len, labels_len):
         """
         Reshape labels to match logits shape. For example, each label is expected to cover a 40ms frame, while each frme prediction from the
-        model covers 20ms. If labels are shorter than logits, labels are repeated, otherwise labels are folded and argmax is applied to obtain 
+        model covers 20ms. If labels are shorter than logits, labels are repeated, otherwise labels are folded and argmax is applied to obtain
         the label of each frame. When lengths of labels and logits are not factors of each other, labels are truncated or padded with zeros.
         The ratio_threshold=0.2 is used to determine whether to pad or truncate labels, where the value 0.2 is not important as in real cases the ratio
         is very close to either ceil(ratio) or floor(ratio). We use 0.2 here for easier unit-testing. This implementation does not allow frame length

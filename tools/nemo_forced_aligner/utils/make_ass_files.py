@@ -16,9 +16,9 @@
 This file contains functions for make ASS-format subtitle files based on the generated alignment.
 ASS files can be generated highlighting token-level alignments or word-level alignments.
 In both cases, 'segment' boundaries will be used to determine which parts of the text will appear
-at the same time. 
-For the token-level ASS files, the text will be highlighted token-by-token, with the timings determined 
-by the NFA alignments. 
+at the same time.
+For the token-level ASS files, the text will be highlighted token-by-token, with the timings determined
+by the NFA alignments.
 For the word-level ASS files, the text will be highlighted word-by-word, with the timings determined
 by the NFA alignemtns.
 """

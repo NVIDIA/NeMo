@@ -3,7 +3,7 @@ tokenizer:
   type: 'GPT2BPETokenizer'
   model: null
   vocab_file: null
-  merge_file: null 
+  merge_file: null
   delimiter: null # only used for tabular tokenizer
 service:
   faiss_devices: '0,1,2'
@@ -12,8 +12,8 @@ service:
   chunk_size: 64
   stride: 32
   ctx_bert_ip: '0.0.0.0'   # the bert service ip to encode the ctx that is used to construct the dynamic retrieval index
-  ctx_bert_port: 17190     #  port number 
+  ctx_bert_port: 17190     #  port number
   query_bert_ip: '0.0.0.0' # the bert service to encode the query str
-  query_bert_port: 17190   #  port number 
+  query_bert_port: 17190   #  port number
   output_filename: 'dynamic_db'  # the filename of serialized dynamic retrieval service, used for both Faiss index and data storage
   port: 17180  # server port number

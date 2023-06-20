@@ -19,7 +19,7 @@ is provided: `duplex_text_normalization_train.py <https://github.com/NVIDIA/NeMo
 After that, the two trained models can be used to initialize a `DuplexTextNormalizationModel <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/nlp/models/duplex_text_normalization/duplex_tn.py/>`__ that can be used for end-to-end inference.
 An example script for evaluation is provided here: `duplex_text_normalization_test.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/duplex_text_normalization_test.py>`__.
 The script for inference of the full pipeline is provided here: `duplex_text_normalization_infer.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/duplex_text_normalization_infer.py>`__.
-This script runs inference from a raw text file or an interactive terminal. 
+This script runs inference from a raw text file or an interactive terminal.
 The term *duplex* refers to the fact that our system can be trained to do both TN and ITN. However, you can also specifically train the system for only one of the tasks.
 
 
@@ -48,7 +48,7 @@ Both the DuplexTaggerModel model and the DuplexDecoderModel model use the same t
 The data needs to be stored in TAB separated files (``.tsv``) with three columns.
 The first of which is the "semiotic class" (e.g.,  numbers, times, dates) , the second is the token
 in written form, and the third is the spoken form. An example sentence in the dataset is shown below.
-In the example, ``self`` denotes that the spoken form is the same as the written form. 
+In the example, ``self`` denotes that the spoken form is the same as the written form.
 
 .. code::
 
@@ -67,7 +67,7 @@ In the example, ``self`` denotes that the spoken form is the same as the written
 
 
 More information about the Google text normalization dataset can be found in the paper `RNN Approaches to Text Normalization: A Challenge <https://arxiv.org/ftp/arxiv/papers/1611/1611.00068.pdf>`__ :cite:`nlp-textnorm-sproat2016rnn`.
-The script for splitting the Google text normalization data files into `train`, `dev`, `test` can be found here: 
+The script for splitting the Google text normalization data files into `train`, `dev`, `test` can be found here:
 `data/data_split.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/data_split.py>`__.
 
 Data preprocessing
@@ -76,8 +76,8 @@ Data preprocessing
 Processing scripts can be found in the same folder. Right now we only provide scripts for English text normalization, see `data/en/data_preprocessing.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/en/data_preprocessing.py>`__.
 The details can be found at the top of the scripts.
 The purpose of the preprocessing scripts is to standardize the format in order to help with model training.
-We also changed punctuation class `PUNCT` to be treated like a plain token ( label changed from `<sil> to ``<self>`), since we want to preserve punctuation even after normalization. 
-For text normalization it is crucial to avoid unrecoverable errors, which are linguistically coherent and not semantic preserving. 
+We also changed punctuation class `PUNCT` to be treated like a plain token ( label changed from `<sil> to ``<self>`), since we want to preserve punctuation even after normalization.
+For text normalization it is crucial to avoid unrecoverable errors, which are linguistically coherent and not semantic preserving.
 We noticed that due to data scarcity the model struggles verbalizing long numbers correctly, so we changed the ground truth for long numbers to digit by digit verbalization.
 We also ignore certain semiotic classes from neural verbalization, e.g. `ELECTRONIC` or `WHITELIST` -- `VERBATIM` and `LETTER` in the original dataset. Instead we label urls/email addresses and abbreviations as plain tokens, and handle it separately with WFST-based grammars, see :ref:`inference_text_normalization`.
 This simplifies the task for the model and significantly reduces unrecoverable errors.
@@ -90,8 +90,8 @@ Data upsampling is an effective way to increase the training data for better mod
 We used upsampling for training an English text normalization model, see `data/en/upsampling.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/en/upsampling.py>`__.
 Currently this script only upsamples a few classes, that are diverse in semiotic tokens but at the same time underrepresented in the training data.
 Of all the input files in `train` folder created by `data/data_split.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/data_split.py>`__. this script takes the first file and detects the class patterns that occur in it.
-For those that are underrepresented, quantitatively defined as lower than `min_number`, the other files are scanned for sentences that have the missing patterns. 
-Those sentences are appended to the first file, which can then be used for training. 
+For those that are underrepresented, quantitatively defined as lower than `min_number`, the other files are scanned for sentences that have the missing patterns.
+Those sentences are appended to the first file, which can then be used for training.
 Details can be found at the top of the script.
 
 Tarred Dataset
@@ -113,10 +113,10 @@ Tarred datasets can be created as follows:
 
 
 .. warning::
-  The batch size used for creating the tarred dataset will be the batch size used in training regardless of what the user specifies in the configuration yaml file. 
+  The batch size used for creating the tarred dataset will be the batch size used in training regardless of what the user specifies in the configuration yaml file.
   The number of shards should be divisible by the world size to ensure an even
   split among workers. If it is not divisible, logging will give a warning but training will proceed, but likely hang at the last epoch.
-  
+
 
 Model Training
 --------------
@@ -153,9 +153,9 @@ Some arguments that you may want to modify are:
 
 - *decoder_model.nemo_path*: This is the path where the final trained decoder model will be saved to.
 
-- *tagger_model.transformer*: The huggingface transformer model used to initialize the tagger model weights 
+- *tagger_model.transformer*: The huggingface transformer model used to initialize the tagger model weights
 
-- *decoder_model.transformer*: The huggingface transformer model used to initialize the decoder model weights 
+- *decoder_model.transformer*: The huggingface transformer model used to initialize the decoder model weights
 
 
 Example of a training command:
@@ -225,11 +225,11 @@ To run inference from a file adjust the previous command by
     inference.from_file=<path_to_file>
     inference.interactive=False
 
-    
 
 
-This pipeline consists of 
-    
+
+This pipeline consists of
+
     * WFST-based grammars to verbalize hard classes, such as urls and abbreviations.
     * regex pre-preprocssing of the input, e.g.
         * adding space around `-` in alpha-numerical words, e.g. `2-car` -> `2 - car`

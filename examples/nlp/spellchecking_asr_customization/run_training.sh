@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-## TRAIN WITH NON-TARRED DATA 
+## TRAIN WITH NON-TARRED DATA
 
 # Path to NeMo repository
 NEMO_PATH=NeMo
@@ -32,7 +32,7 @@ DATA_PATH=spellmapper_en_train_micro
 ##   └── train.tsv
 
 ## To generate files config.json, label_map.txt, semiotic_classes.txt - run generate_configs.sh
-## Files "train.tsv" and "test.tsv" contain training examples. 
+## Files "train.tsv" and "test.tsv" contain training examples.
 ## For data preparation see https://github.com/bene-ges/nemo_compatible/blob/main/scripts/nlp/en_spellmapper/dataset_preparation/build_training_data.sh
 
 ## Note that training with non-tarred data only works on single gpu. It makes sense if you use 1-2 million examples or less.

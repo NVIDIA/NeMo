@@ -49,7 +49,7 @@ model:
   resume_from_checkpoint: null
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
   hidden_dropout: 0.1 # Override dropout prob from pretraining
-  attention_dropout: 0.1 # Override attention dropout prob from pretraining 
+  attention_dropout: 0.1 # Override attention dropout prob from pretraining
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance.
 
   data:

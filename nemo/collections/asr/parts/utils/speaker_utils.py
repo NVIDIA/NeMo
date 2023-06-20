@@ -1068,7 +1068,7 @@ def get_speech_labels_for_update(
 
 def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[float]],) -> Tuple[float, int]:
     """
-    Function for updating a cursor online speaker diarization. 
+    Function for updating a cursor online speaker diarization.
     Remove the old segments that overlap with the new frame (self.frame_start)
     cursor_for_old_segments is set to the onset of the t_range popped lastly.
 

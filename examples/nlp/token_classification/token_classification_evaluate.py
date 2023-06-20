@@ -31,14 +31,14 @@ More details on Token Classification model could be found in tutorials/nlp/Token
 *** Setting the configs ***
 
 This script uses the `/examples/nlp/token_classification/conf/token_classification_config.yaml` config file
-by default. You may update the config file from the file directly. 
+by default. You may update the config file from the file directly.
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
 For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
 
 *** Model Evaluation ***
 
-The script runs two types of evaluation: 
+The script runs two types of evaluation:
     * model.test() - this eval will use the config setting for evaluation such as model.dataset.max_seq_length
     * model.evaluate_from_file():
         * disregards model.dataset.max_seq_length and evaluates all the tokens, BERT max seq length - 512 tokens after tokenization
@@ -49,10 +49,10 @@ To run the script:
 
     python token_classification_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=ner_en_bert 
+    pretrained_model=ner_en_bert
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
-pretrained_model   - pretrained TokenClassification model from list_available_models() or 
+pretrained_model   - pretrained TokenClassification model from list_available_models() or
                      path to a .nemo file, for example: ner_en_bert or your_model.nemo
 
 """

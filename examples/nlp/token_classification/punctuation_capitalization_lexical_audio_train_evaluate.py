@@ -42,7 +42,7 @@ The most important ones are:
     trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
             precision level, etc.
 This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml` config file
-by default. You may update the config file from the file directly. 
+by default. You may update the config file from the file directly.
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
 *** Model training ***

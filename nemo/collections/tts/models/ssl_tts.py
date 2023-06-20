@@ -38,10 +38,10 @@ from nemo.utils.decorators import experimental
 class SSLDisentangler(ModelPT):
     """
     SSLDisentangler is a Conformer based model for extracting disentangled content and speaker embeddings
-    from an audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content 
-    and speaker representations using a pre-trained Conformer, two randomly initialized downstream 
-    heads are added and the entire setup is finetuned in multi-task manner for speech recognition and speaker verification. 
-    These representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding 
+    from an audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content
+    and speaker representations using a pre-trained Conformer, two randomly initialized downstream
+    heads are added and the entire setup is finetuned in multi-task manner for speech recognition and speaker verification.
+    These representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding
     of a given source utterance, with the speaker embedding of a target speaker.
     """
 

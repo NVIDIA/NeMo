@@ -25,7 +25,7 @@ Example command for T5 Preds
     python compute_rouge.py \
         --ground-truth dialogsum_test_gt.jsonl \
         --preds dialogsum_preds_t5.txt \
-        --answer-field "answer" 
+        --answer-field "answer"
     ```
 
 Example command for GPT Preds

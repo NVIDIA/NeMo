@@ -260,7 +260,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         value: Optional[float] = None,
     ) -> List[torch.Tensor]:
         """Copy states from new state to old state at certain indices.
-        
+
         Args:
             old_states(list): packed decoder states
                 (L x B x H, L x B x H)

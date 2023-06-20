@@ -22,7 +22,7 @@ from nemo.utils import logging
 
 
 """
-This script is designed for inference of frame level Voice Activity Detection (VAD) 
+This script is designed for inference of frame level Voice Activity Detection (VAD)
 
 This script serves three goals:
     (1) Write audio files to manifest

@@ -42,7 +42,7 @@ python infer_transducer_onnx.py \
     --max_symbold_per_step=5 \
     --batch_size=32 \
     --log
-    
+
 # Export and compare a NeMo and ONNX model
 python infer_transducer_onnx.py \
     --nemo_model="<path to a .nemo file>" \

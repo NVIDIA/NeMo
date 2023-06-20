@@ -49,7 +49,7 @@ from nemo.utils import logging
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
-use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
+use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM.
 """
 
 

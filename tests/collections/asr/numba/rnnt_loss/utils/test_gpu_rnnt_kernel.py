@@ -200,13 +200,13 @@ class TestRNNTCUDAKernels:
 
         """
         Here we will directly utilize the numpy variant of the loss without explicitly calling
-        the numpy functions for alpha, beta and grads. 
-        
+        the numpy functions for alpha, beta and grads.
+
         This is because the grads returned by the rnnt_numpy.transduce_batch() are :
-        d/dx (alpha + beta alignment)(log_softmax(x)). 
+        d/dx (alpha + beta alignment)(log_softmax(x)).
         But according to the chain rule, we'd still need to compute the gradient of log_softmax(x)
-        and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient 
-        of the log_softmax(x) step and propagate it backwards. 
+        and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient
+        of the log_softmax(x) step and propagate it backwards.
         """
         loss_func = rnnt_numpy.RNNTLoss(blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp)
         loss_val = loss_func(x_np, labels, audio_len, label_len)
@@ -310,13 +310,13 @@ class TestRNNTCUDAKernels:
 
         """
         Here we will directly utilize the numpy variant of the loss without explicitly calling
-        the numpy functions for alpha, beta and grads. 
+        the numpy functions for alpha, beta and grads.
 
         This is because the grads returned by the rnnt_numpy.transduce_batch() are :
-        d/dx (alpha + beta alignment)(log_softmax(x)). 
+        d/dx (alpha + beta alignment)(log_softmax(x)).
         But according to the chain rule, we'd still need to compute the gradient of log_softmax(x)
-        and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient 
-        of the log_softmax(x) step and propagate it backwards. 
+        and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient
+        of the log_softmax(x) step and propagate it backwards.
         """
         loss_func = rnnt_numpy.RNNTLoss(blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp)
         loss_val = loss_func(x_np, labels, audio_len, label_len)
@@ -420,13 +420,13 @@ class TestRNNTCUDAKernels:
 
         """
         Here we will directly utilize the numpy variant of the loss without explicitly calling
-        the numpy functions for alpha, beta and grads. 
+        the numpy functions for alpha, beta and grads.
 
         This is because the grads returned by the rnnt_numpy.transduce_batch() are :
-        d/dx (alpha + beta alignment)(log_softmax(x)). 
+        d/dx (alpha + beta alignment)(log_softmax(x)).
         But according to the chain rule, we'd still need to compute the gradient of log_softmax(x)
-        and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient 
-        of the log_softmax(x) step and propagate it backwards. 
+        and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient
+        of the log_softmax(x) step and propagate it backwards.
         """
         loss_func = rnnt_numpy.RNNTLoss(blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp)
         loss_val = loss_func(x_np, labels, audio_len, label_len)

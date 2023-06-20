@@ -207,22 +207,22 @@ def run_offline_inference(cfg: DictConfig) -> DictConfig:
 
 
 def cal_target_metadata_wer(manifest: str, target: str, meta_cfg: DictConfig, eval_metric: str = "wer",) -> dict:
-    """ 
-    Caculating number of samples (samples), number of words/characters/tokens (tokens), 
-    wer/cer, insertion error rate (ins_rate), deletion error rate (del_rate), substitution error rate (sub_rate) of the group/slot of target metadata. 
+    """
+    Caculating number of samples (samples), number of words/characters/tokens (tokens),
+    wer/cer, insertion error rate (ins_rate), deletion error rate (del_rate), substitution error rate (sub_rate) of the group/slot of target metadata.
 
     The group could be [female, male] or slot group like [0-2s, 2-5s, >5s audios]
 
 
     Args:
-        manifest (str): Filepath of the generated manifest which contains prediction and eval result for each samples.  
-        target (str): Target metadata. Execute the target metadata if field presents in manifest. 
+        manifest (str): Filepath of the generated manifest which contains prediction and eval result for each samples.
+        target (str): Target metadata. Execute the target metadata if field presents in manifest.
             such as 'duration', 'speaker', 'emotion', etc.
         meta_cfg (DictConfig): Config for calculating group eval_metric for the target metadata.
         eval_metric: (str): Supported evaluation metrics. Currently support 'wer' and 'cer'.
 
-    Return: 
-        ret (dict): Generated dictionary containing all results regarding the target metadata. 
+    Return:
+        ret (dict): Generated dictionary containing all results regarding the target metadata.
     """
     if eval_metric not in ['wer', 'cer']:
         raise ValueError(

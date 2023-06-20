@@ -30,10 +30,10 @@ This scripts shows how to train a Token Classification model.
 The Token Classification model supports Named Entity Recognition task and other token level classification tasks,
 as long as the data follows the format specified below.
 
-More details on how to use this script could be found in 
+More details on how to use this script could be found in
 tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
 
-*** Data Format *** 
+*** Data Format ***
 Token Classification Model requires the data to be split into 2 files: text.txt and labels.txt.
 Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.:
 [WORD] [SPACE] [WORD] [SPACE] [WORD].
@@ -66,7 +66,7 @@ The most important ones are:
     trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
             precision level, etc.
 This script uses the `/examples/nlp/token_classification/conf/token_classification_config.yaml` config file
-by default. You may update the config file from the file directly. 
+by default. You may update the config file from the file directly.
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
 For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
@@ -80,8 +80,8 @@ To train TokenClassification model from scratch with the default config file, ru
            trainer.max_epochs=<NUM_EPOCHS> \
            trainer.devices=[<CHANGE_TO_GPU(s)_YOU_WANT_TO_USE>]
 
-To use one of the pretrained versions of the model specify a `pretrained_model` arg with either 
-TokenClassification model from list_available_models() or path to a .nemo file, for example: 
+To use one of the pretrained versions of the model specify a `pretrained_model` arg with either
+TokenClassification model from list_available_models() or path to a .nemo file, for example:
 ner_en_bert or model.nemo, run:
 
     python token_classification_train.py pretrained_model=ner_en_bert
@@ -93,9 +93,9 @@ To use one of the pretrained versions of the model and fine-tune it, run:
            pretrained_model=ner_en_bert
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
-pretrained_model   - pretrained TokenClassification model from list_available_models() or 
+pretrained_model   - pretrained TokenClassification model from list_available_models() or
                      path to a .nemo file, for example: ner_en_bert or model.nemo
-                     
+
 For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipynb
 """
 

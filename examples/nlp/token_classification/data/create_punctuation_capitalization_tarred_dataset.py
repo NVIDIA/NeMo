@@ -45,7 +45,7 @@ Every tar file contains objects written using `webdataset.TarWriter`. Each objec
 'input_ids', 'subtokens_mask', 'punct_labels', 'capit_labels'. 'input_ids' is an array containing ids of source tokens,
 'subtokens_mask' is a boolean array showing first tokens in words, 'punct_labels' and 'capit_labels' are arrays with
 ids of labels. Metadata file should be passed to constructor of
-`nemo.collections.nlp.data.token_classification.PunctuationCapitalizationTarredDataset` and the instance of 
+`nemo.collections.nlp.data.token_classification.PunctuationCapitalizationTarredDataset` and the instance of
 the class will handle iteration and constructing masks and token types for BERT model.
 
 Example of usage:

@@ -145,8 +145,8 @@ class QAMetrics(object):
 
     @staticmethod
     def evaluate_predictions(examples, all_predictions):
-        """ 
-        Calculates exact match and f1 scores for all predictions, 
+        """
+        Calculates exact match and f1 scores for all predictions,
             questions with answers, and no answer questions
         """
 

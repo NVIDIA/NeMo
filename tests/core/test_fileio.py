@@ -127,7 +127,7 @@ class TestFileIO:
 
     @pytest.mark.unit
     def test_save_restore_from_nemo_file(self, asr_model):
-        """" Test makes sure that the second instance created from the same configuration AND checkpoint 
+        """" Test makes sure that the second instance created from the same configuration AND checkpoint
         has the same weights. """
 
         with tempfile.NamedTemporaryFile() as fp:

@@ -8,13 +8,13 @@ There are two main ways to load pretrained checkpoints in NeMo:
 
 Refer to the following sections for instructions and examples for each.
 
-Note that these instructions are for loading fully trained checkpoints for evaluation or fine-tuning. For resuming an unfinished 
+Note that these instructions are for loading fully trained checkpoints for evaluation or fine-tuning. For resuming an unfinished
 training experiment, use the Experiment Manager to do so by setting the ``resume_if_exists`` flag to ``True``.
 
 Loading Local Checkpoints
 -------------------------
 
-NeMo automatically saves checkpoints of a model that is trained in a ``.nemo`` format. Alternatively, to manually save the model at any 
+NeMo automatically saves checkpoints of a model that is trained in a ``.nemo`` format. Alternatively, to manually save the model at any
 point, issue :code:`model.save_to(<checkpoint_path>.nemo)`.
 
 If there is a local ``.nemo`` checkpoint that you'd like to load, use the :code:`restore_from()` method:
@@ -40,7 +40,7 @@ made for convenience purpose :code:`hybrid_model.save_asr_model_to(<asr_checkpoi
 NGC Pretrained Checkpoints
 --------------------------
 
-The ASR collection has checkpoints of several models trained on various datasets for a variety of tasks. These checkpoints are 
+The ASR collection has checkpoints of several models trained on various datasets for a variety of tasks. These checkpoints are
 obtainable via NGC `NeMo Automatic Speech Recognition collection <https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_asr>`_.
 The model cards on NGC contain more information about each of the checkpoints available.
 
@@ -197,7 +197,7 @@ French
    :align: left
    :widths: 40, 10, 50
    :header-rows: 1
-   
+
 -----------------------------
 
 Polish

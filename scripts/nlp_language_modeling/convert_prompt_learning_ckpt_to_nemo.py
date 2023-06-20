@@ -38,13 +38,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 """
-This is the script to convert the p-tuning PTL checkpoint file to nemo file for evaluation. 
+This is the script to convert the p-tuning PTL checkpoint file to nemo file for evaluation.
 
 Example usage:
     Assume the model has TP=2, PP=2 in the following use cases.
     ```
     python scripts/nlp_language_modeling/convert_prompt_learning_ckpt_to_nemo.py \
-                trainer.devices=4 \ 
+                trainer.devices=4 \
                 trainer.num_nodes=1 \
                 trainer.precision=bf16 \
                 tensor_model_parallel_size=2 \

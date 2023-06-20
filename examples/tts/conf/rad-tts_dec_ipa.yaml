@@ -68,7 +68,7 @@ model:
       ignore_ambiguous_words: true
       use_chars: true
       use_stresses: true
-      
+
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.data.dataset.TTSDataset"

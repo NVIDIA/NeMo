@@ -21,7 +21,7 @@ The step below will download Wikipedia data (around 20GB) and can take some seve
 .. code-block:: bash
 
     wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2
-    
+
 **Step 2: Extract raw data**
 
 .. code-block:: bash
@@ -48,13 +48,13 @@ With this option we will just download pre-built vocabulary and merge files for 
     wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
 
 
-*Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library. 
+*Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library.
 
 It comes as dependency with NeMo, so if you have installed NeMo it should already be installed.
 Note that training tokenizer model will also take some time.
 
 .. code-block:: bash
-   
+
    sudo apt install jq
    jq .text train_data.jsonl >> text_for_tokenizer.txt
    spm_train --input=text_for_tokenizer.txt \
@@ -64,7 +64,7 @@ Note that training tokenizer model will also take some time.
         --model_type=bpe \
         --byte_fallback=true \
         --pad_id=0 --unk_id=1 --bos_id=2 --eos_id=3 \
-        --split_digits true 
+        --split_digits true
 
 After this is done (will take a while), you'll have two files: ```spm_32k_wiki.model and spm_32k_wiki.vocab`` which correspond to model and vocabulary.
 
@@ -86,12 +86,12 @@ This format makes training more efficient, especially with many nodes and GPUs. 
     --merge-file gpt2-merges.txt \
     --output-prefix=hfbpe_gpt_training_data \
     --append-eod \
-    --workers=32 
+    --workers=32
 
-*Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library.  
+*Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library.
 
 .. code-block:: bash
-    
+
     python <NeMo_ROOT_FOLDER>/scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --input=train_data.jsonl \
     --json-keys=text \
@@ -99,7 +99,7 @@ This format makes training more efficient, especially with many nodes and GPUs. 
     --tokenizer-model=spm_32k_wiki.model \
     --output-prefix=gpt_training_data \
     --append-eod \
-    --workers=32 
+    --workers=32
 
 
 Train GPT-style Model

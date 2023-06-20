@@ -32,7 +32,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_pa
 
 class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
-    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based 
+    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based
     on the best checkpoint saved (according to the monitor value).
     Also contains func to save the EMA copy of the model.
     """

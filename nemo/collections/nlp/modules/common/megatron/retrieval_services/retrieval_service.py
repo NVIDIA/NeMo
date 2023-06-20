@@ -34,7 +34,7 @@ PORT_NUM_DYN = 17180
 
 class RetrievalService:
     """
-    Abstract class for Retrieval Service. 
+    Abstract class for Retrieval Service.
     """
 
     @abc.abstractmethod

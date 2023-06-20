@@ -30,17 +30,17 @@ Where the model base class is the ASR model class of the original checkpoint, or
 
 Transcribing/Inference
 -----------------------
-   
+
 The audio files should be 16KHz monochannel wav files.
 
 `Transcribe speech command segment:`
-  
+
 You may perform inference and transcribe a sample of speech after loading the model by using its 'transcribe()' method:
 
-.. code-block:: python 
+.. code-block:: python
 
   mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name="<MODEL_NAME>")
-  mbn_model.transcribe([list of audio files],  batch_size=BATCH_SIZE, logprobs=False) 
+  mbn_model.transcribe([list of audio files],  batch_size=BATCH_SIZE, logprobs=False)
 
 Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in `Modules <../api.html#modules>`__.
 
@@ -49,7 +49,7 @@ Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root
 
 `Run VAD inference:`
 
-.. code-block:: bash 
+.. code-block:: bash
 
   python <NeMo-git-root>/examples/asr/speech_classification/vad_infer.py --config-path="../conf/vad" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
 
@@ -60,10 +60,10 @@ Have a look at configuration file ``<NeMo-git-root>/examples/asr/conf/vad/vad_in
 
 Posterior processing includes generating predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
 
-For VAD postprocessing we introduce 
+For VAD postprocessing we introduce
 
-Binarization: 
-  - ``onset`` and ``offset`` threshold for detecting the beginning and end of a speech. 
+Binarization:
+  - ``onset`` and ``offset`` threshold for detecting the beginning and end of a speech.
   - padding durations ``pad_onset`` before and padding duarations ``pad_offset`` after each speech segment;
 
 Filtering:
@@ -80,7 +80,7 @@ You may load the model and identify the language of an audio file by using `get_
 
   langid_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name="<MODEL_NAME>")
   lang = langid_model.get_label('<audio_path>')
-  
+
 or you can run `batch_inference()` to perform inference on a manifest with seleted batch_size to get trained model labels and gt_labels with logits
 
 .. code-block:: python
@@ -88,7 +88,7 @@ or you can run `batch_inference()` to perform inference on a manifest with selet
   langid_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name="<MODEL_NAME>")
   lang_embs, logits, gt_labels, trained_labels = langid_model.batch_inference(manifest_filepath, batch_size=32)
 
-  
+
 NGC Pretrained Checkpoints
 --------------------------
 

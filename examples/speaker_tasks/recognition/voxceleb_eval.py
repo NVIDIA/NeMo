@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 
 """
-This script faciliates to get EER % based on cosine-smilarity 
+This script faciliates to get EER % based on cosine-smilarity
 for Voxceleb dataset.
 
 Args:

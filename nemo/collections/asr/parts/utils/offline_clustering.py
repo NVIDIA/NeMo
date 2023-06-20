@@ -512,7 +512,7 @@ def getMultiScaleCosAffinityMatrix(
 
     Returns:
         fused_sim_d (Tensor):
-            An affinity matrix that is obtained by calculating the weighted sum of 
+            An affinity matrix that is obtained by calculating the weighted sum of
             the multiple affinity matrices from the different scales.
     """
     multiscale_weights = torch.squeeze(multiscale_weights, dim=0).to(device)

@@ -21,9 +21,9 @@ from nemo.utils import logging
 
 
 def copy_input_files(infold):
-    """ 
-    Put training files in convenient place for conversion to our format. 
-    
+    """
+    Put training files in convenient place for conversion to our format.
+
     Args:
         infold: location of an original fold of the dataset (in the sense of k-fold cross validation)
     """
@@ -95,11 +95,11 @@ def get_slots(infold, modes):
 
 
 def get_slot_queries(infold, slot_dict, mode, intent_names):
-    """ 
-    Convert each word in a query to corresponding slot number. 
+    """
+    Convert each word in a query to corresponding slot number.
     Args:
         infold: fold of the data
-        slot_dict: dict containing slot-names to positions 
+        slot_dict: dict containing slot-names to positions
         mode: train, validation or test
         intent_names: list of intents
     """

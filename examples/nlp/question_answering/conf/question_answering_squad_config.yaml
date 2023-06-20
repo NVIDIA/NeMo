@@ -71,7 +71,7 @@ model:
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false
-    num_samples: -1    
+    num_samples: -1
     # Default values for the following params are retrieved from dataset config section, but you may override them
     num_workers: ${model.dataset.num_workers}
     drop_last: ${model.dataset.drop_last}
@@ -86,7 +86,7 @@ model:
     num_workers: ${model.dataset.num_workers}
     drop_last: ${model.dataset.drop_last}
     pin_memory: ${model.dataset.pin_memory}
-    
+
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
     vocab_file: null # path to vocab file

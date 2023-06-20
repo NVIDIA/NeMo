@@ -51,7 +51,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 	model.data.test_ds.micro_batch_size=4 \
 	model.data.test_ds.tokens_to_generate=30 \
 	inference.greedy=True \
-	inference.outfile_path=\'<path_to_jsonl_output_file>'  
+	inference.outfile_path=\'<path_to_jsonl_output_file>'
 
 If you want to evaluate a PEFT Model, you should provide a base GPT model and a PEFT model .nemo file
 
@@ -64,7 +64,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 	model.data.test_ds.micro_batch_size=4 \
 	model.data.test_ds.tokens_to_generate=30 \
 	inference.greedy=True \
-	inference.outfile_path=\'<path_to_jsonl_output_file>'  
+	inference.outfile_path=\'<path_to_jsonl_output_file>'
 
 """
 

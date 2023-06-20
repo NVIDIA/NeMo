@@ -26,7 +26,7 @@ from nemo.utils import logging
 
 def process_collection(id, col):
     """ Helper function processing the collection.
-    
+
     Args:
         id: (short) name of the collection.
         col: a collection (python module).

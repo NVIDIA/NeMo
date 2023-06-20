@@ -547,7 +547,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         verbose: bool = True,
     ) -> List[str]:
         """
-        Uses greedy decoding to transcribe audio files into SLU semantics. 
+        Uses greedy decoding to transcribe audio files into SLU semantics.
         Use this method for debugging and prototyping.
 
         Args:

@@ -34,7 +34,7 @@ python g2p_heteronym_classification_train_and_evaluate.py \
     validation_manifest=<Path to validation manifest file>" \
     model.wordids="<Path to wordids.tsv file>" \
     do_training=True
-    
+
 To run training and testing (once the training is complete):
 python g2p_heteronym_classification_train_and_evaluate.py \
     train_manifest=<Path to train manifest file>" \
@@ -43,7 +43,7 @@ python g2p_heteronym_classification_train_and_evaluate.py \
     model.wordids="<Path to wordids.tsv file>" \
     do_training=True \
     do_testing=True
-    
+
 To run testing:
 python g2p_heteronym_classification_train_and_evaluate.py \
     do_training=False \
@@ -51,7 +51,7 @@ python g2p_heteronym_classification_train_and_evaluate.py \
     model.test_ds.dataset.manifest=<Path to test manifest file>"  \
     pretrained_model=<Path to pretrained .nemo model or from list_available_models()>
 
-    
+
 See https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/wordids.tsv for wordids file
 format example
 

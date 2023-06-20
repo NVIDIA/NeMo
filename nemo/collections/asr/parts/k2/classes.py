@@ -51,7 +51,7 @@ class GraphModuleConfig:
 
 class ASRK2Mixin(ABC):
     """k2 Mixin class that simplifies the construction of various models with k2-based losses.
-    
+
     It does the following:
         -   Sets up the graph loss and decoder (methods _init_k2 and update_k2_modules).
         -   Registers external graphs, if needed.
@@ -125,7 +125,7 @@ class ASRK2Mixin(ABC):
         transcribe_training = input_cfg.get("transcribe_training", False)
         if transcribe_training and criterion_type == "ml":
             logging.warning(
-                f"""You do not need to use transcribe_training=`{transcribe_training}` 
+                f"""You do not need to use transcribe_training=`{transcribe_training}`
                             with criterion_type=`{criterion_type}`. transcribe_training will be set to False."""
             )
             transcribe_training = False

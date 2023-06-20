@@ -1,6 +1,6 @@
 # Speech Classification
 
-This directory contains example scripts to train speech classification and voice activity detection models. 
+This directory contains example scripts to train speech classification and voice activity detection models.
 
 # Model execution overview
 

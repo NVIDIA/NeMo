@@ -1049,7 +1049,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
         enc_mask - a tensor of shape [batch_size, seq_len] that contains the input tokens mask (1 for active, 0 for inactive).
         num_tokens_to_generate - the max number of tokens to generate.
-        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).   
+        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).
         tokenizer - a tokenizer object.
         enc_output - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc and encoder_input if given).
         enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).

@@ -32,8 +32,8 @@ The input folder consists of subfolders with following stricture
   |   ├── 2.ogg
   |   ...
   └── text
-      ├── 1.txt     
-      ├── 2.txt     
+      ├── 1.txt
+      ├── 2.txt
       ...
 """
 
@@ -77,7 +77,7 @@ def get_audio(name, n):
 
     Args:
         name - name of folder within Spoken Wikipedia
-        n - integer that will serve as output file name, e.g. if n=1, file 1.ogg will be created  
+        n - integer that will serve as output file name, e.g. if n=1, file 1.ogg will be created
     """
     audio_path = os.path.join(args.input_folder, name, "audio.ogg")
     if not os.path.exists(audio_path):
@@ -125,7 +125,7 @@ def get_text(name, n):
 
     Args:
         name - name of folder within Spoken Wikipedia
-        n - integer that will serve as output file name, e.g. if n=1, file 1.txt will be created  
+        n - integer that will serve as output file name, e.g. if n=1, file 1.txt will be created
     """
 
     # Then we need to clean the text

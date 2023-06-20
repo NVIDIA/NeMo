@@ -30,5 +30,5 @@ hparams_file: null # model configuration file, only used for PTL checkpoint load
 data_paths: ??? # prompts for GPT inference
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
-batch_size: 8 
+batch_size: 8
 num_workers: 8

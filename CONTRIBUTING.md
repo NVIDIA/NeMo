@@ -26,9 +26,9 @@ pytest --with_downloads
 ```
 
 ## Whom should you ask for review:
-1. For changes to NeMo's core: @ericharper, @titu1994, @blisc, or @okuchaiev  
+1. For changes to NeMo's core: @ericharper, @titu1994, @blisc, or @okuchaiev
 1. For changes to NeMo's ASR collection: @titu1994, @redoctopus, @jbalam-nv, or @okuchaiev
-1. For changes to NeMo's NLP collection: @MaximumEntropy, @ericharper, @ekmb, @yzhang123, @VahidooX, @vladgets, or @okuchaiev 
+1. For changes to NeMo's NLP collection: @MaximumEntropy, @ericharper, @ekmb, @yzhang123, @VahidooX, @vladgets, or @okuchaiev
 1. For changes to NeMo's TTS collection: @blisc, or @okuchaiev
 
 Note that some people may self-assign to review your PR - in which case, please wait for them to add a review.
@@ -75,5 +75,5 @@ We use ``black`` as our style guide. To check whether your code will pass style 
 
 # Collections
 Collection is a logical grouping of related Neural Modules. It is a grouping of modules that share a domain area or semantics.
-When contributing module to a collection, please make sure it belongs to that category. 
-If you would like to start a new one and contribute back to the platform, you are very welcome to do so.  
+When contributing module to a collection, please make sure it belongs to that category.
+If you would like to start a new one and contribute back to the platform, you are very welcome to do so.

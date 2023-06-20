@@ -5,7 +5,7 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: 16
-  logger: False 
+  logger: False
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1
@@ -14,7 +14,7 @@ trainer:
   val_check_interval: 20
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null 
+  resume_from_checkpoint: null
   benchmark: False
 
 exp_manager:
@@ -44,43 +44,43 @@ model:
   encoder_seq_length: 2048
   gradient_as_bucket_view: false
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 
+  pipeline_model_parallel_size: 1
   global_batch_size: 4
   micro_batch_size: 2
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
   report_validation_metric: False
-  
+
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   existing_tasks: []
-  new_tasks: ["squad"] 
+  new_tasks: ["squad"]
 
-  task_templates: 
-  - taskname: "squad" 
-    prompt_template: "context: {context} question: {question} answer: {answer}" 
+  task_templates:
+  - taskname: "squad"
+    prompt_template: "context: {context} question: {question} answer: {answer}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_field: "answer"
 
-  - taskname: "arc-challenge" 
-    prompt_template: "question: {question} choices: {choices} answer: {answer}" 
+  - taskname: "arc-challenge"
+    prompt_template: "question: {question} choices: {choices} answer: {answer}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_field: "answer"
 
-  - taskname: "xsum" 
-    prompt_template: "{source} Summary: {target}" 
+  - taskname: "xsum"
+    prompt_template: "{source} Summary: {target}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_field: "target"
 
-  - taskname: "rte" 
-    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
+  - taskname: "rte"
+    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
@@ -98,8 +98,8 @@ model:
   optim:
     name: fused_adam
     lr: 1e-3
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     sched:
@@ -109,5 +109,5 @@ model:
       min_lr: 0.0
       monitor: val_loss
       reduce_on_plateau: false
-  
+
 

@@ -34,7 +34,7 @@ from nemo.utils.decorators import experimental
 class FastPitchModel_SSL(ModelPT):
     """
     FastPitch based model that can synthesize mel spectrograms from content and speaker embeddings
-    obtained from SSLDisentangler. This model can be used for voice conversion by swapping the speaker embedding 
+    obtained from SSLDisentangler. This model can be used for voice conversion by swapping the speaker embedding
     of a given source utterance, with the speaker embedding of a target speaker.
     """
 
@@ -321,10 +321,10 @@ class FastPitchModel_SSL(ModelPT):
     ):
         """
         Args:
-            content_embedding : Content embedding from SSL backbone (B, C, T) 
+            content_embedding : Content embedding from SSL backbone (B, C, T)
             speaker_embedding : Speaker embedding from SSL backbone (B, C)
             pitch_contour : Normalized Pitch contour derived from the mel spectrogram
-            encoded_len: Length of each content embedding, optional if batch size is 1. 
+            encoded_len: Length of each content embedding, optional if batch size is 1.
             compute_pitch: if true, predict pitch contour from content and speaker embedding.
             compute_duration: if true, predict duration from content and speaker embedding.
             durs_gt: Ground truth duration of each content embedding, ignored if compute_duration is True.

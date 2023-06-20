@@ -29,14 +29,14 @@ class DialogueDataProcessor(DataProcessor):
         - Encourages experimentation with a variety of models \
             (BERT-style; GPT-style; T5-style), \
             which have different tokenization/preprocessing requirements
-        - Facilitates experiments with a variety of data sources, 
+        - Facilitates experiments with a variety of data sources,
            as data is processed into a common format
-        
-    Roles 
-        1. Processes raw files into Dialogue Input Examples. 
-        2. Keeps all possibly relevant information from the raw files, which 
+
+    Roles
+        1. Processes raw files into Dialogue Input Examples.
+        2. Keeps all possibly relevant information from the raw files, which
             the Dataset class can then determine which labels to use
-    
+
     """
 
     def __init__(self):
@@ -58,8 +58,8 @@ class DialogueDataProcessor(DataProcessor):
     def get_relevant_idxs(dataset_split, n_samples, dev_proportion):
         """
         Obtain indexes for each dataset_split, when train and dev sets are not in separate files
-        
-        Args: 
+
+        Args:
             dataset_split: train, dev or test
             n_samples: total number of samples
             dev_proportion: value from 1 to 99 that represent proportion of data in dev set

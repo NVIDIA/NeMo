@@ -13,7 +13,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 1000 # PTL default. In practice, max_steps will be reached first. 
+  max_epochs: 1000 # PTL default. In practice, max_steps will be reached first.
   max_steps: 400000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 1000
@@ -48,10 +48,10 @@ model:
   src_language: 'en'
   tgt_language: 'de'
   max_generation_delta: 20 # Maximum decoder sequence length is encoder sequence length + this parameter.
-  pretrained_model_path: null # Path to a pretrained model 
+  pretrained_model_path: null # Path to a pretrained model
   pretrained_model_type: T5
 
-  # model parallelism 
+  # model parallelism
   micro_batch_size: 32
   global_batch_size: 512 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1
@@ -113,7 +113,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset
 
   validation_ds:
     src_file_name: ???

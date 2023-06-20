@@ -8,7 +8,7 @@ Features:
 - navigation across dataset (sorting, filtering)
 - inspection of individual utterances (waveform, spectrogram, audio player)
 - errors' analysis (Word Error Rate, Character Error Rate, Word Match Rate, Mean Word Accuracy, diff)
-- comparison of two ASR models using interactive word-level accuracy plot 
+- comparison of two ASR models using interactive word-level accuracy plot
 
 Please make sure that requirements are installed. Then run:
 ```

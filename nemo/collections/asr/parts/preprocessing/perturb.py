@@ -1019,9 +1019,9 @@ class TranscodePerturbation(Perturbation):
 
 class RandomSegmentPerturbation(Perturbation):
     """
-    Returns a random segment from input of duration "duration_sec". 
+    Returns a random segment from input of duration "duration_sec".
     If duration_sec > input audio length, pad_to_duration determines the outcome.
-    
+
     RandomSegmentPerturbation is intended for self-supervised learning.
     Not for supervised, as extracting corresponding text is not facilitated.
 

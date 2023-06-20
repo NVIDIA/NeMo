@@ -472,7 +472,7 @@ class AudioSegment(object):
         self._samples *= 10.0 ** (gain / 20.0)
 
     def normalize_db(self, target_db=-20, ref_channel=None):
-        """Normalize the signal to a target RMS value in decibels. 
+        """Normalize the signal to a target RMS value in decibels.
         For multi-channel audio, the RMS value is determined by the reference channel (if not None),
         otherwise it will be the maximum RMS across all channels.
         """

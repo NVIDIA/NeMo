@@ -31,15 +31,15 @@ Requirements
 Quick Start
 -----------
 
-Examples how to run: 
+Examples how to run:
 
 .. code-block:: bash
 
-    # export English TN grammars and return prompt inside docker container  
+    # export English TN grammars and return prompt inside docker container
     cd NeMo-text-processing/tools/text_processing_deployment
     bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en --INPUT_CASE=cased
 
-    # export English ITN grammars and return prompt inside docker container  
+    # export English ITN grammars and return prompt inside docker container
     cd NeMo-text-processing/tools/text_processing_deployment
     bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en
 
@@ -50,7 +50,7 @@ Arguments:
 * ``LANGUAGE`` - `en` for English. Click :doc:`here <wfst_text_normalization>` for full list of languages.
 * ``INPUT_CASE`` - ``cased`` or ``lower_cased`` (ITN has no differentiation between these two, only used for TN).
 * ``MODE`` - By default ``export`` which returns prompt inside the docker. If ``--MODE=test`` runs NeMo-text-processing pytests inside container.
-* ``OVERWRITE_CACHE`` - Whether to re-export grammars or load from cache. By default ``True``. 
+* ``OVERWRITE_CACHE`` - Whether to re-export grammars or load from cache. By default ``True``.
 * ``FORCE_REBUILD`` - Whether to rebuild docker image in cased of updated dependencies. By default ``False``.
 
 Detailed pipeline

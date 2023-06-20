@@ -53,7 +53,7 @@ class LatticeLoss(Loss):
 
         backend: Which backend to use for loss calculation. Currently only `k2` is supported.
 
-        criterion_type: Type of criterion to use. Choices: `ml` and `map`, 
+        criterion_type: Type of criterion to use. Choices: `ml` and `map`,
             with `ml` standing for Maximum Likelihood and `map` for Maximum A Posteriori Probability.
 
         loss_type: Type of the loss function to use. Choices: `ctc` and `rnnt` for `ml`, and `mmi` for `map`.

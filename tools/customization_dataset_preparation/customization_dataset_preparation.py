@@ -20,15 +20,15 @@ However, you might not have your data readily in this format (or even filetype).
 
 This script will help you to convert from what you have to what you will need quickly and easily.
 
-You will need your datafile (in the form of a .jsonl, .json, .csv, .tsv or .xlsx). 
-Each row should contain one sample. 
+You will need your datafile (in the form of a .jsonl, .json, .csv, .tsv or .xlsx).
+Each row should contain one sample.
 Make sure that the directory your file is in is readable and writeable.
 Otherwise, please change it using chmod. Don't worry, we will not overwrite your existing file.
 
-With close to a dozen consideration factors that makes training optimal, there might just be something you overlook (we all do!). 
+With close to a dozen consideration factors that makes training optimal, there might just be something you overlook (we all do!).
 To check if dataset has been prepared correctly
 
-!python customization_dataset_preparation.py --filename <filename> 
+!python customization_dataset_preparation.py --filename <filename>
 
 To format dataset from an alternative jsonl/json/csv/tsv/xlsx column structure (example here for Question Answering task)
 
@@ -91,7 +91,7 @@ def recommend_hyperparameters_human_readable(recommended_hyperparameters):
 def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
-    
+
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
 
@@ -172,7 +172,7 @@ def warn_completion_is_not_empty(df):
         )
     elif len(empty_indexes) != 0:
         message = f"""TODO: completion contains {len(empty_indexes)} empty values at rows ({empty_indexes})
-                Please check the original file that the fields for prompt template are 
+                Please check the original file that the fields for prompt template are
                 not empty and rerun dataset validation"""
     return message
 
@@ -312,8 +312,8 @@ def warn_and_drop_long_samples(df, max_total_char_length):
     indices_of_long_examples = df.reset_index().index[long_examples].tolist()
     message = None
     if len(indices_of_long_examples) > 0:
-        message = f"""TODO: There are {len(indices_of_long_examples)} / {len(df)} 
-        samples that have its prompt and completion too long 
+        message = f"""TODO: There are {len(indices_of_long_examples)} / {len(df)}
+        samples that have its prompt and completion too long
         (over {max_total_char_length} chars), which have been dropped."""
         df = df.drop(indices_of_long_examples).reset_index()
         df = df.drop('index', axis=1)

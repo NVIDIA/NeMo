@@ -14,7 +14,7 @@ We present the main results of our models in the following table.
 | NeMo-Conformer-Transformer-Large                 | 127            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
 | NeMo-Conformer-Transformer-XLarge                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
 
-Note: LL60kh refers to the Libri-Light dataset [7].  
+Note: LL60kh refers to the Libri-Light dataset [7].
 
 ## Usage
 Please install [NeMo](https://github.com/NVIDIA/NeMo) [1] before proceeding. **All following scripts are run under the current directory of this README.md file**.
@@ -100,7 +100,7 @@ CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_eval.py \
 ```
 
 ### Using Encoder Finetuned on SLURP Speech Recognition
-To learn how to finetune the Conformer encoder on SLURP ASR, please refer to the tutorials at 
+To learn how to finetune the Conformer encoder on SLURP ASR, please refer to the tutorials at
 - [Finetuning CTC models on other languages](https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb)
 - [Self-Supervised pre-training for ASR](https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Self_Supervised_Pre_Training.ipynb)
 

@@ -79,7 +79,7 @@ class PunctuationCapitalizationDataConfigBase:
     ###################################################
     use_audio: bool = False
     """
-    Whether to use audio or not. If set to True you should provide ``audio_file``.  
+    Whether to use audio or not. If set to True you should provide ``audio_file``.
     """
 
     audio_file: Optional[str] = None
@@ -94,7 +94,7 @@ class PunctuationCapitalizationDataConfigBase:
 
     use_bucketing: Optional[bool] = True
     """
-    Whether to pack samples into ``tokens_in_batch`` or not. Increases GPU utilization but may cause significant RAM consumption if used together with ``use_audio``. 
+    Whether to pack samples into ``tokens_in_batch`` or not. Increases GPU utilization but may cause significant RAM consumption if used together with ``use_audio``.
     """
 
     batch_size: Optional[int] = 32

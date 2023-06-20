@@ -32,7 +32,7 @@ NOTE: This script requires tensorflow to be installed.
 
 1. Download the P3 dataset by cloning it from Huggingface:
         git clone https://huggingface.co/datasets/bigscience/P3. The raw data should be at P3/data.
-2. Run this script: 
+2. Run this script:
     python t0_dataset_preproc.py \
         --p3_dataset_path P3/data \
         --jsonl_output_path P3/data_processed_jsonl

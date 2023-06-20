@@ -3,14 +3,14 @@
 # Example: `msdd_6scl_30_05_50Povl_256x3x32x2.yaml` has 6 scales, the longest scale is 3.0 sec, the shortest scale is 0.5 sec, with 50 percent overlap, hidden layer size is 256, 3 LSTM layers, 32 CNN channels, 2 repeated Conv layers
 # MSDD model checkpoint (.ckpt) and NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD moodule.
 # Note that MSDD models require more than one scale. Thus, the parameters in diarizer.speaker_embeddings.parameters should have more than one scale to function as a MSDD model.
-# Example: a manifest line for training 
+# Example: a manifest line for training
 # {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 13.45, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
-name: "MultiscaleDiarDecoder" 
+name: "MultiscaleDiarDecoder"
 sample_rate: 16000
 num_workers: 20
 batch_size: 7
 
-model: 
+model:
   diarizer:
     out_dir: null
     oracle_vad: True # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
@@ -49,7 +49,7 @@ model:
     batch_size: 2
     emb_batch_size: ${model.emb_batch_size}
     shuffle: False
-  
+
   test_ds:
     manifest_filepath: null
     emb_dir: null
@@ -86,7 +86,7 @@ model:
     weighting_scheme: 'conv_scale_weight' # Type of weighting algorithm. Options: ('conv_scale_weight', 'attn_scale_weight')
     context_vector_type: 'cos_sim' # Type of context vector: options. Options: ('cos_sim', 'elem_prod')
 
-  loss: 
+  loss:
     _target_: nemo.collections.asr.losses.bce_loss.BCELoss
     weight: null # Weight for binary cross-entropy loss. Either `null` or list type input. (e.g. [0.5,0.5])
 
@@ -101,7 +101,7 @@ model:
 
 trainer:
   devices: 1 # number of gpus (devices)
-  accelerator: gpu 
+  accelerator: gpu
   max_epochs: 200
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1

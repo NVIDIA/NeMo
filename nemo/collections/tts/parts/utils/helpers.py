@@ -139,7 +139,7 @@ def get_mask_from_lengths(lengths: Optional[torch.Tensor] = None, x: Optional[to
 
     Args:
         lengths: Optional[torch.tensor] (torch.tensor): 1D tensor with lengths
-        x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask 
+        x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask
     Returns:
         mask (torch.tensor): num_sequences x max_length x 1 binary tensor
     """
@@ -168,7 +168,7 @@ def sort_tensor(
         context: tensor sorted by lens along dimension dim
         lens_sorted: lens tensor, sorted
         ids_sorted: reorder ids to be used to restore original order
-    
+
     """
     lens_sorted, ids_sorted = torch.sort(lens, descending=descending)
     context = torch.index_select(context, dim, ids_sorted)
@@ -177,13 +177,13 @@ def sort_tensor(
 
 def unsort_tensor(ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0) -> torch.Tensor:
     """Reverses the result of sort_tensor function:
-       o, _, ids = sort_tensor(x,l) 
+       o, _, ids = sort_tensor(x,l)
        assert unsort_tensor(o,ids) == x
     Args:
         ordered: context tensor, sorted by lengths
         indices: torch.tensor: 1D tensor with 're-order' indices returned by sort_tensor
     Returns:
-        ordered tensor in original order (before calling sort_tensor)  
+        ordered tensor in original order (before calling sort_tensor)
     """
     return torch.index_select(ordered, dim, indices.argsort(0))
 

@@ -76,7 +76,7 @@ Each directory, e.g, `{train, dev, test}`, corresponds to a subset of data and c
 
 ## Loading generated data
 
-The following function can be used to load the RIR data from a simulated room file 
+The following function can be used to load the RIR data from a simulated room file
 
 ```bash
 from nemo.collections.asr.data.data_simulation import load_rir_simulation

@@ -565,7 +565,7 @@ class ASRAudioProcessor:
             channel_selector: Select a subset of available channels.
 
         Returns:
-           An array with shape (samples,) or (channels, samples) 
+           An array with shape (samples,) or (channels, samples)
         """
         if num_samples is None:
             segment = AudioSegment.from_file(
@@ -663,7 +663,7 @@ class ASRAudioProcessor:
         Args:
             filepath: path to a file storing a vector.
                     Currently, it is assumed the file is a npy file.
-        
+
         Returns:
             Array loaded from filepath.
         """
@@ -713,7 +713,7 @@ class BaseAudioDataset(Dataset):
 
         NOTE:
         This assumes that all examples have the same number of channels.
-        
+
         Args:
             signal_key: string, used to select a signal from the dictionary
                         output by __getitem__
@@ -861,7 +861,7 @@ class AudioToTargetDataset(BaseAudioDataset):
                 'input_signal': batched single- or multi-channel format,
                 'input_length': batched original length of each input signal
                 'target_signal': batched single- or multi-channel format,
-                'target_length': batched original length of each target signal                
+                'target_length': batched original length of each target signal
             }
             ```
         """

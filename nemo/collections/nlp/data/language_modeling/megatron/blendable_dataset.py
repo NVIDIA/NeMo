@@ -85,7 +85,7 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
     """
     A BlendableDataset implementation that uses less memory than the original implementation.
     Indices are computed algorithmically instead of storing them in memory.
-    
+
     To test call: MemoryEfficientBlendableDataset.test_index_blending()
     """
 

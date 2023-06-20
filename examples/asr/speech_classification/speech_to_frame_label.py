@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-The script trains a model that peforms classification on each frame of the input audio. 
+The script trains a model that peforms classification on each frame of the input audio.
 The default config (i.e., marblenet_3x2x64_20ms.yaml) outputs 20ms frames.
 
 ## Training

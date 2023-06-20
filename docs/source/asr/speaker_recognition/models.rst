@@ -59,7 +59,7 @@ SpeakerNet models can be instantiated using the :class:`~nemo.collections.asr.mo
 ECAPA_TDNN
 ----------
 
-The model is based on the paper "ECAPA_TDNN Embeddings for Speaker Diarization" :cite:`sr-models-Dawalatabad_2021` comprising an encoder of time dilation layers which are based on Emphasized Channel Attention, Propagation, and Aggregation. The ECAPA-TDNN model employs a channel and context dependent attention mechanism, Multi layer Feature Aggregation (MFA), as well as Squeeze-Excitation (SE) and residual blocks, due to faster training and inference we replacing residual blocks with group convolution blocks of single dilation. These models has shown good performance over various speaker tasks. 
+The model is based on the paper "ECAPA_TDNN Embeddings for Speaker Diarization" :cite:`sr-models-Dawalatabad_2021` comprising an encoder of time dilation layers which are based on Emphasized Channel Attention, Propagation, and Aggregation. The ECAPA-TDNN model employs a channel and context dependent attention mechanism, Multi layer Feature Aggregation (MFA), as well as Squeeze-Excitation (SE) and residual blocks, due to faster training and inference we replacing residual blocks with group convolution blocks of single dilation. These models has shown good performance over various speaker tasks.
 
 ecapa_tdnn models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
 

@@ -72,16 +72,16 @@ except ImportError:
 
 class MultiSpeakerSimulator(object):
     """
-    Multispeaker Audio Session Simulator - Simulates multispeaker audio sessions using single-speaker audio files and 
+    Multispeaker Audio Session Simulator - Simulates multispeaker audio sessions using single-speaker audio files and
     corresponding word alignments.
 
     Change Log:
     v1.0: Dec 2022
         - First working verison, supports multispeaker simulation with overlaps, silence and RIR
         v1.0.1: Feb 2023
-            - Multi-GPU support for speed up 
-            - Faster random sampling routine 
-            - Fixed sentence duration bug 
+            - Multi-GPU support for speed up
+            - Faster random sampling routine
+            - Fixed sentence duration bug
             - Silence and overlap length sampling algorithms are updated to guarantee `mean_silence` approximation
         v1.0.2: March 2023
             - Added support for segment-level gain perturbation and session-level white-noise perturbation
@@ -106,65 +106,65 @@ class MultiSpeakerSimulator(object):
     session_config:
       num_speakers (int): Number of unique speakers per multispeaker audio session
       num_sessions (int): Number of sessions to simulate
-      session_length (int): Length of each simulated multispeaker audio session (seconds). Short sessions 
+      session_length (int): Length of each simulated multispeaker audio session (seconds). Short sessions
                             (e.g. ~240 seconds) tend to fall short of the expected overlap-ratio and silence-ratio.
-    
+
     session_params:
-      max_audio_read_sec (int): The maximum audio length in second when loading an audio file. 
+      max_audio_read_sec (int): The maximum audio length in second when loading an audio file.
                                 The bigger the number, the slower the reading speed. Should be greater than 2.5 second.
-      sentence_length_params (list): k,p values for a negative_binomial distribution which is sampled to get the 
+      sentence_length_params (list): k,p values for a negative_binomial distribution which is sampled to get the
                                      sentence length (in number of words)
-      dominance_var (float): Variance in speaker dominance (where each speaker's dominance is sampled from a normal 
-                             distribution centered on 1/`num_speakers`, and then the dominance values are together 
+      dominance_var (float): Variance in speaker dominance (where each speaker's dominance is sampled from a normal
+                             distribution centered on 1/`num_speakers`, and then the dominance values are together
                              normalized to 1)
-      min_dominance (float): Minimum percentage of speaking time per speaker (note that this can cause the dominance of 
+      min_dominance (float): Minimum percentage of speaking time per speaker (note that this can cause the dominance of
                              the other speakers to be slightly reduced)
       turn_prob (float): Probability of switching speakers after each utterance
 
       mean_silence (float): Mean proportion of silence to speaking time in the audio session. Should be in range [0, 1).
-      mean_silence_var (float): Variance for mean silence in all audio sessions. 
+      mean_silence_var (float): Variance for mean silence in all audio sessions.
                                 This value should be 0 <= mean_silence_var < mean_silence * (1 - mean_silence).
       per_silence_var (float):  Variance for each silence in an audio session, set large values (e.g., 20) for de-correlation.
       per_silence_min (float): Minimum duration for each silence, default to 0.
       per_silence_max (float): Maximum duration for each silence, default to -1 for no maximum.
-      mean_overlap (float): Mean proportion of overlap in the overall non-silence duration. Should be in range [0, 1) and 
+      mean_overlap (float): Mean proportion of overlap in the overall non-silence duration. Should be in range [0, 1) and
                             recommend [0, 0.15] range for accurate results.
-      mean_overlap_var (float): Variance for mean overlap in all audio sessions. 
+      mean_overlap_var (float): Variance for mean overlap in all audio sessions.
                                 This value should be 0 <= mean_overlap_var < mean_overlap * (1 - mean_overlap).
-      per_overlap_var (float): Variance for per overlap in each session, set large values to de-correlate silence lengths 
+      per_overlap_var (float): Variance for per overlap in each session, set large values to de-correlate silence lengths
                                with the latest speech segment lengths
       per_overlap_min (float): Minimum per overlap duration in seconds
       per_overlap_max (float): Maximum per overlap duration in seconds, set -1 for no maximum
-      start_window (bool): Whether to window the start of sentences to smooth the audio signal (and remove silence at 
+      start_window (bool): Whether to window the start of sentences to smooth the audio signal (and remove silence at
                             the start of the clip)
       window_type (str): Type of windowing used when segmenting utterances ("hamming", "hann", "cosine")
       window_size (float): Length of window at the start or the end of segmented utterance (seconds)
-      start_buffer (float): Buffer of silence before the start of the sentence (to avoid cutting off speech or starting 
+      start_buffer (float): Buffer of silence before the start of the sentence (to avoid cutting off speech or starting
                             abruptly)
-      split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between 
+      split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between
                             utterances as being labelled as speech)
       release_buffer (float): Buffer before window at end of sentence (to avoid cutting off speech or ending abruptly)
       normalize (bool): Normalize speaker volumes
-      normalization_type (str): Normalizing speakers ("equal" - same volume per speaker, "var" - variable volume per 
+      normalization_type (str): Normalizing speakers ("equal" - same volume per speaker, "var" - variable volume per
                                 speaker)
       normalization_var (str): Variance in speaker volume (sample from standard deviation centered at 1)
       min_volume (float): Minimum speaker volume (only used when variable normalization is used)
       max_volume (float): Maximum speaker volume (only used when variable normalization is used)
       end_buffer (float): Buffer at the end of the session to leave blank
-    
+
     outputs:
       output_dir (str): Output directory for audio sessions and corresponding label files
       output_filename (str): Output filename for the wav and RTTM files
       overwrite_output (bool): If true, delete the output directory if it exists
       output_precision (int): Number of decimal places in output files
-    
-    background_noise: 
+
+    background_noise:
       add_bg (bool): Add ambient background noise if true
       background_manifest (str): Path to background noise manifest file
       snr (int): SNR for background noise (using average speaker power), set `snr_min` and `snr_max` values to enable random SNR
       snr_min (int):  Min random SNR for background noise (using average speaker power), set `null` to use fixed SNR
       snr_max (int):  Max random SNR for background noise (using average speaker power), set `null` to use fixed SNR
-    
+
     segment_augmentor:
       add_seg_aug (bool): Set True to enable augmentation on each speech segment (Default: False)
       segmentor:
@@ -183,12 +183,12 @@ class MultiSpeakerSimulator(object):
 
     speaker_enforcement:
       enforce_num_speakers (bool): Enforce that all requested speakers are present in the output wav file
-      enforce_time (list): Percentage of the way through the audio session that enforcement mode is triggered (sampled 
+      enforce_time (list): Percentage of the way through the audio session that enforcement mode is triggered (sampled
                            between time 1 and 2)
-    
+
     segment_manifest: (parameters for regenerating the segment manifest file)
       window (float): Window length for segmentation
-      shift (float): Shift length for segmentation 
+      shift (float): Shift length for segmentation
       step_count (int): Number of the unit segments you want to create per utterance
       deci (int): Rounding decimals for segment manifest file
     """
@@ -264,8 +264,8 @@ class MultiSpeakerSimulator(object):
         """
         Initialize the speaker permutations for the number of speakers in the session.
         When generating the simulated sessions, we want to include as many speakers as possible.
-        This function generates a set of permutations that can be used to sweep all speakers in 
-        the source dataset to make sure we maximize the total number of speakers included in 
+        This function generates a set of permutations that can be used to sweep all speakers in
+        the source dataset to make sure we maximize the total number of speakers included in
         the simulated sessions.
 
         Args:
@@ -274,7 +274,7 @@ class MultiSpeakerSimulator(object):
             all_speaker_ids (list): List of all speaker IDs
 
         Returns:
-            permuted_inds (np.array): 
+            permuted_inds (np.array):
                 Array of permuted speaker indices to use for each session
                 Dimensions: (num_sess, num_speakers)
         """
@@ -306,8 +306,8 @@ class MultiSpeakerSimulator(object):
     def _init_chunk_count(self):
         """
         Initialize the chunk count for multi-processing to prevent over-flow of job counts.
-        The multi-processing pipeline can freeze if there are more than approximately 10,000 jobs 
-        in the pipeline at the same time.        
+        The multi-processing pipeline can freeze if there are more than approximately 10,000 jobs
+        in the pipeline at the same time.
         """
         return int(np.ceil(self._params.data_simulator.session_config.num_sessions / self.multiprocessing_chunksize))
 
@@ -651,7 +651,7 @@ class MultiSpeakerSimulator(object):
         random_offset: bool = False,
     ) -> Tuple[int, torch.Tensor]:
         """
-        Add audio file to current sentence (up to the desired number of words). 
+        Add audio file to current sentence (up to the desired number of words).
         Uses the alignments to segment the audio file.
         NOTE: 0 index is always silence in `audio_manifest['words']`, so we choose `offset_idx=1` as the first word
 
@@ -661,7 +661,7 @@ class MultiSpeakerSimulator(object):
             sentence_word_count (int): Running count for number of words in sentence
             max_word_count_in_sentence (int): Maximum count for number of words in sentence
             max_samples_in_sentence (int): Maximum length for sentence in terms of samples
-        
+
         Returns:
             sentence_word_count+current_word_count (int): Running word count
             len(self._sentence) (tensor): Current length of the audio file
@@ -778,7 +778,7 @@ class MultiSpeakerSimulator(object):
         max_samples_in_sentence: int,
     ):
         """
-        Build a new sentence by attaching utterance samples together until the sentence has reached a desired length. 
+        Build a new sentence by attaching utterance samples together until the sentence has reached a desired length.
         While generating the sentence, alignment information is used to segment the audio.
 
         Args:
@@ -934,7 +934,7 @@ class MultiSpeakerSimulator(object):
             snr (float): signal-to-noise ratio
 
         Returns:
-            dict: meta data 
+            dict: meta data
         """
         meta_data = {
             "duration": array.shape[0] / self._params.data_simulator.sr,
@@ -1275,7 +1275,7 @@ class MultiSpeakerSimulator(object):
 
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     """
-    RIR Augmented Multispeaker Audio Session Simulator - simulates multispeaker audio sessions using single-speaker 
+    RIR Augmented Multispeaker Audio Session Simulator - simulates multispeaker audio sessions using single-speaker
     audio files and corresponding word alignments, as well as simulated RIRs for augmentation.
 
     Args:
@@ -1286,17 +1286,17 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
       use_rir (bool): Whether to generate synthetic RIR
       toolkit (str): Which toolkit to use ("pyroomacoustics", "gpuRIR")
       room_config:
-        room_sz (list): Size of the shoebox room environment (1d array for specific, 2d array for random range to be 
+        room_sz (list): Size of the shoebox room environment (1d array for specific, 2d array for random range to be
                         sampled from)
-        pos_src (list): Positions of the speakers in the simulated room environment (2d array for specific, 3d array 
+        pos_src (list): Positions of the speakers in the simulated room environment (2d array for specific, 3d array
                         for random ranges to be sampled from)
         noise_src_pos (list): Position in room for the ambient background noise source
       mic_config:
         num_channels (int): Number of output audio channels
-        pos_rcv (list): Microphone positions in the simulated room environment (1d/2d array for specific, 2d/3d array 
+        pos_rcv (list): Microphone positions in the simulated room environment (1d/2d array for specific, 2d/3d array
                         for range assuming num_channels is 1/2+)
         orV_rcv (list or null): Microphone orientations (needed for non-omnidirectional microphones)
-        mic_pattern (str): Microphone type ("omni" - omnidirectional) - currently only omnidirectional microphones are 
+        mic_pattern (str): Microphone type ("omni" - omnidirectional) - currently only omnidirectional microphones are
                            supported for pyroomacoustics
       absorbtion_params: (Note that only `T60` is used for pyroomacoustics simulations)
         abs_weights (list): Absorption coefficient ratios for each surface
@@ -1747,7 +1747,7 @@ def wrap_to_180(angle: float) -> float:
 
 class ArrayGeometry(object):
     """A class to simplify handling of array geometry.
-    
+
     Supports translation and rotation of the array and calculation of
     spherical coordinates of a given point relative to the internal
     coordinate system of the array.
@@ -2272,7 +2272,7 @@ class RIRCorpusGenerator(object):
 
     def generate(self):
         """Generate RIR corpus.
-        
+
         This method will prepare randomized examples based on the current configuration,
         run room simulations and save results to output_dir.
         """
@@ -2367,7 +2367,7 @@ class RIRCorpusGenerator(object):
 
 def simulate_room_kwargs(kwargs: dict) -> dict:
     """Wrapper around `simulate_room` to handle kwargs.
-    
+
     `pool.map(simulate_room_kwargs, examples)` would be
     equivalent to `pool.starstarmap(simulate_room, examples)`
     if `starstarmap` would exist.
@@ -2857,7 +2857,7 @@ class RIRMixGenerator(object):
             duration_eps: A small extra duration selected from each file. This is to make
                           sure that the signal will be long enough even if it needs to be
                           resampled, etc.
-        
+
         Returns:
             List of audio files with some metadata (offset, duration).
         """
@@ -2923,7 +2923,7 @@ class RIRMixGenerator(object):
         Args:
             subset: string denoting a subset which will be used to selected target
                     audio and room parameters.
-        
+
         Returns:
             Dictionary with target configuration, including room, source index, and audio information.
         """
@@ -2998,7 +2998,7 @@ class RIRMixGenerator(object):
             subset: string denoting a subset which will be used to select noise audio.
             target_cfg: dictionary with target configuration. This is used determine
                         the minimal required duration for the noise signal.
-        
+
         Returns:
             List of dictionary with noise configuration, including audio information
             for one or more noise files.
@@ -3020,7 +3020,7 @@ class RIRMixGenerator(object):
             subset: string denoting a subset which will be used to select interference audio.
             target_cfg: dictionary with target configuration. This is used to determine
                         the minimal required duration for the noise signal.
-        
+
         Returns:
             List of dictionary with interference configuration, including source index and audio information
             for one or more interference sources.
@@ -3277,7 +3277,7 @@ def convolve_rir(signal: np.ndarray, rir: np.ndarray) -> np.ndarray:
 
 def calculate_drr(rir: np.ndarray, sample_rate: float, n_direct: List[int], n_0_ms=2.5) -> List[float]:
     """Calculate direct-to-reverberant ratio (DRR) from the measured RIR.
-    
+
     Calculation is done as in eq. (3) from [1].
 
     Args:
@@ -3324,7 +3324,7 @@ def normalize_max(x: np.ndarray, max_db: float = 0, eps: float = 1e-16) -> np.nd
         eps: small regularization constant
 
     Returns:
-        Normalized signal with max absolute value max_db. 
+        Normalized signal with max absolute value max_db.
     """
     max_val = db2mag(max_db)
     return max_val * x / (np.max(np.abs(x)) + eps)
@@ -3339,7 +3339,7 @@ def simultaneously_active_rms(
     min_active_duration: float = 0.5,
 ) -> Tuple[float, float]:
     """Calculate RMS over segments where both input signals are active.
-    
+
     Args:
         x: first input signal
         y: second input signal
@@ -3496,7 +3496,7 @@ def simulate_room_mix(
         noise_cfg: List of dictionaries, where each item includes audio_filepath,
                    offset and duration.
         interference_cfg: List of dictionaries, where each item contains source
-                          index 
+                          index
         mix_cfg: Dictionary with the mixture configuration. Includes RSNR, RSIR,
                  ref_mic and ref_mic_rms.
         base_output_filepath: All output audio files will be saved with this prefix by

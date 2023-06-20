@@ -10,7 +10,7 @@ NeMo Megatron uses the following concepts.
 *Micro batch size* is the number of examples per data parallel rank. It is controlled by ``model.micro_batch_size`` parameter.
 
 *Global batch size* = micro_batch_size * data_parallel_size * gradient_accumulation_steps. For details on ``data_parallel_size`` see :ref:`parallelisms` section, but typically it is equal to the number of GPUs being used.
-Global batch size is controlled by ``model.global_batch_size`` parameter. 
+Global batch size is controlled by ``model.global_batch_size`` parameter.
 
 
 *Gradient Accumulation*

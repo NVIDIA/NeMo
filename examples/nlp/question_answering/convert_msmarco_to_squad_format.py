@@ -121,7 +121,7 @@ def main():
 if __name__ == "__main__":
     """
     Please agree to the Terms of Use at:
-        https://microsoft.github.io/msmarco/ 
+        https://microsoft.github.io/msmarco/
     Download data at:
         https://msmarco.blob.core.windows.net/msmarco/train_v2.1.json.gz
         https://msmarco.blob.core.windows.net/msmarco/dev_v2.1.json.gz

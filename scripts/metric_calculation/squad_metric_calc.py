@@ -20,7 +20,7 @@ from collections import Counter
 
 
 """
-This script can be used to calcualte exact match and F1 scores for many different tasks, not just squad. 
+This script can be used to calcualte exact match and F1 scores for many different tasks, not just squad.
 
 Example command for T5 Preds
 
@@ -39,7 +39,7 @@ Example command for GPT Preds
         --split-string "answer:"
     ```
 
-    In this case, the prediction file will be split on "answer: " when looking for the LM's predicted answer. 
+    In this case, the prediction file will be split on "answer: " when looking for the LM's predicted answer.
 
 """
 

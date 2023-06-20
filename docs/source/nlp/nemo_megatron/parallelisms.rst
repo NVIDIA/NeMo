@@ -12,7 +12,7 @@ Distributed Data parallelism
     :align: center
     :width: 800px
     :alt: Distributed Data Parallel
-    
+
 
 Tensor Parallelism
 ^^^^^^^^^^^^^^^^^^

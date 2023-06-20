@@ -291,7 +291,7 @@ class TestSpeechSampler:
     @pytest.mark.parametrize("var", [0.5, 0.6])
     def test_get_session_silence_mean_fail(self, sampler, mean, var):
         """
-        This test should raise `ValueError` because `mean_silence_var` 
+        This test should raise `ValueError` because `mean_silence_var`
         should be less than `mean_silence * (1 - mean_silence)`.
         """
         sampler.mean_silence = mean
@@ -312,7 +312,7 @@ class TestSpeechSampler:
     @pytest.mark.parametrize("var", [0.3, 0.8])
     def test_get_session_overlap_mean_fail(self, sampler, mean, var):
         """
-        This test should raise `ValueError` because `mean_overlap_var` 
+        This test should raise `ValueError` because `mean_overlap_var`
         should be less than `mean_overlap * (1 - mean_overlap)`.
         """
         sampler.mean_overlap = mean

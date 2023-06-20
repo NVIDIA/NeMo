@@ -46,9 +46,9 @@ model:
     batch_size: 128
     shuffle: False
     num_workers: 16
-    
+
   model_defaults:
-    filters: 1024 
+    filters: 1024
     repeat: 3
     dropout: 0.1
     separable: true
@@ -74,7 +74,7 @@ model:
     freq_width: 4
     time_masks: 5
     time_width: 0.03
-    
+
   encoder:
     _target_: nemo.collections.asr.modules.ConvASREncoder
     feat_in: *n_mels
@@ -125,7 +125,7 @@ model:
           separable: ${model.model_defaults.separable}
           se: ${model.model_defaults.se}
           se_context_size: ${model.model_defaults.se_context_size}
-          
+
       -   filters: &enc_feat_out 3072
           repeat: 1
           kernel: [1]
@@ -147,7 +147,7 @@ model:
   loss:
     _target_: nemo.collections.common.losses.cross_entropy.CrossEntropyLoss
     weight: 'auto' # could be 'auto' or 1D tensor or null
-    
+
   optim:
     name: sgd
     lr: 0.001 #(original titanet-large was trained with 0.08 lr)

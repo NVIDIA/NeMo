@@ -31,7 +31,7 @@ from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
 class CtcK2Mixin(ABC):
     """k2 Mixin class that simplifies the construction of various k2-based CTC-like losses.
-    
+
     It does the following:
         -   Prepares and adapts the input tensors (method _prepare_log_probs_and_targets).
         -   Creates Emissions graphs (method _prepare_emissions_graphs).
@@ -107,7 +107,7 @@ class CtcK2Mixin(ABC):
 
 class RnntK2Mixin(CtcK2Mixin):
     """k2 Mixin class that simplifies the construction of various k2-based RNNT-like losses. Inherits CtcK2Mixin.
-    
+
     It does the following:
         -   Prepares and adapts the input tensors.
         -   Creates Emissions graphs.
@@ -121,11 +121,11 @@ class RnntK2Mixin(CtcK2Mixin):
         targets: torch.Tensor,
         target_lengths: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Before calling super()._prepare_log_probs_and_targets, this method reshapes the log_probs tensor 
-        from (B, T, U+1, D) to (B, T', D) where T' = T*(U+1), shifts paddings along T and U towards the end of T', 
+        """Before calling super()._prepare_log_probs_and_targets, this method reshapes the log_probs tensor
+        from (B, T, U+1, D) to (B, T', D) where T' = T*(U+1), shifts paddings along T and U towards the end of T',
         and recomputes input_lengths.
 
-        It also calculates indices on which <epsilon> steps should be applied to the log_probs tensor to emulate 
+        It also calculates indices on which <epsilon> steps should be applied to the log_probs tensor to emulate
         <blank> arcs shift of the Emissions graph for the pruned RNNT variant.
         """
         assert len(log_probs.size()) == 4  # B T U D
@@ -192,7 +192,7 @@ class RnntK2Mixin(CtcK2Mixin):
         """Overrides super()._prepare_emissions_graphs.
         Creates DenseFsaVec, adding <epsilon> outputs to the end of the D dimension.
 
-        If pruning is used, this method also pads the DenseFsaVec with <epsilon> frames 
+        If pruning is used, this method also pads the DenseFsaVec with <epsilon> frames
         according to the <epsilon> steps, calculated before.
 
         <epsilon> frame is a frame with <epsilon> log-probability zero and every other log-probability is -inf.

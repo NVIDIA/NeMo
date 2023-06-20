@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-This script peforms VAD on each 20ms frames of the input audio files. 
+This script peforms VAD on each 20ms frames of the input audio files.
 Postprocessing is also performed to generate speech segments and store them as RTTM files.
 Long audio files will be splitted into smaller chunks to avoid OOM issues, but the frames close
 to the split points might have worse performance due to truncated context.
@@ -24,8 +24,8 @@ python frame_vad_infer.py \
     dataset=<Path of manifest file containing evaluation data. Audio files should have unique names>
 
 The manifest json file should have the following format (each line is a Python dictionary):
-{"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000}  
-{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": 10000}  
+{"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000}
+{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": 10000}
 """
 
 import os

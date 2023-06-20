@@ -2,7 +2,7 @@ Datasets
 ========
 
 Input data should be provided in line delimited JSON format as below:
-	
+
 .. code-block:: bash
 
   {"audio_filepath": "/path/to/abcd.wav", "offset": 0, "duration": 10.1, "text": "{'scenario': 'Calendar', 'action': 'Create_entry', 'entities': [{'type': 'event_name', 'filler': 'brunch'}, {'type': 'date', 'filler': 'Saturday'}, {'type': 'timeofday', 'filler': 'morning'}, {'type': 'person', 'filler': 'Aronson'}]}"}

@@ -794,7 +794,7 @@ class TestLinearSumAssignmentAlgorithm:
         Test the linear sum assignment algorithm with a cost matrix
 
         Compare with the scipy implementation and make sure the final cost is the same.
-        NOTE: There could be multiple solutions with the same cost in linear sum assignment problem. 
+        NOTE: There could be multiple solutions with the same cost in linear sum assignment problem.
               This test only checks if the cost is the same.
         """
         row_ind_nm, col_ind_nm = nemo_linear_sum_assignment(cost_matrix)

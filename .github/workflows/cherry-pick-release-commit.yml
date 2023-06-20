@@ -1,6 +1,6 @@
 name: Create PR to main with cherry-pick from release
 
-on: 
+on:
   pull_request_target:
     branches:
       - 'r*.*.*'

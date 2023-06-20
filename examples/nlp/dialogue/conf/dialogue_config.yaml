@@ -13,7 +13,7 @@
 # limitations under the License.
 
 pretrained_model: null # pretrained model from list_available_models()
-do_training: true # true for training mode, false for testing 
+do_training: true # true for training mode, false for testing
 trainer:
   devices: 1 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
@@ -28,7 +28,7 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   enable_checkpointing: False # Provided by exp_manager
-  logger: False  # Provided by exp_manager 
+  logger: False  # Provided by exp_manager
 
 model:
   # all models
@@ -48,7 +48,7 @@ model:
     vocab_file: null # path to vocab file
     tokenizer_model: null # only used if tokenizer is sentencepiece
     special_tokens: null
-  
+
   # Dialogue GPT Classification/Generation and Dialogue S2S Generation Model args
   tokens_to_generate: 32 # for generation mode only
 
@@ -59,7 +59,7 @@ model:
   classifier_head:
     num_output_layers: 2
     fc_dropout: 0.1
-  
+
   # Dialogue GPT Classification Megatron Prompt Learning model args
   prompt_learning: false # please change to true to activate prompt learning
   language_model_path: ${model.language_model.lm_checkpoint}
@@ -91,23 +91,23 @@ model:
   # SGDQA args
   encoder:
     dropout: 0.1
-  
+
   # Zero Shot Intent Model args
   original_nemo_checkpoint: null ## cannot directly load as .nemo uses the pre-refactor model, therefore transfer its attributes over
 
   dataset:
 
     ## All tasks/models
-    data_dir: ??? # location to load data from 
+    data_dir: ??? # location to load data from
     dialogues_example_dir: ??? # store prediction files
     task: sgd # [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa]
     debug_mode: false # small number of examples for debugging
     max_seq_length: 128 # the maximum number of tokens per sample
-    
+
     ## Dialogue S2S and GPT Generation Model params
     input_field: utterance+response # passage+utterance, utterance, response, utterance+response, system_actions
     output_field: fluent_response # response, fluent_response, system_utterance
-    
+
     ## Dialogue GPT Classification Model params
     field: intent # [intent, slots, service]
     few_shot: 0 # int ; 0 to 10, for number of examples in prompt
@@ -116,11 +116,11 @@ model:
     binary_score_subsample_ratio: 2 # number of negative examples per postive example
     prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel #acts_slots_values, slots_values, values for DialogueS2SGenerationDataset
     target_template: default # default, with_description, with_slots
-    
+
     ## SGD task specific params
     system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn (for sgd_generation) takes the system utterance that follows the user utterance
     num_tasks: 1 # number of task heads 1 for DialogGPTClassification and 6 for SGDQA
-    
+
     ## SGD and Zero Shot task specific params
     preprocess_intent_function: default # default, lowercase, description # remove_domain for zero_shot task
 
@@ -131,22 +131,22 @@ model:
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
     use_fuzzy_match: true # Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
     joint_acc_across_turn: false # Whether to compute joint goal accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
-    max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
-    max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
-    max_value_per_cat_slot: 12 # maximum number of different categorical slot values per service in dataset 
-    max_num_intent: 4 # maximum number of different intents per service in dataset 
+    max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset
+    max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset
+    max_value_per_cat_slot: 12 # maximum number of different categorical slot values per service in dataset
+    max_num_intent: 4 # maximum number of different intents per service in dataset
     num_samples: -1 # restrict num_samples to an int value, if -1 all samples will be used
     pad_label: -1 # if -1 not slot token will be used
     ignore_extra_tokens: false
     ignore_start_end: true # do not use first and last token for slot training
-    do_lowercase: false 
+    do_lowercase: false
 
     #Zero Shot Intent Model args
     class_balancing: null # or weighted_loss
-    num_classes: 3 
+    num_classes: 3
 
     # Mellon QA, MS Marco and Design task
-    dev_proportion: 10 # These datasets do not have a dedicated dev set, therefore need to split train into a new train and dev. Indicate an integer (5-90) for the proporton for dev set 
+    dev_proportion: 10 # These datasets do not have a dedicated dev set, therefore need to split train into a new train and dev. Indicate an integer (5-90) for the proporton for dev set
 
   train_ds:
     ds_item: "train"

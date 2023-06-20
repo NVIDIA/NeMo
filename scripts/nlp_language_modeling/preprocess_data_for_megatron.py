@@ -62,7 +62,7 @@ python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --append-eod \
     --retrieval-db \
     --chunk_size=64 \
-    --workers=64 
+    --workers=64
 ```
 
 Example script to preprocess the JSON file for retrieval training dataset
@@ -78,7 +78,7 @@ python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --need-pad-id \
     --append-eod \
     --chunk_size=64 \
-    --workers=64 
+    --workers=64
 ```
 """
 

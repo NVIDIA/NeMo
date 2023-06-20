@@ -16,8 +16,8 @@
 This script can be used to create a more class balanced file from a set of the data files of the English Google Text Normalization dataset
 for better training performance. Currently this script upsamples the class types "MONEY", "MEASURE", "TIME", "FRACTION" since these are underrepresented in the Google Text Normalization dataset, but still diverse in its representations.
 Of all the input files in `input_dir` this script takes the first file and computes the class patterns that occurs in it.
-For those that are underrepresented, quantitatively defined as lower than `min_number`, the other files are scanned for sentences that have the missing patterns. 
-Those sentences are appended to the first file and outputted. 
+For those that are underrepresented, quantitatively defined as lower than `min_number`, the other files are scanned for sentences that have the missing patterns.
+Those sentences are appended to the first file and outputted.
 
 USAGE Example:
 1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
@@ -27,7 +27,7 @@ USAGE Example:
 # python upsample.py       \
         --input_dir=train_processed/           \
         --output_file=train_upsampled.tsv/  \
-        --min_number=2000 
+        --min_number=2000
 
 In this example, the final file will be train_upsampled.tsv.
 """
@@ -88,7 +88,7 @@ classes_to_upsample = defaultdict(int)
 
 def include_sentence(sentence_patterns) -> bool:
     """
-    Determines whether to use a sentence for upsampling whose patterns are provided as input. This will check the global pattern tables 
+    Determines whether to use a sentence for upsampling whose patterns are provided as input. This will check the global pattern tables
     if this sentence includes any patterns that are still needed.
 
     Args:
@@ -204,7 +204,7 @@ def update_patterns(patterns: dict, new_patterns: dict):
 
     Args:
         patterns: main table
-        new_patterns: new table to update the main table with 
+        new_patterns: new table to update the main table with
     """
     for k, v in new_patterns.items():
         patterns[k] += v
@@ -254,7 +254,7 @@ def lookup_patterns(cls: str, input_str: str) -> dict:
 
 def create_pattern(templates: List[str], input_str: str, pretty: bool = False):
     """
-    create all patterns based on list of input templates using the input string. 
+    create all patterns based on list of input templates using the input string.
 
     Args:
         templates: list of templates/stencils

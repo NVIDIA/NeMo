@@ -38,10 +38,10 @@ from nemo.utils import logging
 
 class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ 
+        """
         Initializes BERT Joint Intent and Slot model.
 
-        Args: 
+        Args:
             cfg: configuration object
             trainer: trainer for Pytorch Lightning
         """
@@ -69,12 +69,12 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
     def _set_data_desc_to_cfg(
         self, cfg: DictConfig, data_dir: str, train_ds: DictConfig, validation_ds: DictConfig
     ) -> None:
-        """ 
-        Creates MultiLabelIntentSlotDataDesc and copies generated values to Configuration object's data descriptor. 
-        
-        Args: 
+        """
+        Creates MultiLabelIntentSlotDataDesc and copies generated values to Configuration object's data descriptor.
+
+        Args:
             cfg: configuration object
-            data_dir: data directory 
+            data_dir: data directory
             train_ds: training dataset file name
             validation_ds: validation dataset file name
 
@@ -161,7 +161,7 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
             batch: batches of data from DataLoader
             batch_idx: batch idx from DataLoader
 
-        Returns: 
+        Returns:
             None
         """
         (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels,) = batch
@@ -199,7 +199,7 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
 
         Args:
             cfg: configuration object
-        
+
         Returns:
             DataLoader for model's data
         """
@@ -287,8 +287,8 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
 
     def optimize_threshold(self, test_ds: DictConfig, file_name: str) -> None:
         """
-        Set the optimal threshold of the model from performance on validation set. This threshold is used to round the 
-        logits to 0 or 1. 
+        Set the optimal threshold of the model from performance on validation set. This threshold is used to round the
+        logits to 0 or 1.
 
         Args:
             test_ds: location of test dataset
@@ -359,16 +359,16 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
             queries: text sequences
             test_ds: Dataset configuration section.
             threshold: Threshold for rounding prediction logits
-        
+
         Returns:
             predicted_intents: model intent predictions with their probabilities
-                Example:  [[('flight', 0.84)], [('airfare', 0.54), 
+                Example:  [[('flight', 0.84)], [('airfare', 0.54),
                             ('flight', 0.73), ('meal', 0.24)]]
             predicted_slots: model slot predictions
                 Example:  ['O B-depart_date.month_name B-depart_date.day_number',
                            'O O B-flight_stop O O O']
 
-            predicted_vector: model intent predictions for each individual query. Binary values within each list 
+            predicted_vector: model intent predictions for each individual query. Binary values within each list
                 indicate whether a class is prediced for the given query (1 for True, 0 for False)
                 Example: [[1,0,0,0,0,0], [0,0,1,0,0,0]]
         """

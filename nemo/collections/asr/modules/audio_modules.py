@@ -464,7 +464,7 @@ class MaskBasedBeamformer(NeuralModule):
             input: Input signal complex-valued spectrogram, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
             mask: Mask for M output signals, shape (B, M, F, N)
-        
+
         Returns:
             M-channel output signal complex-valued spectrogram, shape (B, M, F, N)
         """

@@ -31,12 +31,12 @@ python scripts/nlp_language_modeling/build_knn_map_index.py \
     --devices=0,1,2,3 \
     --batch_size=1280 \
     --remove_duplicate \
-    --output_file=knn_map.idx 
+    --output_file=knn_map.idx
 ```
 Use `--remove_duplicate` flag if the data and retrieval dataset are the same. It will remove the neighbors from the same document.
 It creates a knn_map.idx KNNIndex file.
 During training of RETRO model, it can look up the KNN chunk ids of the
-DB dataset given the input training data chunk id. 
+DB dataset given the input training data chunk id.
 
 For large dataset, we can build the KNN index in multiple stages
 
@@ -185,7 +185,7 @@ def process_sentence_chunks(
 ):
     """
     This function takes chunked tokens from the retrieval dataset and map it back to text.
-    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.  
+    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.
     If the stage is None, it process all the chunks.
     """
     total_chunks = ds.chunks

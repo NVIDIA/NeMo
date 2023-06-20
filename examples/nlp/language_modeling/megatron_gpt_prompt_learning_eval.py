@@ -47,18 +47,18 @@ This is the script to run GPT text generation.
             data_paths=[path/to/dataset1.jsonl, path/to/dataset2.jsonl]
 
         virtual_prompt_model_file should be a path to a .nemo file saved after p-tuning/prompt tuning and model file
-        is still the path to the gpt model's .nemo file.         
+        is still the path to the gpt model's .nemo file.
 
-        data_paths should be a list of .json or .jsonl files containing json objects similar to the ones 
+        data_paths should be a list of .json or .jsonl files containing json objects similar to the ones
         used during prompt learning. They should have keys that match the fields specified in the prompt template.
-        Fields can be dropped from the prompt dict and their corresponding section of the prompt template will 
-        be automatically removed. 
+        Fields can be dropped from the prompt dict and their corresponding section of the prompt template will
+        be automatically removed.
 
         For example, say the prompt template during p-tuning/prompt-tuning looked like:
 
         '<|VIRTUAL_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}'
 
-        but you don't want to include the answer field during inference. Just don't 
+        but you don't want to include the answer field during inference. Just don't
         include the answer field in the prompt dict like below:
 
         {"taskname": "squad", "context": "some paragraph", "question": "question related to paragraph"}
@@ -71,8 +71,8 @@ This is the script to run GPT text generation.
             '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer:'
         ]
 
-        Similarly for other senarios, just add virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE if you're using a 
-        p-tuned/prompt-tuned model. 
+        Similarly for other senarios, just add virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE if you're using a
+        p-tuned/prompt-tuned model.
 """
 
 

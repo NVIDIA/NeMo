@@ -33,7 +33,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 1
     mode: min
-    save_nemo_on_train_end: True # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
+    save_nemo_on_train_end: True # Should be false, correct prompt learning model file is saved at model.nemo_path set below,
     filename: 'megatron_gpt_ia3_tuning--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -42,7 +42,7 @@ model:
   seed: 1234
   nemo_path: ${exp_manager.exp_dir}/${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: 'no-prompts' # adapter tuning requires no virtual prompts
-  encoder_seq_length: 2048 
+  encoder_seq_length: 2048
   gradient_as_bucket_view: false
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
@@ -63,42 +63,42 @@ model:
     total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
     virtual_token_splits: [] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
     truncate_field: "passage" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
-    answer_only_loss: True 
+    answer_only_loss: True
     answer_field: "answer"
 
   - taskname: "intent_and_slot"
     prompt_template: "intent options: {intent_options} slot options: {slot_options} {utterance} \nintent: {intent} \nslot: {slot}"
-    total_virtual_tokens: 0 
-    answer_only_loss: True 
+    total_virtual_tokens: 0
+    answer_only_loss: True
     virtual_token_splits: []
     truncate_field: null
 
-  - taskname: "rte" 
-    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
+  - taskname: "rte"
+    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_only_loss: True
     answer_field: "answer"
 
-  - taskname: "squad" 
-    prompt_template: "context: {context} question: {question} answer: {answer}" 
+  - taskname: "squad"
+    prompt_template: "context: {context} question: {question} answer: {answer}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_only_loss: True
     answer_field: "answer"
 
-  - taskname: "arc-challenge" 
-    prompt_template: "question: {question} choices: {choices} answer: {answer}" 
+  - taskname: "arc-challenge"
+    prompt_template: "question: {question} choices: {choices} answer: {answer}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_only_loss: True
     answer_field: "answer"
 
-  - taskname: "xsum" 
-    prompt_template: "{source} Summary: {target}" 
+  - taskname: "xsum"
+    prompt_template: "{source} Summary: {target}"
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
@@ -117,8 +117,8 @@ model:
   optim:
     name: fused_adam
     lr: 1e-4
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     sched:

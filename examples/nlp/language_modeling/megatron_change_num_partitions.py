@@ -73,7 +73,7 @@ python megatron_change_num_partitions.py \
 
 ### Only Tensor Parallelism conversion ###
 
-To the above commands, add the following argument: `--tp_conversion_only` 
+To the above commands, add the following argument: `--tp_conversion_only`
 
 # Note: This requires that the pipeline_model_parallel_size and tgt_pipeline_model_parallel_size is set to 1.
 
@@ -90,9 +90,9 @@ python megatron_change_num_partitions.py \
 
 ### Model Classes ###
 
-# NOTE: Conversion of other model types. 
+# NOTE: Conversion of other model types.
 # Default model type is MegatronGPTModel, if you want another model you need to pass classpath of the model
-# For example - MegatronT5Model - 
+# For example - MegatronT5Model -
 
 python megatron_change_num_partitions.py \
     ...
@@ -101,7 +101,7 @@ python megatron_change_num_partitions.py \
 # Additional arguments:
 
 --num_gpu_per_node: Number of GPUs per node. Default is 8.
---megatron_legacy: Whether the model is a legacy Megatron model or not. Default is False. May be unsuported for 
+--megatron_legacy: Whether the model is a legacy Megatron model or not. Default is False. May be unsuported for
     Pipeline Parallelism change.
 --tokenizer_model_path: Path to tokenizer model. Default is None. When not None, overrides the tokenizer model path
     in the model config.
@@ -1183,7 +1183,7 @@ def main():
 
             """
             Under VP convention
-            Notation : 
+            Notation :
             Stage  = PP rank
             Number = GPT model / layer index
             Ignore TP - every PP has all TP corresponding to that PP

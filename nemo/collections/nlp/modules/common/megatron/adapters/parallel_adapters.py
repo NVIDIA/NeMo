@@ -50,7 +50,7 @@ except (ImportError, ModuleNotFoundError):
 
 class AdapterName(str, enum.Enum):
     """
-    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility. 
+    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility.
     """
 
     MLP_INFUSED = "mlp_infused_adapter"
@@ -81,7 +81,7 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
 class MLPInfusedAdapter(InfusedAdapter):
     """
     MLPInfusedAdapter is basically a clone of InfusedAdapter. We do this to make the adapter_mixin agnostic to adapter names
-    and only check adapter class types. 
+    and only check adapter class types.
     """
 
     pass
@@ -202,7 +202,7 @@ class ParallelLinearAdapterConfig:
 
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -211,7 +211,7 @@ class LoraKQVAdapter(ParallelLinearAdapter):
 
 class LoraKVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -220,7 +220,7 @@ class LoraKVAdapter(ParallelLinearAdapter):
 
 class LoraQAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -244,7 +244,7 @@ class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     TODO: (@adithyare) Need to add all the functionality from the PromptEncoder class
     """
@@ -264,7 +264,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             virtual_tokens: the  number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.bottleneck_dim = bottleneck_dim

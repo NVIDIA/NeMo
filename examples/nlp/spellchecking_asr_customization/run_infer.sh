@@ -33,7 +33,7 @@ INPUT_MANIFEST=spellmapper_en_evaluation/medical_manifest_ctc.json
 ## File containing custom words and phrases (plain text)
 CUSTOM_VOCAB=spellmapper_en_evaluation/medical_custom_vocab.json
 
-## Other files will be created 
+## Other files will be created
 ## File with index of custom vocabulary
 INDEX="index.txt"
 ## File with short fragments and corresponding original sentences

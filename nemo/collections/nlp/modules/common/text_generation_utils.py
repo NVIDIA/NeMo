@@ -202,7 +202,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
        This function has been mostly taken from huggingface conversational
          ai code at
          https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313 
+              conversational-ai-with-transfer-learning-2d818ac26313
 
         @param logits: logits tensor
         @param top_k: keep only top k tokens with highest probability
@@ -245,7 +245,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper 
+    """ Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:
@@ -978,7 +978,7 @@ def sample_token_greedy(logits):
 
     Args:
         logits: [batch_size, vocab_size] - unnormalized log probabilities of the next token
-    
+
     Returns:
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids
@@ -998,7 +998,7 @@ def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=
         top_p: float - if > 0.0: only sample from a subset of candidates, where the cumulative probability
         temperature: float - temperature for sampling
         filter_value: float - value to set filtered tokens to
-    
+
     Returns:
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids

@@ -62,7 +62,7 @@ def collate_train_dataset(
     torch.LongTensor,
     torch.LongTensor,
 ]:
-    """collate batch of training items 
+    """collate batch of training items
     Args:
         batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, labels_mask, labels, spans).
         pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)
@@ -179,7 +179,7 @@ def collate_test_dataset(
     torch.LongTensor,
     torch.LongTensor,
 ]:
-    """collate batch of test items 
+    """collate batch of test items
     Args:
         batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, fragment_indices).
         pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)

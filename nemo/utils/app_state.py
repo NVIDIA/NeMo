@@ -87,7 +87,7 @@ class AppState(metaclass=Singleton):
     def device_id(self, id):
         """ Property sets the device_id.
             Args:
-                size (int): The device id. 
+                size (int): The device id.
         """
         self._device_id = id
 

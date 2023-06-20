@@ -2,7 +2,7 @@ Checkpoints
 ===========
 
 There are two main ways to load pretrained checkpoints in NeMo as introduced in `loading ASR checkpoints <../results.html#checkpoints>`__.
-In speaker diarization, the diarizer loads checkpoints that are passed through the config file. For example: 
+In speaker diarization, the diarizer loads checkpoints that are passed through the config file. For example:
 
 Loading Local Checkpoints
 ---------------------------
@@ -52,8 +52,8 @@ Run and evaluate speaker diarizer with below command:
 
 .. code-block:: bash
 
-  # Have a look at the instruction inside the script and pass the arguments you might need. 
-  python <NeMo_git_root>/examples/speaker_tasks/diarization/offline_diarization.py 
+  # Have a look at the instruction inside the script and pass the arguments you might need.
+  python <NeMo_git_root>/examples/speaker_tasks/diarization/offline_diarization.py
 
 
 NGC Pretrained Checkpoints
@@ -63,7 +63,7 @@ The ASR collection has checkpoints of several models trained on various datasets
 These checkpoints are obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
 The model cards on NGC contain more information about each of the checkpoints available.
 
-In general, you can load models with model name in the following format, 
+In general, you can load models with model name in the following format,
 
 .. code-block:: python
 

@@ -85,15 +85,15 @@ class PromptEmbedding(NeuralModule, Exportable):
         self.prompt_embeddings.weight.data = weight.type_as(self.prompt_embeddings.weight.data)
 
     def forward(self,):
-        """ 
+        """
         Does forward pass
         """
         return self.prompt_embeddings(self.indices)
 
 
 class InferenceTable(NeuralModule, Exportable):
-    """ 
-    A wrapper class that holds the output representations of the PromptEncoder Model. 
+    """
+    A wrapper class that holds the output representations of the PromptEncoder Model.
     At inference time we do not need to forward pass through the full PromptEncoder and can just use this class.
     """
 
@@ -116,7 +116,7 @@ class InferenceTable(NeuralModule, Exportable):
         self.is_inference_ready = True
 
     def get_prompt_table(self,):
-        """ 
+        """
         Returns the prompt representation cached in the prompt table
         """
         return self.prompt_table[self.taskname].forward()
@@ -131,7 +131,7 @@ class InferenceTable(NeuralModule, Exportable):
 
 class TPMLP(NeuralModule, Exportable):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     """
 
@@ -144,7 +144,7 @@ class TPMLP(NeuralModule, Exportable):
             total_virtual_tokens: the total number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.hidden_size = hidden_size
@@ -187,7 +187,7 @@ class TPMLP(NeuralModule, Exportable):
 
 class PromptEncoder(NeuralModule, Exportable):
     """
-    The prompt encoder network that is used to generate the virtual 
+    The prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning.
     """
 
@@ -332,7 +332,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, batch_size: int, use_cached_reps: bool) -> torch.Tensor:
-        """ 
+        """
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:

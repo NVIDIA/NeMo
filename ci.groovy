@@ -1,4 +1,4 @@
-@Library('blossom-github-lib@master') 
+@Library('blossom-github-lib@master')
 import ipp.blossom.*
 
 podTemplate(cloud:'sc-ipp-blossom-prod', yaml : """
@@ -42,9 +42,9 @@ spec:
                   // create new instance of helper object
                   githubHelper = GithubHelper.getInstance("${GIT_PASSWORD}", githubData)
               }
-              
+
           }
-          def stageName = '' 
+          def stageName = ''
           try {
               currentBuild.description = githubHelper.getBuildDescription()
               container('latestdlfw') {
@@ -54,7 +54,7 @@ spec:
                     checkout changelog: true, poll: true, scm: [$class: 'GitSCM', branches: [[name: "pr/"+githubHelper.getPRNumber()]],
                     doGenerateSubmoduleConfigurations: false,
                     submoduleCfg: [],
-                    userRemoteConfigs: [[credentialsId: 'github-token', url: githubHelper.getCloneUrl(), refspec: '+refs/pull/*/head:refs/remotes/origin/pr/*']]]              
+                    userRemoteConfigs: [[credentialsId: 'github-token', url: githubHelper.getCloneUrl(), refspec: '+refs/pull/*/head:refs/remotes/origin/pr/*']]]
                 }
 
                 stage('Code Style') {
@@ -65,7 +65,7 @@ spec:
                             python setup.py style && ls -l /testdata/TestData && ln -s /testdata/TestData /home/TestData && \
                             ls -l /home && ls -l /home/TestData"
                 }
-                
+
                 stage('Installation') {
                   sh "git config --global --add safe.directory '*' && nvidia-smi && ./reinstall.sh release"
                 }
@@ -114,6 +114,6 @@ spec:
               println ex
               githubHelper.updateCommitStatus("$BUILD_URL", "$stageName Failed", GitHubCommitState.FAILURE)
           }
-          
+
       }
   }

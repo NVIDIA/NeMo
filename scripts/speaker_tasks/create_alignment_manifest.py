@@ -79,7 +79,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
 def load_librispeech_alignment(alignment_filepath: str) -> dict:
     """
     Load alignment data for librispeech
-    
+
     Args:
         alignment_filepath (str): Path to the file containing alignments
     Returns:
@@ -100,7 +100,7 @@ def create_librispeech_ctm_alignments(
     input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
 ):
     """
-    Create new CTM alignments using input LibriSpeech word alignments. 
+    Create new CTM alignments using input LibriSpeech word alignments.
 
     Args:
         input_manifest_filepath (str): Path to the input LibriSpeech manifest file
@@ -291,9 +291,9 @@ if __name__ == "__main__":
 
     Args:
         input_manifest_filepath (str): Path to input manifest file
-        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset 
-                                   (specifically to the LibriSpeech-Alignments directory containing 
-                                   both the LibriSpeech folder as well as the unaligned.txt file) 
+        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset
+                                   (specifically to the LibriSpeech-Alignments directory containing
+                                   both the LibriSpeech folder as well as the unaligned.txt file)
                                    or to a directory containing the requisite CTM files
         output_manifest_filepath (str): Path to output manifest file
         ctm_output_directory (str): Path to output CTM directory (only used for LibriSpeech)

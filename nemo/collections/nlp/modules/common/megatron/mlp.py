@@ -274,7 +274,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
 class SwitchMLP(MegatronModule):
     """Top-1 MoE
-    
+
     Curently supports Sinkhorn based expert routing."""
 
     def __init__(

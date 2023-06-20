@@ -54,7 +54,7 @@ Adapters into each Transformer layer and will train/update only these adapters
 during training. The base GPT Model weights will remain frozen.
 
 During training this script will only save the newly trained Adapter weights
-in checkpoints. At the end of training a .nemo file of Adapter weights will 
+in checkpoints. At the end of training a .nemo file of Adapter weights will
 be saved.
 
 Usage:

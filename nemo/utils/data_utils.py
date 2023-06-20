@@ -114,7 +114,7 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
 
     Args:
         endpoint: AIStore endpoint in format https://host:port
-    
+
     Returns:
         Directory formed as `host/port`.
     """
@@ -178,7 +178,7 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
         path: path to an object
         force: force download, even if a local file exists
         num_retries: number of retries if the get command fails
-    
+
     Returns:
         Local path of the object.
     """

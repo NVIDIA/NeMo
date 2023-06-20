@@ -2,7 +2,7 @@
 
 A tool for doing Forced Alignment using Viterbi decoding of NeMo CTC-based models.
 
-## Usage example 
+## Usage example
 
 ``` bash
 python <path_to_NeMo>/tools/nemo_forced_aligner/align.py \
@@ -24,11 +24,11 @@ Call the `align.py` script, specifying the parameters as follows:
 
 * `manifest_filepath`: The path to the manifest of the data you want to align, containing `'audio_filepath'` and `'text'` fields. The audio filepaths need to be absolute paths.
 
-* `output_dir`: The folder where to save the output files (e.g. CTM, ASS) containing the generated alignments and new JSON manifest containing paths to those CTM/ASS files. The CTM file will be called `<output_dir>/ctm/{tokens,words,segments}/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `audio_filepath_parts_in_utt_id`. The new JSON manifest will be at `<output_dir>/<original manifest file name>_with_ctm_paths.json`. The ASS files will be at `<output_dir>/ass/{tokens,words}/<utt_id>.ass`. You can adjust which files should be saved by adjusting the parameter `save_output_file_formats`. 
+* `output_dir`: The folder where to save the output files (e.g. CTM, ASS) containing the generated alignments and new JSON manifest containing paths to those CTM/ASS files. The CTM file will be called `<output_dir>/ctm/{tokens,words,segments}/<utt_id>.ctm` and each line in each file will start with `<utt_id>`. By default, `utt_id` will be the stem of the audio_filepath. This can be changed by overriding `audio_filepath_parts_in_utt_id`. The new JSON manifest will be at `<output_dir>/<original manifest file name>_with_ctm_paths.json`. The ASS files will be at `<output_dir>/ass/{tokens,words}/<utt_id>.ass`. You can adjust which files should be saved by adjusting the parameter `save_output_file_formats`.
 
 ### Optional parameters:
 
-* `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the reference text for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_dir>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False). 
+* `align_using_pred_text`: if True, will transcribe the audio using the ASR model (specified by `pretrained_name` or `model_path`) and then use that transcription as the reference text for the forced alignment. The `"pred_text"` will be saved in the output JSON manifest at `<output_dir>/{original manifest name}_with_ctm_paths.json`. To avoid over-writing other transcribed texts, if there are already `"pred_text"` entries in the original manifest, the program will exit without attempting to generate alignments.  (Default: False).
 
 * `transcribe_device`: The device that will be used for generating log-probs (i.e. transcribing). If None, NFA will set it to 'cuda' if it is available (otherwise will set it to 'cpu'). If specified `transcribe_device` needs to be a string that can be input to the `torch.device()` method. (Default: `None`).
 
@@ -41,7 +41,7 @@ Call the `align.py` script, specifying the parameters as follows:
 * `additional_segment_grouping_separator`: an optional string used to separate the text into smaller segments. If this is not specified, then the whole text will be treated as a single segment. (Default: `None`. Cannot be empty string or space (" "), as NFA will automatically produce word-level timestamps for substrings separated by spaces).
 > Note: the `additional_segment_grouping_separator` will be removed from the reference text and all the output files, ie it is treated as a marker which is not part of the reference text. The separator will essentially be treated as a space, and any additional spaces around it will be amalgamated into one, i.e. if `additional_segment_grouping_separator="|"`, the following texts will be treated equivalently: `“abc|def”`, `“abc |def”`, `“abc| def”`, `“abc | def"`.
 
-* `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from token-level output CTMs. (Default: False). 
+* `remove_blank_tokens_from_ctm`: a boolean denoting whether to remove <blank> tokens from token-level output CTMs. (Default: False).
 
 * `audio_filepath_parts_in_utt_id`: This specifies how many of the 'parts' of the audio_filepath we will use (starting from the final part of the audio_filepath) to determine the utt_id that will be used in the CTM files. (Default: 1, i.e. utt_id will be the stem of the basename of audio_filepath). Note also that any spaces that are present in the audio_filepath will be replaced with dashes, so as not to change the number of space-separated elements in the CTM files.
 
@@ -102,7 +102,7 @@ A new manifest file will be saved at `<output_dir>/<original manifest file name>
 # How do I evaluate the alignment accuracy?
 Ideally you would have some 'true' CTM files to compare with your generated CTM files. With these you could obtain metrics such as the mean (absolute) errors between predicted starts/ends and the 'true' starts/ends of the segments.
 
-Alternatively (or additionally), you can visualize the quality of alignments using tools such as Gecko, which can play your audio file and display the predicted alignments at the same time. The Gecko tool requires you to upload an audio file and at least one CTM file. The Gecko tool can be accessed here: https://gong-io.github.io/gecko/. More information about the Gecko tool can be found on its Github page here: https://github.com/gong-io/gecko. 
+Alternatively (or additionally), you can visualize the quality of alignments using tools such as Gecko, which can play your audio file and display the predicted alignments at the same time. The Gecko tool requires you to upload an audio file and at least one CTM file. The Gecko tool can be accessed here: https://gong-io.github.io/gecko/. More information about the Gecko tool can be found on its Github page here: https://github.com/gong-io/gecko.
 
 **Note**: the following may help improve your experience viewing the CTMs in Gecko:
 * setting `minimum_timestamp_duration` to a larger number, as Gecko may not display some tokens/words/segments properly if their timestamps are too short.

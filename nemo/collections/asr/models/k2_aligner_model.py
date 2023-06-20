@@ -231,9 +231,9 @@ class AlignerWrapperModel(ASRModel):
     def _apply_prob_suppress(self, log_probs: torch.Tensor) -> torch.Tensor:
         """Multiplies probability of an element with index self.prob_suppress_index by self.prob_suppress_value times
         with stochasticity preservation of the log_probs tensor.
-        
+
         Often used to suppress <blank> probability of the output of a CTC model.
-        
+
         Example:
             For
                 - log_probs = torch.log(torch.tensor([0.015, 0.085, 0.9]))
@@ -411,7 +411,7 @@ class AlignerWrapperModel(ASRModel):
     def _results_to_ctmUnits(
         self, s_id: int, pred: torch.Tensor, prob: torch.Tensor
     ) -> Tuple[int, List['FrameCtmUnit']]:
-        """Transforms predictions with probabilities to a list of FrameCtmUnit objects, 
+        """Transforms predictions with probabilities to a list of FrameCtmUnit objects,
         containing frame-level alignment information (label, start, duration, probability), for a given sample id.
 
         Alignment information can be either token-based (char, wordpiece, ...) or word-based.

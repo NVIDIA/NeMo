@@ -36,12 +36,12 @@ __all__ = [
 
 def get_partial_ref_labels(pred_labels: List[str], ref_labels: List[str]) -> List[str]:
     """
-    For evaluation of online diarization performance, generate partial reference labels 
+    For evaluation of online diarization performance, generate partial reference labels
     from the last prediction time.
 
     Args:
         pred_labels (list[str]): list of partial prediction labels
-        ref_labels (list[str]): list of full reference labels 
+        ref_labels (list[str]): list of full reference labels
 
     Returns:
         ref_labels_out (list[str]): list of partial reference labels
@@ -84,8 +84,8 @@ def get_online_DER_stats(
     For evaluation of online diarization performance, add cumulative, average, and maximum DER/CER.
 
     Args:
-        DER (float): Diarization Error Rate from the start to the current point 
-        CER (float): Confusion Error Rate from the start to the current point 
+        DER (float): Diarization Error Rate from the start to the current point
+        CER (float): Confusion Error Rate from the start to the current point
         FA (float): False Alarm from the start to the current point
         MISS (float): Miss rate from the start to the current point
         diar_eval_count (int): Number of evaluation sessions

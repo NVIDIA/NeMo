@@ -65,7 +65,7 @@ class MegatronBaseModel(NLPModel):
 
     - Initialize the model parallel world for nemo.
     - Turn on all of the nvidia optimizations.
-    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the 
+    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the
       correct size for tensor model parallelism.
     - If using distributed optimizer, configure to be compatible
       with O2 level optimizations and/or model parallelism.

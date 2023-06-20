@@ -141,7 +141,7 @@ model:
     sched:
       min_lr: 1e-6
       warmup_steps: 2000
-  
+
   optim_downstream:
     _target_: torch.optim.Adam
     lr: 1e-4

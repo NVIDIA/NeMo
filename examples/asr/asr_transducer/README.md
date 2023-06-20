@@ -1,8 +1,8 @@
 # ASR with Transducer Models
 
-This directory contains example scripts to train ASR models using Transducer Loss (often termed RNNT Loss). 
+This directory contains example scripts to train ASR models using Transducer Loss (often termed RNNT Loss).
 
-Currently supported models are - 
+Currently supported models are -
 
 * Character based RNNT model
 * Subword based RNNT model

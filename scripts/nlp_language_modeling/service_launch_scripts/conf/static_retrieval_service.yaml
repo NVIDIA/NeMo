@@ -3,7 +3,7 @@ tokenizer:
   type: 'GPT2BPETokenizer'
   model: null
   vocab_file: null
-  merge_file: null 
+  merge_file: null
   delimiter: null # only used for tabular tokenizer
 service:
   faiss_devices: '0,1,2'
@@ -11,5 +11,5 @@ service:
   nprobe: 100
   retrieval_index: null
   query_bert_ip: '0.0.0.0'   # the bert model service host ip
-  query_bert_port: 17190     # the bert model service port number 
+  query_bert_port: 17190     # the bert model service port number
   port: 17179  # server port number

@@ -14,7 +14,7 @@
 #
 
 """
-This script would interpolate two arpa N-gram language models (LMs), 
+This script would interpolate two arpa N-gram language models (LMs),
 culculate perplexity of resulted LM, and make binary KenLM from it.
 
 Minimun usage example to interpolate two N-gram language models with weights:
@@ -62,7 +62,7 @@ class NgramMerge:
     def ngrammerge(self, arpa_a: str, alpha: float, arpa_b: str, beta: float, arpa_c: str, force: bool) -> str:
         """
         Merge two ARPA n-gram language models using the ngrammerge command-line tool and output the result in ARPA format.
-        
+
         Args:
             arpa_a (str): Path to the first input ARPA file.
             alpha (float): Interpolation weight for the first model.
@@ -70,7 +70,7 @@ class NgramMerge:
             beta (float): Interpolation weight for the second model.
             arpa_c (str): Path to the output ARPA file.
             force (bool): Whether to overwrite existing output files.
-        
+
         Returns:
             str: Path to the output ARPA file in mod format.
         """
@@ -135,7 +135,7 @@ class NgramMerge:
             force (bool): Whether to force overwrite of existing files.
 
         Returns:
-            Tuple[str, str]: A tuple containing the path to the merged binary language model file and the path to the 
+            Tuple[str, str]: A tuple containing the path to the merged binary language model file and the path to the
             merged ARPA language model file.
         """
         logging.info("\n" + str(self.arpa2mod(arpa_a, force)) + "\n")
@@ -324,7 +324,7 @@ def make_symbol_list(nemo_model_file, symbols, force):
         nemo_model_file (str): Path to the NeMo model file.
         symbols (str): Path to the file where symbol list will be saved.
         force (bool): Flag to force creation of symbol list even if it already exists.
-    
+
     Returns:
         None
 
@@ -364,7 +364,7 @@ def main(
     force: bool,
 ) -> None:
     """
-    Entry point function for merging ARPA format language models, testing perplexity, creating symbol list, 
+    Entry point function for merging ARPA format language models, testing perplexity, creating symbol list,
     and making ARPA and Kenlm models.
 
     Args:

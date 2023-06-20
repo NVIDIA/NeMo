@@ -43,7 +43,7 @@ To run the script, use:
         --input_files = "train_processed/output-00098-of-00100" \
         --lang = "en" \
         --out_dir="TARRED_DATA_OUTPUT_DIR"
-        
+
 See the argparse help for more arguments.
 """
 

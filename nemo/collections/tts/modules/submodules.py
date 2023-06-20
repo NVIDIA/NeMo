@@ -80,7 +80,7 @@ class MaskedInstanceNorm1d(torch.nn.InstanceNorm1d):
 class PartialConv1d(torch.nn.Conv1d):
     """
     Zero padding creates a unique identifier for where the edge of the data is, such that the model can almost always identify
-    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove 
+    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove
     this affect.
     """
 
@@ -460,7 +460,7 @@ class ConditionalLayerNorm(torch.nn.LayerNorm):
         if self.condition:
             if conditioning is None:
                 raise ValueError(
-                    """You should add additional data types as conditions (e.g. speaker id or reference audio) 
+                    """You should add additional data types as conditions (e.g. speaker id or reference audio)
                                  and define speaker_encoder in your config."""
                 )
 
@@ -499,7 +499,7 @@ class ConditionalInput(torch.nn.Module):
         if len(self.condition_types) > 0:
             if conditioning is None:
                 raise ValueError(
-                    """You should add additional data types as conditions (e.g. speaker id or reference audio) 
+                    """You should add additional data types as conditions (e.g. speaker id or reference audio)
                                  and define speaker_encoder in your config."""
                 )
 
@@ -705,7 +705,7 @@ class SpeakerLookupTable(torch.nn.Module):
 
 class SpeakerEncoder(NeuralModule):
     """
-    class SpeakerEncoder represents speakers representation. 
+    class SpeakerEncoder represents speakers representation.
     This module can combine GST (global style token) based speaker embeddings and lookup table speaker embeddings.
     """
 

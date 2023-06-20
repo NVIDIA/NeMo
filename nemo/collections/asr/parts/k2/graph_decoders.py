@@ -314,7 +314,7 @@ class TokenLMDecoder(BaseDecoder):
                 self.update_graph(self.token_lm)
             else:
                 logging.warning(
-                    f"""token_lm was set to None. Use this for debug 
+                    f"""token_lm was set to None. Use this for debug
                                 purposes only or call .update_graph(token_lm) before using."""
                 )
         else:

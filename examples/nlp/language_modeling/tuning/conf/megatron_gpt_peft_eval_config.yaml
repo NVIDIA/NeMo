@@ -10,7 +10,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: 9999
   max_steps: 20000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10 # frequency with which training steps are logged 
+  log_every_n_steps: 10 # frequency with which training steps are logged
   val_check_interval: 200 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
 
@@ -39,12 +39,12 @@ model:
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  
+
   global_batch_size: 1
   micro_batch_size: 1
   restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -53,8 +53,8 @@ model:
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
-  ## Activation Checkpoint 
-  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  ## Activation Checkpoint
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
   # 'uniform' divides the total number of transformer layers and checkpoints the input activation
   # of each chunk at the specified granularity
@@ -72,7 +72,7 @@ model:
     restore_from_path: null
     restore_from_ckpt_name: null
     restore_from_hparams_path: null
-    
+
     # Used for adapter peft training
     adapter_tuning:
       type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
@@ -82,7 +82,7 @@ model:
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-    
+
     # Used for p-tuning peft training
     p_tuning:
       virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
@@ -119,7 +119,7 @@ model:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
-    
+
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.

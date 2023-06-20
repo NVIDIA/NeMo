@@ -18,14 +18,14 @@ from utils.constants import V_NEGATIVE_NUM
 
 def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device):
     """
-    Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension). 
+    Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension).
     Args:
         log_probs_batch: tensor of shape (B, T_max, V). The parts of log_probs_batch which are 'padding' are filled
             with 'V_NEGATIVE_NUM' - a large negative number which represents a very low probability.
         y_batch: tensor of shape (B, U_max) - contains token IDs including blanks in every other position. The parts of
             y_batch which are padding are filled with the number 'V'. V = the number of tokens in the vocabulary + 1 for
             the blank token.
-        T_batch: tensor of shape (B, 1) - contains the durations of the log_probs_batch (so we can ignore the 
+        T_batch: tensor of shape (B, 1) - contains the durations of the log_probs_batch (so we can ignore the
             parts of log_probs_batch which are padding)
         U_batch: tensor of shape (B, 1) - contains the lengths of y_batch (so we can ignore the parts of y_batch
             which are padding).

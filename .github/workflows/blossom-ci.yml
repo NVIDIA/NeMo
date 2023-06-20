@@ -20,22 +20,22 @@ on:
   workflow_dispatch:
       inputs:
           platform:
-            description: 'runs-on argument'     
+            description: 'runs-on argument'
             required: false
           args:
-            description: 'argument'     
+            description: 'argument'
             required: false
 jobs:
   Authorization:
     name: Authorization
-    runs-on: blossom 
+    runs-on: blossom
     outputs:
       args: ${{ env.args }}
-      
+
     # This job only runs for pull request comments
     if: |
-         contains( 'okuchaiev,ericharper,titu1994,MaximumEntropy,nithinraok,redoctopus,yidong72,SeanNaren,yzhang123,ekmb,arendu,', format('{0},', github.actor)) && 
-         github.event.comment.body == '/blossom-ci'  
+         contains( 'okuchaiev,ericharper,titu1994,MaximumEntropy,nithinraok,redoctopus,yidong72,SeanNaren,yzhang123,ekmb,arendu,', format('{0},', github.actor)) &&
+         github.event.comment.body == '/blossom-ci'
     steps:
       - name: Check if comment is issued by authorized person
         run: blossom-ci
@@ -43,7 +43,7 @@ jobs:
           OPERATION: 'AUTH'
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_KEY_DATA: ${{ secrets.BLOSSOM_KEY }}
-        
+
   Vulnerability-scan:
     name: Vulnerability scan
     needs: [Authorization]
@@ -55,20 +55,20 @@ jobs:
           repository: ${{ fromJson(needs.Authorization.outputs.args).repo }}
           ref: ${{ fromJson(needs.Authorization.outputs.args).ref }}
           lfs: 'true'
-      
-      # repo specific steps 
+
+      # repo specific steps
       #- name: Setup java
       #  uses: actions/setup-java@v1
       #  with:
       #    java-version: 1.8
-      
+
       # add blackduck properties https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631308372/Methods+for+Configuring+Analysis#Using-a-configuration-file
       #- name: Setup blackduck properties
       #  run: |
       #       PROJECTS=$(mvn -am dependency:tree | grep maven-dependency-plugin | awk '{ out="com.nvidia:"$(NF-1);print out }' | grep rapids | xargs | sed -e 's/ /,/g')
       #       echo detect.maven.build.command="-pl=$PROJECTS -am" >> application.properties
       #       echo detect.maven.included.scopes=compile >> application.properties
-          
+
       - name: Run blossom action
         uses: NVIDIA/blossom-action@main
         env:
@@ -78,7 +78,7 @@ jobs:
           args1: ${{ fromJson(needs.Authorization.outputs.args).args1 }}
           args2: ${{ fromJson(needs.Authorization.outputs.args).args2 }}
           args3: ${{ fromJson(needs.Authorization.outputs.args).args3 }}
-          
+
   Job-trigger:
     name: Start ci job
     needs: [Vulnerability-scan]
@@ -90,7 +90,7 @@ jobs:
           OPERATION: 'START-CI-JOB'
           CI_SERVER: ${{ secrets.CI_SERVER }}
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              
+
   Upload-Log:
     name: Upload log
     runs-on: blossom

@@ -93,7 +93,7 @@ model:
       trim: False
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
-    
+
     dataloader_params:
       num_workers: 8
       pin_memory: false
@@ -162,7 +162,7 @@ model:
     inter_channels: 192
     hidden_channels: 192
     filter_channels: 768
-    n_heads: 2 
+    n_heads: 2
     n_layers: 6
     kernel_size: 3
     p_dropout: 0.1
@@ -180,7 +180,7 @@ model:
     lr: 2e-4
     betas: [0.9, 0.99]
     eps: 1e-9
-  
+
     sched:
       name: ExponentialLR
       lr_decay: 0.999875

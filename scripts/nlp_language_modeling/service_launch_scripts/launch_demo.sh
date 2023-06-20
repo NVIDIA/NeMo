@@ -31,7 +31,7 @@ depends_on () {
 }
 
 load_variables() {
-    PYTHONUNBUFFERED=TRUE 
+    PYTHONUNBUFFERED=TRUE
     full_path=$(realpath $0)
     dir_path=$(dirname $full_path)
     source $dir_path/env_variables.sh

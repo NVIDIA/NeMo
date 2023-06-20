@@ -38,7 +38,7 @@ from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 class CtcTopologyCompiler(object):
     """Default graph compiler.
     It applies its topology to the input token sequence to compile the supervision graph.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/training/ctc_graph.py
     """
 

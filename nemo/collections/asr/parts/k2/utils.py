@@ -50,7 +50,7 @@ def create_supervision(input_lengths: torch.Tensor) -> torch.Tensor:
 
 def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
     """Produces a tensor of reverse permutation for a given indices.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/common.py
     """
     ans = torch.zeros(indices.shape, device=indices.device, dtype=indices.dtype)
@@ -254,7 +254,7 @@ def get_tot_objf_and_finite_mask(tot_scores: torch.Tensor, reduction: str) -> Tu
         Returns:
              Returns a tuple of 2 scalar tensors: (tot_score, finite_mask)
         where finite_mask is a tensor containing successful segment mask.
-    
+
     Based on get_tot_objf_and_num_frames
     from https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/common.py
     """

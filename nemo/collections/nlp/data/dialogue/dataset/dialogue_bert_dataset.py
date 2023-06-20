@@ -183,7 +183,7 @@ class DialogueBERTDataset(DialogueDataset):
         ignore_start_end=False,
     ):
         """
-        Convert queries (utterance, intent label and slot labels) to BERT input format 
+        Convert queries (utterance, intent label and slot labels) to BERT input format
         """
 
         all_subtokens = []

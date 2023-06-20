@@ -101,7 +101,7 @@ do
         exit 1
     fi
   done
-  
+
   WAV_FILECOUNT="$(find $DATADIR  -name '*.wav' -type f | wc -l)"
   FLAC_FILECOUNT="$(find $DATADIR  -name '*.flac' -type f | wc -l)"
   FILECOUNT="$((WAV_FILECOUNT + FLAC_FILECOUNT))"

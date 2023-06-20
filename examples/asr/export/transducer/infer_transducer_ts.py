@@ -44,7 +44,7 @@ python infer_transducer_ts.py \
     --max_symbold_per_step=5 \
     --batch_size=32 \
     --log
-    
+
 # Export and compare a NeMo and Torchscript model
 python infer_transducer_ts.py \
     --nemo_model="<path to a .nemo file>" \

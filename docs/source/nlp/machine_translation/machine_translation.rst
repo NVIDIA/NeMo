@@ -2,7 +2,7 @@
 
 Machine Translation Models
 ==========================
-Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are 
+Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are
 based on the Transformer sequence-to-sequence architecture :cite:`nlp-machine_translation-vaswani2017attention`.
 
 An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
@@ -34,7 +34,7 @@ Available Models
    * - Model
      - Pretrained Checkpoint
    * - *New Checkppoints*
-     - 
+     -
    * - English -> German
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer24x6
    * - German -> English
@@ -81,8 +81,8 @@ Available Models
 Data Format
 -----------
 
-Supervised machine translation models require parallel corpora which comprises many examples of sentences in a source language and 
-their corresponding translation in a target language. We use parallel data formatted as separate text files for source and target 
+Supervised machine translation models require parallel corpora which comprises many examples of sentences in a source language and
+their corresponding translation in a target language. We use parallel data formatted as separate text files for source and target
 languages where sentences in corresponding files are aligned like in the table below.
 
 .. list-table:: *Parallel Coprus*
@@ -98,8 +98,8 @@ languages where sentences in corresponding files are aligned like in the table b
    * - You can now translate from English to Spanish in NeMo .
      - Ahora puedes traducir del inglés al español en NeMo .
 
-It is common practice to apply data cleaning, normalization, and tokenization to the data prior to training a translation model and 
-NeMo expects already cleaned, normalized, and tokenized data. The only data pre-processing NeMo does is subword tokenization with BPE 
+It is common practice to apply data cleaning, normalization, and tokenization to the data prior to training a translation model and
+NeMo expects already cleaned, normalized, and tokenized data. The only data pre-processing NeMo does is subword tokenization with BPE
 :cite:`nlp-machine_translation-sennrich2015neural`.
 
 Data Cleaning, Normalization & Tokenization
@@ -109,9 +109,9 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
 #. Please take a look at a detailed notebook on best practices to pre-process and clean your datasets - NeMo/tutorials/nlp/Data_Preprocessing_and_Cleaning_for_NMT.ipynb
 
-#. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
-   many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
-   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. Install fastText and then you can then run our script using the 
+#. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example,
+   many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID
+   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. Install fastText and then you can then run our script using the
    ``lid.176.bin`` model downloaded from the fastText website.
 
    .. code ::
@@ -127,20 +127,20 @@ We recommend applying the following steps to clean, normalize, and tokenize your
          --removed-tgt train_noise.es \
          --fasttext-model lid.176.bin
 
-#. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We 
+#. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We
    also filter out sentences where the ratio between source and target lengths exceeds 1.3 except for English <-> Chinese models.
-   `Moses <https://github.com/moses-smt/mosesdecoder>`__ is a statistical machine translation toolkit that contains many useful 
+   `Moses <https://github.com/moses-smt/mosesdecoder>`__ is a statistical machine translation toolkit that contains many useful
    pre-processing scripts.
 
    .. code ::
 
        perl mosesdecoder/scripts/training/clean-corpus-n.perl -ratio 1.3 train en es train.filter 1 250
 
-#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many punctuations, 
-   it does not help in cases where the translations are potentially incorrect, disfluent,  or incomplete. We use `bicleaner <https://github.com/bitextor/bicleaner>`__ 
-   a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word 
-   alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc. We use their available 
-   pre-trained models wherever possible and train models ourselves using their framework for remaining languages. The following script 
+#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many punctuations,
+   it does not help in cases where the translations are potentially incorrect, disfluent,  or incomplete. We use `bicleaner <https://github.com/bitextor/bicleaner>`__
+   a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word
+   alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc. We use their available
+   pre-trained models wherever possible and train models ourselves using their framework for remaining languages. The following script
    applies a pre-trained bicleaner model to the data and pick sentences that are clean with probability > 0.5.
 
    .. code ::
@@ -149,8 +149,8 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        | paste -d "\t" - train.filter.en train.filter.es \
        | bicleaner-classify - - </path/to/bicleaner.yaml> > train.en-es.bicleaner.score
 
-#. Data deduplication - We use `bifixer <https://github.com/bitextor/bifixer>`__ (which uses xxHash) to hash the source and target 
-   sentences based on which we remove duplicate entries from the file. You may want to do something similar to remove training examples 
+#. Data deduplication - We use `bifixer <https://github.com/bitextor/bifixer>`__ (which uses xxHash) to hash the source and target
+   sentences based on which we remove duplicate entries from the file. You may want to do something similar to remove training examples
    that are in the test dataset.
 
    .. code ::
@@ -158,7 +158,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        cat train.en-es.bicleaner.score \
          | parallel -j 25 --pipe -k -l 30000 python bifixer.py --ignore-segmentation -q - - en es \
          > train.en-es.bifixer.score
-    
+
        awk -F awk -F "\t" '!seen[$6]++' train.en-es.bifixer.score > train.en-es.bifixer.dedup.score
 
 #. Filter out data that bifixer assigns probability < 0.5 to.
@@ -183,11 +183,11 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        Before - Aquí se encuentran joyerías como Tiffany`s entre negocios tradicionales suizos como la confitería Sprüngli.
        After  - Aquí se encuentran joyerías como Tiffany's entre negocios tradicionales suizos como la confitería Sprüngli.
 
-#. Tokenization and word segmentation for Chinese - Naturally written text often contains punctuation markers like commas, full-stops 
-   and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for 
-   very similar items like ``NeMo`` and ``NeMo.``. Tokenization splits punctuation from the word to create two separate tokens. In the 
-   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and addresses the earlier problem. 
-   
+#. Tokenization and word segmentation for Chinese - Naturally written text often contains punctuation markers like commas, full-stops
+   and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for
+   very similar items like ``NeMo`` and ``NeMo.``. Tokenization splits punctuation from the word to create two separate tokens. In the
+   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and addresses the earlier problem.
+
    For example:
 
    .. code ::
@@ -202,8 +202,8 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        perl mosesdecoder/scripts/tokenizer/tokenizer.perl -l es -no-escape < train.normalized.es > train.tokenized.es
        perl mosesdecoder/scripts/tokenizer/tokenizer.perl -l en -no-escape < train.normalized.en > train.tokenized.en
 
-   For languages like Chinese where there is no explicit marker like spaces that separate words, we use `Jieba <https://github.com/fxsjy/jieba>`__ to segment a string into words that are space separated. 
-   
+   For languages like Chinese where there is no explicit marker like spaces that separate words, we use `Jieba <https://github.com/fxsjy/jieba>`__ to segment a string into words that are space separated.
+
    For example:
 
    .. code ::
@@ -214,9 +214,9 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 Training a BPE Tokenization
 ---------------------------
 
-Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used 
-to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, Machine translation 
-only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration 
+Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used
+to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, Machine translation
+only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration
 as follows:
 
 +-----------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------+
@@ -228,7 +228,7 @@ as follows:
 +-----------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------+
 | **model.{encoder_tokenizer,decoder_tokenizer}.vocab_size**      | int             | ``null``       | Desired vocabulary size after BPE tokenization.                                                    |
 +-----------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------+
-| **model.{encoder_tokenizer,decoder_tokenizer}.bpe_dropout**     | float           | ``null``       | BPE dropout probability. :cite:`nlp-machine_translation-provilkov2019bpe`.                         |   
+| **model.{encoder_tokenizer,decoder_tokenizer}.bpe_dropout**     | float           | ``null``       | BPE dropout probability. :cite:`nlp-machine_translation-provilkov2019bpe`.                         |
 +-----------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------+
 | **model.{encoder_tokenizer,decoder_tokenizer}.vocab_file**      | str             | ``null``       | Path to pre-computed vocab file if exists.                                                         |
 +-----------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------+
@@ -241,14 +241,14 @@ Applying BPE Tokenization, Batching, Bucketing and Padding
 
 Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/v1.0.2/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
 
-#. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the 
+#. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the
    source and target text.
 
-#. Bucketing - Sentences vary in length and when creating minibatches, we'd like sentences in them to have roughly the same length to 
-   minimize the number of ``<pad>`` tokens and to maximize computational efficiency. This step groups sentences roughly the same length 
+#. Bucketing - Sentences vary in length and when creating minibatches, we'd like sentences in them to have roughly the same length to
+   minimize the number of ``<pad>`` tokens and to maximize computational efficiency. This step groups sentences roughly the same length
    into buckets.
 
-#. Batching and padding - Creates minibatches with a maximum number of tokens specified by ``model.{train_ds,validation_ds,test_ds}.tokens_in_batch`` 
+#. Batching and padding - Creates minibatches with a maximum number of tokens specified by ``model.{train_ds,validation_ds,test_ds}.tokens_in_batch``
    from buckets and pads, so they can be packed into a tensor.
 
 Datasets can be configured as follows:
@@ -281,8 +281,8 @@ Datasets can be configured as follows:
 Tarred Datasets for Large Corpora
 ---------------------------------
 
-When training with ``DistributedDataParallel``, each process has its own copy of the dataset. For large datasets, this may not always 
-fit in CPU memory. `Webdatasets <https://github.com/tmbdev/webdataset>`__ circumvents this problem by efficiently iterating over 
+When training with ``DistributedDataParallel``, each process has its own copy of the dataset. For large datasets, this may not always
+fit in CPU memory. `Webdatasets <https://github.com/tmbdev/webdataset>`__ circumvents this problem by efficiently iterating over
 tar files stored on disk. Each tar file can contain hundreds to thousands of pickle files, each containing a single minibatch.
 
 We recommend using this method when working with datasets with > 1 million sentence pairs.
@@ -336,16 +336,16 @@ Tarred datasets can be created in two ways:
          +trainer.fast_dev_run=true \
          exp_manager=null \
 
-   The above script processes the parallel tokenized text files into tarred datasets that are written to ``/path/to/preproc_dir``. Since 
-   ``do_training`` is set to ``False``, the above script only creates tarred datasets and then exits. If ``do_training`` is set ``True``, 
+   The above script processes the parallel tokenized text files into tarred datasets that are written to ``/path/to/preproc_dir``. Since
+   ``do_training`` is set to ``False``, the above script only creates tarred datasets and then exits. If ``do_training`` is set ``True``,
    then one of two things happen:
 
-   (a) If no tar files are present in ``model.preproc_out_dir``, the script first creates those files and then commences training. 
+   (a) If no tar files are present in ``model.preproc_out_dir``, the script first creates those files and then commences training.
    (b) If tar files are already present in ``model.preproc_out_dir``, the script starts training from the provided tar files.
 
-#. Using a separate script without Hydra. 
+#. Using a separate script without Hydra.
 
-   Tarred datasets for parallel corpora can also be created with a script that doesn't require specifying a configs via Hydra and 
+   Tarred datasets for parallel corpora can also be created with a script that doesn't require specifying a configs via Hydra and
    just uses Python argparse.
 
    For example:
@@ -371,7 +371,7 @@ Tarred datasets can be created in two ways:
 Model Configuration and Training
 --------------------------------
 
-The overall model consists of an encoder, decoder, and classification head. Encoders and decoders have the following configuration 
+The overall model consists of an encoder, decoder, and classification head. Encoders and decoders have the following configuration
 options:
 
 +-------------------------------------------------------------------+-----------------+-----------------------+-----------------------------------------------------------------------------------------------------------------+
@@ -404,10 +404,10 @@ options:
 | **model.{encoder,decoder}.pre_ln**                                | bool            | ``false``             | Whether to apply layer-normalization before (``true``) or after (``false``) a sub-layer.                        |
 +-------------------------------------------------------------------+-----------------+-----------------------+-----------------------------------------------------------------------------------------------------------------+
 
-Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), and inverse square root learning 
+Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), and inverse square root learning
 rate schedule from :cite:`nlp-machine_translation-vaswani2017attention`. The **model.optim** section sets the optimization parameters.
 
-The following script creates tarred datasets based on the provided parallel corpus and trains a model based on the ``base`` configuration 
+The following script creates tarred datasets based on the provided parallel corpus and trains a model based on the ``base`` configuration
 from :cite:`nlp-machine_translation-vaswani2017attention`.
 
 .. code ::
@@ -437,7 +437,7 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
       model.decoder_tokenizer.vocab_size=32000 \
       ~model.test_ds \
 
-The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves 
+The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves
 the checkpoints that have the top 5 (by default) sacreBLEU scores.
 
 At the end of training, a ``.nemo`` file is written to the result directory which allows to run inference on a test set.
@@ -452,15 +452,15 @@ To run validation on multiple datasets, specify ``validation_ds.src_file_name`` 
   model.validation_ds.src_file_name=[/data/wmt13-en-de.src,/data/wmt14-en-de.src] \
   model.validation_ds.tgt_file_name=[/data/wmt13-en-de.ref,/data/wmt14-en-de.ref] \
 
-When using ``val_loss`` or ``val_sacreBLEU`` for the ``exp_manager.checkpoint_callback_params.monitor`` 
-then the 0th indexed dataset will be used as the monitor. 
+When using ``val_loss`` or ``val_sacreBLEU`` for the ``exp_manager.checkpoint_callback_params.monitor``
+then the 0th indexed dataset will be used as the monitor.
 
 To use other indexes, append the index:
 
 .. code-block:: bash
 
     exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU_dl_index_1
-  
+
 Multiple test datasets work exactly the same way as validation datasets, simply replace ``validation_ds`` by ``test_ds`` in the above examples.
 
 Bottleneck Models and Latent Variable Models (VAE, MIM)
@@ -554,7 +554,7 @@ To generate translations on a test set and compute sacreBLEU scores, run the inf
       --source_lang en \
       --target_lang es
 
-The ``--srctext`` file must be provided before tokenization and normalization. The resulting ``--tgtout`` file is detokenized and 
+The ``--srctext`` file must be provided before tokenization and normalization. The resulting ``--tgtout`` file is detokenized and
 can be used to compute sacreBLEU scores.
 
 .. code ::
@@ -564,7 +564,7 @@ can be used to compute sacreBLEU scores.
 Inference Improvements
 ----------------------
 
-In practice, there are a few commonly used techniques at inference to improve translation quality. NeMo implements: 
+In practice, there are a few commonly used techniques at inference to improve translation quality. NeMo implements:
 
 1) Model Ensembling
 2) Shallow Fusion decoding with transformer language models :cite:`nlp-machine_translation-gulcehre2015using`
@@ -618,7 +618,7 @@ For example, to ensemble three models /path/to/model1.nemo, /path/to/model2.nemo
       --source_lang en \
       --target_lang es
 
-(c) Noisy Channel Re-ranking - Unlike ensembling and shallow fusion, noisy channel re-ranking only re-ranks the final candidates produced by beam search. It does so based on three scores 
+(c) Noisy Channel Re-ranking - Unlike ensembling and shallow fusion, noisy channel re-ranking only re-ranks the final candidates produced by beam search. It does so based on three scores
 
 1) Forward (source to target) translation model(s) log-probabilities
 2) Reverse (target to source) translation model(s) log-probabilities
@@ -661,8 +661,8 @@ This script also requires a reverse (target to source) translation model and a t
 Pretrained Encoders
 -------------------
 
-Pretrained BERT encoders from either `HuggingFace Transformers <https://huggingface.co/models>`__ 
-or `Megatron-LM <https://github.com/NVIDIA/Megatron-LM>`__ 
+Pretrained BERT encoders from either `HuggingFace Transformers <https://huggingface.co/models>`__
+or `Megatron-LM <https://github.com/NVIDIA/Megatron-LM>`__
 can be used to to train NeMo NMT models.
 
 The ``library`` flag takes values: ``huggingface``, ``megatron``, and ``nemo``.
@@ -670,17 +670,17 @@ The ``library`` flag takes values: ``huggingface``, ``megatron``, and ``nemo``.
 The ``model_name`` flag is used to indicate a *named* model architecture.
 For example, we can use ``bert_base_cased`` from HuggingFace or ``megatron-bert-345m-cased`` from Megatron-LM.
 
-The ``pretrained`` flag indicates whether or not to download the pretrained weights (``pretrained=True``) or 
+The ``pretrained`` flag indicates whether or not to download the pretrained weights (``pretrained=True``) or
 instantiate the same model architecture with random weights (``pretrained=False``).
 
-To use a custom model architecture from a specific library, use ``model_name=null`` and then add the 
+To use a custom model architecture from a specific library, use ``model_name=null`` and then add the
 custom configuration under the ``encoder`` configuration.
 
 HuggingFace
 ^^^^^^^^^^^
 
 We have provided a `HuggingFace config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/machine_translation/conf/huggingface.yaml>`__
-to use with HuggingFace encoders. 
+to use with HuggingFace encoders.
 
 To use the config file from CLI:
 
@@ -689,7 +689,7 @@ To use the config file from CLI:
   --config-path=conf \
   --config-name=huggingface \
 
-As an example, we can configure the NeMo NMT encoder to use ``bert-base-cased`` from HuggingFace 
+As an example, we can configure the NeMo NMT encoder to use ``bert-base-cased`` from HuggingFace
 by using the ``huggingface`` config file and setting
 
 .. code ::
@@ -710,7 +710,7 @@ Megatron
 ^^^^^^^^
 
 We have provided a `Megatron config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/machine_translation/conf/megatron.yaml>`__
-to use with Megatron encoders. 
+to use with Megatron encoders.
 
 To use the config file from CLI:
 

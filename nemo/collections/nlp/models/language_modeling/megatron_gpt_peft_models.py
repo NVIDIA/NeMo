@@ -48,7 +48,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         return False
 
     def init_peft_modules(self):
-        """ 
+        """
         Randomly initialize the peft params and add them to the appropriate modules.
         """
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
@@ -70,14 +70,14 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self.setup_complete = True
 
     def get_all_keys(self,):
-        """ 
+        """
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
     def get_peft_state_dict(self,):
-        """ 
+        """
         Gets the keys associated with the adapters only.
         """
         state_dict = self.model.state_dict(prefix="model.")
@@ -110,13 +110,13 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         self.freeze()  # Freeze the entire model
         opt_params = []
@@ -138,8 +138,8 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
     Two adapter's are inserted into each Transformer layer in the base GPT Model.
 
     It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    Once trained, the adapter weights will be saved and can be re-loaded
+    and infused into the same GPT Model for inference.
     """
 
     def __init__(
@@ -177,8 +177,8 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     Three adapter's are inserted into each Transformer layer in the base GPT Model. Each adapter is basically a vector that simply scales the key, value or ffn hidden representations.
 
     It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    Once trained, the adapter weights will be saved and can be re-loaded
+    and infused into the same GPT Model for inference.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -205,7 +205,7 @@ class MegatronGPTIA3Model(MegatronGPTPEFTModel):
 
 class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
     """
-    MegatronGPTPTuningModel is a model that combines a base model (GPTSFTModel) with a p-tuning prefix in the 
+    MegatronGPTPTuningModel is a model that combines a base model (GPTSFTModel) with a p-tuning prefix in the
     input word embedding representations using a prompt-encoder as descripted in Liu et al. https://arxiv.org/pdf/2103.10385.pdf
 
     The mixin framework adds the output of prompt-encoder (i.e. the virtual embeddings) inside
@@ -227,7 +227,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
     def init_peft_modules(self,):
-        """ 
+        """
         Initialize the p-tuning prompt encoder in the mixin.
         This should only happen in the first stage of the pipeline unlike other PEFT methods like Lora or Adapters
         because p-tuning only adds params at input to the encoder layer.
@@ -239,7 +239,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         return True
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """ 
+        """
         Reimplement state_dict for ptuning because we also need to check the stage of the pipeline.
         The check is required to make pp>1 to work.
         """
@@ -253,7 +253,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        """ 
+        """
         Reimplement load_state_dict for ptuning because we also need to check the stage of the pipeline.
         The check is required to make pp>1 to work.
         """

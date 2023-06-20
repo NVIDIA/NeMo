@@ -1036,7 +1036,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
         """
-        Update the conv_chunking_factor (int) 
+        Update the conv_chunking_factor (int)
         Default is 1 (auto)
         Set it to -1 (disabled) or to a specific value (power of 2) if you OOM in the conv subsampling layers
 

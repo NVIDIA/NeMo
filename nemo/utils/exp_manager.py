@@ -289,7 +289,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
 
     returns:

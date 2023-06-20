@@ -35,7 +35,7 @@ Currently supported backends are cosine_similarity and neural classifier.
 
 The audio files should be 16KHz mono channel wav files.
 
-The script takes two manifest files: 
+The script takes two manifest files:
 
 * enrollment_manifest : This manifest contains enrollment data with known speaker labels.
 * test_manifest: This manifest contains test data for which we map speaker labels captured from enrollment manifest using one of provided backend
@@ -45,15 +45,15 @@ sample format for each of these manifests is provided in `<NeMo_root>/examples/s
 To infer speaker labels using cosine_similarity backend
 
 .. code-block:: bash
-  
+
     python speaker_identification_infer.py data.enrollment_manifest=<path/to/enrollment_manifest> data.test_manifest=<path/to/test_manifest> backend.backend_model=cosine_similarity
 
-    
+
 Speaker Embedding Extraction
 -----------------------------
 Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unknown speakers). We provide two ways to do this:
 
-* single Python liner for extracting embeddings from a single file 
+* single Python liner for extracting embeddings from a single file
 * Python script for extracting embeddings from a bunch of files provided through manifest file
 
 For extracting embeddings from a single file:
@@ -70,15 +70,15 @@ The audio files should be 16KHz mono channel wav files.
 Write audio files to a ``manifest.json`` file with lines as in format:
 
 .. code-block:: json
-    
+
     {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "speaker_id"}
-      
+
 This python call will download best pretrained model from NGC and writes embeddings pickle file to current working directory
 
 .. code-block:: bash
-  
+
     python examples/speaker_tasks/recognition/extract_speaker_embeddings.py --manifest=manifest.json
-   
+
 or you can run `batch_inference()` to perform inference on the manifest with seleted batch_size to get embeddings
 
 .. code-block:: python

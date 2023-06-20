@@ -250,7 +250,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
     """Multi-Head Attention layer of Transformer-XL with sliding window local+global attention from Longformer.
     Partially adapted from allenai (https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py)
-    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py) 
+    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py)
     Paper: https://arxiv.org/abs/1901.02860 (Transformer-XL),
            https://arxiv.org/abs/2004.05150 (Longformer)
     Args:

@@ -84,7 +84,7 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             paths2audio_files: (a list) of paths to audio files. \
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
-            output_dir: 
+            output_dir:
             batch_size: (int) batch size to use during inference.
                 Bigger will result in better throughput performance but would use more memory.
             num_workers: Number of workers for the dataloader

@@ -23,7 +23,7 @@ python preprocess_tokenization_normalization.py --input-src train.en \
     --output-src train.tok.norm.en \
     --output-tgt train.tok.norm.zh \
     --source-lang en \
-    --target-lang zh 
+    --target-lang zh
 """
 
 logging.basicConfig(level=logging.INFO)

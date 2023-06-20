@@ -21,7 +21,7 @@ backend:
 #
 # enrollment_manifest:
 # {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, "label": "<speaker_label>"}
-# 
+#
 # test_manifest:
 # {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, "label": "infer"}
 #

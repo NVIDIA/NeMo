@@ -20,7 +20,7 @@ model:
 
       impulse:
         manifest_path: null
-        prob: 0.5 
+        prob: 0.5
 
       speed:
         prob: 0.5
@@ -44,7 +44,7 @@ model:
     se: true
     se_context_size: -1
     kernel_size_factor: 1.0
-    
+
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     normalize: "per_feature"

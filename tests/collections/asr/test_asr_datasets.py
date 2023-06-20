@@ -765,7 +765,7 @@ class TestAudioDatasets:
     @pytest.mark.parametrize('num_channels', [1, 2])
     @pytest.mark.parametrize('num_targets', [1, 3])
     def test_list_to_multichannel(self, num_channels, num_targets):
-        """Test conversion of a list of arrays into 
+        """Test conversion of a list of arrays into
         """
         random_seed = 42
         num_samples = 1000

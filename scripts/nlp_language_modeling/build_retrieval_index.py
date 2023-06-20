@@ -32,10 +32,10 @@ python scripts/nlp_language_modeling/build_retrieval_index.py \
     --output_file=index.sav
 ```
 
-It creates a index.sav which can be loaded by Faiss. It can look up the KNN chunk ids of the 
-DB dataset given the input embedding vector. 
+It creates a index.sav which can be loaded by Faiss. It can look up the KNN chunk ids of the
+DB dataset given the input embedding vector.
 
-To use it in multiple stages, it follows the example as shown in  
+To use it in multiple stages, it follows the example as shown in
 https://github.com/facebookresearch/faiss/blob/main/demos/demo_ondisk_ivf.py
 
 stage-0: train on the dataset, example,

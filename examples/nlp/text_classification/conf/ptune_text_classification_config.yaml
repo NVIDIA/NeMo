@@ -42,7 +42,7 @@ model:
     type: 'GPT2BPETokenizer'
     model: null
     vocab_file: null
-    merge_file: null 
+    merge_file: null
 
   language_model:
     nemo_file: null

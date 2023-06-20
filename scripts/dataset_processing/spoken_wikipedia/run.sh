@@ -88,11 +88,11 @@ python ${NEMO_PATH}/scripts/dataset_processing/spoken_wikipedia/preprocess.py --
 ##  |   ├── 2.ogg
 ##  |   ...
 ##  └── text
-##      ├── 1.txt     
-##      ├── 2.txt     
+##      ├── 1.txt
+##      ├── 2.txt
 ##      ...
 
-MODEL_FOR_SEGMENTATION="QuartzNet15x5Base-En" 
+MODEL_FOR_SEGMENTATION="QuartzNet15x5Base-En"
 MODEL_FOR_RECOGNITION="stt_en_conformer_ctc_large"
 ## We set this threshold as very permissive, later we will use other metrics for filtering
 THRESHOLD=-10

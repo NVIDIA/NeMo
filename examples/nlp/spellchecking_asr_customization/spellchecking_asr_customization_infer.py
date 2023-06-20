@@ -23,7 +23,7 @@ An input line should consist of 4 tab-separated columns:
     4. approximate start/end coordinates of non-dummy candidates (correspond to ids in third column)
 
 Example input (in one line):
-    t h e _ t a r a s i c _ o o r d a _ i s _ a _ p a r t _ o f _ t h e _ a o r t a _ l o c a t e d _ i n _ t h e _ t h o r a x	
+    t h e _ t a r a s i c _ o o r d a _ i s _ a _ p a r t _ o f _ t h e _ a o r t a _ l o c a t e d _ i n _ t h e _ t h o r a x
     h e p a t i c _ c i r r h o s i s;u r a c i l;c a r d i a c _ a r r e s t;w e a n;a p g a r;p s y c h o m o t o r;t h o r a x;t h o r a c i c _ a o r t a;a v f;b l o c k a d e d
     1 2 6 7 8 9 10
     CUSTOM 6 23;CUSTOM 4 10;CUSTOM 4 15;CUSTOM 56 62;CUSTOM 5 19;CUSTOM 28 31;CUSTOM 39 48
@@ -38,8 +38,8 @@ Example output (in one line):
     t h e _ t a r a s i c _ o o r d a _ i s _ a _ p a r t _ o f _ t h e _ a o r t a _ l o c a t e d _ i n _ t h e _ t h o r a x
     h e p a t i c _ c i r r h o s i s;u r a c i l;c a r d i a c _ a r r e s t;w e a n;a p g a r;p s y c h o m o t o r;t h o r a x;t h o r a c i c _ a o r t a;a v f;b l o c k a d e d
     56 62 7 0.99998;4 20 8 0.95181;12 20 8 0.44829;4 17 8 0.99464;12 17 8 0.97645
-    8 8 8 0 8 8 8 8 8 8 8 8 8 8 8 8 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 7 7 7 7 7    
-   
+    8 8 8 0 8 8 8 8 8 8 8 8 8 8 8 8 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 7 7 7 7 7
+
 
 USAGE Example:
 1. Train a model, or use a pretrained checkpoint.

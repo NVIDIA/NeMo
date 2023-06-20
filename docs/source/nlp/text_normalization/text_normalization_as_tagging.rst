@@ -2,7 +2,7 @@
 
 Thutmose Tagger: Single-pass Tagger-based ITN Model
 ===================================================
-Inverse text normalization(ITN) converts text from spoken domain (e.g., an ASR output) into its written form: 
+Inverse text normalization(ITN) converts text from spoken domain (e.g., an ASR output) into its written form:
 
 Input: ``on may third we paid one hundred and twenty three dollars``
 Output: ``on may 3 we paid $123``
@@ -41,7 +41,7 @@ The initial data from which the dataset is prepared is `Google text normalizatio
 It is stored in TAB separated files (``.tsv``) with three columns.
 The first column is the "semiotic class" (e.g.,  numbers, times, dates) , the second is the token
 in written form, and the third is the spoken form. An example sentence in the dataset is shown below.
-In the example, ``<self>`` denotes that the spoken form is the same as the written form. 
+In the example, ``<self>`` denotes that the spoken form is the same as the written form.
 
 .. code::
 
@@ -104,7 +104,7 @@ Example of a training command:
 
 .. code::
 
-    python examples/nlp/text_normalization_as_tagging/normalization_as_tagging_train.py \  
+    python examples/nlp/text_normalization_as_tagging/normalization_as_tagging_train.py \
         lang=en \
         data.validation_ds.data_path=<PATH_TO_DATASET_DIR>/valid.tsv \
         data.train_ds.data_path=<PATH_TO_DATASET_DIR>/train.tsv \

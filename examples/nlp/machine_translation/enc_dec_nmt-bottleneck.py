@@ -33,22 +33,22 @@ from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 """
 Usage:
  1. If you need to start docker and install NeMo, otherwise skip this step:
- 
+
     a. ```docker run --gpus all -it --rm -v /home/okuchaiev/repos/NeMo/:/NeMo -p 6006:6006  -v /mnt:/mnt --shm-size=16g --ulimit memlock=-1 --ulimit stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3```
     b. ```cd /NeMo```
     c. ```./reinstall.sh```
- 
+
  2. Train a new tokenizer (or use pre-trained one):
     ```yttm bpe --data /mnt/D1/Data/NMT/wmt16_de_en/train.clean.en-de.shuffled.common --model tokenizer.BPE.8192.model --vocab_size 8192```
 
 (To use WANDB, optionally, do login first)
 ``wandb login [YOUR WANDB login]``
-    
+
  3. Start training:
- 
+
 
  (This example for "base" model on 2 GPUs for 150000 steps with batch size of 12500 tokens per GPU)
- 
+
  python enc_dec_nmt-bottleneck.py \
       --config-path=conf \
       --config-name=aayn_bottleneck \
@@ -92,7 +92,7 @@ Usage:
       +exp_manager.create_checkpoint_callback=True \
       +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
       +exp_manager.exp_dir=nmt_base \
-      +exp_manager.checkpoint_callback_params.mode=max 
+      +exp_manager.checkpoint_callback_params.mode=max
 """
 
 

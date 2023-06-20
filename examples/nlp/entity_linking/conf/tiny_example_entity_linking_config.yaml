@@ -37,7 +37,7 @@ model:
     pin_memory: false
     drop_last: false
   validation_ds:
-    data_file: ??? 
+    data_file: ???
     max_seq_length: ${model.max_seq_length}
     batch_size: 8
     shuffle: false

@@ -24,8 +24,8 @@ Unsupervised LMs require the corpus which comprises many examples of sentences f
    * - in a silver cake basket as the panins had at their party
    * - let us pretermit that long comparison
    * - poverty contempt and sickness treading on my heels i easily resolve not to be affrighted
-   
-It is common practice to apply data cleaning, normalization, and tokenization to the data prior to training LM and 
+
+It is common practice to apply data cleaning, normalization, and tokenization to the data prior to training LM and
 NeMo expects already cleaned, normalized, and tokenized data. The only data pre-processing NeMo does is subword tokenization with BPE :cite:`nlp-language_modeling-sennrich2015neural`.
 
 .. note::
@@ -171,7 +171,7 @@ The overall model consists of an encoder and a classification head with the foll
    * - **model.head.dropout**
      - float
      - ``0.0``
-     - Dropout probability after each layer.  
+     - Dropout probability after each layer.
 
 
 Our pre-trained models are optimized with Adam, with a maximum learning of 0.001, beta of (0.9, 0.98), and inverse square root learning rate schedule from. The **model.optim** section sets the optimization parameters.
@@ -207,9 +207,9 @@ of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single 
 ``'/data/shard_{1..64}.tar'`` or ``'/data/shard__OP_1..64_CL_'`` (recommended, see note below).
 
 .. note::
-  For brace expansion, there may be cases where ``{x..y}`` syntax cannot be used due to shell interference. This occurs most commonly 
-  inside SLURM scripts. Therefore, we provide a few equivalent replacements. Supported opening braces (equivalent to ``{``) are ``(``, 
-  ``[``, ``<`` and the special tag ``_OP_``. Supported closing braces (equivalent to ``}``) are ``)``, ``]``, ``>`` and the special 
+  For brace expansion, there may be cases where ``{x..y}`` syntax cannot be used due to shell interference. This occurs most commonly
+  inside SLURM scripts. Therefore, we provide a few equivalent replacements. Supported opening braces (equivalent to ``{``) are ``(``,
+  ``[``, ``<`` and the special tag ``_OP_``. Supported closing braces (equivalent to ``}``) are ``)``, ``]``, ``>`` and the special
   tag ``_CL_``. For SLURM based tasks, we suggest the use of the special tags for ease of use.
 
 Tarred datasets for sentence-level LMs can be created with the following script:
@@ -234,7 +234,7 @@ For example, if your dataset contains 10000 batches, the script above will creat
   ├── ...
   ├── lm-batches.tokens.2048.40.tar
   └── metadata.json
-  
+
 To train the model on this dataset, the following parameters have to be specified in the **model.train_ds** section:
 
 .. code::

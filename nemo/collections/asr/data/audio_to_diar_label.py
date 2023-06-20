@@ -241,7 +241,7 @@ class _AudioMSDDTrainDataset(Dataset):
                 Unique sample ID for training.
             base_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for the base-scale segments.
-        
+
         Returns:
             per_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for each segment in each scale.

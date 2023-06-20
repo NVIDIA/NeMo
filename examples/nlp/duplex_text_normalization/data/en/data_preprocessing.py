@@ -22,7 +22,7 @@ The operations include:
 will be changed to "10001" -> "one zero zero zero one"
     - denominators of fractions that are longer than `max_denominator_length` will be verbalized digit by digit
     - sentences with non-English characters will be removed
-    - some class formats converted to standardized format, e.g. for `Fraction` "½" become "1/2"   
+    - some class formats converted to standardized format, e.g. for `Fraction` "½" become "1/2"
     - urls that have a spoken form of "*_letter" e.g. "dot h_letter  _letter t_letter  _letter m_letter  _letter l_letter" are converted to "dot h t m l"
     - for class types "PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT" the spoken form is changed to "<self>" which means this class should be left unchanged
 
@@ -36,7 +36,7 @@ USAGE Example:
         --input_path=data_split/train           \
         --output_dir=train_processed \
         --max_integer_length=4  \
-        --max_denominator_length=3 
+        --max_denominator_length=3
 
 In this example, the cleaned files will be saved in train_processed/.
 
@@ -288,7 +288,7 @@ def convert(example):
 def ignore(example):
     """
     This function makes sure specific class types like 'PLAIN', 'ELECTRONIC' etc. are left unchanged.
-    
+
     Args:
         example: data example
     """
