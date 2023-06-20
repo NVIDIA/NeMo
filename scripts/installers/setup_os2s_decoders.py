@@ -29,7 +29,7 @@ import os
 import platform
 import sys
 
-from setuptools import Extension, distutils, setup
+from setuptools import Extension, setup
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
