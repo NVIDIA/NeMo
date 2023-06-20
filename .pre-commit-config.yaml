@@ -30,6 +30,7 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=1000']
       - id: requirements-txt-fixer
+      - id: end-of-file-fixer
 
   - repo: https://github.com/PyCQA/isort
     rev: 5.12.0
