@@ -72,53 +72,45 @@ class RNNTLossPytorch(Loss):
         B, T, V = acts.shape
         D = duration_acts.shape[-1]
         U = torch.max(label_lens).item()
-        log_alpha = torch.zeros(B, T, U) - 9999
+        log_alpha = torch.zeros(B, T, U + 1) - 9999
         log_alpha = log_alpha.to(acts.device)
         d1 = torch.reshape(duration_acts, [B, T, 1, D])
         d2 = torch.reshape(duration_acts, [B, 1, T, D])
         d1 = d1.repeat([1, 1, T, 1])
         d2 = d2.repeat([1, T, 1, 1])
         jump_weight = torch.sum(d1 * d2, dim=-1)
+
         for b in range(B):
             T, U = act_lens[b], label_lens[b]
             for t in range(T):
-                for u in range(U):
+                for u in range(U + 1):
                     if u == 0 and t == 0:
                         log_alpha[b, t, u] = 0.0
-                    elif u > 0 and t == 0:
-                        log_alpha[b, t, u] = -9999
-                    elif u == 1 and t > 0 and t < T - 1:
-                        log_alpha[b, t, u] = acts[b, 0, -1] + jump_weight[:, 0, t]
-                    elif u == U - 1 and t == T - 1:
-                        for tt in range(t):
-                            log_alpha[b, t, u] = torch.logsumexp(
-                                torch.stack(
-                                    [
-                                        log_alpha[b, t, u],
-                                        log_alpha[b, tt, u] + acts[b, tt, -1] + jump_weight[b, tt, t],
-                                    ]
-                                ),
-                                dim=0,
-                            )
-                    elif u < U - 1 and t == T - 1:
+                    elif u > t:
                         log_alpha[b, t, u] = -9999
                     else:
+                        label = labels[b, u - 1] if u >= 1 else -1
                         for tt in range(t):
-                            log_alpha[b, t, u] = torch.logsumexp(
-                                torch.stack(
-                                    [
-                                        log_alpha[b, t, u],
-                                        log_alpha[b, tt, u - 1] + acts[b, tt, labels[b, u - 1]] + jump_weight[b, tt, t],
-                                    ]
-                                ),
-                                dim=0,
-                            )
+                            if u - 1 >= 0:
+                                log_alpha[b, t, u] = torch.logsumexp(
+                                    torch.stack(
+                                        [
+                                            log_alpha[b, t, u],
+                                            log_alpha[b, tt, u - 1] + acts[b, tt, label] + jump_weight[b, tt, t],
+                                        ]
+                                    ),
+                                    dim=0,
+                                )
+
+
+#                    print('alpha', b, t, u, log_alpha[b, t, u])
+
         log_probs = []
         for b in range(B):
             # here we need to add the final blank emission weights.
             t = act_lens[b]
             u = label_lens[b]
-            to_append = log_alpha[b, t - 1, u - 1]
+            to_append = log_alpha[b, t - 1, u] + acts[b, t - 1, -1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
@@ -128,59 +120,54 @@ class RNNTLossPytorch(Loss):
         B, T, V = acts.shape
         D = duration_acts.shape[-1]
         U = torch.max(label_lens).item()
-        log_beta = torch.zeros(B, T, U) - 9999
+        log_beta = torch.zeros(B, T, U + 1) - 9999
         log_beta = log_beta.to(acts.device)
         d1 = torch.reshape(duration_acts, [B, T, 1, D])
         d2 = torch.reshape(duration_acts, [B, 1, T, D])
         d1 = d1.repeat([1, 1, T, 1])
         d2 = d2.repeat([1, T, 1, 1])
         jump_weight = torch.sum(d1 * d2, dim=-1)
+
         for b in range(B):
             T, U = act_lens[b], label_lens[b]
             for t in range(T - 1, -1, -1):
-                for u in range(U - 1, -1, -1):
-                    if u == U - 1 and t == T - 1:
+                for u in range(U, -1, -1):
+                    if u == U and t == T - 1:
                         log_beta[b, t, u] = 0.0
-                    elif u < U - 1 and t == T - 1:
-                        log_beta[b, t, u] = -9999
-                    elif u == U - 1 and t > 0 and t < T - 1:
-                        log_beta[b, t, u] = acts[b, t, -1] + jump_weight[:, t, T - 1]
-                    elif u == 0 and t == 0:
-                        for tt in range(t + 1, T):
-                            log_beta[b, t, u] = torch.logsumexp(
-                                torch.stack(
-                                    [
-                                        log_beta[b, t, u],
-                                        log_beta[b, tt, u] + acts[b, t, -1] + jump_weight[b, t, tt],
-                                    ]
-                                ),
-                                dim=0,
-                            )
-                    elif u > 0 and t == 0:
+                    elif u > t:
                         log_beta[b, t, u] = -9999
                     else:
+                        label = labels[b, u] if u < U else -1
                         for tt in range(t + 1, T):
-                            log_beta[b, t, u] = torch.logsumexp(
-                                torch.stack(
-                                    [
-                                        log_beta[b, t, u],
-                                        log_beta[b, tt, u - 1] + acts[b, t, labels[b, u - 1]] + jump_weight[b, t, tt],
-                                    ]
-                                ),
-                                dim=0,
-                            )
+                            if u + 1 <= U:
+                                log_beta[b, t, u] = torch.logsumexp(
+                                    torch.stack(
+                                        [
+                                            log_beta[b, t, u],
+                                            log_beta[b, tt, u + 1] + acts[b, t, label] + jump_weight[b, t, tt],
+                                        ]
+                                    ),
+                                    dim=0,
+                                )
+
+
+#                        print('beta', b, t, u, log_beta[b, t, u])
+
         log_probs = []
         for b in range(B):
             # here we need to add the final blank emission weights.
-            to_append = log_beta[b, 0, 0]
+#            t = act_lens[b]
+#            u = label_lens[b]
+            to_append = log_beta[b, 0, 0] + acts[b, 0, -1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
         return log_prob
 
 
+
 if __name__ == "__main__":
-    B, T, U, V, D = 1, 5, 4, 3, 2
+    B, T, U, V, D = 1, 6, 4, 3, 2
     loss = RNNTLossPytorch(V, 'sum')
     acts = torch.rand([B, T, V + D], dtype=torch.float)
     labels = torch.ones([B, U], dtype=torch.long)
