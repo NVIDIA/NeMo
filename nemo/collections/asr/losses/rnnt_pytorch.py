@@ -164,7 +164,7 @@ class RNNTLossPytorch(Loss):
 
 if __name__ == "__main__":
     B, T, U, V, D = 1, 3, 1, 1, 2
-    B, T, U, V, D = 4, 15, 7, 24, 4 
+    B, T, U, V, D = 4, 150, 37, 24, 4 
     loss = RNNTLossPytorch(V, 'sum')
     acts = torch.rand([B, T, V + D], dtype=torch.float)
 
