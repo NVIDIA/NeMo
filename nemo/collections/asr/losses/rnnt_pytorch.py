@@ -168,8 +168,8 @@ if __name__ == "__main__":
     loss = RNNTLossPytorch(V, 'sum')
     acts = torch.rand([B, T, V + D], dtype=torch.float)
 
-    labels = torch.randint_like(input=torch.zeros([B, U], dtype=torch.long),high=V - 1)
-    act_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), high=T)
+    labels = torch.randint_like(input=torch.zeros([B, U], dtype=torch.long), high=V - 1)
+    act_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), low=T//2, high=T)
 
     label_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), high=U)
     l = loss(acts, labels, act_lens, label_lens)
