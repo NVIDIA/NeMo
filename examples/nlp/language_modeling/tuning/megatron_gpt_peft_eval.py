@@ -127,6 +127,8 @@ def main(cfg) -> None:
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
+        if peft_model_cfg.get("use_flash_attention", False):
+            peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
 
     with open_dict(cfg):
         # update the config with the trained model config
