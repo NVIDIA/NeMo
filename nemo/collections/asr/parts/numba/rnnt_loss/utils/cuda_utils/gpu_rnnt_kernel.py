@@ -81,7 +81,6 @@ def compute_alphas_kernel(
     mlabels: torch.Tensor,  # [B]
     minibatch: int,
     maxT: int,
-    maxU: int,
     alphabet_size: int,
     blank_: int,
 ):
@@ -120,7 +119,7 @@ def compute_alphas_kernel(
     U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
 
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
-    offset = b * maxT * maxU  # pointer indexing offset
+    offset = b * maxT  # pointer indexing offset
 
     # alphas += offset # pointer offset, ignored since we explicitly add offset
 

@@ -150,10 +150,8 @@ def rnnt_loss_gpu(
     """
     Wrapper method for accessing GPU RNNT loss.
 
-    CUDA implementation ported from [HawkAaron/warp-transducer](https://github.com/HawkAaron/warp-transducer).
-
     Args:
-        acts: Activation tensor of shape [B, T, U, V+1].
+        acts: Activation tensor of shape [B, T, V+1].
         labels: Ground truth labels of shape [B, U].
         input_lengths: Lengths of the acoustic sequence as a vector of ints [B].
         label_lengths: Lengths of the target sequence as a vector of ints [B].
@@ -167,8 +165,7 @@ def rnnt_loss_gpu(
     """
     minibatch_size = acts.shape[0]
     maxT = acts.shape[1]
-    maxU = acts.shape[2]
-    alphabet_size = acts.shape[3]
+    alphabet_size = acts.shape[2]
 
     if hasattr(cuda, 'external_stream'):
         stream = cuda.external_stream(torch.cuda.current_stream(acts.device).cuda_stream)
@@ -180,7 +177,7 @@ def rnnt_loss_gpu(
 
     num_threads = max(1, num_threads)  # have to use at least 1 thread
 
-    gpu_size, status = rnnt_helper.get_workspace_size(maxT, maxU, minibatch_size, gpu=True)
+    gpu_size, status = rnnt_helper.get_workspace_size(maxT, minibatch_size, gpu=True)
     if status != global_constants.RNNTStatus.RNNT_STATUS_SUCCESS:
         raise RuntimeError("Invalid parameter passed when calculating working space memory")
 
@@ -194,11 +191,9 @@ def rnnt_loss_gpu(
     wrapper = gpu_rnnt.GPURNNT(
         minibatch=minibatch_size,
         maxT=maxT,
-        maxU=maxU,
         alphabet_size=alphabet_size,
         workspace=gpu_workspace,
         blank=blank_label,
-        fastemit_lambda=fastemit_lambda,
         clamp=clamp,
         num_threads=num_threads,
         stream=stream,

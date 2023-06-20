@@ -27,7 +27,7 @@ class RNNTLossPytorch(Loss):
         """Input types definitions for CTCLoss.
         """
         return {
-            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "acts": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "act_lens": NeuralType(tuple('B'), LengthsType()),
             "label_lens": NeuralType(tuple('B'), LengthsType()),
@@ -41,77 +41,153 @@ class RNNTLossPytorch(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, blank, reduction):
+    def __init__(self, vocab_size, reduction):
         super().__init__()
-        self.blank = blank
+        self.vocab_size = vocab_size # also used as BOS/EOS symbol
         self.reduction = reduction
 
     def forward(self, acts, labels, act_lens, label_lens):
-        acts = torch.log_softmax(acts, -1)
-        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
+        normed_acts = torch.log_softmax(acts[:,:,:self.vocab_size + 1], -1)
+        duration_acts = acts[:,:,self.vocab_size + 1:]
+        forward_logprob = self.compute_forward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
+        backward_logprob = self.compute_backward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
         losses = -forward_logprob
+        back_losses = -backward_logprob
         if self.reduction == 'mean_batch':
             losses = losses.mean()  # global batch size average
+            back_losses = back_losses.mean()  # global batch size average
         elif self.reduction == 'mean':
             losses = torch.div(losses, label_lens).mean()
+            back_losses = torch.div(back_losses, label_lens).mean()
         elif self.reduction == 'sum':
             losses = losses.sum()
+            back_losses = back_losses.sum()
         elif self.reduction == 'mean_volume':
             losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
+            back_losses = back_losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
 
         return losses
 
-    def compute_forward_prob(self, acts, labels, act_lens, label_lens):
-        B, T, U, _ = acts.shape
-
-        log_alpha = torch.zeros(B, T, U)
+    def compute_forward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
+        B, T, V = acts.shape
+        D = duration_acts.shape[-1]
+        U = torch.max(label_lens).item()
+        log_alpha = torch.zeros(B, T, U) - 9999
         log_alpha = log_alpha.to(acts.device)
-
-        for t in range(T):
-            for u in range(U):
-                if u == 0:
-                    if t == 0:
-                        # this is the base case: (t=0, u=0) with log-alpha = 0.
-                        log_alpha[:, t, u] = 0.0
+        d1 = torch.reshape(duration_acts, [B, T, 1, D])
+        d2 = torch.reshape(duration_acts, [B, 1, T, D])
+        d1 = d1.repeat([1, 1, T, 1])
+        d2 = d2.repeat([1, T, 1, 1])
+        jump_weight = torch.sum(d1 * d2, dim=-1)
+        for b in range(B):
+            T, U = act_lens[b], label_lens[b]
+            for t in range(T):
+                for u in range(U):
+                    if u == 0 and t == 0:
+                        log_alpha[b, t, u] = 0.0
+                    elif u > 0 and t == 0:
+                        log_alpha[b, t, u] = -9999
+                    elif u == 1 and t > 0 and t < T - 1:
+                        log_alpha[b, t, u] = acts[b, 0, -1] + jump_weight[:, 0, t]
+                    elif u == U - 1 and t == T - 1:
+                        for tt in range(t):
+                            log_alpha[b, t, u] = torch.logsumexp(
+                                torch.stack(
+                                    [
+                                        log_alpha[b, t, u],
+                                        log_alpha[b, tt, u] + acts[b, tt, -1] + jump_weight[b, tt, t],
+                                    ]
+                                ),
+                                dim=0,
+                            )
+                    elif u < U - 1 and t == T - 1:
+                        log_alpha[b, t, u] = -9999
                     else:
-                        # this is case for (t = 0, u > 0), reached by (t, u - 1)
-                        # emitting a blank symbol.
-                        log_alpha[:, t, u] = log_alpha[:, t - 1, u] + acts[:, t - 1, 0, self.blank]
-                else:
-                    if t == 0:
-                        # in case of (u > 0, t = 0), this is only reached from
-                        # (t, u - 1) with a label emission.
-                        gathered = torch.gather(
-                            acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
-                        ).reshape(-1)
-                        log_alpha[:, t, u] = log_alpha[:, t, u - 1] + gathered.to(log_alpha.device)
-                    else:
-                        # here both t and u are > 0, this state is reachable
-                        # with two possibilities: (t - 1, u) with a blank emission
-                        # or (t, u - 1) with a label emission.
-                        log_alpha[:, t, u] = torch.logsumexp(
-                            torch.stack(
-                                [
-                                    log_alpha[:, t - 1, u] + acts[:, t - 1, u, self.blank],
-                                    log_alpha[:, t, u - 1]
-                                    + torch.gather(
-                                        acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
-                                    ).reshape(-1),
-                                ]
-                            ),
-                            dim=0,
-                        )
-
+                        for tt in range(t):
+                            log_alpha[b, t, u] = torch.logsumexp(
+                                torch.stack(
+                                    [
+                                        log_alpha[b, t, u],
+                                        log_alpha[b, tt, u - 1] + acts[b, tt, labels[b, u - 1]] + jump_weight[b, tt, t],
+                                    ]
+                                ),
+                                dim=0,
+                            )
         log_probs = []
         for b in range(B):
             # here we need to add the final blank emission weights.
-            to_append = (
-                log_alpha[b, act_lens[b] - 1, label_lens[b]] + acts[b, act_lens[b] - 1, label_lens[b], self.blank]
-            )
+            t = act_lens[b]
+            u = label_lens[b]
+            to_append = log_alpha[b, t - 1, u - 1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
-
+        print('log_prob', log_prob)
         return log_prob
+
+    def compute_backward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
+        B, T, V = acts.shape
+        D = duration_acts.shape[-1]
+        U = torch.max(label_lens).item()
+        log_beta = torch.zeros(B, T, U) - 9999
+        log_beta = log_beta.to(acts.device)
+        d1 = torch.reshape(duration_acts, [B, T, 1, D])
+        d2 = torch.reshape(duration_acts, [B, 1, T, D])
+        d1 = d1.repeat([1, 1, T, 1])
+        d2 = d2.repeat([1, T, 1, 1])
+        jump_weight = torch.sum(d1 * d2, dim=-1)
+        for b in range(B):
+            T, U = act_lens[b], label_lens[b]
+            for t in range(T - 1, -1, -1):
+                for u in range(U - 1, -1, -1):
+                    if u == U - 1 and t == T - 1:
+                        log_beta[b, t, u] = 0.0
+                    elif u < U - 1 and t == T - 1:
+                        log_beta[b, t, u] = -9999
+                    elif u == U - 1 and t > 0 and t < T - 1:
+                        log_beta[b, t, u] = acts[b, t, -1] + jump_weight[:, t, T - 1]
+                    elif u == 0 and t == 0:
+                        for tt in range(t + 1, T):
+                            log_beta[b, t, u] = torch.logsumexp(
+                                torch.stack(
+                                    [
+                                        log_beta[b, t, u],
+                                        log_beta[b, tt, u] + acts[b, t, -1] + jump_weight[b, t, tt],
+                                    ]
+                                ),
+                                dim=0,
+                            )
+                    elif u > 0 and t == 0:
+                        log_beta[b, t, u] = -9999
+                    else:
+                        for tt in range(t + 1, T):
+                            log_beta[b, t, u] = torch.logsumexp(
+                                torch.stack(
+                                    [
+                                        log_beta[b, t, u],
+                                        log_beta[b, tt, u - 1] + acts[b, t, labels[b, u - 1]] + jump_weight[b, t, tt],
+                                    ]
+                                ),
+                                dim=0,
+                            )
+        log_probs = []
+        for b in range(B):
+            # here we need to add the final blank emission weights.
+            to_append = log_beta[b, 0, 0]
+            log_probs.append(to_append)
+        log_prob = torch.stack(log_probs)
+        print('log_prob', log_prob)
+        return log_prob
+
+
+if __name__ == "__main__":
+    B, T, U, V, D = 1, 5, 4, 3, 2
+    loss = RNNTLossPytorch(V, 'sum')
+    acts = torch.rand([B, T, V + D], dtype=torch.float)
+    labels = torch.ones([B, U], dtype=torch.long)
+    act_lens = torch.ones([B], dtype=torch.long) * T
+    label_lens = torch.ones([B], dtype=torch.long) * U
+    l = loss(acts, labels, act_lens, label_lens)
+
 
 
 class TDTLossPytorch(Loss):
@@ -367,3 +443,97 @@ class MultiblankRNNTLossPytorch(Loss):
         log_prob = torch.stack(log_probs)
 
         return log_prob, log_alpha
+
+
+
+class RNNTLossPytorch(Loss):
+    @property
+    def input_types(self):
+        """Input types definitions for CTCLoss.
+        """
+        return {
+            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "act_lens": NeuralType(tuple('B'), LengthsType()),
+            "label_lens": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Output types definitions for CTCLoss.
+        loss:
+            NeuralType(None)
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, blank, reduction):
+        super().__init__()
+        self.blank = blank
+        self.reduction = reduction
+
+    def forward(self, acts, labels, act_lens, label_lens):
+        acts = torch.log_softmax(acts, -1)
+        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
+        losses = -forward_logprob
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, label_lens).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
+
+        return losses
+
+    def compute_forward_prob(self, acts, labels, act_lens, label_lens):
+        B, T, U, _ = acts.shape
+
+        log_alpha = torch.zeros(B, T, U)
+        log_alpha = log_alpha.to(acts.device)
+
+        for t in range(T):
+            for u in range(U):
+                if u == 0:
+                    if t == 0:
+                        # this is the base case: (t=0, u=0) with log-alpha = 0.
+                        log_alpha[:, t, u] = 0.0
+                    else:
+                        # this is case for (t = 0, u > 0), reached by (t, u - 1)
+                        # emitting a blank symbol.
+                        log_alpha[:, t, u] = log_alpha[:, t - 1, u] + acts[:, t - 1, 0, self.blank]
+                else:
+                    if t == 0:
+                        # in case of (u > 0, t = 0), this is only reached from
+                        # (t, u - 1) with a label emission.
+                        gathered = torch.gather(
+                            acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
+                        ).reshape(-1)
+                        log_alpha[:, t, u] = log_alpha[:, t, u - 1] + gathered.to(log_alpha.device)
+                    else:
+                        # here both t and u are > 0, this state is reachable
+                        # with two possibilities: (t - 1, u) with a blank emission
+                        # or (t, u - 1) with a label emission.
+                        log_alpha[:, t, u] = torch.logsumexp(
+                            torch.stack(
+                                [
+                                    log_alpha[:, t - 1, u] + acts[:, t - 1, u, self.blank],
+                                    log_alpha[:, t, u - 1]
+                                    + torch.gather(
+                                        acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
+                                    ).reshape(-1),
+                                ]
+                            ),
+                            dim=0,
+                        )
+
+        log_probs = []
+        for b in range(B):
+            # here we need to add the final blank emission weights.
+            to_append = (
+                log_alpha[b, act_lens[b] - 1, label_lens[b]] + acts[b, act_lens[b] - 1, label_lens[b], self.blank]
+            )
+            log_probs.append(to_append)
+        log_prob = torch.stack(log_probs)
+
+        return log_prob
