@@ -16,21 +16,104 @@ from typing import List
 
 import torch
 import torch.nn.functional as F
+from einops import rearrange
 
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
-from nemo.collections.tts.losses.loss import MaskedLoss
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import AudioSignal, LengthsType, LossType, NeuralType, VoidType
+from nemo.core.neural_types import (
+    AudioSignal,
+    LengthsType,
+    LossType,
+    NeuralType,
+    PredictionsType,
+    RegressionValuesType,
+    VoidType,
+)
+
+
+class MaskedLoss(Loss):
+    def __init__(self, loss_fn, loss_scale: float = 1.0):
+        super(MaskedLoss, self).__init__()
+        self.loss_scale = loss_scale
+        self.loss_fn = loss_fn
+
+    @property
+    def input_types(self):
+        return {
+            "target": NeuralType(('B', 'D', 'T'), RegressionValuesType()),
+            "predicted": NeuralType(('B', 'D', 'T'), PredictionsType()),
+            "target_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, predicted, target, target_len):
+        assert target.shape[2] == predicted.shape[2]
+
+        # [B, D, T]
+        loss = self.loss_fn(input=predicted, target=target)
+        # [B, T]
+        loss = torch.mean(loss, dim=1)
+        # [B]
+        loss = torch.sum(loss, dim=1) / torch.clamp(target_len, min=1.0)
+
+        # [1]
+        loss = torch.mean(loss)
+        loss = self.loss_scale * loss
+
+        return loss
+
+
+class MaskedMAELoss(MaskedLoss):
+    def __init__(self, loss_scale: float = 1.0):
+        loss_fn = torch.nn.L1Loss(reduction='none')
+        super(MaskedMAELoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
+
+
+class MaskedMSELoss(MaskedLoss):
+    def __init__(self, loss_scale: float = 1.0):
+        loss_fn = torch.nn.MSELoss(reduction='none')
+        super(MaskedMSELoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
+
+
+class AudioLoss(Loss):
+    def __init__(self):
+        super(AudioLoss, self).__init__()
+        self.loss_fn = MaskedMAELoss()
+
+    @property
+    def input_types(self):
+        return {
+            "audio_real": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_gen": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": [NeuralType(elements_type=LossType())],
+        }
+
+    @typecheck()
+    def forward(self, audio_real, audio_gen, audio_len):
+        audio_real = rearrange(audio_real, "B T -> B 1 T")
+        audio_gen = rearrange(audio_gen, "B T -> B 1 T")
+        loss = self.loss_fn(target=audio_real, predicted=audio_gen, target_len=audio_len)
+        return loss
 
 
 class MultiResolutionMelLoss(Loss):
-    def __init__(
-        self, sample_rate: int, mel_dim: int, resolutions: List[List], l1_scale: float = 1.0, l2_scale: float = 1.0
-    ):
+    def __init__(self, sample_rate: int, mel_dim: int, resolutions: List[List], l1_scale: float = 1.0):
         super(MultiResolutionMelLoss, self).__init__()
 
-        self.l1_loss_fn = MaskedLoss("l1", loss_scale=l1_scale)
-        self.l2_loss_fn = MaskedLoss("l2", loss_scale=l2_scale)
+        self.l1_loss_fn = MaskedMAELoss(loss_scale=l1_scale)
+        self.l2_loss_fn = MaskedMSELoss()
 
         self.mel_features = torch.nn.ModuleList()
         for n_fft, hop_len, win_len in resolutions:
@@ -68,22 +151,23 @@ class MultiResolutionMelLoss(Loss):
 
     @typecheck()
     def forward(self, audio_real, audio_gen, audio_len):
-        len_diff = audio_real.shape[1] - audio_gen.shape[1]
-        audio_gen = F.pad(audio_gen, (0, len_diff))
-
         loss = 0.0
         for mel_feature in self.mel_features:
             mel_real, mel_real_len = mel_feature(x=audio_real, seq_len=audio_len)
             mel_gen, _ = mel_feature(x=audio_gen, seq_len=audio_len)
-            loss = loss + self.l1_loss_fn(predicted=mel_gen, target=mel_real, target_len=mel_real_len)
-            loss = loss + self.l2_loss_fn(predicted=mel_gen, target=mel_real, target_len=mel_real_len)
+            loss += self.l1_loss_fn(predicted=mel_gen, target=mel_real, target_len=mel_real_len)
+            loss += self.l2_loss_fn(predicted=mel_gen, target=mel_real, target_len=mel_real_len)
 
         loss /= len(self.mel_features)
 
         return loss
 
 
-class FeatureMatchingLoss(Loss):
+class RelativeFeatureMatchingLoss(Loss):
+    def __init__(self, div_guard=1e-2):
+        super(RelativeFeatureMatchingLoss, self).__init__()
+        self.div_guard = div_guard
+
     @property
     def input_types(self):
         return {
@@ -106,10 +190,10 @@ class FeatureMatchingLoss(Loss):
                 # [B, ...]
                 feat_mean = torch.mean(torch.abs(feat_real), dim=-1)
                 diff = torch.mean(torch.abs(feat_real - feat_gen), dim=-1)
-                feat_loss = diff / (feat_mean + 1e-2)
+                feat_loss = diff / (feat_mean + self.div_guard)
                 # [1]
                 feat_loss = torch.mean(feat_loss) / len(fmap_real)
-                loss = loss + feat_loss
+                loss += feat_loss
 
         loss /= len(fmaps_real)
 
@@ -131,7 +215,7 @@ class GeneratorLoss(Loss):
     def forward(self, disc_scores):
         loss = 0.0
         for disc_score in disc_scores:
-            loss = loss + torch.mean((1 - disc_score) ** 2)
+            loss += torch.mean(F.relu(1 - disc_score))
 
         loss /= len(disc_scores)
 
@@ -154,9 +238,9 @@ class DiscriminatorLoss(Loss):
     def forward(self, disc_scores_real, disc_scores_gen):
         loss = 0.0
         for disc_score_real, disc_score_gen in zip(disc_scores_real, disc_scores_gen):
-            loss_real = torch.mean((1 - disc_score_real) ** 2)
-            loss_gen = torch.mean(disc_score_gen ** 2)
-            loss = loss + (loss_real + loss_gen) / 2
+            loss_real = torch.mean(F.relu(1 - disc_score_real))
+            loss_gen = torch.mean(F.relu(1 + disc_score_gen))
+            loss += (loss_real + loss_gen) / 2
 
         loss /= len(disc_scores_real)
 

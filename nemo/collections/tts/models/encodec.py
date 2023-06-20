@@ -13,19 +13,23 @@
 # limitations under the License.
 
 import itertools
+import math
+import random
 from pathlib import Path
 from typing import List, Tuple
 
 import torch
+import torch.nn.functional as F
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.tts.losses.encodec_loss import (
+    AudioLoss,
     DiscriminatorLoss,
-    FeatureMatchingLoss,
     GeneratorLoss,
     MultiResolutionMelLoss,
+    RelativeFeatureMatchingLoss,
 )
 from nemo.collections.tts.modules.common import GaussianDropout
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
@@ -51,7 +55,9 @@ class EnCodecModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.sample_rate = cfg.sample_rate
-        self.disc_update_steps = cfg.get("disc_update_steps", 1)
+        self.samples_per_frame = cfg.samples_per_frame
+
+        self.disc_update_prob = cfg.get("disc_update_prob", 1.0)
         self.audio_encoder = instantiate(cfg.audio_encoder)
 
         # Optionally, add gaussian noise to encoder output as an information bottleneck
@@ -66,25 +72,26 @@ class EnCodecModel(ModelPT):
         else:
             self.vector_quantizer = None
 
-        self.generator = instantiate(cfg.generator)
+        self.audio_decoder = instantiate(cfg.audio_decoder)
         self.discriminator = instantiate(cfg.discriminator)
 
         mel_loss_dim = cfg.get("mel_loss_dim", 64)
         mel_loss_resolutions = cfg.mel_loss_resolutions
-        mel_loss_l1_scale = cfg.get("mel_loss_l1_scale", 0.1)
-        mel_loss_l2_scale = cfg.get("mel_loss_l2_scale", 1.0)
-        self.gen_loss_scale = cfg.get("gen_loss_scale", 4.0)
-        self.feature_loss_scale = cfg.get("feature_loss_scale", 4.0)
+        self.audio_loss_scale = cfg.get("audio_loss_scale", 0.1)
+        self.mel_loss_scale = cfg.get("mel_loss_scale", 1.0)
+        mel_loss_l1_scale = cfg.get("mel_loss_l1_scale", 1.0)
+        self.gen_loss_scale = cfg.get("gen_loss_scale", 3.0)
+        self.feature_loss_scale = cfg.get("feature_loss_scale", 3.0)
 
+        self.audio_loss_fn = AudioLoss()
         self.mel_loss_fn = MultiResolutionMelLoss(
             sample_rate=self.sample_rate,
             mel_dim=mel_loss_dim,
             resolutions=mel_loss_resolutions,
             l1_scale=mel_loss_l1_scale,
-            l2_scale=mel_loss_l2_scale,
         )
         self.gen_loss_fn = GeneratorLoss()
-        self.feature_loss_fn = FeatureMatchingLoss()
+        self.feature_loss_fn = RelativeFeatureMatchingLoss()
         self.disc_loss_fn = DiscriminatorLoss()
 
         self.log_config = cfg.get("log_config", None)
@@ -102,6 +109,7 @@ class EnCodecModel(ModelPT):
         },
     )
     def encode_audio(self, audio: torch.Tensor, audio_len: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        audio, audio_len = self.pad_audio(audio, audio_len)
         encoded, encoded_len = self.audio_encoder(audio=audio, audio_len=audio_len)
         return encoded, encoded_len
 
@@ -116,7 +124,7 @@ class EnCodecModel(ModelPT):
         },
     )
     def decode_audio(self, inputs: torch.Tensor, input_len: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        audio, audio_len = self.generator(inputs=inputs, input_len=input_len)
+        audio, audio_len = self.audio_decoder(inputs=inputs, input_len=input_len)
         return audio, audio_len
 
     @typecheck(
@@ -158,6 +166,7 @@ class EnCodecModel(ModelPT):
         },
     )
     def forward(self, audio: torch.Tensor, audio_len: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        audio, audio_len = self.pad_audio(audio, audio_len)
         encoded, encoded_len = self.encode_audio(audio=audio, audio_len=audio_len)
 
         if self.vector_quantizer:
@@ -169,11 +178,20 @@ class EnCodecModel(ModelPT):
 
         return output_audio, output_audio_len
 
+    # Zero pad the end of the audio so that we do not have a partial end frame.
+    def pad_audio(self, audio, audio_len):
+        padded_len = self.samples_per_frame * torch.ceil(audio_len / self.samples_per_frame).int()
+        max_len = padded_len.max().item()
+        num_padding = max_len - audio.shape[1]
+        padded_audio = F.pad(audio, (0, num_padding))
+        return padded_audio, padded_len
+
     def _process_batch(self, batch):
         # [B, T_audio]
         audio = batch.get("audio")
         # [B]
         audio_len = batch.get("audio_lens")
+        audio, audio_len = self.pad_audio(audio, audio_len)
 
         # [B, D, T_encoded]
         encoded, encoded_len = self.audio_encoder(audio=audio, audio_len=audio_len)
@@ -187,18 +205,17 @@ class EnCodecModel(ModelPT):
             commit_loss = None
 
         # [B, T]
-        audio_gen, audio_gen_len = self.generator(inputs=encoded, input_len=encoded_len)
+        audio_gen, audio_gen_len = self.audio_decoder(inputs=encoded, input_len=encoded_len)
 
         return audio, audio_len, audio_gen, commit_loss
 
     def training_step(self, batch, batch_idx):
-
         optim_gen, optim_disc = self.optimizers()
         optim_gen.zero_grad()
 
         audio, audio_len, audio_gen, commit_loss = self._process_batch(batch)
 
-        if batch_idx % self.disc_update_steps != 0:
+        if self.disc_update_prob < random.random():
             loss_disc = None
         else:
             # Train discriminator
@@ -212,7 +229,11 @@ class EnCodecModel(ModelPT):
             self.manual_backward(loss_disc)
             optim_disc.step()
 
+        loss_audio = self.audio_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        train_loss_audio = self.audio_loss_scale * loss_audio
+
         loss_mel = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        train_loss_mel = self.mel_loss_scale * loss_mel
 
         _, disc_scores_gen, fmaps_real, fmaps_gen = self.discriminator(audio_real=audio, audio_gen=audio_gen)
 
@@ -222,7 +243,7 @@ class EnCodecModel(ModelPT):
         loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)
         train_loss_feature = self.feature_loss_scale * loss_feature
 
-        loss_gen_all = loss_mel + train_loss_gen + train_loss_feature
+        loss_gen_all = train_loss_audio + train_loss_mel + train_loss_gen + train_loss_feature
         if commit_loss is not None:
             loss_gen_all += commit_loss
 
@@ -232,6 +253,7 @@ class EnCodecModel(ModelPT):
         self.update_lr()
 
         metrics = {
+            "g_loss_audio": loss_audio,
             "g_loss_mel": loss_mel,
             "g_loss_gen": loss_gen,
             "g_loss_feature": loss_feature,
@@ -247,15 +269,17 @@ class EnCodecModel(ModelPT):
             metrics["g_loss_commit"] = commit_loss
 
         self.log_dict(metrics, on_step=True, sync_dist=True)
-        self.log("t_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
+        self.log("t_loss", train_loss_mel, prog_bar=True, logger=False, sync_dist=True)
 
     def training_epoch_end(self, outputs):
         self.update_lr("epoch")
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, audio_gen, _ = self._process_batch(batch)
+        loss_audio = self.audio_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         loss_mel = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-        self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
+        metrics = {"val_loss": loss_audio + loss_mel, "val_loss_audio": loss_audio, "val_loss_mel": loss_mel}
+        self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
     @staticmethod
     def _setup_train_dataloader(cfg):
@@ -309,7 +333,7 @@ class EnCodecModel(ModelPT):
         sched_config = optim_config.pop("sched", None)
         OmegaConf.set_struct(optim_config, True)
 
-        gen_params = itertools.chain(self.audio_encoder.parameters(), self.generator.parameters())
+        gen_params = itertools.chain(self.audio_encoder.parameters(), self.audio_decoder.parameters())
         disc_params = self.discriminator.parameters()
         optim_g = instantiate(optim_config, params=gen_params)
         optim_d = instantiate(optim_config, params=disc_params)
@@ -342,7 +366,7 @@ class EnCodecModel(ModelPT):
 
     def configure_callbacks(self):
         if not self.log_config:
-            return
+            return []
 
         data_loader = self._setup_test_dataloader(self.log_config)
         generators = instantiate(self.log_config.generators)

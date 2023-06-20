@@ -20,8 +20,9 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 
-from nemo.collections.tts.losses.loss import MaskedLoss
+from nemo.collections.tts.losses.encodec_loss import MaskedMSELoss
 from nemo.collections.tts.parts.utils.distributed import broadcast_tensors
+from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, LossType
@@ -115,6 +116,22 @@ def _k_means(samples: Tensor, num_clusters: int, num_iters: int = 10) -> Tuple[T
         means = torch.where(bin_counts_expanded == 0, means, new_means)
 
     return means, bin_counts
+
+
+def _mask_3d(tensor: Tensor, lengths: Tensor):
+    """
+    Mask 3d tensor with time on 1st axis.
+
+    Args:
+        tensor: tensor of shape (B, T, D)
+        lengths: LongTensor of shape (B,)
+    Returns:
+        Masked Tensor (B, T, D)
+    """
+    batch_size, max_lengths, _ = tensor.shape
+    mask = torch.ones(batch_size, max_lengths, 1).cumsum(dim=1).type_as(lengths)
+    mask = mask <= rearrange(lengths, "b -> b 1 1")
+    return tensor * mask
 
 
 @experimental
@@ -215,7 +232,10 @@ class EuclideanCodebook(NeuralModule):
 
     @property
     def input_types(self):
-        return {"inputs": NeuralType(('B', 'T', 'D'), EncodedRepresentation())}
+        return {
+            "inputs": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
+        }
 
     @property
     def output_types(self):
@@ -224,7 +244,7 @@ class EuclideanCodebook(NeuralModule):
             "indices": NeuralType(('B', 'T'), Index()),
         }
 
-    def forward(self, inputs):
+    def forward(self, inputs, input_len):
         input_flat = rearrange(inputs, "B T D -> (B T) D")
         self._init_codes(input_flat)
         # [(B T)]
@@ -239,27 +259,34 @@ class EuclideanCodebook(NeuralModule):
             self._expire_codes(inputs=input_flat)
             self._update_codes(inputs=input_flat, indices=indices_flat)
 
+        quantized = _mask_3d(quantized, input_len)
+        indices = mask_sequence_tensor(indices, input_len)
         return quantized, indices
 
     @typecheck(
-        input_types={"inputs": NeuralType(('B', 'T', 'D'), EncodedRepresentation())},
+        input_types={
+            "inputs": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "input_len": NeuralType(tuple('B'), LengthsType()),
+        },
         output_types={"indices": NeuralType(('B', 'T'), Index())},
     )
-    def encode(self, inputs):
+    def encode(self, inputs, input_len):
         input_flat = rearrange(inputs, "B T D -> (B T) D")
         # [(B T)]
         indices_flat = self._quantize(inputs=input_flat)
         # [B, T]
         indices = indices_flat.view(*inputs.shape[:-1])
+        indices = mask_sequence_tensor(indices, input_len)
         return indices
 
     @typecheck(
-        input_types={"indices": NeuralType(('B', 'T'), Index())},
+        input_types={"indices": NeuralType(('B', 'T'), Index()), "input_len": NeuralType(tuple('B'), LengthsType()),},
         output_types={"quantized": NeuralType(('B', 'T', 'D'), EncodedRepresentation())},
     )
-    def decode(self, indices):
+    def decode(self, indices, input_len):
         # [B, T, D]
         quantized = self._dequantize(indices=indices)
+        quantized = _mask_3d(quantized, input_len)
         return quantized
 
 
@@ -294,7 +321,7 @@ class ResidualVectorQuantizer(NeuralModule):
         self.codebook_dim = codebook_dim
 
         if commit_loss_scale:
-            self.commit_loss_fn = MaskedLoss(loss_type="l2", loss_scale=commit_loss_scale)
+            self.commit_loss_fn = MaskedMSELoss(loss_scale=commit_loss_scale)
         else:
             self.commit_loss_fn = None
 
@@ -336,7 +363,6 @@ class ResidualVectorQuantizer(NeuralModule):
             "commit_loss": NeuralType((), LossType()),
         }
 
-    # TODO: Add Masking
     def forward(self, inputs: Tensor, input_len: Tensor) -> Tuple[Tensor, Tensor, float]:
         commit_loss = 0.0
         residual = rearrange(inputs, "B D T -> B T D")
@@ -344,7 +370,7 @@ class ResidualVectorQuantizer(NeuralModule):
         index_list = []
         quantized = torch.zeros_like(residual)
         for codebook in self.codebooks:
-            quantized_i, indices_i = codebook(residual)
+            quantized_i, indices_i = codebook(inputs=residual, input_len=input_len)
 
             if self.training:
                 quantized_i = residual + (quantized_i - residual).detach()
@@ -377,9 +403,9 @@ class ResidualVectorQuantizer(NeuralModule):
         index_list = []
         for codebook in self.codebooks:
             # [B, T]
-            indices_i = codebook.encode(inputs=residual)
+            indices_i = codebook.encode(inputs=residual, input_len=input_len)
             # [B, D, T]
-            quantized_i = codebook.decode(indices=indices_i)
+            quantized_i = codebook.decode(indices=indices_i, input_len=input_len)
             residual = residual - quantized_i
             index_list.append(indices_i)
         # [N, B, T]
@@ -397,7 +423,7 @@ class ResidualVectorQuantizer(NeuralModule):
         # [B, T, D]
         quantized = torch.zeros([indices.shape[1], indices.shape[2], self.codebook_dim], device=indices.device)
         for codebook_indices, codebook in zip(indices, self.codebooks):
-            quantized_i = codebook.decode(indices=codebook_indices)
+            quantized_i = codebook.decode(indices=codebook_indices, input_len=input_len)
             quantized = quantized + quantized_i
         quantized = rearrange(quantized, "B T D -> B D T")
         return quantized

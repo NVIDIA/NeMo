@@ -15,14 +15,14 @@
 import pytest
 import torch
 
-from nemo.collections.tts.losses.loss import MaskedLoss
+from nemo.collections.tts.losses.encodec_loss import MaskedMAELoss, MaskedMSELoss
 
 
-class TestTTSLoss:
+class TestEnCodecLoss:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_masked_loss_l1(self):
-        loss_fn = MaskedLoss("l1")
+        loss_fn = MaskedMAELoss()
         target = torch.tensor([[[1.0], [2.0], [0.0]], [[3.0], [0.0], [0.0]]]).transpose(1, 2)
         predicted = torch.tensor([[[0.5], [1.0], [0.0]], [[4.5], [0.0], [0.0]]]).transpose(1, 2)
         target_len = torch.tensor([2, 1])
@@ -34,7 +34,7 @@ class TestTTSLoss:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_masked_loss_l2(self):
-        loss_fn = MaskedLoss("l2")
+        loss_fn = MaskedMSELoss()
         target = torch.tensor([[[1.0], [2.0], [4.0]], [[3.0], [0.0], [0.0]]]).transpose(1, 2)
         predicted = torch.tensor([[[0.5], [1.0], [4.0]], [[4.5], [0.0], [0.0]]]).transpose(1, 2)
         target_len = torch.tensor([3, 1])

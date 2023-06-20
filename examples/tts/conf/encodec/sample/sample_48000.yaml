@@ -1,4 +1,0 @@
-sample_rate: 48000
-train_n_samples: 48000
-down_sample_rates: [2, 4, 5, 8]
-up_sample_rates: [8, 5, 4, 2]

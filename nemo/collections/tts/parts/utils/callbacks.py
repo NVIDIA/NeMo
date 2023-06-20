@@ -270,9 +270,10 @@ class EnCodecArtifactGenerator(ArtifactGenerator):
     Generator for logging EnCodec model outputs.
     """
 
-    def __init__(self, log_audio: bool = True, log_encoding: bool = False):
+    def __init__(self, log_audio: bool = True, log_encoding: bool = False, log_quantized: bool = False):
         self.log_audio = log_audio
         self.log_encoding = log_encoding
+        self.log_quantized = log_quantized
 
     def _generate_audio(self, model, audio_ids, audio, audio_len):
         if not self.log_audio:
@@ -284,7 +285,7 @@ class EnCodecArtifactGenerator(ArtifactGenerator):
 
         audio_artifacts = []
         for i, audio_id in enumerate(audio_ids):
-            audio_pred_i = audio_pred[i][: audio_pred_len[i]].cpu().numpy()
+            audio_pred_i = audio_pred[i, : audio_pred_len[i]].cpu().numpy()
             audio_artifact = AudioArtifact(
                 id=f"audio_{audio_id}", data=audio_pred_i, filename=f"{audio_id}.wav", sample_rate=model.sample_rate,
             )
@@ -292,25 +293,46 @@ class EnCodecArtifactGenerator(ArtifactGenerator):
 
         return audio_artifacts
 
-    def _generate_encodings(self, model, audio_ids, audio, audio_len):
-        if not self.log_encoding:
-            return []
+    def _generate_images(self, model, audio_ids, audio, audio_len):
+        image_artifacts = []
+
+        if not self.log_encoding and not self.log_quantized:
+            return image_artifacts
 
         with torch.no_grad():
             # [B, D, T]
             encoded, encoded_len = model.encode_audio(audio=audio, audio_len=audio_len)
 
-        image_artifacts = []
+        if self.log_encoding:
+            for i, audio_id in enumerate(audio_ids):
+                encoded_i = encoded[i, :, : encoded_len[i]].cpu().numpy()
+                encoded_artifact = ImageArtifact(
+                    id=f"encoded_{audio_id}",
+                    data=encoded_i,
+                    filename=f"{audio_id}_encode.png",
+                    x_axis="Audio Frames",
+                    y_axis="Channels",
+                )
+                image_artifacts.append(encoded_artifact)
+
+        if not self.log_quantized:
+            return image_artifacts
+
+        with torch.no_grad():
+            # [B, D, T]
+            indices = model.quantize_encode(encoded=encoded, encoded_len=encoded_len)
+            quantized = model.quantize_decode(indices=indices, encoded_len=encoded_len)
+
         for i, audio_id in enumerate(audio_ids):
-            encoded_i = encoded[i][:, : encoded_len[i]].cpu().numpy()
-            encoded_artifact = ImageArtifact(
-                id=f"encoded_{audio_id}",
-                data=encoded_i,
-                filename=f"{audio_id}_encode.png",
+            quantized_i = quantized[i, :, : encoded_len[i]].cpu().numpy()
+            quantized_artifact = ImageArtifact(
+                id=f"quantized_{audio_id}",
+                data=quantized_i,
+                filename=f"{audio_id}_quantized.png",
                 x_axis="Audio Frames",
                 y_axis="Channels",
             )
-            image_artifacts.append(encoded_artifact)
+            image_artifacts.append(quantized_artifact)
 
         return image_artifacts
 
@@ -325,7 +347,7 @@ class EnCodecArtifactGenerator(ArtifactGenerator):
         audio_len = batch_dict.get("audio_lens")
 
         audio_artifacts = self._generate_audio(model=model, audio_ids=audio_ids, audio=audio, audio_len=audio_len)
-        image_artifacts = self._generate_encodings(model=model, audio_ids=audio_ids, audio=audio, audio_len=audio_len)
+        image_artifacts = self._generate_images(model=model, audio_ids=audio_ids, audio=audio, audio_len=audio_len)
 
         return audio_artifacts, image_artifacts
 

@@ -1,4 +1,0 @@
-encoder_noise_stdev: 0.0
-vector_quantizer:
-  _target_: nemo.collections.tts.modules.vector_quantization.ResidualVectorQuantizer
-  num_codebooks: 8

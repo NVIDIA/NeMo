@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
+from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, LengthsType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -50,7 +51,12 @@ class Conv1dNorm(NeuralModule):
         if not padding:
             padding = get_padding(kernel_size)
         conv = nn.Conv1d(
-            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            padding_mode="reflect",
         )
         self.conv = nn.utils.weight_norm(conv)
 
@@ -58,6 +64,7 @@ class Conv1dNorm(NeuralModule):
     def input_types(self):
         return {
             "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
+            "lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -69,8 +76,10 @@ class Conv1dNorm(NeuralModule):
     def remove_weight_norm(self):
         nn.utils.remove_weight_norm(self.conv)
 
-    def forward(self, inputs):
-        return self.conv(inputs)
+    def forward(self, inputs, lengths):
+        out = self.conv(inputs)
+        out = mask_sequence_tensor(out, lengths)
+        return out
 
 
 class ConvTranspose1dNorm(NeuralModule):
@@ -84,6 +93,7 @@ class ConvTranspose1dNorm(NeuralModule):
             stride=stride,
             padding=padding,
             output_padding=output_padding,
+            padding_mode="zeros",
         )
         self.conv = nn.utils.weight_norm(conv)
 
@@ -91,6 +101,7 @@ class ConvTranspose1dNorm(NeuralModule):
     def input_types(self):
         return {
             "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
+            "lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -102,8 +113,10 @@ class ConvTranspose1dNorm(NeuralModule):
     def remove_weight_norm(self):
         nn.utils.remove_weight_norm(self.conv)
 
-    def forward(self, inputs):
-        return self.conv(inputs)
+    def forward(self, inputs, lengths):
+        out = self.conv(inputs)
+        out = mask_sequence_tensor(out, lengths)
+        return out
 
 
 class Conv2dNorm(NeuralModule):
@@ -125,6 +138,7 @@ class Conv2dNorm(NeuralModule):
             stride=stride,
             dilation=dilation,
             padding=padding,
+            padding_mode="reflect",
         )
         self.conv = nn.utils.weight_norm(conv)
 
@@ -160,6 +174,7 @@ class SEANetResnetBlock(NeuralModule):
     def input_types(self):
         return {
             "inputs": NeuralType(('B', 'C', 'T_input'), VoidType()),
+            "lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -173,13 +188,54 @@ class SEANetResnetBlock(NeuralModule):
         self.res_conv1.remove_weight_norm()
         self.res_conv2.remove_weight_norm()
 
-    def forward(self, inputs):
+    def forward(self, inputs, lengths):
         res = self.activation(inputs)
-        res = self.res_conv1(res)
+        res = self.res_conv1(res, lengths)
         res = self.activation(res)
-        res = self.res_conv2(res)
+        res = self.res_conv2(res, lengths)
 
-        out = self.pre_conv(inputs) + res
+        out = self.pre_conv(inputs, lengths) + res
+        out = mask_sequence_tensor(out, lengths)
+        return out
+
+
+class SEANetRNN(NeuralModule):
+    def __init__(self, dim: int, num_layers: int, rnn_type: str = "lstm", use_skip: bool = False):
+        super().__init__()
+        self.use_skip = use_skip
+        if rnn_type == "lstm":
+            self.rnn = torch.nn.LSTM(input_size=dim, hidden_size=dim, num_layers=num_layers)
+        elif rnn_type == "gru":
+            self.rnn = torch.nn.GRU(input_size=dim, hidden_size=dim, num_layers=num_layers)
+        else:
+            raise ValueError(f"Unknown RNN type {rnn_type}")
+
+    @property
+    def input_types(self):
+        return {
+            "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
+            "lengths": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "out": [NeuralType(('B', 'C', 'T'), VoidType())],
+        }
+
+    def forward(self, inputs, lengths):
+        inputs = rearrange(inputs, "B C T -> B T C")
+
+        packed_inputs = nn.utils.rnn.pack_padded_sequence(
+            inputs, lengths=lengths.cpu(), batch_first=True, enforce_sorted=False
+        )
+        packed_out, _ = self.rnn(packed_inputs)
+        out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
+
+        if self.use_skip:
+            out = out + inputs
+
+        out = rearrange(out, "B T C -> B C T")
         return out
 
 
@@ -191,6 +247,9 @@ class SEANetEncoder(NeuralModule):
         in_kernel_size: int = 7,
         out_kernel_size: int = 7,
         encoded_dim: int = 128,
+        rnn_layers: int = 2,
+        rnn_type: str = "lstm",
+        rnn_skip: bool = True,
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0
@@ -220,6 +279,7 @@ class SEANetEncoder(NeuralModule):
             in_channels = out_channels
             self.down_sample_conv_layers.append(down_sample_conv)
 
+        self.rnn = SEANetRNN(dim=in_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size)
 
     @property
@@ -243,25 +303,26 @@ class SEANetEncoder(NeuralModule):
         for down_sample_conv in self.down_sample_conv_layers:
             down_sample_conv.remove_weight_norm()
 
-    # TODO: Add masking
     def forward(self, audio, audio_len):
         encoded_len = audio_len
         audio = rearrange(audio, "B T -> B 1 T")
         # [B, C, T_audio]
-        out = self.pre_conv(audio)
+        out = self.pre_conv(audio, encoded_len)
         for res_block, down_sample_conv, down_sample_rate in zip(
             self.res_blocks, self.down_sample_conv_layers, self.down_sample_rates
         ):
-            encoded_len = torch.div(encoded_len, down_sample_rate, rounding_mode="floor")
             # [B, C, T]
-            out = res_block(out)
+            out = res_block(out, encoded_len)
             out = self.activation(out)
-            # [B, 2 * C, T / down_sample_rate]
-            out = down_sample_conv(out)
 
+            encoded_len = encoded_len // down_sample_rate
+            # [B, 2 * C, T / down_sample_rate]
+            out = down_sample_conv(out, encoded_len)
+
+        out = self.rnn(out, encoded_len)
         out = self.activation(out)
         # [B, encoded_dim, T_encoded]
-        encoded = self.post_conv(out)
+        encoded = self.post_conv(out, encoded_len)
         return encoded, encoded_len
 
 
@@ -273,6 +334,9 @@ class SEANetDecoder(NeuralModule):
         in_kernel_size: int = 7,
         out_kernel_size: int = 3,
         encoded_dim: int = 128,
+        rnn_layers: int = 2,
+        rnn_type: str = "lstm",
+        rnn_skip: bool = True,
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0
@@ -282,6 +346,7 @@ class SEANetDecoder(NeuralModule):
         self.up_sample_rates = up_sample_rates
         self.activation = nn.ELU()
         self.pre_conv = Conv1dNorm(in_channels=encoded_dim, out_channels=base_channels, kernel_size=in_kernel_size)
+        self.rnn = SEANetRNN(dim=base_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
 
         in_channels = base_channels
         self.res_blocks = nn.ModuleList([])
@@ -322,23 +387,23 @@ class SEANetDecoder(NeuralModule):
         for res_block in self.res_blocks:
             res_block.remove_weight_norm()
 
-    # TODO: Add masking
     def forward(self, inputs, input_len):
         audio_len = input_len
         # [B, C, T_encoded]
-        out = self.pre_conv(inputs)
+        out = self.pre_conv(inputs, audio_len)
+        out = self.rnn(out, audio_len)
         for res_block, up_sample_conv, up_sample_rate in zip(
             self.res_blocks, self.up_sample_conv_layers, self.up_sample_rates
         ):
             audio_len *= up_sample_rate
             out = self.activation(out)
             # [B, C / 2, T * up_sample_rate]
-            out = up_sample_conv(out)
-            out = res_block(out)
+            out = up_sample_conv(out, audio_len)
+            out = res_block(out, audio_len)
 
         out = self.activation(out)
         # [B, 1, T_audio]
-        out = self.post_conv(out)
+        out = self.post_conv(out, audio_len)
         audio = self.out_activation(out)
         audio = rearrange(audio, "B 1 T -> B T")
         return audio, audio_len
