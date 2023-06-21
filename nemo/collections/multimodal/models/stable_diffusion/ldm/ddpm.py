@@ -126,8 +126,11 @@ class DDPM(torch.nn.Module):
         self.first_stage_key = cfg.first_stage_key
         self.image_size = cfg.image_size  # try conv?
         self.channels = cfg.channels
+        self.channels_last = cfg.channels_last
         self.use_positional_encodings = cfg.use_positional_encodings
-        self.model = DiffusionWrapper(cfg.unet_config, cfg.conditioning_key)
+        self.model = DiffusionWrapper(
+            cfg.unet_config, cfg.conditioning_key, cfg.inductor, cfg.inductor_cudagraphs, cfg.capture_cudagraph_iters
+        )
         self.model_type = None
         count_params(self.model, verbose=True)
 
@@ -384,8 +387,11 @@ class DDPM(torch.nn.Module):
         x = batch[k]
         if len(x.shape) == 3:
             x = x[..., None]
-        x = rearrange(x, 'b h w c -> b c h w')
-        x = x.to(memory_format=torch.contiguous_format)
+        if self.channels_last:
+            x = x.permute(0, 3, 1, 2).to(non_blocking=True)
+        else:
+            x = rearrange(x, "b h w c -> b c h w")
+            x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
         return x
 
     def shared_step(self, batch):
@@ -481,11 +487,9 @@ class LatentDiffusion(DDPM, Serialization):
             self.init_from_ckpt(ckpt_path, ignore_keys)
             self.restarted_from_ckpt = True
 
-        # Fusing VAE and CLIP doesn't give benefit
-        if cfg.get("inductor", False):
-            # TorchInductor with CUDA graph can lead to OOM
-            inductor_config.triton.cudagraphs = cfg.get("inductor_cudagraphs", False)
-            self.model = optimize("inductor")(self.model)
+        if self.channels_last:
+            self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
+            self.model = self.model.to(memory_format=torch.channels_last)
 
     def make_cond_schedule(self,):
         self.cond_ids = torch.full(size=(self.num_timesteps,), fill_value=self.num_timesteps - 1, dtype=torch.long)
@@ -1950,11 +1954,28 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
-    def __init__(self, diff_model_config, conditioning_key):
+    def __init__(
+        self,
+        diff_model_config,
+        conditioning_key,
+        inductor: bool = False,
+        inductor_cudagraphs: bool = False,
+        capture_cudagraph_iters: int = -1,
+    ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
         self.conditioning_key = conditioning_key
         assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm']
+
+        # Fusing VAE and CLIP doesn't give benefit
+        if inductor:
+            # TorchInductor with CUDA graph can lead to OOM
+            inductor_config.triton.cudagraphs = inductor_cudagraphs
+            self.diffusion_model = optimize("inductor")(self.diffusion_model)
+        # CUDA graph
+        self.capture_cudagraph_iters = capture_cudagraph_iters
+        self.iterations = 0
+        self.graphed_diffusion_model = None
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
@@ -1964,7 +1985,15 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
             out = self.diffusion_model(xc, t)
         elif self.conditioning_key == 'crossattn':
             cc = torch.cat(c_crossattn, 1)
-            out = self.diffusion_model(x, t, context=cc)
+            if self.iterations == self.capture_cudagraph_iters:
+                logging.info("Capturing CUDA graph for module: %s", self.diffusion_model.__class__.__name__)
+                self.graphed_diffusion_model = torch.cuda.make_graphed_callables(self.diffusion_model, (x, t, cc))
+
+            if 0 <= self.capture_cudagraph_iters <= self.iterations:
+                out = self.graphed_diffusion_model(x, t, cc)
+            else:
+                out = self.diffusion_model(x, t, context=cc)
+            self.iterations += 1
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
