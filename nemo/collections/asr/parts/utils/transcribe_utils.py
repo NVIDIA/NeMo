@@ -23,7 +23,7 @@ from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import ASRModel, EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
