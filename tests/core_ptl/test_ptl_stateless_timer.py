@@ -60,8 +60,9 @@ class ExampleModel(ModelPT):
         return (self.l1(batch) - batch.mean(dim=1)).mean()
 
     def validation_step(self, batch, batch_idx):
-        self.validation_step_outputs.append((self.l1(batch) - batch.mean(dim=1)).mean())
-        return self.validation_step_outputs
+        loss = (self.l1(batch) - batch.mean(dim=1)).mean()
+        self.validation_step_outputs.append(loss)
+        return loss
 
     def training_step(self, batch, batch_idx):
         return (self.l1(batch) - batch.mean(dim=1)).mean()
@@ -79,7 +80,7 @@ class ExampleModel(ModelPT):
         if not self.validation_step_outputs:
             return
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean(), sync_dist=True)
-
+        self.validation_step_outputs.clear()  # free memory
 
 class TestStatelessTimer:
     def setup_model(self):

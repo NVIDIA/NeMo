@@ -271,8 +271,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ``'capit_class_report'`` which values are ``None``. Values are ``None`` because metrics are computed using
             ``torchmetrics``.
         """
-        self.validation_step_outputs.append(self.eval_step(batch, 'val', dataloader_idx))
-        return self.validation_step_outputs
+        loss = self.eval_step(batch, 'val', dataloader_idx)
+        self.validation_step_outputs.append(loss)
+        return loss
 
     def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> Dict[str, None]:
         """
@@ -289,8 +290,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ``'capit_class_report'`` which values are ``None``. Values are ``None`` because metrics are computed using
             ``torchmetrics``.
         """
-        self.test_step_outputs.append(self.eval_step(batch, 'test', dataloader_idx))
-        return self.test_step_outputs
+        loss = self.eval_step(batch, 'test', dataloader_idx)
+        self.test_step_outputs.append(loss)
+        return loss
 
     def on_train_epoch_end(self) -> None:
         """

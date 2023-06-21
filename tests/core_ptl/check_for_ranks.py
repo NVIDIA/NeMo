@@ -58,8 +58,9 @@ class ExampleModel(ModelPT):
         return batch.mean()
 
     def validation_step(self, batch, batch_idx):
-        self.validation_step_outputs.append(self(batch))
-        return self.validation_step_outputs
+        loss = self(batch)
+        self.validation_step_outputs.append(loss)
+        return loss
 
     def training_step(self, batch, batch_idx):
         return self(batch)
@@ -75,7 +76,7 @@ class ExampleModel(ModelPT):
 
     def on_validation_epoch_end(self):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
-
+        self.validation_step_outputs.clear()  # free memory
 
 def instantiate_multinode_ddp_if_possible():
     num_gpus = torch.cuda.device_count()
