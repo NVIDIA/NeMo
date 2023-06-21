@@ -58,7 +58,8 @@ class ExampleModel(ModelPT):
         return batch.mean()
 
     def validation_step(self, batch, batch_idx):
-        return self(batch)
+        self.validation_step_outputs.append(self(batch))
+        return self.validation_step_outputs
 
     def training_step(self, batch, batch_idx):
         return self(batch)
@@ -72,8 +73,8 @@ class ExampleModel(ModelPT):
     def setup_validation_data(self):
         pass
 
-    def on_validation_epoch_end(self, loss):
-        self.log("val_loss", torch.stack(loss).mean())
+    def on_validation_epoch_end(self):
+        self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
 
 
 def instantiate_multinode_ddp_if_possible():
