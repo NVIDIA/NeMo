@@ -739,14 +739,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         sp_size = self.cfg.get('sequence_parallel_size', 1)
         if sp_size > 1:
             sp_rank = parallel_state.get_sequence_parallel_rank()
+            loss_mask_sum = None
             for key, val in batch.items():
                 if val is not None:
+                    if key == 'loss_mask':
+                        loss_mask_sum = val.sum()
                     seq_dim = 1 if key != 'attnetion_mask' else 2
                     val = val.view(*val.shape[0:seq_dim], 2*sp_size, val.shape[seq_dim]//(2*sp_size), *val.shape[(seq_dim+1):])
                     index = torch.tensor([sp_rank, (2*sp_size-sp_rank-1)], device=val.device)
                     val = val.index_select(seq_dim, index)
                     val = val.view(*val.shape[0:seq_dim], len(index)*val.shape[seq_dim+1], *val.shape[(seq_dim+2):])
                     batch[key] = val
+            if loss_mask_sum is not None:
+                batch['loss_mask_sum'] = loss_mask_sum
 
         return batch
 
@@ -783,7 +788,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['loss_mask_sum'], output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -888,11 +893,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    def loss_func(self, loss_mask, output_tensor):
+    def loss_func(self, loss_mask, loss_mask_sum, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+        sp_size = self.cfg.get('sequence_parallel_size', 1)
+        loss = torch.sum(losses.view(-1) * loss_mask) / (loss_mask_sum / sp_size)  # sequence level nll
         return loss
 
     def build_train_valid_test_datasets(self):
