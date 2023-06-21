@@ -17,6 +17,7 @@ from inspect import isfunction
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from group_norm import GroupNormOpt
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -111,7 +112,7 @@ def zero_module(module):
 
 
 def Normalize(in_channels):
-    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+    return GroupNormOpt(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
 
 class LinearAttention(nn.Module):
@@ -375,6 +376,5 @@ class SpatialTransformer(nn.Module):
         for block in self.transformer_blocks:
             x = block(x, context=context)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
-        x = x.contiguous()  # workaround for dynamo ddp bug
         x = self.proj_out(x)
         return x + x_in

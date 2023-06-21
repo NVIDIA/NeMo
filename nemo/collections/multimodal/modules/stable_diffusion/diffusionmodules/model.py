@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
+from group_norm import GroupNormOpt
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
@@ -48,8 +49,8 @@ def nonlinearity(x):
     return torch.nn.functional.silu(x)
 
 
-def Normalize(in_channels, num_groups=32):
-    return torch.nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
+def Normalize(in_channels, num_groups=32, act=""):
+    return GroupNormOpt(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
 
 
 class Upsample(nn.Module):
@@ -100,11 +101,11 @@ class ResnetBlock(nn.Module):
         self.out_channels = out_channels
         self.use_conv_shortcut = conv_shortcut
 
-        self.norm1 = Normalize(in_channels)
+        self.norm1 = Normalize(in_channels, act="silu")
         self.conv1 = torch.nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         if temb_channels > 0:
             self.temb_proj = torch.nn.Linear(temb_channels, out_channels)
-        self.norm2 = Normalize(out_channels)
+        self.norm2 = Normalize(out_channels, act="silu")
         self.dropout = torch.nn.Dropout(dropout)
         self.conv2 = torch.nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
         if self.in_channels != self.out_channels:
@@ -116,14 +117,12 @@ class ResnetBlock(nn.Module):
     def forward(self, x, temb):
         h = x
         h = self.norm1(h)
-        h = nonlinearity(h)
         h = self.conv1(h)
 
         if temb is not None:
             h = h + self.temb_proj(nonlinearity(temb))[:, :, None, None]
 
         h = self.norm2(h)
-        h = nonlinearity(h)
         h = self.dropout(h)
         h = self.conv2(h)
 

@@ -27,6 +27,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import repeat
+from group_norm import GroupNormOpt
 from torch._dynamo import disable
 
 
@@ -209,13 +210,13 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels):
+def normalization(channels, act=""):
     """
     Make a standard normalization layer.
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNorm32(32, channels)
+    return GroupNormOpt(32, channels, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
