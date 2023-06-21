@@ -506,7 +506,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
 
         if cache_last_time is not None:
-            cache_last_time_next = torch.zeros_like(cache_last_time)
+            cache_last_time_next = [torch.zeros_like(cache_last_time[0]) for _ in range(cache_last_time.shape[0])]
         else:
             cache_last_time_next = None
 
@@ -536,7 +536,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if cache_last_channel is not None:
             cache_len = self.streaming_cfg.last_channel_cache_size
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
-            cache_last_channel_next = torch.zeros_like(cache_last_channel)
+            cache_last_channel_next = [
+                torch.zeros_like(cache_last_channel[0]) for _ in range(cache_last_channel.shape[0])
+            ]
             max_audio_length = max_audio_length + cache_len
             padding_length = length + cache_len
             offset = torch.neg(cache_last_channel_len) + cache_len
@@ -626,6 +628,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         length = length.to(dtype=torch.int64)
 
         if cache_last_channel is not None:
+            cache_last_channel_next = torch.stack(cache_last_channel_next, dim=0)
+            cache_last_time_next = torch.stack(cache_last_time_next, dim=0)
             return (
                 audio_signal,
                 length,
