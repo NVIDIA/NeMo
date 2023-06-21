@@ -121,8 +121,8 @@ class HeteronymClassificationModel(NLPModel):
         self.log('train_loss', loss)
         return loss
 
-    def on_train_epoch_end(self, outputs):
-        return super().on_train_epoch_end(outputs)
+    def on_train_epoch_end(self):
+        return super().on_train_epoch_end()
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx, split="val"):

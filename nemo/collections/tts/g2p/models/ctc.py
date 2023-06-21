@@ -195,8 +195,8 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
         self.log("train_loss", loss)
         return loss
 
-    def on_train_epoch_end(self, outputs):
-        return super().on_train_epoch_end(outputs)
+    def on_train_epoch_end(self):
+        return super().on_train_epoch_end()
 
     # ===== Validation Functions ===== #
     def validation_step(self, batch, batch_idx, dataloader_idx=0, split="val"):

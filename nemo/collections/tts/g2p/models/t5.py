@@ -95,8 +95,8 @@ class T5G2PModel(G2PModel):
         self.log('train_loss', train_loss)
         return train_loss
 
-    def on_train_epoch_end(self, outputs):
-        return super().on_train_epoch_end(outputs)
+    def on_train_epoch_end(self):
+        return super().on_train_epoch_end()
 
     def _setup_infer_dataloader(self, cfg) -> 'torch.utils.data.DataLoader':
         """
