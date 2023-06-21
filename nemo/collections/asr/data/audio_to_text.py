@@ -1311,6 +1311,7 @@ class BucketingDataset(IterableDataset):
     ):
         self.wrapped_dataset = dataset
         self.bucketing_batch_size = bucketing_batch_size
+        self._len = int(math.ceil(len(self.wrapped_dataset) / float(self.bucketing_batch_size)))
         super().__init__()
 
     def _collate_fn(self, batch):
@@ -1322,7 +1323,7 @@ class BucketingDataset(IterableDataset):
         ).__iter__()
 
     def __len__(self):
-        return int(math.ceil(len(self.wrapped_dataset) / float(self.bucketing_batch_size)))
+        return self._len
 
 
 class BucketingIterator:
