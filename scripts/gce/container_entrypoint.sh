@@ -74,6 +74,17 @@ non_blocking_wait() {
   echo $code
 }
 
+function on_script_completion {
+   # semaphore to cleanly exit hardware utilization monitor
+   touch /tmp/workload_terminated
+}
+
+trap on_script_completion EXIT 
+
+# Launch background process that samples hardware utilization
+rm -f /tmp/workload_terminated
+bash monitor_hardware_util.sh &
+
 PIDS=()
 
 for ((LOCAL_RANK=0; LOCAL_RANK <= $((GPUS_PER_NODE - 1)); LOCAL_RANK++)); do
