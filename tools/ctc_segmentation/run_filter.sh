@@ -82,4 +82,3 @@ python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
 --min_duration=${MIN_DURATION} \
 --max_duration=${MAX_DURATION} \
 --edge_len=${EDGE_LEN}
-

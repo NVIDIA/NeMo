@@ -89,4 +89,3 @@ exp_manager:
     monitor: "val_per"
     mode: "min"
     save_best_model: true
-

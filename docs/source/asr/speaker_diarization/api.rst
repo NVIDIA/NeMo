@@ -17,4 +17,3 @@ Mixins
 .. autoclass:: nemo.collections.asr.parts.mixins.mixins.DiarizationMixin
     :show-inheritance:
     :members:
-

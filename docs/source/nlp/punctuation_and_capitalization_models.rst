@@ -28,4 +28,3 @@ Lexical and audio model:
    :maxdepth: 1
 
    punctuation_and_capitalization_lexical_audio
-

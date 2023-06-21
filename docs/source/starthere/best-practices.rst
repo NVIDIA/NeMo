@@ -307,4 +307,3 @@ Ensure you are familiar with the following resources for NeMo.
 
 - Domain specific, transfer learning, Docker container with Jupyter Notebooks
     - `Domain Specific NeMo ASR Application <https://ngc.nvidia.com/catalog/containers/nvidia:nemo_asr_app_img>`_
-

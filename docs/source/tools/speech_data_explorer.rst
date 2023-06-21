@@ -180,6 +180,3 @@ Listening to the audio recording helps to validate the corresponding reference t
         :width: 800px
         :alt: MLS Player
         
-
-
-

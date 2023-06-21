@@ -12,4 +12,3 @@ checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpo
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading the hparam file can be found under the pytorch lightning experiment result directory. The filename is `hparams.yaml`
 model_type: t5
-

@@ -20,4 +20,3 @@ Single-pass Tagger-based ITN:
    :maxdepth: 1
 
    text_normalization_as_tagging
-

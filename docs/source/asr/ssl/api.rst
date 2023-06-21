@@ -19,6 +19,3 @@ Mixins
 .. autoclass:: nemo.core.classes.mixins.access_mixins.AccessMixin
     :show-inheritance:
     :members:
-
-
-

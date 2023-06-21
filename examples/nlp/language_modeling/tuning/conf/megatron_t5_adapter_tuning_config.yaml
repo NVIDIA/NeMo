@@ -133,4 +133,3 @@ model:
       monitor: val_loss
       reduce_on_plateau: false
   
-

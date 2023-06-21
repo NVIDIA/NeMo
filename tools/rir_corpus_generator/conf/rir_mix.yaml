@@ -49,4 +49,3 @@ mix:
     rsir: [10, 20, 30]
   ref_mic: 0 # index of the ref microphone (zero-based)
   ref_mic_rms: [-40, -20] # desired RMS for the ref mic signal. If necessary, may be reduced to prevent clipping.
-

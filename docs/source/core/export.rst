@@ -189,4 +189,3 @@ For more information, refer to the PyTorch documentation:
        - `List of supported operators <https://pytorch.org/docs/stable/onnx.html#supported-operators>`_
        - `Tracing vs. scripting <https://pytorch.org/docs/stable/onnx.html#tracing-vs-scripting>`_ 
        - `AlexNet example <https://pytorch.org/docs/stable/onnx.html#example-end-to-end-alexnet-from-pytorch-to-onnx>`_
-

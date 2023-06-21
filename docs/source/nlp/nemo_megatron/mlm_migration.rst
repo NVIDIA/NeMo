@@ -21,4 +21,3 @@ To resume the training from converted MegatronLM checkpoint, make sure to set th
 `trainer.max_steps=round(lr-warmup-fraction * lr-decay-iters + lr-decay-iters)`
 where  `lr-warmup-fraction` and `lr-decay-iters` are arguments from MegatronLM training
 so the learning rate scheduler will follow the same curve.
-

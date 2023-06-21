@@ -314,4 +314,3 @@ Adapter Strategies
     :undoc-members: adapter_module_names
 
 -----
-

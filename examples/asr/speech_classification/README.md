@@ -102,4 +102,3 @@ plot_sample_from_rttm(
     save_path="vad_pred.png"
 )
 ```
-

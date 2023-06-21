@@ -229,4 +229,3 @@ Please refer to:
 * :ref:`batching` section for batch size adjustments
 * :ref:`parallelisms` section for understanding various types of parallelisms
 * :ref:`promptlearning` section for details on prompt-tuning and p-tuning
-

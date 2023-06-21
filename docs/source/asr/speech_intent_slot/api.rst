@@ -19,4 +19,3 @@ Mixins
 .. autoclass:: nemo.collections.asr.parts.mixins.ASRBPEMixin
     :show-inheritance:
     :members:
-

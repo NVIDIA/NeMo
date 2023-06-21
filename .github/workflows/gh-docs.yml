@@ -35,4 +35,3 @@ jobs:
       - name: "Deploy Github Page"
         continue-on-error: true
         run:  mkdocs gh-deploy --force
-

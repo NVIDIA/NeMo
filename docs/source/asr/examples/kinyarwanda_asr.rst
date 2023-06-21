@@ -627,5 +627,3 @@ The error analysis showed several problems concerning the Kinyarwanda dataset:
     * *kongo / congo*
 * l/r variability
     * *abamalayika / abamarayika*
-
-

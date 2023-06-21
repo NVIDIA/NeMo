@@ -17,6 +17,3 @@ WFST-based TN/ITN:
    wfst_customization
    wfst_text_processing_deployment
    wfst_resources
-
-
-

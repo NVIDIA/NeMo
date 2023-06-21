@@ -18,4 +18,3 @@ Global batch size is controlled by ``model.global_batch_size`` parameter.
     * Idea: Train with large batch sizes with fixed memory footprint at the cost of additional compute.
     * Do k forward and backward passes through the network with different batches, do not perform parameter updates until after k passes.
     * Update paramters
-

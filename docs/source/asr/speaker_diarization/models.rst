@@ -106,5 +106,3 @@ References
     :style: plain
     :labelprefix: SD-MODELS
     :keyprefix: sd-models-
-
-
