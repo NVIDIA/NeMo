@@ -737,21 +737,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_batch_on_this_sequence_parallel_rank(self, batch):
         sp_size = self.cfg.get('sequence_parallel_size', 1)
+        loss_mask_sum = None if 'loss_mask' not in batch else batch['loss_mask'].sum()
         if sp_size > 1:
             sp_rank = parallel_state.get_sequence_parallel_rank()
-            loss_mask_sum = None
             for key, val in batch.items():
                 if val is not None:
-                    if key == 'loss_mask':
-                        loss_mask_sum = val.sum()
                     seq_dim = 1 if key != 'attnetion_mask' else 2
                     val = val.view(*val.shape[0:seq_dim], 2*sp_size, val.shape[seq_dim]//(2*sp_size), *val.shape[(seq_dim+1):])
                     index = torch.tensor([sp_rank, (2*sp_size-sp_rank-1)], device=val.device)
                     val = val.index_select(seq_dim, index)
                     val = val.view(*val.shape[0:seq_dim], len(index)*val.shape[seq_dim+1], *val.shape[(seq_dim+2):])
                     batch[key] = val
-            if loss_mask_sum is not None:
-                batch['loss_mask_sum'] = loss_mask_sum
+        batch['loss_mask_sum'] = loss_mask_sum
 
         return batch
 
