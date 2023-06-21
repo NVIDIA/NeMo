@@ -1138,14 +1138,16 @@ if comparison_mode:
             ]
         )
 
-
     comparison_layout = [
         html.Div(
             [
                 dcc.Markdown("model 1:" + ' ' + model_name_1[10:]),
                 dcc.Markdown("model 2:" + ' ' + model_name_2[10:]),
                 dcc.Dropdown(
-                    ['word level', 'utterance level'], 'word level', placeholder="choose comparison lvl", id='lvl_choose'
+                    ['word level', 'utterance level'],
+                    'word level',
+                    placeholder="choose comparison lvl",
+                    id='lvl_choose',
                 ),
             ]
         ),
@@ -1206,7 +1208,9 @@ if comparison_mode:
                         dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
                         html.Hr(),
                         html.Hr(),
-                        dcc.Input(id='filter-query-input-2', placeholder='Enter filter query', style={'width': '100%'}),
+                        dcc.Input(
+                            id='filter-query-input-2', placeholder='Enter filter query', style={'width': '100%'}
+                        ),
                         html.Div(id='filter-query-output-2'),
                         dbc.Row(
                             dbc.Col(
@@ -1344,9 +1348,6 @@ if args.show_statistics is not None:
                 {'display': 'block'},
                 {'display': 'block'},
             )
-
-
-
 
 
 if args.show_statistics is None:
