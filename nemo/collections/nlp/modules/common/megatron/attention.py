@@ -1018,20 +1018,14 @@ class CoreAttention(MegatronModule):
                 assert len(attention_mask.shape) == 2
                 attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
                 attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
-            
+
             if attention_bias.shape[2] == attention_mask_q.shape[2]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
             if attention_bias.shape[3] == attention_mask_kv.shape[3]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
-                
+
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-        context_layer = flash_attn_func(
-            query_layer, 
-            key_layer, 
-            value_layer, 
-            attention_bias, 
-            is_causal,
-        )
+        context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)

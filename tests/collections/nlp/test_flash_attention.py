@@ -154,7 +154,7 @@ class TestFlashAttention:
             hidden_size=h,
             attn_mask_type=AttnMaskType.causal,
             attention_dropout=0.0,
-            apply_query_key_layer_scaling=False
+            apply_query_key_layer_scaling=False,
         )
 
         attention_fa = CoreAttention(
@@ -171,7 +171,7 @@ class TestFlashAttention:
         torch.testing.assert_close(out, out_fa)
         out_fa = attention_fa(q, k, v, attention_mask_2d)
         torch.testing.assert_close(out, out_fa)
-        
+
     @pytest.mark.skipif(not HAVE_FA, reason="flash-attention is not installed")
     @pytest.mark.unit
     def test_flash_cross_attention(self, cfg):
@@ -187,7 +187,7 @@ class TestFlashAttention:
         attention_mask_2d_q = torch.arange(sq, device=device).unsqueeze(0) < torch.randint(
             1, sq, (bz,), device=device
         ).unsqueeze(1)
-        
+
         attention_mask_2d_k = torch.arange(sk, device=device).unsqueeze(0) < torch.randint(
             1, sk, (bz,), device=device
         ).unsqueeze(1)
@@ -202,7 +202,7 @@ class TestFlashAttention:
             hidden_size=h,
             attn_mask_type=AttnMaskType.padding,
             attention_dropout=0.0,
-            apply_query_key_layer_scaling=False
+            apply_query_key_layer_scaling=False,
         )
 
         attention_fa = CoreAttention(
@@ -256,7 +256,7 @@ class TestFlashAttention:
             hidden_size=h,
             attn_mask_type=AttnMaskType.padding,
             attention_dropout=0.0,
-            apply_query_key_layer_scaling=False
+            apply_query_key_layer_scaling=False,
         )
 
         attention_fa = CoreAttention(
@@ -281,7 +281,7 @@ class TestFlashAttention:
             hidden_size=h,
             attn_mask_type=AttnMaskType.causal,
             attention_dropout=0.0,
-            apply_query_key_layer_scaling=False
+            apply_query_key_layer_scaling=False,
         )
 
         attention_fa = CoreAttention(
@@ -319,7 +319,7 @@ class TestFlashAttention:
         attention_mask_2d_q = torch.arange(sq, device=device).unsqueeze(0) < torch.randint(
             1, sq, (bz,), device=device
         ).unsqueeze(1)
-        
+
         attention_mask_2d_k = torch.arange(sk, device=device).unsqueeze(0) < torch.randint(
             1, sk, (bz,), device=device
         ).unsqueeze(1)
@@ -336,7 +336,7 @@ class TestFlashAttention:
             hidden_size=h,
             attn_mask_type=AttnMaskType.padding,
             attention_dropout=0.0,
-            apply_query_key_layer_scaling=False
+            apply_query_key_layer_scaling=False,
         )
 
         attention_fa = CoreAttention(
