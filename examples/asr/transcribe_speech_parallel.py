@@ -103,8 +103,8 @@ class ParallelTranscriptionConfig:
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
     # decoder for hybrid models, must be one of 'ctc', 'rnnt' if not None
-    decoder_type: Optional[str] = None  
-    
+    decoder_type: Optional[str] = None
+
     trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
 
 
