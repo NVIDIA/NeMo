@@ -4,7 +4,7 @@ This directory contains example scripts to train speech classification and voice
 
 ## Frame-VAD
 
-The frame-level VAD model predicts for each frame of the auio whether it has speech or not. For example, with the default config file (`../conf/marblenet/marblenet_3x2x64_20ms.yaml`), the model provides a probability for each frame of 20ms length.
+The frame-level VAD model predicts for each frame of the audio whether it has speech or not. For example, with the default config file (`../conf/marblenet/marblenet_3x2x64_20ms.yaml`), the model provides a probability for each frame of 20ms length.
 
 ### Training
 ```sh
