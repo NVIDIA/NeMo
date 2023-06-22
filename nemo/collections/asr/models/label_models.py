@@ -93,6 +93,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         result.append(model)
 
         model = PretrainedModelInfo(
+            pretrained_model_name="titanet_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:titanet_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/titanet_small/versions/1.19.0/files/titanet-s.nemo",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
             pretrained_model_name="langid_pearlnet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/langid_ambernet/versions/1.12.0/files/pearlnet.nemo",
             description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/langid_pearlnet",
