@@ -26,7 +26,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
 
 try:
-    from megatron.core import tensor_parallel, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 

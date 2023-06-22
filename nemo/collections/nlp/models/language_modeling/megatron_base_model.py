@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import fields
 import gc
 import os
 import re
+from dataclasses import fields
+from math import e
 from typing import Any, Dict, Optional, Union
 
+import pip
 import torch
+from MeCab import Model
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -49,7 +52,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import parallel_state, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 

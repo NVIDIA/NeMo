@@ -53,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel, ModelParallelConfig
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
