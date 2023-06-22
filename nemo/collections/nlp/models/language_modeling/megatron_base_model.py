@@ -14,12 +14,9 @@
 
 from dataclasses import fields
 import gc
-from math import e
 import os
 import re
 from typing import Any, Dict, Optional, Union
-from MeCab import Model
-import pip
 
 import omegaconf
 import torch
@@ -28,8 +25,6 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.asr.models.msdd_models import autocast
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -105,7 +100,7 @@ class MegatronBaseModel(NLPModel):
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         # set the megatron core model parallel config
-        self.model_parallel_config = self.build_model_parallel_config()
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
@@ -704,6 +699,9 @@ class MegatronBaseModel(NLPModel):
         cfg = OmegaConf.to_container(self.cfg, resolve=True)
         model_parallel_config = ModelParallelConfig()
 
+        # TODO: this is not in ModelParallelConfig but the pipeline schedule needs it
+        setattr(model_parallel_config, 'hidden_size', self.cfg.get('hidden_size', 1))
+
         # For attributes in the nemo model config that are the same as the
         # megatron model parallel config, we will use the value from the nemo config.
         # For attributes that are not in the nemo model config, we add custom logic.
@@ -750,9 +748,11 @@ class MegatronBaseModel(NLPModel):
                 # dtype used in p2p communication, usually params_dtype
                 # TODO: does this work with autocasting + pipeline ?
                 pipeline_dtype = model_parallel_config.params_dtype
+                setattr(model_parallel_config, field.name, pipeline_dtype)
             elif field.name == "grad_scale_func":
                 # used to scale gradients when training with fp16
                 grad_scale_func = self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None
+                setattr(model_parallel_config, field.name, grad_scale_func)
             elif field.name == "enable_autocast":
                 # used to enable autocasting in the fwd/bwd functions from megatron core
                 enable_autocast = not self.cfg.get('megatron_amp_O2', False) and self.cfg.get('precision', 'fp32') in [
@@ -810,5 +810,5 @@ class MegatronBaseModel(NLPModel):
             else:
                 raise ValueError(f"cfg does not have field.name: {field.name} from model_parallel_config.")
 
-            return model_parallel_config
+        return model_parallel_config
 
