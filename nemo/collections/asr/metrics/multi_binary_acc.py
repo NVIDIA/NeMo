@@ -52,6 +52,7 @@ class MultiBinaryAccuracy(Metric):
 
             self.log('val_loss', val_loss_mean)
             self.log('val_f1_acc', f1_acc)
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'val_f1_acc': f1_acc}
 
     Args:
