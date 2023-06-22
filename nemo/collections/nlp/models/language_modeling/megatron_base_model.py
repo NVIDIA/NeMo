@@ -127,7 +127,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
-            sequence_parallel_size=cfg.get('sequence_parallel_size', 1),
+            context_parallel_size=cfg.get('context_parallel_size', 1),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size'),

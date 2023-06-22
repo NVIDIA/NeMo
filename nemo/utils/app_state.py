@@ -55,7 +55,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_group = None
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
-        self._sequence_parallel_size = None
+        self._context_parallel_size = None
 
         self._random_seed = None
 
@@ -365,20 +365,20 @@ class AppState(metaclass=Singleton):
         self._use_fp8 = use_fp8
 
     @property
-    def sequence_parallel_size(self):
-        """ Property returns the number of GPUs in each sequence parallel group.
+    def context_parallel_size(self):
+        """ Property returns the number of GPUs in each context parallel group.
             Returns:
-                Number of GPUs in each sequence parallel group.
+                Number of GPUs in each context parallel group.
         """
-        return self._sequence_parallel_size
+        return self._context_parallel_size
 
-    @sequence_parallel_size.setter
-    def sequence_parallel_size(self, size):
-        """ Property sets the number of GPUs in each sequence parallel group.
+    @context_parallel_size.setter
+    def context_parallel_size(self, size):
+        """ Property sets the number of GPUs in each context parallel group.
             Args:
-                size (int):  Number of GPUs in each sequence parallel group.
+                size (int):  Number of GPUs in each context parallel group.
         """
-        self._sequence_parallel_size = size
+        self._context_parallel_size = size
 
     @property
     def random_seed(self):
