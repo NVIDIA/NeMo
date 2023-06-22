@@ -45,7 +45,7 @@ RUN apt-get update && \
 WORKDIR /workspace/
 
 WORKDIR /tmp/
-# TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
+# TODO: Remove once this Apex commit (5/12/23) is included in PyTorch
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
