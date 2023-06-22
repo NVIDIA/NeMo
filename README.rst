@@ -263,7 +263,7 @@ packaging is also needed:
 
 .. code-block:: bash
 
-  pip install -y packaging
+  pip install packaging
 
 
 Transformer Engine
@@ -279,6 +279,24 @@ Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 It is highly recommended to use the NVIDIA PyTorch or NeMo container if having issues installing Transformer Engine or any other dependencies.
 
 Transformer Engine requires PyTorch to be built with CUDA 11.8.
+
+
+Flash Attention
+~~~~~~~~~~~~~~~~~~~~
+Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models or use with attention bias (introduced from position encoding, e.g. Alibi), please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. 
+
+.. code-block:: bash
+
+  pip install flash-attn
+  pip install triton==2.0.0.dev20221202
+
+NLP inference UI
+~~~~~~~~~~~~~~~~~~~~
+To launch the inference web UI server, please install the gradio `gradio <https://gradio.app/>`_. 
+
+.. code-block:: bash
+
+  pip install gradio==3.34.0
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
