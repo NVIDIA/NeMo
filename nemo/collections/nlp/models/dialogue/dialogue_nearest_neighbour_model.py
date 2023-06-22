@@ -121,18 +121,20 @@ class DialogueNearestNeighbourModel(NLPModel):
             gts.append(input_ids[i, gt])
             inputs.append(input_ids[i, 0])
 
-        return {'preds': torch.stack(preds), 'labels': torch.stack(gts), 'inputs': torch.stack(inputs)}
+        loss = {'preds': torch.stack(preds), 'labels': torch.stack(gts), 'inputs': torch.stack(inputs)}
+        self.validation_step_outputs.append(loss)
+        return loss
 
     def multi_test_epoch_end(self, outputs, dataloader_idx):
         return self.on_validation_epoch_end(outputs)
 
-    def on_validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
         """
-        output_preds = torch.cat([output['preds'] for output in outputs], dim=0)
-        output_labels = torch.cat([output['labels'] for output in outputs], dim=0)
-        inputs = torch.cat([output['inputs'] for output in outputs], dim=0)
+        output_preds = torch.cat([output['preds'] for output in self.validation_step_outputs], dim=0)
+        output_labels = torch.cat([output['labels'] for output in self.validation_step_outputs], dim=0)
+        inputs = torch.cat([output['inputs'] for output in self.validation_step_outputs], dim=0)
 
         decoded_preds = self.tokenizer.tokenizer.batch_decode(output_preds, skip_special_tokens=True)
         decoded_labels = self.tokenizer.tokenizer.batch_decode(output_labels, skip_special_tokens=True)
@@ -174,6 +176,7 @@ class DialogueNearestNeighbourModel(NLPModel):
         self.log('unfied_accuracy', label_acc * 100)
 
         self.classification_report.reset()
+        self.validation_step_outputs.clear()  # free memory
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config:

@@ -77,10 +77,13 @@ class DialogueGPTGenerationModel(NLPModel):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        return self.eval_step_helper(batch=batch)
+        loss = self.eval_step_helper(batch=batch)
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def on_validation_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs, mode='val')
+    def on_validation_epoch_end(self):
+        self.eval_epoch_end(self.validation_step_outputs, mode='val')
+        self.validation_step_outputs.clear()  # free memory
 
     def on_test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, mode='test')
