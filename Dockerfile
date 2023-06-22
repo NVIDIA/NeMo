@@ -93,7 +93,7 @@ COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # Networking tools in order to record tx and rx across NICs
-RUN apt-get update && apt-get install -y net-tools gawk bc
+RUN apt-get update && apt-get install -y net-tools gawk bc jq sysstat
 
 # NVIDIA DLProf components
 RUN pip install nvidia-pyindex &&\
