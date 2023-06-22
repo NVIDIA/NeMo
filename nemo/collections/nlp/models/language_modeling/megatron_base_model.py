@@ -780,4 +780,3 @@ class MegatronBaseModel(NLPModel):
                 raise ValueError(f"cfg does not have field.name: {field.name} from model_parallel_config.")
 
         return model_parallel_config
-
