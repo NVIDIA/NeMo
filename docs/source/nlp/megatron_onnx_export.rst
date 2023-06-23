@@ -10,11 +10,13 @@ Installation
 Set up the development environment by launching the latest NeMo container
 
 .. code-block:: bash 
+
     docker run -it nvcr.io/nvidia/nemo:23.04
 
 ONNX Export of Megatron Models requires the installation of the latest versions of NeMo and TransformerEngine. The snippet below can be used to perform both installations
 
 .. code-block:: bash 
+
     https://github.com/NVIDIA/TransformerEngine.git && cd TransformerEngine
     git submodule update --init --recursive
     python3 -m pip install -e .
@@ -34,6 +36,7 @@ Export using .nemo file
 A model with .nemo file extension can be exported using the command below
 
 .. code-block:: bash 
+
     python3 examples/nlp/language_modeling/megatron_export.py \
         model_type=gpt \
         onnx_model_file=gpt_126m.onnx \
@@ -44,6 +47,7 @@ Export using .ckpt file
 A model with .ckpt file extension can be exported using the command below
 
 .. code-block:: bash 
+
     python3 examples/nlp/language_modeling/megatron_export.py \
         model_type=gpt \
         onnx_model_file=gpt_126m.onnx \
