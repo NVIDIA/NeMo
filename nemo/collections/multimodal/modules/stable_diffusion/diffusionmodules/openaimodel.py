@@ -465,6 +465,7 @@ class UNetModel(nn.Module):
         context_dim=None,  # custom transformer support
         n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
         legacy=True,
+        use_linear_in_transformer=False,
         from_pretrained: str = None,
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
@@ -562,6 +563,7 @@ class UNetModel(nn.Module):
                             dim_head,
                             depth=transformer_depth,
                             context_dim=context_dim,
+                            use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
                         )
@@ -623,6 +625,7 @@ class UNetModel(nn.Module):
                 dim_head,
                 depth=transformer_depth,
                 context_dim=context_dim,
+                use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
             ),
@@ -677,6 +680,7 @@ class UNetModel(nn.Module):
                             dim_head,
                             depth=transformer_depth,
                             context_dim=context_dim,
+                            use_linear=use_linear_in_transformer,
                             use_checkpoint=use_checkpoint,
                             use_flash_attention=use_flash_attention,
                         )
