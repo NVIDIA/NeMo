@@ -124,18 +124,30 @@ class MegatronBaseModel(NLPModel):
             init_global_rank = trainer.global_rank
             init_local_rank = trainer.local_rank
 
+        # Set virtual pipeline size to None if it is 1 and
+        # confirm that the number of model chunks is the same across all pipeline stages.
+        vp_size = self.cfg.get('virtual_pipeline_model_parallel_size', None)
+
+        if vp_size is not None:
+            if vp_size == 1:
+                self.cfg.virtual_pipeline_model_parallel_size = None
+            else:
+                assert (
+                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
             global_rank=init_global_rank,
             local_rank=init_local_rank,
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
-            virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
-            pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
-            micro_batch_size=cfg.get('micro_batch_size'),
-            global_batch_size=cfg.get('global_batch_size'),
-            rampup_batch_size=cfg.get('rampup_batch_size'),
-            use_fp8=cfg.get('fp8', False),
+            tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
+            pipeline_model_parallel_size=self.cfg.get('pipeline_model_parallel_size', 1),
+            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            pipeline_model_parallel_split_rank=self.cfg.get('pipeline_model_parallel_split_rank', 0),
+            micro_batch_size=self.cfg.get('micro_batch_size'),
+            global_batch_size=self.cfg.get('global_batch_size'),
+            rampup_batch_size=self.cfg.get('rampup_batch_size'),
+            use_fp8=self.cfg.get('fp8', False),
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
