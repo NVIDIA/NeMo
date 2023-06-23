@@ -582,9 +582,10 @@ class CodeSwitchedDataset(IterableDataset):
         # all of this logic here happens in-memory, nothing is written to disk
         if self.augmentor is not None:
             # import here to avoid circular import error
-            from nemo.collections.asr.parts.preprocessing import AudioSegment
             # import here because otherwise CI test-nlp-imports fails since soundfile is only in requirements_asr and not in requirements_common
             import soundfile as sf
+
+            from nemo.collections.asr.parts.preprocessing import AudioSegment
 
             mb = io.BytesIO()
             sf.write(mb, comp_audio, self.sample_rate, format='WAV')
