@@ -582,12 +582,15 @@ class MegatronBaseModel(NLPModel):
         if self.cfg.get('use_emha', False):
             raise ValueError('use_emha is not yet supported please set to False')
 
-        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
-            assert (
-                self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-            ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
-                'Make sure the number of model chunks is the same across all pipeline stages.'
-            )
+        vp_size = self.cfg.get('virtual_pipeline_model_parallel_size', None)
+
+        if vp_size is not None:
+            if vp_size == 1:
+                self.cfg['virtual_pipeline_model_parallel_size'] = None
+            else:
+                assert (
+                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
             if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
