@@ -17,7 +17,6 @@ import logging
 from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
-import soundfile as sf
 import torch
 import torch.utils.data as pt_data
 from torch.utils.data import Dataset, IterableDataset
@@ -584,6 +583,8 @@ class CodeSwitchedDataset(IterableDataset):
         if self.augmentor is not None:
             # import here to avoid circular import error
             from nemo.collections.asr.parts.preprocessing import AudioSegment
+            # import here because otherwise CI test-nlp-imports fails since soundfile is only in requirements_asr and not in requirements_common
+            import soundfile as sf
 
             mb = io.BytesIO()
             sf.write(mb, comp_audio, self.sample_rate, format='WAV')
