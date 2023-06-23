@@ -328,8 +328,8 @@ class CodeSwitchedDataset(IterableDataset):
 
     def __init__(
         self,
-        datasets: list,
-        lang_probs: Optional[list] = None,
+        datasets: List[Any],
+        lang_probs: Optional[List[float]] = None,
         shuffle: bool = True,
         min_duration: int = 4,
         max_duration: int = 20,
