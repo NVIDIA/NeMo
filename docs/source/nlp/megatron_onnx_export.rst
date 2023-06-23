@@ -7,11 +7,7 @@ This guide demonstrates the usage of the ONNX export functionality for Megatron 
 
 Requirements
 -----------------
-Set up the development environment by launching the latest NeMo container
-
-.. code-block:: bash 
-
-    docker run -it nvcr.io/nvidia/nemo:23.04
+Set up the development environment by launching the latest `NeMo container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags>`_
 
 The minimum version requirements for NeMo and TransformerEngine are below
 
