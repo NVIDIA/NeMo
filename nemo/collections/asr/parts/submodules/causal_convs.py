@@ -140,11 +140,7 @@ class CausalConv1D(nn.Conv1d):
                 cache_keep_size = torch.tensor(x.size(-1) - self.cache_drop_size, dtype=torch.int64, device=x.device)
                 cache_keep_size = torch.clip(cache_keep_size, min=1, max=cache_next[0].size(-1))
                 cache_next[self._cache_id] = torch.cat(
-                    [
-                        cache[self._cache_id, :, :, cache_keep_size:],
-                        x[:, :, :cache_keep_size],
-                    ],
-                    dim=2
+                    [cache[self._cache_id, :, :, cache_keep_size:], x[:, :, :cache_keep_size],], dim=2
                 )
         return new_x
 
