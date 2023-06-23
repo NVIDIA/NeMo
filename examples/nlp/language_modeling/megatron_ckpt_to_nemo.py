@@ -143,7 +143,9 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'gpt':
-        model = MegatroniGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        model = MegatroniGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
 
         # WAR to enable exporting FP8 scales from modules
         # TODO: Need to find a cleaner way
