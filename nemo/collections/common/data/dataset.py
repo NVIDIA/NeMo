@@ -293,32 +293,32 @@ class ConcatMapDataset(Dataset):
 
 class CodeSwitchedDataset(IterableDataset):
     """
-    A dataset that accepts as argument multiple sub-datasets from different languages and then samples from them in order
-    to create synthetic code-switched samples of up to N languages per call
+    A dataset that accepts as argument multiple sub-datasets (usually from different languages, but that's not required) and then
+    samples from them in order to create synthetic code-switched samples of up to N different sub-datasets
     Args:
-        datasets (dict): A dict of datasets by language, with keys as language (str) and value as that's language's dataset
-        lang_probs (dict): A dict of language keys to the probability of drawing each language randomly to build each CS sample
+        datasets (list): A list of datasets
+        lang_probs (list): A list of probabilities (which must sum to 1) corresponding to the sampling probability for each dataset
         shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
             Defaults to True.
         min_duration (int): the minimum duration (secs) of each synthetic code-switched sample. Will draw randomly until this is hit.
-            Defaults to 16
+            Defaults to 4
         max_duration (int): the maximum duration (secs) of each synthetic code-switched sample.
             Defaults to 20
         min_monolingual (float): this percentage of the dataset will be original monolingual samples
-            Defaults to 0.2 - means 20%
+            Defaults to 0.3 - means 30%
         db_norm (float): will normalise the composite CS sample to this DB level
             Defaults to -25.0
         pause_start (int): inserts silence equal to this value (msecs) at the start of each CS sample
-            Defaults to 20
+            Defaults to 0
         pause_join (int): inserts silence equal to this value (msecs) between all language changes in the CS sample
-            Defaults to 80
+            Defaults to 0
         pause_end (int): terminates all CS samples with silence equal to this value (msecs)
-            Defaults to 20
-        sampling_scales (list or float): gives you the ability to upsample/downsample by language
+            Defaults to 0
+        sampling_scales (list or float): gives you the ability to upsample/downsample each individual dataset
         seed: Optional value to seed the numpy RNG.
         global_rank (int): Worker rank, used for partitioning map style datasets. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning map style datasets. Defaults to 1.
-        pure_random (bool): If true, then always draw random sample from lang_probs. If false, you only draw from those languages
+        pure_random (bool): If true, then always draw random sample from lang_probs. If false, you only draw from those datasets
                             which you haven't sampled from yet for the composite sample
         force_monochannel (bool): If true, then all output audio will be mono-channel
         infinity_mode (bool): If true, then the dataset iterable will generate an infinite amount of samples

@@ -262,18 +262,18 @@ training and evaluation.
   model:
     train_ds:
       manifest_filepath: [/path/to/EN/tarred_manifest.json, /path/to/DE/tarred_manifest.json, /path/to/JA/tarred_manifest.json]
-	  tarred_audio_filepaths: ['/path/to/EN/tars/audio__OP_0..511_CL_.tar', '/path/to/DE/tars/audio__OP_0..1023_CL_.tar', '/path/to/JA/tars/audio__OP_0..2047_CL_.tar']
-	  is_code_switched: true
-	  is_tarred: true
-	  shuffle: true
-	    code_switched:              # add this block for code-switching
-		  min_duration: 12          # the minimum number of seconds for each synthetic code-switched utterance
-		  max_duration: 20          # the maximum number of seconds for each synthetic code-switched utterance
-		  min_monolingual: 0.3      # the minimum percentage of utterances which will be pure monolingual (0.3 = 30%)
-		  probs: [0.25, 0.5, 0.25]  # the probability to sample each language (matches order of `language` above) if not provided, assumes uniform distribution
-		  force_monochannel: true   # if your source data is multi-channel, then setting this to True will force the synthetic utterances to be mono-channel
-		  sampling_scales: 0.75     # allows you to down/up sample individual languages. Can set this as an array for individual languages, or a scalar for all languages
-		  seed: 123                 # add a seed for replicability in future runs (highly useful for `validation_ds` and `test_ds`)
+      tarred_audio_filepaths: ['/path/to/EN/tars/audio__OP_0..511_CL_.tar', '/path/to/DE/tars/audio__OP_0..1023_CL_.tar', '/path/to/JA/tars/audio__OP_0..2047_CL_.tar']
+      is_code_switched: true
+      is_tarred: true
+      shuffle: true
+        code_switched:              # add this block for code-switching
+          min_duration: 12          # the minimum number of seconds for each synthetic code-switched utterance
+          max_duration: 20          # the maximum number of seconds for each synthetic code-switched utterance
+          min_monolingual: 0.3      # the minimum percentage of utterances which will be pure monolingual (0.3 = 30%)
+          probs: [0.25, 0.5, 0.25]  # the probability to sample each language (matches order of `language` above) if not provided, assumes uniform distribution
+          force_monochannel: true   # if your source data is multi-channel, then setting this to True will force the synthetic utterances to be mono-channel
+          sampling_scales: 0.75     # allows you to down/up sample individual languages. Can set this as an array for individual languages, or a scalar for all languages
+          seed: 123                 # add a seed for replicability in future runs (highly useful for `validation_ds` and `test_ds`)
 
 
 Model Architecture Configurations
