@@ -5,7 +5,7 @@ ONNX Export of Megatron Models
 
 This guide demonstrates the usage of the ONNX export functionality for Megatron models.
 
-Installation
+Requirements
 -----------------
 Set up the development environment by launching the latest NeMo container
 
@@ -13,17 +13,12 @@ Set up the development environment by launching the latest NeMo container
 
     docker run -it nvcr.io/nvidia/nemo:23.04
 
-ONNX Export of Megatron Models requires the installation of the latest versions of NeMo and TransformerEngine. The snippet below can be used to perform both installations
+The minimum version requirements for NeMo and TransformerEngine are below
 
 .. code-block:: bash 
 
-    https://github.com/NVIDIA/TransformerEngine.git && cd TransformerEngine
-    git submodule update --init --recursive
-    python3 -m pip install -e .
-
-    cd ..
-    git clone https://github.com/NVIDIA/NeMo.git && cd NeMo/
-    python3 -m pip install -e .
+    nemo > 1.19
+    transformer_engine > 0.10
 
 Export to ONNX
 -----------------
