@@ -242,14 +242,20 @@ On-the-fly Code Switching
 
 Nemo supports creating code-switched synthetic utterances on-the-fly during training/validation/testing. This allows you to create ASR models which
 support intra-utterance code switching. If you have Nemo formatted audio data on disk (either JSON manifests or tarred audio data), you
-can easily mix as many of these languages together by adding some extra parameters to your `train_ds`, `validation_ds`, and `test_ds`.
+can easily mix as many of these audio sources together as desired by adding some extra parameters to your `train_ds`, `validation_ds`, and `test_ds`.
 
-For code-switched models, we recommend using AggTokenizer for your Tokenizer.
+Please note that this allows you to mix any kind of audio sources together to create synthetic utterances which sample from all sources. The most
+common use case for this is blending different languages together to create a multilingual code-switched model, but you can also blend
+together different audio sources from the same languages (or language families), to create noise robust data, or mix fast and slow speech from the
+same language.
 
-The following provides an example using 3 languages: English (en), German (de), and Japanese (ja) added to the `train_ds` model block, however
-you can add similar logic to your `validation_ds` and `test_ds` blocks too for on-the-fly code-switched validation and test data too. This example mixes
+For multilingual code-switched models, we recommend using AggTokenizer for your Tokenizer if mixing different languages.
+
+The following example shows how to mix 3 different languages: English (en), German (de), and Japanese (ja) added to the `train_ds` model block, however
+you can add similar logic to your `validation_ds` and `test_ds` blocks for on-the-fly code-switched validation and test data too. This example mixes
 together 3 languages, but you can use as many as you want. However, be advised that the more languages you add, the higher your `min_duration` and `max_duration`
-need to be set to ensure all languages make it into most utterances, and settings these higher will use more VRAM per mini-batch during training and evaluation.
+need to be set to ensure all languages are sampled into each synthetic utterance, and setting these hyperparameters higher will use more VRAM per mini-batch during
+training and evaluation.
 
 .. code-block:: yaml
 
@@ -261,7 +267,6 @@ need to be set to ensure all languages make it into most utterances, and setting
 	  is_tarred: true
 	  shuffle: true
 	    code_switched:              # add this block for code-switching
-		  languages: [en, de, ja]   # declare your lang IDs, they must match the order of manifest_filepaths and tarred_audio_filepaths
 		  min_duration: 12          # the minimum number of seconds for each synthetic code-switched utterance
 		  max_duration: 20          # the maximum number of seconds for each synthetic code-switched utterance
 		  min_monolingual: 0.3      # the minimum percentage of utterances which will be pure monolingual (0.3 = 30%)

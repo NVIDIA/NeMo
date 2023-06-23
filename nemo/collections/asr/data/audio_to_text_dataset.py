@@ -232,7 +232,6 @@ def get_bpe_dataset(
         use_start_end_token=config.get('use_start_end_token', True),
         return_sample_id=config.get('return_sample_id', False),
         channel_selector=config.get('channel_selector', None),
-        language=config.get('language', None),
     )
     return dataset
 
@@ -390,7 +389,6 @@ def get_tarred_dataset(
                 global_rank=global_rank,
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
-                language=config.get('language', None),
             )
         if bucketing_weights:
             [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
@@ -431,16 +429,14 @@ def get_code_switched_dataset(
             f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of items."
         )
 
-    datasets = {}
+    datasets = []
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
     ):
-        lang = cs_config['languages'][dataset_idx]
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         with open_dict(conf):
             conf['tarred_audio_filepaths'] = tarred_audio_filepath
-            conf['language'] = lang
         if tarred_audio_filepath is None or len(tarred_audio_filepath) == 0:
             if tokenizer is None:
                 dataset = get_char_dataset(config=conf, augmentor=None)
@@ -455,18 +451,9 @@ def get_code_switched_dataset(
                 world_size=world_size,
                 augmentor=None,
             )
-        datasets[lang] = dataset
+        datasets.append(dataset)
 
     config = OmegaConf.to_container(config)
-
-    if (
-        'probs' in cs_config
-        and cs_config['probs'] is not None
-        and len(cs_config['probs']) == len(cs_config['languages'])
-    ):
-        cs_probs_dict = {l: cs_config['probs'][i] for i, l in enumerate(cs_config['languages'])}
-    else:
-        cs_probs_dict = None
 
     dataset = CodeSwitchedDataset(
         datasets,
@@ -474,7 +461,7 @@ def get_code_switched_dataset(
         min_duration=cs_config.get('min_duration', 4),
         max_duration=cs_config.get('max_duration', 20),
         min_monolingual=cs_config.get('min_monolingual', 0.3),
-        lang_probs=cs_probs_dict,
+        lang_probs=cs_config.get('probs', None),
         db_norm=cs_config.get('db_norm', -25.0),
         pause_start=cs_config.get('pause_start', 0),
         pause_join=cs_config.get('pause_join', 0),

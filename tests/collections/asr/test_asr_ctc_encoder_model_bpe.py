@@ -304,7 +304,6 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'channel_selector',
-            'language',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
@@ -341,7 +340,6 @@ class TestEncDecCTCModel:
             'bucketing_strategy',
             'bucketing_weights',
             'max_utts',
-            'language',
         ]
 
         REMAP_ARGS = {

@@ -328,8 +328,8 @@ class CodeSwitchedDataset(IterableDataset):
 
     def __init__(
         self,
-        datasets: dict,
-        lang_probs: Optional[dict] = None,
+        datasets: list,
+        lang_probs: Optional[list] = None,
         shuffle: bool = True,
         min_duration: int = 4,
         max_duration: int = 20,
@@ -354,7 +354,7 @@ class CodeSwitchedDataset(IterableDataset):
             raise ValueError("CodeSwitchedDataset must receive a non-zero length datasets dict object")
 
         self.datasets = datasets
-        self.langs = list(datasets.keys())
+        self.langs = list(range(len(datasets)))
         self.langs_set = set(self.langs)
         self.lang_iterables = {k: None for k in self.langs}
         self.lang_kind = {k: None for k in self.langs}
@@ -393,7 +393,7 @@ class CodeSwitchedDataset(IterableDataset):
         else:
             self.sampling_scales = {k: 1 for k in self.langs}
 
-        for lang, dataset in self.datasets.items():
+        for lang, dataset in enumerate(self.datasets):
             isiterable = isinstance(dataset, IterableDataset)
 
             if isiterable:
