@@ -380,6 +380,7 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         )
 
         _, self.text_transform = get_preprocess_fns(cfg, self.tokenizer, is_train=False,)
+        self.max_length = cfg.text.get("max_position_embeddings")
 
     def load_model(self, cfg, state_dict):
         padded_vocab_size = self._vocab_size_with_padding(

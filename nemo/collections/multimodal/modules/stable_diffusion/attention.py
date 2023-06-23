@@ -338,6 +338,7 @@ class SpatialTransformer(nn.Module):
         depth=1,
         dropout=0.0,
         context_dim=None,
+        use_linear=False,
         use_checkpoint=False,
         use_flash_attention=False,
     ):
@@ -346,7 +347,10 @@ class SpatialTransformer(nn.Module):
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)
 
-        self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+        if not use_linear:
+            self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+        else:
+            self.proj_in = nn.Linear(in_channels, inner_dim)
 
         self.transformer_blocks = nn.ModuleList(
             [
@@ -363,18 +367,28 @@ class SpatialTransformer(nn.Module):
             ]
         )
 
-        self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+        if not use_linear:
+            self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+        else:
+            self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
+        self.use_linear = use_linear
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
-        x = self.proj_in(x)
+        if not self.use_linear:
+            x = self.proj_in(x)
         x = x.view(b, c, -1).transpose(1, 2)  # b c h w -> b (h w) c
         x = x.contiguous()  # workaround for dynamo ddp bug
+        if self.use_linear:
+            x = self.proj_in(x)
         for block in self.transformer_blocks:
             x = block(x, context=context)
+        if self.use_linear:
+            x = self.proj_out(x)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
-        x = self.proj_out(x)
+        if not self.use_linear:
+            x = self.proj_out(x)
         return x + x_in
