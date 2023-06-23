@@ -664,7 +664,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def _create_masks(self, att_context_size, padding_length, max_audio_length, offset, device):
         if self.self_attention_model != "rel_pos_local_attn":
-            att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
+            att_mask = torch.ones(1, max_audio_length, max_audio_length, device=device)
 
             if self.att_context_style == "regular":
                 if att_context_size[0] >= 0:
