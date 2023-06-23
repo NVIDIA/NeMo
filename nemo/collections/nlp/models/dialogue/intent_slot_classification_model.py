@@ -248,7 +248,7 @@ class IntentSlotClassificationModel(NLPModel):
         slot_preds = torch.argmax(slot_logits, axis=-1)
         self.slot_classification_report.update(slot_preds[subtokens_mask], slot_labels[subtokens_mask])
 
-        return {
+        loss = {
             'val_loss': val_loss,
             'intent_tp': self.intent_classification_report.tp,
             'intent_fn': self.intent_classification_report.fn,
@@ -263,6 +263,8 @@ class IntentSlotClassificationModel(NLPModel):
             'input': input_ids,
             'subtokens_mask': subtokens_mask,
         }
+        self.validation_step_outputs.append(loss)
+        return loss
 
     @staticmethod
     def get_continuous_slots(slot_ids, utterance_tokens):
@@ -392,7 +394,7 @@ class IntentSlotClassificationModel(NLPModel):
 
         return slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy
 
-    def on_validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
@@ -403,9 +405,9 @@ class IntentSlotClassificationModel(NLPModel):
             unified_slot_recall,
             unified_slot_f1,
             unified_slot_joint_goal_accuracy,
-        ) = self.get_unified_metrics(outputs)
+        ) = self.get_unified_metrics(self.validation_step_outputs)
 
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
 
         # calculate metrics and log classification report (separately for intents and slots)
         intent_precision, intent_recall, intent_f1, intent_report = self.intent_classification_report.compute()
@@ -429,6 +431,7 @@ class IntentSlotClassificationModel(NLPModel):
         self.intent_classification_report.reset()
         self.slot_classification_report.reset()
 
+        self.validation_step_outputs.clear() #free memory
         return {
             'val_loss': avg_loss,
             'intent_precision': intent_precision,
@@ -448,14 +451,61 @@ class IntentSlotClassificationModel(NLPModel):
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx)
+        loss = self.validation_step(batch, batch_idx)
+        self.test_step_outputs.append(loss)
+        return loss
 
-    def on_test_epoch_end(self, outputs):
+    def on_test_epoch_end(self):
         """
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.on_validation_epoch_end(outputs)
+
+        (
+            unified_slot_precision,
+            unified_slot_recall,
+            unified_slot_f1,
+            unified_slot_joint_goal_accuracy,
+        ) = self.get_unified_metrics(self.test_step_outputs)
+
+        avg_loss = torch.stack([x['val_loss'] for x in self.test_step_outputs]).mean()
+
+        # calculate metrics and log classification report (separately for intents and slots)
+        intent_precision, intent_recall, intent_f1, intent_report = self.intent_classification_report.compute()
+        logging.info(f'Intent report: {intent_report}')
+
+        slot_precision, slot_recall, slot_f1, slot_report = self.slot_classification_report.compute()
+        logging.info(f'Slot report: {slot_report}')
+
+        self.log('val_loss', avg_loss)
+        self.log('intent_precision', intent_precision)
+        self.log('intent_recall', intent_recall)
+        self.log('intent_f1', intent_f1)
+        self.log('slot_precision', slot_precision)
+        self.log('slot_recall', slot_recall)
+        self.log('slot_f1', slot_f1)
+        self.log('unified_slot_precision', unified_slot_precision)
+        self.log('unified_slot_recall', unified_slot_recall)
+        self.log('unified_slot_f1', unified_slot_f1)
+        self.log('unified_slot_joint_goal_accuracy', unified_slot_joint_goal_accuracy)
+
+        self.intent_classification_report.reset()
+        self.slot_classification_report.reset()
+
+        self.test_step_outputs.clear() #free memory
+        return {
+            'test_loss': avg_loss,
+            'intent_precision': intent_precision,
+            'intent_recall': intent_recall,
+            'intent_f1': intent_f1,
+            'slot_precision': slot_precision,
+            'slot_recall': slot_recall,
+            'slot_f1': slot_f1,
+            'unified_slot_precision': unified_slot_precision,
+            'unified_slot_recall': unified_slot_recall,
+            'unified_slot_f1': unified_slot_f1,
+            'unified_slot_joint_goal_accuracy': unified_slot_joint_goal_accuracy,
+        }
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, dataset_split='train')

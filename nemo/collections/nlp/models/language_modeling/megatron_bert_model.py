@@ -450,17 +450,20 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             loss_mean = torch.tensor([0.0]).cuda()
 
-        return loss_mean[0]
+        loss = loss_mean[0]
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def on_validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():
-            averaged_loss = torch.stack(outputs).mean()
+            averaged_loss = torch.stack(self.validation_step_outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
+        self.validation_step_outputs.clear() #free memory
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

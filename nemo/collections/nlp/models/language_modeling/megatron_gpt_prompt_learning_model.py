@@ -410,6 +410,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 'preds': preds_text,
                 'labels': labels_text,
             }
+
+        self.validation_step_outputs.append({'loss': loss_mean})
         return {'loss': loss_mean}
 
     def on_train_epoch_start(self) -> None:
@@ -424,13 +426,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_validation_epoch_start()
 
-    def on_validation_epoch_end(self, outputs):
-        if len(outputs) == 0:
+    def on_validation_epoch_end(self):
+        if len(self.validation_step_outputs) == 0:
             return
 
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
+            averaged_loss = torch.stack([i['loss'] for i in self.validation_step_outputs]).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
@@ -443,8 +445,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
-            all_preds = list(itertools.chain(*[item['preds'] for item in outputs]))
-            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+            all_preds = list(itertools.chain(*[item['preds'] for item in self.validation_step_outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in self.validation_step_outputs]))
 
             assert len(all_preds) == len(all_labels)
 
@@ -477,6 +479,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
+        self.validation_step_outputs.clear() #free memory
 
     def test_step(self, dataloader_iter, batch_idx):
         return self.validation_step(dataloader_iter, batch_idx)
