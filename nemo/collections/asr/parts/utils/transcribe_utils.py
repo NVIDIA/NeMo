@@ -23,8 +23,7 @@ from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -388,7 +387,7 @@ def transcribe_partial_audio(
         decode_function = (
             asr_model.decoding.rnnt_decoder_predictions_tensor
             if decoder_type == 'rnnt'
-            else asr_model.decoding.ctc_decoder_predictions_tensor
+            else asr_model.ctc_decoding.ctc_decoder_predictions_tensor
         )
     elif hasattr(asr_model, 'joint'):  # RNNT model
         decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
@@ -421,6 +420,8 @@ def transcribe_partial_audio(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
             logits, logits_len = outputs[0], outputs[1]
+            if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
+                logits = asr_model.ctc_decoder(encoder_output=logits)
             if logprobs:
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
