@@ -165,9 +165,10 @@ def main(cfg) -> None:
     model.freeze()
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
-    
+
     if hasattr(cfg.model.data, 'test_ds'):
         trainer.test(model)
+
 
 if __name__ == "__main__":
     main()

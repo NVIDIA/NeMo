@@ -149,7 +149,7 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
         reference = example[self.reference_key]
-        
+
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
             assert '{output}' in self.prompt_template
