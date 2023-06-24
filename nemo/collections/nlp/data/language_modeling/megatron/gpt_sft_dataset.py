@@ -38,6 +38,7 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: str = "text",
         label_key: str = "answer",
+        reference_key: str = None,
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
@@ -61,6 +62,7 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
+        reference_key: Key to use for the reference answers in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
@@ -80,6 +82,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.context_key = context_key
         self.label_key = label_key
+        self.reference_key = reference_key or label_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
@@ -145,7 +148,15 @@ class GPTSFTDataset(Dataset):
         """
         context = example[self.context_key]
         output = example[self.label_key]
+        reference = example[self.reference_key]
 
+        # TODO to make configurabel via config
+        TOKEN_START = "<extra_id_1>"
+        TOKEN_END = "<extra_id_2>"
+        context_idx = context.index(TOKEN_START)
+        question = TOKEN_START + context[:context_idx] + TOKEN_END
+        context_only = context[context_idx + len(TOKEN_START):]
+        
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
             assert '{output}' in self.prompt_template
@@ -217,8 +228,9 @@ class GPTSFTDataset(Dataset):
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
+            'context_texts': self.tokenizer.ids_to_text(context_ids),
+            'reference_texts': [reference] if isinstance(reference, str) else reference,
         }
-
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -262,9 +274,11 @@ class GPTSFTDataset(Dataset):
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]
-        contexts = [item['context_ids'] for item in batch]
+        context_ids = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
+        context_texts = [item['context_texts'] for item in batch]
+        reference_texts = [item['reference_texts'] for item in batch]
 
         max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
         # increase max length to nearest multiple of 4 or 8
@@ -283,7 +297,7 @@ class GPTSFTDataset(Dataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        context_ids = torch.LongTensor(self._collate_item(context_ids, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,
@@ -291,8 +305,10 @@ class GPTSFTDataset(Dataset):
             'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
-            'contexts': contexts,
+            'contexts': context_ids,
             'context_lengths': context_lengths,
+            'context_texts': context_texts,
+            'reference_texts': reference_texts,
         }
 
         return processed_batch

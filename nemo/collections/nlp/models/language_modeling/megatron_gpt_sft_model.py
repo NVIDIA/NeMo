@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import itertools
 import json
 from typing import Any, Optional
 
@@ -253,6 +253,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 seed=data_cfg.get('seed', 1234),
                 context_key=data_cfg.get('context_key', 'text'),
                 label_key=data_cfg.get('label_key', 'answer'),
+                reference_key=data_cfg.get('reference_key', None),
                 separate_prompt_and_response_with_newline=data_cfg.get(
                     'separate_prompt_and_response_with_newline', True
                 ),
@@ -353,74 +354,24 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
-        # Call parent validation step to get the loss.
-        loss = super().validation_step(dataloader_iter, batch_idx)
+        batch = next(dataloader_iter)
+        input_text = batch.pop('context_texts')
+        labels_text = batch.pop('reference_texts')
+        loss = super().validation_step(itertools.chain([batch]), batch_idx)
+        
+        data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
+        if self.get_inference_config() is not None:
+            self._inference_config['add_BOS'] = data_cfg.add_bos
+            self._inference_config['tokens_to_generate'] = data_cfg.tokens_to_generate
+        
+        output = self.predict_step(batch, batch_idx, dataloader_idx)
+        preds_text = [s[len(i):] for i, s in zip(input_text, output['sentences'])]
+        
         return {
             'loss': loss,
-            'preds': None,
-            'labels': None,
-            'inputs': None,
-        }
-        # TODO (sandeepsub): Figure out the subsequent decode bits.
-        length_params: LengthParam = {
-            "min_length": 0,
-            "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
-        }
-        sampling_params: SamplingParam = {
-            "use_greedy": True,
-            "temperature": 1.0,
-            "top_k": 1,
-            "top_p": 0.94,
-            "repetition_penalty": 1.2,
-            "add_BOS": False,
-            "all_probs": False,
-            "compute_logprob": False,
-        }
-        result = megatron_gpt_generate(
-            model=self,
-            inputs=(
-                batch['tokens'].cuda(),
-                (batch['context_lengths'] - 1).cuda(),
-            ),  # NOTE: We do -1 here to remove the space between context and response.
-            tokenizer=self.tokenizer,
-            sampling_params=sampling_params,
-            length_params=length_params,
-            check_sequence_parallel_and_checkpointing=False,  # We need to skip these checks since we'll manually enbale and disable checkpointing between training and validation.
-        )
-
-        preds_text = []
-        labels_text = []
-        input_text = []
-        for idx, item in enumerate(result['token_ids']):
-            pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1 :])
-            input = self.tokenizer.ids_to_text(item[: batch['context_lengths'][idx] - 1])
-            label = self.tokenizer.ids_to_text(batch['tokens'][idx][batch['context_lengths'][idx] :].tolist())
-            preds_text.append(pred.strip())
-            labels_text.append(label.strip())
-            input_text.append(input.strip())
-
-        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-        assert len(preds_text) == len(labels_text) == len(input_text)
-        for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
-            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-            pred, label = self.cast_for_metric(
-                pred=pred.strip(),
-                label=label.strip(),
-                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None)
-                if mode == 'validation'
-                else self.cfg.data.test_ds.metric.get('class_labels', None),
-                labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False)
-                if mode == 'validation'
-                else self.cfg.data.test_ds.metric.get('labels_are_strings', False),
-            )
-            _ = metric(pred, label)
-
-        return {
-            'loss': loss,
-            'preds': preds_text,
-            'labels': labels_text,
-            'inputs': input_text,
+            'preds': preds_text, # [str]
+            'labels': labels_text, # [[str]]
+            'inputs': input_text, # [str]
         }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
@@ -433,82 +384,81 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         averaged_loss = []
         averaged_metric = []
-        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             loss = super().validation_epoch_end([x['loss'] for x in output])
-            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss)
             averaged_loss.append(loss)
-
-            # Skip the rest of this loop if the user wants to monitor the loss only.
-            if self.val_metric is None:
-                continue
-            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
-            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-            metric_object = (
-                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            
+            # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+            gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            torch.distributed.all_gather_object(
+                gathered_outputs,
+                [
+                    {
+                        'preds': x['preds'],
+                        'labels': x['labels'],
+                        'inputs': x['inputs'],
+                    }
+                    for x in output
+                ],
+                group=parallel_state.get_data_parallel_group(),
             )
-            metric = metric_object.compute()
-            # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
-            if isinstance(metric, dict):
-                if metric_name == 'rouge':
-                    metric = metric['rougeL_fmeasure']
-                else:
-                    metric = metric['acc']
-            torch.distributed.all_reduce(
-                metric, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_data_parallel_group()
-            )
-            metric = metric / parallel_state.get_data_parallel_world_size()
-            self.log(metric_log_key, metric)
-            logging.info(f"{mode} {metric_name}: {metric}")
-
-            metric_object.reset()
-
-            averaged_metric.append(metric)
-
-            # Write predictions, labels, and inputs to a file for each validation/test dataset.
-            if data_cfg.get("write_predictions_to_file", False):
-
-                # Check if the user provided a prefix path to the file(s) they want to write.
-                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
-                    raise ValueError(
-                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
-                    )
-
-                # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-                gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-                torch.distributed.all_gather_object(
-                    gathered_outputs,
-                    [{'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'],} for x in output],
-                    group=parallel_state.get_data_parallel_group(),
-                )
-
-                # Figure out what the suffix of the file should be.
-                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-
-                # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
-                gt_inp_set = set()
+            
+            if self.global_rank == 0:
+                
+                # Remove duplicate examples due to distributed sampler.
+                inp_label_set = set()
                 deduplicated_outputs = {
                     'preds': [],
                     'labels': [],
                     'inputs': [],
                 }
-
-                # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
-                if self.global_rank == 0:
-                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                        for batch in gathered_outputs[rank]:
-                            for pred, label, input in zip(batch['preds'], batch['labels'], batch['inputs']):
-                                gt_inp_set.add(input + label)
+                for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                    for batch in gathered_outputs[rank]:
+                        for pred, label, input in zip(
+                            batch['preds'], batch['labels'], batch['inputs']
+                        ):
+                            key = input + ' '.join(label)
+                            if key not in inp_label_set:
+                                inp_label_set.add(key)
                                 deduplicated_outputs['preds'].append(pred)
                                 deduplicated_outputs['labels'].append(label)
-                                deduplicated_outputs['inputs'].append(input)
-                    self.write_predictions_to_file(
-                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
-                    )
-                torch.distributed.barrier()
+                                deduplicated_outputs['inputs'].append(input)  
+
+                logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
+                
+                # Write predictions to file
+                if data_cfg.get("write_predictions_to_file", False):
+                    # Check if the user provided a prefix path to the file(s) they want to write.
+                    if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                        raise ValueError(
+                            f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                        )
+                    filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                    self.write_predictions_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
+                
+                
+                metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
+                
+                if metric_name == 'rouge':
+                    for k,v in metric_result.items():
+                        if 'fmeasure' in k:
+                            self.log(metric_log_key + f'_{k}', v.item())
+                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                    metric_result = metric_result['rouge1_fmeasure']
+                else:
+                    self.log(metric_log_key, metric_result.item())
+                    logging.info(f"{mode} {metric_name}: {metric_result.item()}")
+                
+                averaged_metric.append(metric_result)
+                      
+            torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
@@ -669,7 +619,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             global_batch_size=data_cfg.global_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=True,
+            drop_last=data_cfg.get('drop_last', True),
             pad_samples_to_global_batch_size=False,
         )
         return torch.utils.data.DataLoader(
