@@ -750,6 +750,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_batch_on_this_context_parallel_rank(self, batch):
         cp_size = self.cfg.get('context_parallel_size', 1)
+        loss_mask_sum = None if 'loss_mask' not in batch else batch['loss_mask'].sum()
 
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
@@ -762,7 +763,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     val = val.view(*val.shape[0:seq_dim], len(index)*val.shape[seq_dim+1], *val.shape[(seq_dim+2):])
                     batch[key] = val
 
-        loss_mask_sum = None if 'loss_mask' not in batch else batch['loss_mask'].sum()
         batch['loss_mask_sum'] = loss_mask_sum
 
         return batch
