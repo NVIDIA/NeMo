@@ -406,58 +406,57 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 ],
                 group=parallel_state.get_data_parallel_group(),
             )
+             
+            # Remove duplicate examples due to distributed sampler.
+            inp_label_set = set()
+            deduplicated_outputs = {
+                'preds': [],
+                'labels': [],
+                'inputs': [],
+            }
+            for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                for batch in gathered_outputs[rank]:
+                    for pred, label, input in zip(
+                        batch['preds'], batch['labels'], batch['inputs']
+                    ):
+                        key = input + ' '.join(label)
+                        if key not in inp_label_set:
+                            inp_label_set.add(key)
+                            deduplicated_outputs['preds'].append(pred)
+                            deduplicated_outputs['labels'].append(label)
+                            deduplicated_outputs['inputs'].append(input)  
             
-            if self.global_rank == 0:
-                
-                # Remove duplicate examples due to distributed sampler.
-                inp_label_set = set()
-                deduplicated_outputs = {
-                    'preds': [],
-                    'labels': [],
-                    'inputs': [],
-                }
-                for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                    for batch in gathered_outputs[rank]:
-                        for pred, label, input in zip(
-                            batch['preds'], batch['labels'], batch['inputs']
-                        ):
-                            key = input + ' '.join(label)
-                            if key not in inp_label_set:
-                                inp_label_set.add(key)
-                                deduplicated_outputs['preds'].append(pred)
-                                deduplicated_outputs['labels'].append(label)
-                                deduplicated_outputs['inputs'].append(input)  
+            # Compute metric score
+            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+            metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
 
+            if metric_name == 'rouge':
+                for k,v in metric_result.items():
+                    if 'fmeasure' in k:
+                        self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                        logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                metric_result = metric_result['rouge1_fmeasure']
+            else:
+                self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                logging.info(f"{mode} {metric_name}: {metric_result.item()}")
+
+            averaged_metric.append(metric_result)
+            
+            
+            # Write predictions to file
+            if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
                 logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
+
+                # Check if the user provided a prefix path to the file(s) they want to write.
+                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                    raise ValueError(
+                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                    )
+                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                self.write_predictions_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
                 
-                # Write predictions to file
-                if data_cfg.get("write_predictions_to_file", False):
-                    # Check if the user provided a prefix path to the file(s) they want to write.
-                    if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
-                        raise ValueError(
-                            f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
-                        )
-                    filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-                    self.write_predictions_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
-                
-                
-                metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-                metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
-                
-                if metric_name == 'rouge':
-                    for k,v in metric_result.items():
-                        if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item())
-                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
-                    metric_result = metric_result['rouge1_fmeasure']
-                else:
-                    self.log(metric_log_key, metric_result.item())
-                    logging.info(f"{mode} {metric_name}: {metric_result.item()}")
-                
-                averaged_metric.append(metric_result)
-                      
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
 
         # Logging of the averaged metrics:
@@ -619,7 +618,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             global_batch_size=data_cfg.global_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=data_cfg.get('drop_last', True),
+            drop_last=data_cfg.drop_last,
             pad_samples_to_global_batch_size=False,
         )
         return torch.utils.data.DataLoader(

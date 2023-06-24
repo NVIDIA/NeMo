@@ -149,13 +149,6 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
         reference = example[self.reference_key]
-
-        # TODO to make configurabel via config
-        TOKEN_START = "<extra_id_1>"
-        TOKEN_END = "<extra_id_2>"
-        context_idx = context.index(TOKEN_START)
-        question = TOKEN_START + context[:context_idx] + TOKEN_END
-        context_only = context[context_idx + len(TOKEN_START):]
         
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
@@ -274,7 +267,7 @@ class GPTSFTDataset(Dataset):
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]
-        context_ids = [item['context_ids'] for item in batch]
+        contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         context_texts = [item['context_texts'] for item in batch]
@@ -297,7 +290,7 @@ class GPTSFTDataset(Dataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        context_ids = torch.LongTensor(self._collate_item(context_ids, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,
@@ -305,7 +298,7 @@ class GPTSFTDataset(Dataset):
             'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
-            'contexts': context_ids,
+            'contexts': contexts,
             'context_lengths': context_lengths,
             'context_texts': context_texts,
             'reference_texts': reference_texts,
