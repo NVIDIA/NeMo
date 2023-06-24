@@ -23,6 +23,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
+    ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
 )
 from nemo.core.classes.mixins import adapter_mixins
@@ -168,6 +169,49 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
 
         super().__init__(cfg, trainer)
 
+
+class MegatronGPTAdapterModelWeightTying(MegatronGPTPEFTModel):
+    """
+    TODO 
+    """
+
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        self.peft_name_keys = [
+            AdapterName.PRE_ATTN_ADAPTER,
+            AdapterName.POST_ATTN_ADAPTER,
+        ]
+        adapter_tuning_cfg = cfg.peft.adapter_tuning
+
+        adapter_cfg = ParallelLinearAdapterWeightTyingConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=adapter_tuning_cfg.adapter_dim,
+            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
+            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
+            dropout=adapter_tuning_cfg.adapter_dropout,
+            num_position_embeddings=cfg.num_layers * 2,
+            dim_position_embeddings=1024,
+        )
+
+        self.name_key_to_cfg = {}
+        for k in self.peft_name_keys:
+            self.name_key_to_cfg[k] = adapter_cfg
+
+        super().__init__(cfg, trainer)
+        self.tie_weights()
+    
+    def tie_weights(self,):
+        print(self.adapter_keys)
+        adapter_layer0 =self.model.language_model.encoder.layers[0].adapter_layer
+        for layer in self.model.language_model.encoder.layers:
+            for adapter_l, adapter_0 in  zip(layer.adapter_layer, adapter_layer0):
+                print(adapter_l)
+                print(adapter_0)
+                print("im here")
 
 class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     """

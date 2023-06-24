@@ -345,3 +345,47 @@ class PromptEncoderAdapterConfig:
     init_std: float
     output_dim: int
     _target_: str = "{0}.{1}".format(PromptEncoderAdapter.__module__, PromptEncoderAdapter.__name__)
+
+
+
+class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
+    """
+    Extends parallel linear adapter for weight tying by providing a position embedding and convenience methods for tying weights
+    """
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        dim: int,
+        activation: str = 'swish',
+        norm_position: str = 'post',
+        norm_type: str = 'mixedfusedlayernorm',
+        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        gather_output: bool = True,
+        dropout: float = 0.0,
+        num_position_embeddings: int = 1,
+        dim_position_embeddings: int = 1024,
+    ):
+        super().__init__(in_features, out_features, dim, activation, norm_position, norm_type, column_init_method, row_init_method, gather_output, dropout)
+        self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
+    
+    def tie_weights(self, linear_in, linear_out, pos_embeddings, layer_norm=None):
+        pass
+
+
+@dataclass
+class ParallelLinearAdapterWeightTyingConfig:
+    in_features: int
+    out_features: int
+    dim: int
+    activation: str = 'swish'
+    norm_position: str = 'post'
+    norm_type: str = 'mixedfusedlayernorm'
+    column_init_method: str = 'xavier'
+    row_init_method: str = 'zero'
+    gather_output: bool = True
+    dropout: float = 0.0
+    num_position_embeddings: int = 1
+    dim_position_embeddings: int = 1024
+    _target_: str = "{0}.{1}".format(ParallelLinearAdapterWeightTying.__module__, ParallelLinearAdapterWeightTying.__name__)
