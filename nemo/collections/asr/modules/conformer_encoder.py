@@ -574,13 +574,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pos_emb=pos_emb,
                 pad_mask=pad_mask,
                 cache_last_channel=cache_last_channel_cur,
-                cache_last_time=cache_last_channel_cur,
+                cache_last_time=cache_last_time_cur,
             )
 
             if cache_last_channel_cur is not None:
                 (audio_signal, cache_last_channel_cur, cache_last_time_cur) = audio_signal
                 cache_last_channel_next[layer.self_attn._cache_id] = cache_last_channel_cur
-                cache_last_time_next[layer.depthwise_conv._cache_id] = cache_last_time_cur
+                cache_last_time_next[layer.conv.depthwise_conv._cache_id] = cache_last_time_cur
 
             # applying stochastic depth logic from https://arxiv.org/abs/2102.03216
             if self.training and drop_prob > 0.0:

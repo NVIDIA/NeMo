@@ -134,11 +134,15 @@ class CausalConv1D(nn.Conv1d):
             new_x = F.pad(x, pad=(self._left_padding, self._right_padding))
         else:
             new_x = F.pad(x, pad=(0, self._right_padding))
-            new_x = torch.cat([cache, new_x], dim=-1)
+
             # todo: we should know input_x.size(-1) at config time
-            cache_keep_size = torch.tensor(x.size(-1) - self.cache_drop_size, dtype=torch.int64, device=x.device)
-            cache_keep_size = torch.clip(cache_keep_size, min=1, max=cache_next.size(-1))
-            cache = torch.cat(cache[:, :, cache_keep_size:], x[:, :, :cache_keep_size])
+            # cache_keep_size = x.size(-1) - self.cache_drop_size, dtype=torch.int64, device=x.device)
+            # print("cache:", cache.size(), "x:", x.size(), "new_x:", new_x.size())
+            new_x = torch.cat([cache, new_x], dim=-1)
+            if self.cache_drop_size > 0:
+                x = x[:, :, : -self.cache_drop_size]
+            cache = torch.cat([cache[:, :, x.size(-1) :], x], dim=-1)
+            # print("cache size: ", cache.size())
         return new_x, cache
 
     def forward(self, x, cache=None):
