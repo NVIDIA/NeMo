@@ -19,7 +19,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_llama_model import MegatronLLAMAModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -61,8 +61,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.get('ffn_dropout', 0.0)
-        sft_cls = MegatronLLAMAModel
-        gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
+        #sft_cls = MegatronLLAMAModel
+        #gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
@@ -137,16 +137,16 @@ def main(cfg) -> None:
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-        gpt_cfg = MegatronLLAMAModel.restore_from(
+        gpt_cfg = MegatronGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
         gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
-        model = load_from_nemo(MegatronLLAMAModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+        model = load_from_nemo(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
-        model = MegatronLLAMAModel(cfg.model, trainer)
+        model = MegatronGPTModel(cfg.model, trainer)
 
     trainer.fit(model)
 

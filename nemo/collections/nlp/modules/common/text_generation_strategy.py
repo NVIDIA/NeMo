@@ -331,7 +331,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.nlp.models.language_modeling.megatron_llama_model import MegatronLLAMAModel
+    #from nemo.collections.nlp.models.language_modeling.megatron_llama_model import MegatronLLAMAModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
     )
@@ -344,7 +344,8 @@ def model_inference_strategy_dispatcher(model, **args):
 
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
-    elif isinstance(model, MegatronGPTModel) or isinstance(model, MegatronLLAMAModel):
+    #elif isinstance(model, MegatronGPTModel) or isinstance(model, MegatronLLAMAModel):
+    elif isinstance(model, MegatronGPTModel):
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']

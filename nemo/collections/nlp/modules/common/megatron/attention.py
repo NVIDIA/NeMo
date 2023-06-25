@@ -404,7 +404,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         if self.attention_type == AttnType.self_attn:
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
-            #self.query_key_value.weight.data = torch.empty_like(self.query_key_value.weight.data).fill_(0.01)
             mixed_x_layer, _ = self.query_key_value(hidden_states)
             if self.is_adapter_available():
                 lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
@@ -542,13 +541,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # Output. [sq, b, h]
         # =================
 
-        #self.dense.weight.data = torch.empty_like(self.dense.weight.data).fill_(0.01)
         output, bias = self.dense(context_layer)
-        #torch.save(context_layer, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_attn_input_nemo.pt")
-        #torch.save(self.dense.weight, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_attn_input_nemo.pt")
-        #torch.save(output, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_attn_output_nemo.pt")
-        #import sys
-        #sys.exit()
 
         if get_key_value:
             output = [output, present]
@@ -868,10 +861,6 @@ class CoreAttention(MegatronModule):
             q_pos_emb, k_pos_emb = rotary_pos_emb
             query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
             key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
-            #torch.save(query_layer, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_q_after_rotary_nemo.pt")
-            #torch.save(key_layer, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_k_after_rotary_nemo.pt")
-            #import sys
-            #sys.exit()
             # TODO, can apply positional embedding to value_layer so it has
             # absolute positional embedding.
             # otherwise, only relative positional embedding takes effect
@@ -939,7 +928,6 @@ class CoreAttention(MegatronModule):
             attention_scores += attention_bias
 
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-        #torch.save(attention_probs, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_attn_probs_nemo.pt")
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.

@@ -14,7 +14,6 @@
 
 """Transformer based language model."""
 import torch
-import sys
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -341,11 +340,6 @@ class Embedding(MegatronModule):
     def forward(self, input_ids, position_ids=None, token_type_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
-        #print(words_embeddings.size())
-        #torch.save(input_ids, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/input_ids_nemo.pt")
-        #torch.save(words_embeddings, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/hidden_states_nemo.pt")
-        #torch.save(self.word_embeddings.weight, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/embed_weights_nemo.pt")
-        #sys.exit()
         if self.position_embedding_type == 'learned_absolute':
             assert position_ids is not None
             position_embeddings = self.position_embeddings(position_ids)
@@ -809,7 +803,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
 
-        #torch.save(encoder_output, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/transformer_block_output_nemo.pt") 
         if self.post_process:
             if self.add_pooler:
                 pooled_output = self.pooler(encoder_output, pooling_sequence_index)

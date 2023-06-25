@@ -224,16 +224,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
     def forward(self, hidden_states):
 
-        #self.dense_h_to_4h.weight.data = torch.empty_like(self.dense_h_to_4h.weight.data).fill_(0.01)
-        #self.dense_h_to_4h_2.weight.data = torch.empty_like(self.dense_h_to_4h_2.weight.data).fill_(0.01)
-        #self.dense_4h_to_h.weight.data = torch.empty_like(self.dense_4h_to_h.weight.data).fill_(0.01)
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
-        #torch.save(hidden_states, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_mlp_input_nemo.pt")
-        #torch.save(self.dense_h_to_4h.weight, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_mlp_weight_nemo.pt")
-        #torch.save(intermediate_parallel, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_mlp_output_nemo.pt")
-        #import sys
-        #sys.exit()
 
 
         if self.fast_glu_activation:
@@ -278,11 +270,6 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
-        #torch.save(intermediate_parallel, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_mlp_input_nemo.pt")
-        #torch.save(self.dense_4h_to_h.weight, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_mlp_weight_nemo.pt")
-        #torch.save(output, "/lustre/fsw/devtech/hpc-devtech/hongbinl/nemo_megatron/scripts/support_llama/data/layer0_mlp_output_nemo.pt")
-        #import sys
-        #sys.exit()
         return output, output_bias
 
 

@@ -5,12 +5,12 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 32
+  precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
-  max_steps: 2000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
   limit_val_batches: 50
@@ -28,7 +28,7 @@ exp_manager:
   wandb_logger_kwargs:
     project: null
     name: null
-  resume_if_exists: False
+  resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -36,14 +36,14 @@ exp_manager:
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    save_nemo_on_train_end: True # not recommended when training large models on clusters with short time limits
+    save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 1 # limited by GPU memory
+  micro_batch_size: 4 # limited by GPU memory
   global_batch_size: 8 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
@@ -92,9 +92,9 @@ model:
   #    delimiter: null # only used for tabular tokenizer
   #    sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
   tokenizer:
-    library: 'megatron'
-    type: 'GPT2BPETokenizer'
-    model: null
+    library: 'sentencepiece'
+    type: null
+    model: ??? # /path/to/tokenizer.model
     vocab_file: null
     merge_file: null 
     delimiter: null # only used for tabular tokenizer
@@ -187,7 +187,7 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: {train: [/lustre/fsw/mlperf/mlperft-dlrm/hongbinl/data/enron/enron_text_document], validation: [/lustre/fsw/mlperf/mlperft-dlrm/hongbinl/data/enron/enron_text_document], test: [/lustre/fsw/mlperf/mlperft-dlrm/hongbinl/data/enron/enron_text_document]}
+    data_prefix: ???
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50

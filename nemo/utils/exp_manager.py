@@ -190,8 +190,6 @@ class TimingCallback(Callback):
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, batch_size=1)
-        #if name == 'train_step_timing' and torch.distributed.get_rank() == 0:
-        #    print(f'train_step_timing: {self.timer[name]}')
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")

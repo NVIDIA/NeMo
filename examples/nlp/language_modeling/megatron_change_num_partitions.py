@@ -714,9 +714,6 @@ def split_partition(
     elif 't5' in model.cfg.target.lower():
         logging.info("Splitting T5 model")
         handler = T5Handler(megatron_legacy=megatron_legacy)
-    elif 'llama' in model.cfg.target.lower():
-        logging.info("Splitting LLaMA model")
-        handler = GPTHandler(megatron_legacy=megatron_legacy)
 
     else:
         raise ValueError(f"Unsupported model for Pipeline Parallelism change - {model.cfg.target}")
