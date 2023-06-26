@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
-from dataclasses import dataclass
 import itertools
+from dataclasses import dataclass
 from typing import List, Optional
 
 import torch
@@ -23,16 +23,25 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers.wandb import WandbLogger
 from torchvision.transforms import Resize
 
-from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.parts.utils.helpers import clip_grad_value_, plot_alignment_to_numpy, plot_spectrogram_to_numpy, process_batch, get_batch_size, get_num_workers, rand_slice_segments, slice_segments
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
+from nemo.collections.tts.models import FastPitchModel, HifiGanModel
 from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
-from nemo.collections.tts.models import HifiGanModel, FastPitchModel
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.modules.transformer import mask_from_lens
+from nemo.collections.tts.parts.utils.helpers import (
+    clip_grad_value_,
+    get_batch_size,
+    get_num_workers,
+    plot_alignment_to_numpy,
+    plot_spectrogram_to_numpy,
+    process_batch,
+    rand_slice_segments,
+    slice_segments,
+)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -56,8 +65,9 @@ try:
 except ModuleNotFoundError:
     HAVE_WANDB = False
 
-FP_NAMES = {22050 : "tts_en_fastpitch", 44100 : "tts_en_fastpitch_multispeaker"}
-HFG_NAMES = {22050 : "tts_en_hifigan", 44100 : "tts_en_hifitts_hifigan_ft_fastpitch"}
+FP_NAMES = {22050: "tts_en_fastpitch", 44100: "tts_en_fastpitch_multispeaker"}
+HFG_NAMES = {22050: "tts_en_hifigan", 44100: "tts_en_hifitts_hifigan_ft_fastpitch"}
+
 
 @dataclass
 class G2PConfig:
@@ -146,36 +156,39 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss_fn = ForwardSumLoss()
             self.bin_loss_fn = BinLoss()
-        
 
         self.l1_factor = cfg.get("l1_loss_factor", 45)
 
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
-        
         if cfg.use_pretrain:
             self.register_nemo_submodule(
-                    "hfg_model",
-                    config_field="hfg_model",
-                    model=HifiGanModel.from_pretrained(HFG_NAMES[self.sample_rate], map_location=torch.device("cpu")),
-                )
+                "hfg_model",
+                config_field="hfg_model",
+                model=HifiGanModel.from_pretrained(HFG_NAMES[self.sample_rate], map_location=torch.device("cpu")),
+            )
 
             self.register_nemo_submodule(
-                    "fp_model",
-                    config_field="fp_model",
-                    model=FastPitchModel.from_pretrained(FP_NAMES[self.sample_rate], map_location=torch.device("cpu")),
-                )
+                "fp_model",
+                config_field="fp_model",
+                model=FastPitchModel.from_pretrained(FP_NAMES[self.sample_rate], map_location=torch.device("cpu")),
+            )
 
             self.tokenizer = self.fp_model.vocab
-                
+
         else:
-            if not "input_fft" in cfg or not "output_fft" in cfg or not "duration_predictor" in cfg or not "pitch_predictor" in cfg or not "generator" in cfg:
+            if (
+                not "input_fft" in cfg
+                or not "output_fft" in cfg
+                or not "duration_predictor" in cfg
+                or not "pitch_predictor" in cfg
+                or not "generator" in cfg
+            ):
                 raise ValueError(f'Should provide model config if not using pretrain')
-            
+
             input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
             output_fft = instantiate(self._cfg.output_fft)
             duration_predictor = instantiate(self._cfg.duration_predictor)
@@ -186,25 +199,25 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
             energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
             self.register_nemo_submodule(
-                    "fp_model",
-                    config_field="fp_model",
-                    model=FastPitchModule(
-                        input_fft,
-                        output_fft,
-                        duration_predictor,
-                        pitch_predictor,
-                        energy_predictor,
-                        self.aligner,
-                        cfg.n_speakers,
-                        cfg.symbols_embedding_dim,
-                        cfg.pitch_embedding_kernel_size,
-                        energy_embedding_kernel_size,
-                        cfg.n_mel_channels,
-                        cfg.max_token_duration,
-                        speaker_emb_condition_prosody,
-                        speaker_emb_condition_decoder,
-                        speaker_emb_condition_aligner,
-                    )
+                "fp_model",
+                config_field="fp_model",
+                model=FastPitchModule(
+                    input_fft,
+                    output_fft,
+                    duration_predictor,
+                    pitch_predictor,
+                    energy_predictor,
+                    self.aligner,
+                    cfg.n_speakers,
+                    cfg.symbols_embedding_dim,
+                    cfg.pitch_embedding_kernel_size,
+                    energy_embedding_kernel_size,
+                    cfg.n_mel_channels,
+                    cfg.max_token_duration,
+                    speaker_emb_condition_prosody,
+                    speaker_emb_condition_decoder,
+                    speaker_emb_condition_aligner,
+                ),
             )
 
             generator = instantiate(cfg.generator)
@@ -214,7 +227,6 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             self.hfg_model.generator = generator
             self.hfg_model.mpd = mpd
             self.hfg_model.msd = msd
-        
 
         self._input_types = self._output_types = None
         self.export_config = {"enable_volume": False, "enable_ragged_batches": False}
@@ -252,8 +264,12 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         sched_config = optim_config.pop("sched", None)
         OmegaConf.set_struct(optim_config, True)
 
-        optim_g = instantiate(optim_config, params=itertools.chain(self.hfg_model.generator.parameters(), self.fp_model.parameters()),)
-        optim_d = instantiate(optim_config, params=itertools.chain(self.hfg_model.msd.parameters(), self.hfg_model.mpd.parameters()),)
+        optim_g = instantiate(
+            optim_config, params=itertools.chain(self.hfg_model.generator.parameters(), self.fp_model.parameters()),
+        )
+        optim_d = instantiate(
+            optim_config, params=itertools.chain(self.hfg_model.msd.parameters(), self.hfg_model.mpd.parameters()),
+        )
 
         # Backward compatibility
         if sched_config is None and 'sched' in self._cfg:
@@ -440,7 +456,7 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
             assert self.ds_class_name == "TTSDataset", f"Unknown dataset class: {self.ds_class_name}"
-            
+
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             # print(batch_dict)
             audio = batch_dict.get("audio")
@@ -456,7 +472,7 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             audio, audio_lens, text, text_lens, attn_prior, pitch, durs, speaker = batch
 
         mels, spec_len = self.fp_model.preprocessor(input_signal=audio, length=audio_lens)
-        
+
         (
             mels_pred,
             dec_lens,
@@ -486,31 +502,31 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             durs = attn_hard_dur
 
         audio = audio.unsqueeze(1)
-        
+
         fp_inter_mel = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
-        
+
         # Skip batch if it is too short
         if self.cfg.use_patches:
-            ids_str_max = dec_lens - self._cfg.segment_size // self._cfg.n_window_stride + 1 
+            ids_str_max = dec_lens - self._cfg.segment_size // self._cfg.n_window_stride + 1
             if len(ids_str_max[ids_str_max < 0]) > 0:
                 print('Encountered short batch')
                 return
 
-            mels_pred, ids_slice = rand_slice_segments(mels_pred, dec_lens, self._cfg.segment_size // self._cfg.n_window_stride)
+            mels_pred, ids_slice = rand_slice_segments(
+                mels_pred, dec_lens, self._cfg.segment_size // self._cfg.n_window_stride
+            )
             audio = slice_segments(audio, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
             mels = slice_segments(mels, ids_slice, self._cfg.segment_size // self._cfg.n_window_stride)
-            
-        
+
         audio_pred = self.hfg_model.generator(x=mels_pred)
 
         audio_pred_mel, _ = self.fp_model.preprocessor(input_signal=audio_pred.squeeze(1), length=audio_lens)
 
         optim_g, optim_d = self.optimizers()
-        
+
         # Train discriminator
         optim_d.zero_grad()
-        
-        
+
         mpd_score_real, mpd_score_gen, _, _ = self.hfg_model.mpd(y=audio, y_hat=audio_pred.detach())
         loss_disc_mpd, _, _ = self.discriminator_loss(
             disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
@@ -520,15 +536,16 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             disc_real_outputs=msd_score_real, disc_generated_outputs=msd_score_gen
         )
         loss_d = loss_disc_msd + loss_disc_mpd
-        
 
         self.manual_backward(loss_d)
-        norm_d = clip_grad_value_(itertools.chain(self.hfg_model.msd.parameters(), self.hfg_model.mpd.parameters()), 20)
+        norm_d = clip_grad_value_(
+            itertools.chain(self.hfg_model.msd.parameters(), self.hfg_model.mpd.parameters()), 20
+        )
         optim_d.step()
-        
+
         # Train generator
         optim_g.zero_grad()
-        loss_mel = self.mel_loss_fn(spect_predicted=audio_pred_mel, spect_tgt=mels) 
+        loss_mel = self.mel_loss_fn(spect_predicted=audio_pred_mel, spect_tgt=mels)
         _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.hfg_model.mpd(y=audio, y_hat=audio_pred)
         _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.hfg_model.msd(y=audio, y_hat=audio_pred)
         loss_fm_mpd = self.feature_loss(fmap_r=fmap_mpd_real, fmap_g=fmap_mpd_gen)
@@ -536,11 +553,10 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         loss_gen_mpd, _ = self.generator_loss(disc_outputs=mpd_score_gen)
         loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
         loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel * self.l1_factor
-        
-        
+
         if self.cfg.inter_mel_loss:
             loss_g += fp_inter_mel
-        
+
         dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         loss_g += dur_loss
         if self.learn_alignment:
@@ -553,9 +569,10 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
         loss_g += pitch_loss + energy_loss
 
-
         self.manual_backward(loss_g)
-        norm_g = clip_grad_value_(itertools.chain(self.hfg_model.generator.parameters(), self.fp_model.parameters()), 20)
+        norm_g = clip_grad_value_(
+            itertools.chain(self.hfg_model.generator.parameters(), self.fp_model.parameters()), 20
+        )
         optim_g.step()
 
         # Run schedulers
@@ -582,16 +599,14 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             "grad_g": norm_g,
         }
 
-        
         if energy_tgt is not None:
             metrics["t_energy_loss"] = energy_loss
-        
+
         if self.learn_alignment:
             metrics["t_ctc_loss"] = ctc_loss
             metrics["t_bin_loss"] = bin_loss
-    
+
         self.log_dict(metrics, on_step=True, sync_dist=True)
-        
 
     def validation_step(self, batch, batch_idx):
         # return
@@ -614,7 +629,20 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         mels, mel_lens = self.fp_model.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        (mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch, energy_pred, energy_tgt,) = self.fp_model(
+        (
+            mels_pred,
+            _,
+            _,
+            log_durs_pred,
+            pitch_pred,
+            _,
+            _,
+            _,
+            attn_hard_dur,
+            pitch,
+            energy_pred,
+            energy_tgt,
+        ) = self.fp_model(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -628,8 +656,9 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         )
 
         audio_pred = self.hfg_model.generator(x=mels_pred)
-        audio_mel_pred, audio_mel_pred_len = self.fp_model.preprocessor(input_signal=audio_pred.squeeze(1), length=audio_lens)
-
+        audio_mel_pred, audio_mel_pred_len = self.fp_model.preprocessor(
+            input_signal=audio_pred.squeeze(1), length=audio_lens
+        )
 
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
@@ -640,12 +669,12 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
 
             audios += [
                 wandb.Audio(
-                    audio[0, : audio_lens[0]].data.cpu().to(torch.float).view(-1, ).numpy(),
+                    audio[0, : audio_lens[0]].data.cpu().to(torch.float).view(-1,).numpy(),
                     caption=f"val_wav_target",
                     sample_rate=self._cfg.sample_rate,
                 ),
                 wandb.Audio(
-                    audio_pred[0, : audio_lens[0]].data.cpu().to(torch.float).view(-1, ).numpy(),
+                    audio_pred[0, : audio_lens[0]].data.cpu().to(torch.float).view(-1,).numpy(),
                     caption=f"val_wav_predicted",
                     sample_rate=self._cfg.sample_rate,
                 ),
@@ -653,8 +682,7 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
 
             specs += [
                 wandb.Image(
-                    plot_spectrogram_to_numpy(mels[0, :, : mel_lens[0]].data.cpu().numpy()),
-                    caption=f"val_mel_target",
+                    plot_spectrogram_to_numpy(mels[0, :, : mel_lens[0]].data.cpu().numpy()), caption=f"val_mel_target",
                 ),
                 wandb.Image(
                     plot_spectrogram_to_numpy(mels_pred[0, :, : mel_lens[0]].data.cpu().numpy()),
@@ -689,7 +717,9 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         if cfg.dataset._target_ == "nemo.collections.tts.data.dataset.TTSDataset":
             phon_mode = contextlib.nullcontext()
             if hasattr(self.tokenizer, "set_phone_prob"):
-                phon_mode = self.tokenizer.set_phone_prob(prob=None if name == "val" else self.tokenizer.phoneme_probability)
+                phon_mode = self.tokenizer.set_phone_prob(
+                    prob=None if name == "val" else self.tokenizer.phoneme_probability
+                )
 
             with phon_mode:
                 dataset = instantiate(
@@ -700,7 +730,7 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
                 )
         else:
             dataset = instantiate(cfg.dataset)
-        
+
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
