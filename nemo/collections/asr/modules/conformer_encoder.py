@@ -556,15 +556,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             pad_mask = pad_mask[:, cache_len:]
             if att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
-            # this should be just shallow list copy
-            cache_last_time_next = list(cache_last_time)
-            cache_last_channel_next = list(cache_last_channel)
+            # Convert caches from the tensor to list
+            cache_last_time_next = [None] * self.streaming_cfg.last_time_num
+            cache_last_channel_next = [None] * self.streaming_cfg.last_channel_num
 
         for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
             original_signal = audio_signal
             if cache_last_channel is not None:
-                cache_last_channel_cur = cache_last_channel_next[layer.self_attn._cache_id]
-                cache_last_time_cur = cache_last_time_next[layer.conv.depthwise_conv._cache_id]
+                cache_last_channel_cur = cache_last_channel[layer.self_attn._cache_id]
+                cache_last_time_cur = cache_last_time[layer.conv.depthwise_conv._cache_id]
             else:
                 cache_last_channel_cur = None
                 cache_last_time_cur = None
