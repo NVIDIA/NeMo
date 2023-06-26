@@ -83,6 +83,7 @@ trap on_script_completion EXIT
 
 # Launch background process that samples hardware utilization
 rm -f /tmp/workload_terminated
+echo "Launching monitor_hardware_util.sh to monitor devices"
 bash /workspace/nemo/scripts/gce/monitor_hardware_util.sh &
 
 PIDS=()
