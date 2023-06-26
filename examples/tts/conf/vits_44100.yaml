@@ -94,11 +94,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-<<<<<<< HEAD
-      batch_size: 2
-=======
       batch_size: 32
->>>>>>> 90ca7b11dcd80c01cd2a5c30e4c4fc58af3b56e2
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -127,11 +123,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-<<<<<<< HEAD
-      batch_size: 2
-=======
       batch_size: 32
->>>>>>> 90ca7b11dcd80c01cd2a5c30e4c4fc58af3b56e2
       num_workers: 4
       pin_memory: false
 

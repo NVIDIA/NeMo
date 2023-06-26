@@ -631,10 +631,8 @@ def slice_segments(x, ids_str, segment_size=4):
         if idx_end >= x.size(2):
             # pad the sample if it is shorter than the segment size
             x_i = torch.nn.functional.pad(x_i, (0, (idx_end + 1) - x.size(2)))
-        try:
-            ret[i] = x_i[:, idx_str:idx_end]
-        except:
-            print(ret[i].shape, ret[i], x_i.shape)
+
+        ret[i] = x_i[:, idx_str:idx_end]
     return ret
 
 
