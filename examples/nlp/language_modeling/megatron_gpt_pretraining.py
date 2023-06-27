@@ -88,16 +88,16 @@ def main(cfg) -> None:
             cfg.model.precision = cfg.trainer.precision
 
         model = MegatronGPTModel(cfg.model, trainer)
-        i = 0
-        # for module in model.model:
-        #     logging.info(f"XXXXXXXXXXXX module {i}: {module}")
-        j = 0
-        logging.info(f"ZZZZZZZZZZZZ {model.model._language_model_key}")
-        logging.info(f"XXXXXXXXXXXX {model.model.language_model}")
-        for layer in model.model.language_model.encoder.layers:
-            logging.info(f"YYYYYYYYYYYYY layer {j}: {layer}, layer_type: {layer.layer_type}")
-            j += 1
-            # i += 1
+        # i = 0
+        # # for module in model.model:
+        # #     logging.info(f"XXXXXXXXXXXX module {i}: {module}")
+        # j = 0
+        # logging.info(f"ZZZZZZZZZZZZ {model.model._language_model_key}")
+        # logging.info(f"XXXXXXXXXXXX {model.model.language_model}")
+        # for layer in model.model.language_model.encoder.layers:
+        #     logging.info(f"YYYYYYYYYYYYY layer {j}: {layer}, layer_type: {layer.layer_type}")
+        #     j += 1
+        #     # i += 1
 
 
         trainer.fit(model)
