@@ -116,24 +116,24 @@ def compute_costs_data(source: torch.Tensor, dest: torch.Tensor, fastemit_lambda
 
 
 def get_workspace_size(
-    maxT: int, minibatch: int, gpu: bool
+    maxT: int, maxU: int, minibatch: int, gpu: bool
 ) -> Tuple[Optional[int], global_constants.RNNTStatus]:
 
-    if minibatch <= 0 or maxT <= 0:
+    if minibatch <= 0 or maxT <= 0 or maxU <= 0:
         return (None, global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE)
 
     # per minibatch memory
     per_minibatch_size = 0
 
     # alphas & betas
-    per_minibatch_size += maxT * 2
+    per_minibatch_size += maxT * maxU * 2
 
     if not gpu:
         # // blank & label log probability cache
-        per_minibatch_size += maxT * 2
+        per_minibatch_size += maxT * maxU * 2
     else:
         # // softmax denominator
-        per_minibatch_size += maxT
+        per_minibatch_size += maxT * maxU
         # // forward - backward loglikelihood
         per_minibatch_size += 2
 

@@ -40,39 +40,24 @@ INF = 10000.0
 
 @cuda.jit(device=True, inline=True)
 def logp(
-    denom: torch.Tensor, acts: torch.Tensor, maxT: int, maxU: int, alphabet_size: int, mb: int, t: int, u: int, v: int
+    acts: torch.Tensor, maxT: int, alphabet_size: int, mb: int, t: int, v: int
 ):
-    """
-    Compute the sum of log probability from the activation tensor and its denominator.
-
-    Args:
-        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
-            across entire vocabulary.
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
-        maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
-        maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
-        alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        mb: Batch indexer.
-        t: Acoustic sequence timestep indexer.
-        u: Target sequence timestep indexer.
-        v: Vocabulary token indexer.
-
-    Returns:
-        The sum of logprobs[mb, t, u, v] + denom[mb, t, u]
-    """
-    col = (mb * maxT + t) * maxU + u
-    return denom[col] + acts[col * alphabet_size + v]
+    col = mb * maxT + t
+    return acts[col * alphabet_size + v]
 
 
 @cuda.jit(device=True, inline=True)
-def logp_duration(acts: torch.Tensor, maxT: int, maxU: int, num_durations: int, mb: int, t: int, u: int, v: int):
-    col = (mb * maxT + t) * maxU + u
-    return acts[col * num_durations + v]
+def logp_jump(
+    duration_acts: torch.Tensor, maxT: int, mb: int, t: int, t2: int
+):
+    col = mb * maxT * maxT + t * maxT + t2
+    return duration_acts[col]
 
 
 @cuda.jit()
 def compute_alphas_kernel(
     acts: torch.Tensor,
+    duration_acts: torch.Tensor,
     denom: torch.Tensor,
     alphas: torch.Tensor,
     llForward: torch.Tensor,
@@ -81,37 +66,10 @@ def compute_alphas_kernel(
     mlabels: torch.Tensor,  # [B]
     minibatch: int,
     maxT: int,
+    maxU: int,
     alphabet_size: int,
-    blank_: int,
 ):
-    """
-    Compute alpha (forward variable) probabilities over the transduction step.
 
-    Args:
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
-        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
-            across entire vocabulary.
-        alphas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the forward variable
-            probabilities.
-        llForward: Zero tensor of shape [B]. Represents the log-likelihood of the forward pass.
-            Returned as the forward pass loss that is reduced by the optimizer.
-        xlen: Vector of length B which contains the actual acoustic sequence lengths in the padded
-            activation tensor.
-        ylen: Vector of length B which contains the actual target sequence lengths in the padded
-            activation tensor.
-        mlabels: Matrix of shape [B, U+1] (+1 here is due to <SOS> token - usually the RNNT blank).
-            The matrix contains the padded target transcription that must be predicted.
-        minibatch: Int representing the batch size.
-        maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
-        maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
-        alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
-
-    Updates:
-        Kernel inplace updates the following inputs:
-        -   alphas: forward variable scores.
-        -   llForward: log-likelihood of forward variable.
-    """
     # // launch B blocks, each block has U threads
     b = cuda.blockIdx.x  # // batch id
     u = cuda.threadIdx.x  # label id, u
@@ -119,7 +77,7 @@ def compute_alphas_kernel(
     U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
 
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
-    offset = b * maxT  # pointer indexing offset
+    offset = b * maxT * ( maxU + 2 ) # pointer indexing offset
 
     # alphas += offset # pointer offset, ignored since we explicitly add offset
 
@@ -132,48 +90,35 @@ def compute_alphas_kernel(
 
     # Ordinary alpha calculations, broadcast across B=b and U=u
     # Look up forward variable calculation from rnnt_numpy.forward_pass()
-    for n in range(1, T + U - 1):
+    for n in range(1, T + U + 1):
         t = n - u
 
-        if u == 0:
-            # for t in range(1, T) step to initialize alphas[b, t, 0]
-            if t > 0 and t < T:
-                alphas[offset + t * maxU + u] = alphas[offset + (t - 1) * maxU + u] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
-                )
-        elif u < U:
-            # for u in range(1, U) step to initialize alphas[b, 0, u]
-            if t == 0:
-                alphas[offset + u] = alphas[offset + u - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, 0, u - 1, labels[u - 1]
-                )
 
-            # for t in range(1, T) for u in range(1, U) step to compute alphas[b, t, u]
-            elif t > 0 and t < T:
-                no_emit = alphas[offset + (t - 1) * maxU + u] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, u, blank_
-                )
-                emit = alphas[offset + t * maxU + u - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, u - 1, labels[u - 1]
-                )
+        label = labels[u - 2] if u >= 2 else alphabet_size
 
-                alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
+        if u - 1 >= 0:
+            for tt in range(t):
+                toadd = logp_jump(duration_acts, maxT, b, t, tt)
+                alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
+                    alphas[offset + t * maxU + u],
+                    alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) )# + logp_duration(duration_acts, maxT, b, t, tt))
 
-        # sync across all B=b and U=u
-        cuda.syncthreads()
 
-    # After final sync, alphas[b, T-1, U - 1] + logprobs[b, T-1, U-1, blank] + denom[b, T-1, U-1] gives
-    # log-likelihood of forward pass.
+    cuda.syncthreads()
+
     if u == 0:
-        loglike = alphas[offset + (T - 1) * maxU + U - 1] + logp(
-            denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_
-        )
+        loglike = alphas[offset + (T - 1) * maxU + U + 1] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
+#        loglike = 0.0
+
+#        print("HERE", loglike)
+
         llForward[b] = loglike
 
 
 @cuda.jit()
 def compute_betas_kernel(
     acts: torch.Tensor,
+    duration_acts: torch.Tensor,
     denom: torch.Tensor,
     betas: torch.Tensor,
     llBackward: torch.Tensor,
@@ -184,7 +129,6 @@ def compute_betas_kernel(
     maxT: int,
     maxU: int,
     alphabet_size: int,
-    blank_: int,
 ):
     """
     Compute beta (backward variable) probabilities over the transduction step.
@@ -223,49 +167,49 @@ def compute_betas_kernel(
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
     offset = b * maxT * maxU  # pointer indexing offset
 
-    # betas += offset # pointer offset, ignored since we explicitly add offset
-
-    # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
-    if u == 0:
-        betas[offset + (T - 1) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_)
-
-    # sync until all betas are initialized
-    cuda.syncthreads()
-
-    # Ordinary beta calculations, broadcast across B=b and U=u
-    # Look up backward variable calculation from rnnt_numpy.backward_pass()
-    for n in range(T + U - 2, -1, -1):
-        t = n - u
-
-        if u == (U - 1):
-            # for t in reversed(range(T - 1)) step to initialize betas[b, t, U-1]
-            if t >= 0 and t < (T - 1):
-                betas[offset + t * maxU + U - 1] = betas[offset + (t + 1) * maxU + U - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_
-                )
-        elif u < U:
-            if t == T - 1:
-                # for u in reversed(range(U - 1)) step to initialize betas[b, T-1, u]
-                betas[offset + (T - 1) * maxU + u] = betas[offset + (T - 1) * maxU + u + 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u]
-                )
-            elif (t >= 0) and (t < T - 1):
-                # for t in reversed(range(T - 1)) for u in reversed(range(U - 1)) step to compute betas[b, t, u]
-                no_emit = betas[offset + (t + 1) * maxU + u] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_
-                )
-                emit = betas[offset + t * maxU + u + 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
-                )
-                betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
-
-        # sync across all B=b and U=u
-        cuda.syncthreads()
+#    # betas += offset # pointer offset, ignored since we explicitly add offset
+#
+#    # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
+#    if u == 0:
+#        betas[offset + (T - 1) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_)
+#
+#    # sync until all betas are initialized
+#    cuda.syncthreads()
+#
+#    # Ordinary beta calculations, broadcast across B=b and U=u
+#    # Look up backward variable calculation from rnnt_numpy.backward_pass()
+#    for n in range(T + U - 2, -1, -1):
+#        t = n - u
+#
+#        if u == (U - 1):
+#            # for t in reversed(range(T - 1)) step to initialize betas[b, t, U-1]
+#            if t >= 0 and t < (T - 1):
+#                betas[offset + t * maxU + U - 1] = betas[offset + (t + 1) * maxU + U - 1] + logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_
+#                )
+#        elif u < U:
+#            if t == T - 1:
+#                # for u in reversed(range(U - 1)) step to initialize betas[b, T-1, u]
+#                betas[offset + (T - 1) * maxU + u] = betas[offset + (T - 1) * maxU + u + 1] + logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u]
+#                )
+#            elif (t >= 0) and (t < T - 1):
+#                # for t in reversed(range(T - 1)) for u in reversed(range(U - 1)) step to compute betas[b, t, u]
+#                no_emit = betas[offset + (t + 1) * maxU + u] + logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_
+#                )
+#                emit = betas[offset + t * maxU + u + 1] + logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
+#                )
+#                betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
+#
+#        # sync across all B=b and U=u
+#        cuda.syncthreads()
 
     # After final sync, betas[b, 0, 0] gives
     # log-likelihood of backward pass.
     if u == 0:
-        llBackward[b] = betas[offset]
+        llBackward[b] = 0 # betas[offset]
 
 
 @cuda.jit()
@@ -283,8 +227,6 @@ def compute_grad_kernel(
     maxT: int,
     maxU: int,
     alphabet_size: int,
-    blank_: int,
-    fastemit_lambda: float,
     clamp: float,
 ):
     """
@@ -337,74 +279,57 @@ def compute_grad_kernel(
     U = ylen[mb] + 1  # select target length of current sample, +1 for the blank token
     labels: torch.Tensor = mlabels[mb]  # labels = mlabels + mb * (maxU - 1);
 
-    # Buffered gradient calculations, broadcast across B=b, T=t and U=u, looped over V with some constant stride.
-    # Look up gradient calculation from rnnt_numpy.compute_gradient()
-    if t < T and u < U:
-        # For cuda kernels, maximum number of threads per block is limited to some value.
-        # However, it may be the case that vocabulary size is larger than this limit
-        # To work around this, an arbitrary thread buffer size is chosen such that,
-        # 1) each element within the thread pool operates independently of the other
-        # 2) An inner while loop moves the index of each buffer element by the size of the buffer itself,
-        #    such that all elements of the vocabulary size are covered in (V + 1 // thread_buffer) number of steps.
-        # As such, each thread will perform the while loop at least (V + 1 // thread_buffer) number of times
-        while idx < alphabet_size:
-            # remember, `col` represents the tri-index [b, t, u]
-            # therefore; logpk = denom[b, t, u] + acts[b, t, u, v]
-            logpk = denom[col] + acts[col * alphabet_size + idx]
-            # initialize the grad of the sample acts[b, t, u, v]
-            grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
-
-            # If FastEmit regularization is enabled, calculate the gradeint of probability of predicting the next label
-            # at the current timestep.
-            # The formula for this is Equation 9 in https://arxiv.org/abs/2010.11148, multiplied by the log probability
-            # of the current step (t, u), normalized by the total log likelihood.
-            # Once the gradient has been calculated, scale it by `fastemit_lambda`, as in Equation 10.
-            if fastemit_lambda > 0.0 and u < U - 1:
-                fastemit_grad = fastemit_lambda * math.exp(
-                    alphas[col]  # alphas(t, u)
-                    + (denom[col] + acts[col * alphabet_size + labels[u]])  # y_hat(t, u)
-                    + betas[col + 1]  # betas(t, u+1)
-                    + logpk  # log Pr(k|t, u)
-                    - logll[mb]  # total log likelihood for normalization
-                )
-            else:
-                fastemit_grad = 0.0
-
-            # Update the gradient of act[b, t, u, v] with the gradient from FastEmit regularization
-            grad = grad + fastemit_grad
-
-            # // grad to last blank transition
-            # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
-            if (idx == blank_) and (t == T - 1) and (u == U - 1):
-                grad -= math.exp(alphas[col] + logpk - logll[mb])
-
-            # grad of blank across t < T;
-            # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
-            if (idx == blank_) and (t < T - 1):
-                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
-
-            # grad of correct token across u < U;
-            # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
-            # Scale the gradient by (1.0 + FastEmit_lambda) in log space, then exponentiate
-            if (u < U - 1) and (idx == labels[u]):
-                # exp(log(1 + fastemit_lambda) + ...) is numerically more stable than
-                # multiplying (1.0 + fastemit_lambda) with result.
-                grad -= math.exp(math.log1p(fastemit_lambda) + alphas[col] + logpk - logll[mb] + betas[col + 1])
-
-            # update grads[b, t, u, v] = grad
-            grads[col * alphabet_size + idx] = grad
-
-            # clamp gradient (if needed)
-            if clamp > 0.0:
-                g = grads[col * alphabet_size + idx]
-                g = min(g, clamp)
-                g = max(g, -clamp)
-                grads[col * alphabet_size + idx] = g
-
-            # update internal index through the thread_buffer;
-            # until idx < V + 1, such that entire vocabulary has been updated.
-            idx += GPU_RNNT_THREAD_SIZE
-
+#    # Buffered gradient calculations, broadcast across B=b, T=t and U=u, looped over V with some constant stride.
+#    # Look up gradient calculation from rnnt_numpy.compute_gradient()
+#    if t < T and u < U:
+#        # For cuda kernels, maximum number of threads per block is limited to some value.
+#        # However, it may be the case that vocabulary size is larger than this limit
+#        # To work around this, an arbitrary thread buffer size is chosen such that,
+#        # 1) each element within the thread pool operates independently of the other
+#        # 2) An inner while loop moves the index of each buffer element by the size of the buffer itself,
+#        #    such that all elements of the vocabulary size are covered in (V + 1 // thread_buffer) number of steps.
+#        # As such, each thread will perform the while loop at least (V + 1 // thread_buffer) number of times
+#        while idx < alphabet_size:
+#            # remember, `col` represents the tri-index [b, t, u]
+#            # therefore; logpk = denom[b, t, u] + acts[b, t, u, v]
+#            logpk = denom[col] + acts[col * alphabet_size + idx]
+#            # initialize the grad of the sample acts[b, t, u, v]
+#            grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
+#
+#            # Update the gradient of act[b, t, u, v] with the gradient from FastEmit regularization
+#            grad = grad
+#
+#            # // grad to last blank transition
+#            # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
+#            if (idx == blank_) and (t == T - 1) and (u == U - 1):
+#                grad -= math.exp(alphas[col] + logpk - logll[mb])
+#
+#            # grad of blank across t < T;
+#            # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
+#            if (idx == blank_) and (t < T - 1):
+#                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
+#
+#            # grad of correct token across u < U;
+#            # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
+#            # Scale the gradient by (1.0 + FastEmit_lambda) in log space, then exponentiate
+#            if (u < U - 1) and (idx == labels[u]):
+#                # exp(log(1 + fastemit_lambda) + ...) is numerically more stable than
+#                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 1])
+#
+#            # update grads[b, t, u, v] = grad
+#            grads[col * alphabet_size + idx] = grad
+#
+#            # clamp gradient (if needed)
+#            if clamp > 0.0:
+#                g = grads[col * alphabet_size + idx]
+#                g = min(g, clamp)
+#                g = max(g, -clamp)
+#                grads[col * alphabet_size + idx] = g
+#
+#            # update internal index through the thread_buffer;
+#            # until idx < V + 1, such that entire vocabulary has been updated.
+#            idx += GPU_RNNT_THREAD_SIZE
+#
 
 @cuda.jit()
 def compute_multiblank_alphas_kernel(

@@ -47,6 +47,9 @@ class RNNTLossPytorch(Loss):
         self.reduction = reduction
 
     def forward(self, acts, labels, act_lens, label_lens):
+        shape_list = [int(x) for x in acts.shape]
+        assert len(shape_list) == 3
+
         normed_acts = torch.log_softmax(acts[:,:,:self.vocab_size + 1], -1)
         duration_acts = acts[:,:,self.vocab_size + 1:]
         forward_logprob = self.compute_forward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
@@ -69,6 +72,7 @@ class RNNTLossPytorch(Loss):
         return losses
 
     def compute_forward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
+        shape_list = [int(x) for x in acts.shape]
         B, T, V = acts.shape
         D = duration_acts.shape[-1]
         U = torch.max(label_lens).item()
@@ -100,9 +104,6 @@ class RNNTLossPytorch(Loss):
                                     dim=0,
                                 )
 
-
-#                    print('alpha', b, t, u, log_alpha[b, t, u])
-
         log_probs = []
         for b in range(B):
             # here we need to add the final blank emission weights.
@@ -110,6 +111,7 @@ class RNNTLossPytorch(Loss):
             u = label_lens[b]
             to_append = log_alpha[b, t - 1, u + 1] + acts[b, t - 1, -1]
             log_probs.append(to_append)
+
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
         print()
@@ -432,94 +434,3 @@ class MultiblankRNNTLossPytorch(Loss):
 
 
 
-class RNNTLossPytorch(Loss):
-    @property
-    def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
-        return {
-            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
-            "labels": NeuralType(('B', 'T'), LabelsType()),
-            "act_lens": NeuralType(tuple('B'), LengthsType()),
-            "label_lens": NeuralType(tuple('B'), LengthsType()),
-        }
-
-    @property
-    def output_types(self):
-        """Output types definitions for CTCLoss.
-        loss:
-            NeuralType(None)
-        """
-        return {"loss": NeuralType(elements_type=LossType())}
-
-    def __init__(self, blank, reduction):
-        super().__init__()
-        self.blank = blank
-        self.reduction = reduction
-
-    def forward(self, acts, labels, act_lens, label_lens):
-        acts = torch.log_softmax(acts, -1)
-        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
-        losses = -forward_logprob
-        if self.reduction == 'mean_batch':
-            losses = losses.mean()  # global batch size average
-        elif self.reduction == 'mean':
-            losses = torch.div(losses, label_lens).mean()
-        elif self.reduction == 'sum':
-            losses = losses.sum()
-        elif self.reduction == 'mean_volume':
-            losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
-
-        return losses
-
-    def compute_forward_prob(self, acts, labels, act_lens, label_lens):
-        B, T, U, _ = acts.shape
-
-        log_alpha = torch.zeros(B, T, U)
-        log_alpha = log_alpha.to(acts.device)
-
-        for t in range(T):
-            for u in range(U):
-                if u == 0:
-                    if t == 0:
-                        # this is the base case: (t=0, u=0) with log-alpha = 0.
-                        log_alpha[:, t, u] = 0.0
-                    else:
-                        # this is case for (t = 0, u > 0), reached by (t, u - 1)
-                        # emitting a blank symbol.
-                        log_alpha[:, t, u] = log_alpha[:, t - 1, u] + acts[:, t - 1, 0, self.blank]
-                else:
-                    if t == 0:
-                        # in case of (u > 0, t = 0), this is only reached from
-                        # (t, u - 1) with a label emission.
-                        gathered = torch.gather(
-                            acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
-                        ).reshape(-1)
-                        log_alpha[:, t, u] = log_alpha[:, t, u - 1] + gathered.to(log_alpha.device)
-                    else:
-                        # here both t and u are > 0, this state is reachable
-                        # with two possibilities: (t - 1, u) with a blank emission
-                        # or (t, u - 1) with a label emission.
-                        log_alpha[:, t, u] = torch.logsumexp(
-                            torch.stack(
-                                [
-                                    log_alpha[:, t - 1, u] + acts[:, t - 1, u, self.blank],
-                                    log_alpha[:, t, u - 1]
-                                    + torch.gather(
-                                        acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
-                                    ).reshape(-1),
-                                ]
-                            ),
-                            dim=0,
-                        )
-
-        log_probs = []
-        for b in range(B):
-            # here we need to add the final blank emission weights.
-            to_append = (
-                log_alpha[b, act_lens[b] - 1, label_lens[b]] + acts[b, act_lens[b] - 1, label_lens[b], self.blank]
-            )
-            log_probs.append(to_append)
-        log_prob = torch.stack(log_probs)
-
-        return log_prob

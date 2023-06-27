@@ -43,9 +43,10 @@ class GPURNNT:
         self,
         minibatch: int,
         maxT: int,
+        maxU: int,
         alphabet_size: int,
         workspace,
-        blank: int,
+        vocab_size: int,
         clamp: float,
         num_threads: int,
         stream,
@@ -67,11 +68,12 @@ class GPURNNT:
         """
         self.minibatch_ = minibatch
         self.maxT_ = maxT
+        self.maxU_ = maxU
         self.alphabet_size_ = alphabet_size
         self.gpu_workspace = cuda.as_cuda_array(
             workspace
         )  # a flat vector of floatX numbers that represents allocated memory slices
-        self.blank_ = blank
+        self.vocab_size = vocab_size
         self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
         self.stream_ = stream  # type: cuda.cudadrv.driver.Stream
@@ -86,7 +88,9 @@ class GPURNNT:
     def compute_cost_and_score(
         self,
         acts: torch.Tensor,
+        duration_acts: torch.Tensor,
         grads: Optional[torch.Tensor],
+        duration_grads: Optional[torch.Tensor],
         costs: torch.Tensor,
         labels: torch.Tensor,
         label_lengths: torch.Tensor,
@@ -118,12 +122,14 @@ class GPURNNT:
 
         used_offset, (denom, alphas, betas, llForward, llBackward) = self._prepare_workspace()
 
-        ######## START EXECUTION ########
-#        self.log_softmax(acts, denom)
+        
+#        print('HERE acts', acts.shape)
+#        print('HERE duration_acts', duration_acts.shape)
 
         # Compute alphas
-        gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, 1, self.stream_, 0](
+        gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, self.maxU_ + 2, self.stream_, 0](
             acts,
+            duration_acts,
             denom,
             alphas,
             llForward,
@@ -132,14 +138,15 @@ class GPURNNT:
             labels,
             self.minibatch_,
             self.maxT_,
+            self.maxU_,
             self.alphabet_size_,
-            self.blank_,
         )
 
         if training:
             # Compute betas
-            gpu_rnnt_kernel.compute_betas_kernel[self.minibatch_, 1, self.stream_, 0](
+            gpu_rnnt_kernel.compute_betas_kernel[self.minibatch_, self.maxU_ + 2, self.stream_, 0](
                 acts,
+                duration_acts,
                 denom,
                 betas,
                 llBackward,
@@ -148,12 +155,12 @@ class GPURNNT:
                 labels,
                 self.minibatch_,
                 self.maxT_,
+                self.maxU_,
                 self.alphabet_size_,
-                self.blank_,
             )
 
             # Compute gradient
-            grad_blocks_per_grid = self.minibatch_ * self.maxT_
+            grad_blocks_per_grid = self.minibatch_ * self.maxT_ * ( self.maxU_ + 2)
             grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
             gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
                 grads,
@@ -167,9 +174,8 @@ class GPURNNT:
                 labels,
                 self.minibatch_,
                 self.maxT_,
+                self.maxU_,
                 self.alphabet_size_,
-                self.blank_,
-                self.fastemit_lambda_,
                 self.clamp_,
             )
 
@@ -182,7 +188,7 @@ class GPURNNT:
         threadsperblock = min(costs.shape[0], 32)
         blockspergrid = (costs.shape[0] + (threadsperblock - 1)) // threadsperblock
         rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](
-            llForward, costs, self.fastemit_lambda_
+            llForward, costs, 0.0
         )
         self.stream_.synchronize()
 
@@ -191,7 +197,9 @@ class GPURNNT:
     def cost_and_grad(
         self,
         acts: torch.Tensor,
+        duration_acts: torch.Tensor,
         grads: torch.Tensor,
+        duration_grads: torch.Tensor,
         costs: torch.Tensor,
         pad_labels: torch.Tensor,
         label_lengths: torch.Tensor,
@@ -207,7 +215,7 @@ class GPURNNT:
         ):
             return global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE
 
-        return self.compute_cost_and_score(acts, grads, costs, pad_labels, label_lengths, input_lengths)
+        return self.compute_cost_and_score(acts, duration_acts, grads, duration_grads, costs, pad_labels, label_lengths, input_lengths)
 
     def score_forward(
         self,
@@ -233,13 +241,13 @@ class GPURNNT:
         used_offset = 0
 
         # // denom
-        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_]
+        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2) ]
         used_offset += self.maxT_ * self.minibatch_
 
         # // alphas & betas
-        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_]
+        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2) ]
         used_offset += self.maxT_ * self.minibatch_
-        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_]
+        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_  * (self.maxU_ + 2) ]
         used_offset += self.maxT_ * self.minibatch_
 
         # // logllh
@@ -302,7 +310,9 @@ class MultiblankGPURNNT(GPURNNT):
     def compute_cost_and_score(
         self,
         acts: torch.Tensor,
+        duration_acts: torch.Tensor,
         grads: Optional[torch.Tensor],
+        duration_grads: Optional[torch.Tensor],
         costs: torch.Tensor,
         labels: torch.Tensor,
         label_lengths: torch.Tensor,

@@ -137,13 +137,14 @@ def rnnt_loss_cpu(
 
 def rnnt_loss_gpu(
     acts: torch.Tensor,
+    duration_acts: torch.Tensor,
     labels: torch.Tensor,
     input_lengths: torch.Tensor,
     label_lengths: torch.Tensor,
     costs: torch.Tensor,
     grads: torch.Tensor,
-    blank_label: int,
-    fastemit_lambda: float,
+    duration_grads: torch.Tensor,
+    vocab_size: int,
     clamp: float,
     num_threads: int,
 ):
@@ -166,6 +167,8 @@ def rnnt_loss_gpu(
     minibatch_size = acts.shape[0]
     maxT = acts.shape[1]
     alphabet_size = acts.shape[2]
+    maxU = label_lengths.max().item()
+
 
     if hasattr(cuda, 'external_stream'):
         stream = cuda.external_stream(torch.cuda.current_stream(acts.device).cuda_stream)
@@ -177,7 +180,7 @@ def rnnt_loss_gpu(
 
     num_threads = max(1, num_threads)  # have to use at least 1 thread
 
-    gpu_size, status = rnnt_helper.get_workspace_size(maxT, minibatch_size, gpu=True)
+    gpu_size, status = rnnt_helper.get_workspace_size(maxT, maxU, minibatch_size, gpu=True)
     if status != global_constants.RNNTStatus.RNNT_STATUS_SUCCESS:
         raise RuntimeError("Invalid parameter passed when calculating working space memory")
 
@@ -187,13 +190,15 @@ def rnnt_loss_gpu(
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)
+    duration_acts, duration_acts_shape = rnnt_helper.flatten_tensor(duration_acts)
 
     wrapper = gpu_rnnt.GPURNNT(
         minibatch=minibatch_size,
         maxT=maxT,
+        maxU=maxU,
         alphabet_size=alphabet_size,
         workspace=gpu_workspace,
-        blank=blank_label,
+        vocab_size=vocab_size,
         clamp=clamp,
         num_threads=num_threads,
         stream=stream,
@@ -202,6 +207,7 @@ def rnnt_loss_gpu(
     if grads is None:
         status = wrapper.score_forward(
             acts=acts.data,
+            duration_acts=duration_acts.data,
             costs=costs.data,
             pad_labels=labels.data,
             label_lengths=label_lengths.data,
@@ -214,10 +220,13 @@ def rnnt_loss_gpu(
     else:
         ### FLATTEN GRAD TENSOR ###
         grads, grads_shape = rnnt_helper.flatten_tensor(grads)
+        duration_grads, duration_grads_shape = rnnt_helper.flatten_tensor(duration_grads)
 
         status = wrapper.cost_and_grad(
             acts=acts.data,
+            duration_acts=duration_acts.data,
             grads=grads.data,
+            duration_grads=duration_grads.data,
             costs=costs.data,
             pad_labels=labels.data,
             label_lengths=label_lengths.data,
