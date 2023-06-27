@@ -70,7 +70,7 @@ def get_language_model(
     vocab_size,
     num_attention_heads,
     encoder_attn_mask_type,
-    apply_query_key_layer_scaling=True,
+    apply_query_key_layer_scaling=False,
     kv_channels=None,
     init_method=None,
     scaled_init_method=None,
@@ -746,10 +746,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
                 v = ptuning_adapter.virtual_tokens
                 if ptuning_adapter and _sq >= v:  # The sequence should be longer the v to insert virtual embeddings.
-                    strategy = ptuning_adapter.adapter_strategy
-                    virtual_embeddings = self.forward_single_enabled_adapter_(
-                        _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
-                    )
+                    virtual_embeddings = ptuning_adapter(_bs)
                     encoder_input = encoder_input[
                         v:, :, :
                     ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
