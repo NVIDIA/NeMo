@@ -389,29 +389,20 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         averaged_loss = []
         averaged_metric = []
-        
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             loss = super().validation_epoch_end([x['loss'] for x in output])
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss)
             averaged_loss.append(loss)
-            
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
             gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather_object(
                 gathered_outputs,
-                [
-                    {
-                        'preds': x['preds'],
-                        'labels': x['labels'],
-                        'inputs': x['inputs'],
-                    }
-                    for x in output
-                ],
+                [{'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'],} for x in output],
                 group=parallel_state.get_data_parallel_group(),
             )
-             
+
             # Remove duplicate examples due to distributed sampler.
             inp_label_set = set()
             deduplicated_outputs = {
@@ -421,9 +412,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             }
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, label, input in zip(
-                        batch['preds'], batch['labels'], batch['inputs']
-                    ):
+                    for pred, label, input in zip(batch['preds'], batch['labels'], batch['inputs']):
                         key = input + ' '.join(label)
                         if key not in inp_label_set:
                             inp_label_set.add(key)
@@ -460,8 +449,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
                 filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-                self.write_predictions_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
-                
+                self.write_predictions_to_file(
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                )
+
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
 
         # Logging of the averaged metrics:
