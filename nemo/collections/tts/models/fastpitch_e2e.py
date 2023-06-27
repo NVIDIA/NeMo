@@ -21,28 +21,24 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers.wandb import WandbLogger
-from torchvision.transforms import Resize
 
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models import FastPitchModel, HifiGanModel
-from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
+from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.collections.tts.parts.utils.helpers import (
     clip_grad_value_,
     get_batch_size,
     get_num_workers,
-    plot_alignment_to_numpy,
     plot_spectrogram_to_numpy,
     process_batch,
     rand_slice_segments,
     slice_segments,
 )
-from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -94,7 +90,7 @@ class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
 
 
-class FastPitchE2EModel(SpectrogramGenerator, Exportable):
+class FastPitchE2EModel(TextToWaveform):
     """
     FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text 
     with HiFi-GAN model (https://arxiv.org/abs/2010.05646) to generate audios.
@@ -229,7 +225,6 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             self.hfg_model.msd = msd
 
         self._input_types = self._output_types = None
-        self.export_config = {"enable_volume": False, "enable_ragged_batches": False}
 
         self.automatic_optimization = False
 
@@ -428,7 +423,8 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
         mel_lens=None,
         input_lens=None,
     ):
-        return self.fastpitch(
+
+        mels_pred, *_ = self.fastpitch(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -441,7 +437,11 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             input_lens=input_lens,
         )
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
+        audio_pred = self.hfg_model.generator(x=mels_pred)
+        return audio_pred
+
+
+    @typecheck(output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())})
     def generate_spectrogram(
         self, tokens: 'torch.tensor', speaker: Optional[int] = None, pace: float = 1.0
     ) -> torch.tensor:
@@ -449,8 +449,8 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
             logging.warning("generate_spectrogram() is meant to be called in eval mode.")
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
-        spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
-        return spect
+        audio = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
+        return audio
 
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
@@ -754,45 +754,7 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
 
         return list_of_models
 
-    # Methods for model exportability
-    def _prepare_for_export(self, **kwargs):
-        super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
-
-        # Define input_types and output_types as required by export()
-        self._input_types = {
-            "text": NeuralType(tensor_shape, TokenIndex()),
-            "pitch": NeuralType(tensor_shape, RegressionValuesType()),
-            "pace": NeuralType(tensor_shape),
-            "volume": NeuralType(tensor_shape, optional=True),
-            "batch_lengths": NeuralType(('B'), optional=True),
-            "speaker": NeuralType(('B'), Index(), optional=True),
-        }
-        self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
-        }
-        if self.export_config["enable_volume"]:
-            self._output_types["volume_aligned"] = NeuralType(('B', 'T'), RegressionValuesType())
-
-    def _export_teardown(self):
-        self._input_types = self._output_types = None
-
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        disabled_inputs = set()
-        if self.fastpitch.speaker_emb is None:
-            disabled_inputs.add("speaker")
-        if not self.export_config["enable_ragged_batches"]:
-            disabled_inputs.add("batch_lengths")
-        if not self.export_config["enable_volume"]:
-            disabled_inputs.add("volume")
-        return disabled_inputs
 
     @property
     def input_types(self):
@@ -846,14 +808,6 @@ class FastPitchE2EModel(SpectrogramGenerator, Exportable):
 
         return (inputs,)
 
-    def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
-        if self.export_config["enable_ragged_batches"]:
-            text, pitch, pace, volume_tensor = create_batch(
-                text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
-            )
-            if volume is not None:
-                volume = volume_tensor
-        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
 
     def interpolate_speaker(
         self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
