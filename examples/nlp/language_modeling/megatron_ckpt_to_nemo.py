@@ -143,7 +143,7 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'gpt':
-        model = MegatroniGPTModel.load_from_checkpoint(
+        model = MegatronGPTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         )
 
