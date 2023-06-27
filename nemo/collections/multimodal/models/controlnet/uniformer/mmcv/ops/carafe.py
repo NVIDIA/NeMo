@@ -8,14 +8,12 @@ from torch.nn.modules.module import Module
 from ..cnn import UPSAMPLE_LAYERS, normal_init, xavier_init
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext('_ext', [
-    'carafe_naive_forward', 'carafe_naive_backward', 'carafe_forward',
-    'carafe_backward'
-])
+ext_module = ext_loader.load_ext(
+    '_ext', ['carafe_naive_forward', 'carafe_naive_backward', 'carafe_forward', 'carafe_backward']
+)
 
 
 class CARAFENaiveFunction(Function):
-
     @staticmethod
     def symbolic(g, features, masks, kernel_size, group_size, scale_factor):
         return g.op(
@@ -24,7 +22,8 @@ class CARAFENaiveFunction(Function):
             masks,
             kernel_size_i=kernel_size,
             group_size_i=group_size,
-            scale_factor_f=scale_factor)
+            scale_factor_f=scale_factor,
+        )
 
     @staticmethod
     def forward(ctx, features, masks, kernel_size, group_size, scale_factor):
@@ -43,12 +42,8 @@ class CARAFENaiveFunction(Function):
         n, c, h, w = features.size()
         output = features.new_zeros((n, c, h * scale_factor, w * scale_factor))
         ext_module.carafe_naive_forward(
-            features,
-            masks,
-            output,
-            kernel_size=kernel_size,
-            group_size=group_size,
-            scale_factor=scale_factor)
+            features, masks, output, kernel_size=kernel_size, group_size=group_size, scale_factor=scale_factor
+        )
 
         if features.requires_grad or masks.requires_grad:
             ctx.save_for_backward(features, masks)
@@ -73,7 +68,8 @@ class CARAFENaiveFunction(Function):
             grad_masks,
             kernel_size=kernel_size,
             group_size=group_size,
-            scale_factor=scale_factor)
+            scale_factor=scale_factor,
+        )
 
         return grad_input, grad_masks, None, None, None
 
@@ -82,23 +78,19 @@ carafe_naive = CARAFENaiveFunction.apply
 
 
 class CARAFENaive(Module):
-
     def __init__(self, kernel_size, group_size, scale_factor):
         super(CARAFENaive, self).__init__()
 
-        assert isinstance(kernel_size, int) and isinstance(
-            group_size, int) and isinstance(scale_factor, int)
+        assert isinstance(kernel_size, int) and isinstance(group_size, int) and isinstance(scale_factor, int)
         self.kernel_size = kernel_size
         self.group_size = group_size
         self.scale_factor = scale_factor
 
     def forward(self, features, masks):
-        return carafe_naive(features, masks, self.kernel_size, self.group_size,
-                            self.scale_factor)
+        return carafe_naive(features, masks, self.kernel_size, self.group_size, self.scale_factor)
 
 
 class CARAFEFunction(Function):
-
     @staticmethod
     def symbolic(g, features, masks, kernel_size, group_size, scale_factor):
         return g.op(
@@ -107,7 +99,8 @@ class CARAFEFunction(Function):
             masks,
             kernel_size_i=kernel_size,
             group_size_i=group_size,
-            scale_factor_f=scale_factor)
+            scale_factor_f=scale_factor,
+        )
 
     @staticmethod
     def forward(ctx, features, masks, kernel_size, group_size, scale_factor):
@@ -137,7 +130,8 @@ class CARAFEFunction(Function):
             output,
             kernel_size=kernel_size,
             group_size=group_size,
-            scale_factor=scale_factor)
+            scale_factor=scale_factor,
+        )
 
         if features.requires_grad or masks.requires_grad:
             ctx.save_for_backward(features, masks, rfeatures)
@@ -170,7 +164,8 @@ class CARAFEFunction(Function):
             grad_masks,
             kernel_size=kernel_size,
             group_size=group_size,
-            scale_factor=scale_factor)
+            scale_factor=scale_factor,
+        )
         return grad_input, grad_masks, None, None, None
 
 
@@ -194,15 +189,13 @@ class CARAFE(Module):
     def __init__(self, kernel_size, group_size, scale_factor):
         super(CARAFE, self).__init__()
 
-        assert isinstance(kernel_size, int) and isinstance(
-            group_size, int) and isinstance(scale_factor, int)
+        assert isinstance(kernel_size, int) and isinstance(group_size, int) and isinstance(scale_factor, int)
         self.kernel_size = kernel_size
         self.group_size = group_size
         self.scale_factor = scale_factor
 
     def forward(self, features, masks):
-        return carafe(features, masks, self.kernel_size, self.group_size,
-                      self.scale_factor)
+        return carafe(features, masks, self.kernel_size, self.group_size, self.scale_factor)
 
 
 @UPSAMPLE_LAYERS.register_module(name='carafe')
@@ -227,14 +220,16 @@ class CARAFEPack(nn.Module):
         upsampled feature map
     """
 
-    def __init__(self,
-                 channels,
-                 scale_factor,
-                 up_kernel=5,
-                 up_group=1,
-                 encoder_kernel=3,
-                 encoder_dilation=1,
-                 compressed_channels=64):
+    def __init__(
+        self,
+        channels,
+        scale_factor,
+        up_kernel=5,
+        up_group=1,
+        encoder_kernel=3,
+        encoder_dilation=1,
+        compressed_channels=64,
+    ):
         super(CARAFEPack, self).__init__()
         self.channels = channels
         self.scale_factor = scale_factor
@@ -243,16 +238,15 @@ class CARAFEPack(nn.Module):
         self.encoder_kernel = encoder_kernel
         self.encoder_dilation = encoder_dilation
         self.compressed_channels = compressed_channels
-        self.channel_compressor = nn.Conv2d(channels, self.compressed_channels,
-                                            1)
+        self.channel_compressor = nn.Conv2d(channels, self.compressed_channels, 1)
         self.content_encoder = nn.Conv2d(
             self.compressed_channels,
-            self.up_kernel * self.up_kernel * self.up_group *
-            self.scale_factor * self.scale_factor,
+            self.up_kernel * self.up_kernel * self.up_group * self.scale_factor * self.scale_factor,
             self.encoder_kernel,
             padding=int((self.encoder_kernel - 1) * self.encoder_dilation / 2),
             dilation=self.encoder_dilation,
-            groups=1)
+            groups=1,
+        )
         self.init_weights()
 
     def init_weights(self):
@@ -266,7 +260,7 @@ class CARAFEPack(nn.Module):
         n, mask_c, h, w = mask.size()
         # use float division explicitly,
         # to void inconsistency while exporting to onnx
-        mask_channel = int(mask_c / float(self.up_kernel**2))
+        mask_channel = int(mask_c / float(self.up_kernel ** 2))
         mask = mask.view(n, mask_channel, -1, h, w)
 
         mask = F.softmax(mask, dim=2, dtype=mask.dtype)

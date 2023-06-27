@@ -14,6 +14,8 @@ if torch.__version__ != 'parrots':
         for fun in funcs:
             assert hasattr(ext, fun), f'{fun} miss in module {name}'
         return ext
+
+
 else:
     from parrots import extension
     from parrots.base import ParrotsException
@@ -39,7 +41,6 @@ else:
     ]
 
     def get_fake_func(name, e):
-
         def fake_func(*args, **kwargs):
             warnings.warn(f'{name} is not supported in parrots now')
             raise e

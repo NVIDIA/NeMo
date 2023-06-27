@@ -46,7 +46,7 @@ class CrissCrossAttention(nn.Module):
         self.query_conv = nn.Conv2d(in_channels, in_channels // 8, 1)
         self.key_conv = nn.Conv2d(in_channels, in_channels // 8, 1)
         self.value_conv = nn.Conv2d(in_channels, in_channels, 1)
-        self.gamma = Scale(0.)
+        self.gamma = Scale(0.0)
         self.in_channels = in_channels
 
     def forward(self, x):
@@ -63,12 +63,10 @@ class CrissCrossAttention(nn.Module):
         query = self.query_conv(x)
         key = self.key_conv(x)
         value = self.value_conv(x)
-        energy_H = torch.einsum('bchw,bciw->bwhi', query, key) + NEG_INF_DIAG(
-            H, query.device)
+        energy_H = torch.einsum('bchw,bciw->bwhi', query, key) + NEG_INF_DIAG(H, query.device)
         energy_H = energy_H.transpose(1, 2)
         energy_W = torch.einsum('bchw,bchj->bhwj', query, key)
-        attn = F.softmax(
-            torch.cat([energy_H, energy_W], dim=-1), dim=-1)  # [B,H,W,(H+W)]
+        attn = F.softmax(torch.cat([energy_H, energy_W], dim=-1), dim=-1)  # [B,H,W,(H+W)]
         out = torch.einsum('bciw,bhwi->bchw', value, attn[..., :H])
         out += torch.einsum('bchj,bhwj->bchw', value, attn[..., H:])
 

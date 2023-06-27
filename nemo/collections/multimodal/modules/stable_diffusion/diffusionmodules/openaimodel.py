@@ -863,7 +863,10 @@ class UNetModel(nn.Module):
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
-        if 'input_blocks.1.0.in_layers.2.weight' in loaded_keys and 'input_blocks.1.0.in_layers.1.weight' in expected_keys:
+        if (
+            'input_blocks.1.0.in_layers.2.weight' in loaded_keys
+            and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
+        ):
             # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
             for key_ in missing_keys:
                 s = key_.split('.')

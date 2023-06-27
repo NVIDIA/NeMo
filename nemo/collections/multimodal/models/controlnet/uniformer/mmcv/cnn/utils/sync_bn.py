@@ -37,9 +37,9 @@ def revert_sync_batchnorm(module):
     if hasattr(mmcv, 'ops'):
         module_checklist.append(mmcv.ops.SyncBatchNorm)
     if isinstance(module, tuple(module_checklist)):
-        module_output = _BatchNormXd(module.num_features, module.eps,
-                                     module.momentum, module.affine,
-                                     module.track_running_stats)
+        module_output = _BatchNormXd(
+            module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats
+        )
         if module.affine:
             # no_grad() may not be needed here but
             # just to be consistent with `convert_sync_batchnorm()`

@@ -40,19 +40,20 @@ class BaseMergeCell(nn.Module):
             support ['nearest', 'bilinear']. Default: 'nearest'.
     """
 
-    def __init__(self,
-                 fused_channels=256,
-                 out_channels=256,
-                 with_out_conv=True,
-                 out_conv_cfg=dict(
-                     groups=1, kernel_size=3, padding=1, bias=True),
-                 out_norm_cfg=None,
-                 out_conv_order=('act', 'conv', 'norm'),
-                 with_input1_conv=False,
-                 with_input2_conv=False,
-                 input_conv_cfg=None,
-                 input_norm_cfg=None,
-                 upsample_mode='nearest'):
+    def __init__(
+        self,
+        fused_channels=256,
+        out_channels=256,
+        with_out_conv=True,
+        out_conv_cfg=dict(groups=1, kernel_size=3, padding=1, bias=True),
+        out_norm_cfg=None,
+        out_conv_order=('act', 'conv', 'norm'),
+        with_input1_conv=False,
+        with_input2_conv=False,
+        input_conv_cfg=None,
+        input_norm_cfg=None,
+        upsample_mode='nearest',
+    ):
         super(BaseMergeCell, self).__init__()
         assert upsample_mode in ['nearest', 'bilinear']
         self.with_out_conv = with_out_conv
@@ -62,28 +63,22 @@ class BaseMergeCell(nn.Module):
 
         if self.with_out_conv:
             self.out_conv = ConvModule(
-                fused_channels,
-                out_channels,
-                **out_conv_cfg,
-                norm_cfg=out_norm_cfg,
-                order=out_conv_order)
+                fused_channels, out_channels, **out_conv_cfg, norm_cfg=out_norm_cfg, order=out_conv_order
+            )
 
-        self.input1_conv = self._build_input_conv(
-            out_channels, input_conv_cfg,
-            input_norm_cfg) if with_input1_conv else nn.Sequential()
-        self.input2_conv = self._build_input_conv(
-            out_channels, input_conv_cfg,
-            input_norm_cfg) if with_input2_conv else nn.Sequential()
+        self.input1_conv = (
+            self._build_input_conv(out_channels, input_conv_cfg, input_norm_cfg)
+            if with_input1_conv
+            else nn.Sequential()
+        )
+        self.input2_conv = (
+            self._build_input_conv(out_channels, input_conv_cfg, input_norm_cfg)
+            if with_input2_conv
+            else nn.Sequential()
+        )
 
     def _build_input_conv(self, channel, conv_cfg, norm_cfg):
-        return ConvModule(
-            channel,
-            channel,
-            3,
-            padding=1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            bias=True)
+        return ConvModule(channel, channel, 3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, bias=True)
 
     @abstractmethod
     def _binary_op(self, x1, x2):
@@ -119,7 +114,6 @@ class BaseMergeCell(nn.Module):
 
 
 class SumCell(BaseMergeCell):
-
     def __init__(self, in_channels, out_channels, **kwargs):
         super(SumCell, self).__init__(in_channels, out_channels, **kwargs)
 
@@ -128,10 +122,8 @@ class SumCell(BaseMergeCell):
 
 
 class ConcatCell(BaseMergeCell):
-
     def __init__(self, in_channels, out_channels, **kwargs):
-        super(ConcatCell, self).__init__(in_channels * 2, out_channels,
-                                         **kwargs)
+        super(ConcatCell, self).__init__(in_channels * 2, out_channels, **kwargs)
 
     def _binary_op(self, x1, x2):
         ret = torch.cat([x1, x2], dim=1)
@@ -139,7 +131,6 @@ class ConcatCell(BaseMergeCell):
 
 
 class GlobalPoolingCell(BaseMergeCell):
-
     def __init__(self, in_channels=None, out_channels=None, **kwargs):
         super().__init__(in_channels, out_channels, **kwargs)
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))

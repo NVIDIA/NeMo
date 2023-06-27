@@ -44,8 +44,7 @@ def infer_abbr(class_type):
         return word.lower()
 
     if not inspect.isclass(class_type):
-        raise TypeError(
-            f'class_type must be a type, but got {type(class_type)}')
+        raise TypeError(f'class_type must be a type, but got {type(class_type)}')
     if hasattr(class_type, '_abbr_'):
         return class_type._abbr_
     else:

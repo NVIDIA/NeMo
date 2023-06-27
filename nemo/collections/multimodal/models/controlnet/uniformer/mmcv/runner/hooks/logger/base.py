@@ -21,11 +21,7 @@ class LoggerHook(Hook):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self,
-                 interval=10,
-                 ignore_last=True,
-                 reset_flag=False,
-                 by_epoch=True):
+    def __init__(self, interval=10, ignore_last=True, reset_flag=False, by_epoch=True):
         self.interval = interval
         self.ignore_last = ignore_last
         self.reset_flag = reset_flag
@@ -65,8 +61,7 @@ class LoggerHook(Hook):
         elif runner.mode == 'val':
             mode = 'val'
         else:
-            raise ValueError(f"runner mode should be 'train' or 'val', "
-                             f'but got {runner.mode}')
+            raise ValueError(f"runner mode should be 'train' or 'val', " f'but got {runner.mode}')
         return mode
 
     def get_epoch(self, runner):
@@ -77,8 +72,7 @@ class LoggerHook(Hook):
             # runner.epoch += 1 has been done before val workflow
             epoch = runner.epoch
         else:
-            raise ValueError(f"runner mode should be 'train' or 'val', "
-                             f'but got {runner.mode}')
+            raise ValueError(f"runner mode should be 'train' or 'val', " f'but got {runner.mode}')
         return epoch
 
     def get_iter(self, runner, inner_iter=False):
@@ -109,12 +103,9 @@ class LoggerHook(Hook):
             tags['momentum'] = momentums[0]
         return tags
 
-    def get_loggable_tags(self,
-                          runner,
-                          allow_scalar=True,
-                          allow_text=False,
-                          add_mode=True,
-                          tags_to_skip=('time', 'data_time')):
+    def get_loggable_tags(
+        self, runner, allow_scalar=True, allow_text=False, add_mode=True, tags_to_skip=('time', 'data_time')
+    ):
         tags = {}
         for var, val in runner.log_buffer.output.items():
             if var in tags_to_skip:

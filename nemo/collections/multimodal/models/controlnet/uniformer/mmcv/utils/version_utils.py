@@ -32,8 +32,7 @@ def digit_version(version_str: str, length: int = 4):
         # version.pre can be None
         if version.pre:
             if version.pre[0] not in mapping:
-                warnings.warn(f'unknown prerelease version {version.pre[0]}, '
-                              'version checking may go wrong')
+                warnings.warn(f'unknown prerelease version {version.pre[0]}, ' 'version checking may go wrong')
             else:
                 val = mapping[version.pre[0]]
             release.extend([val, version.pre[-1]])
@@ -58,8 +57,7 @@ def _minimal_ext_cmd(cmd):
     env['LANGUAGE'] = 'C'
     env['LANG'] = 'C'
     env['LC_ALL'] = 'C'
-    out = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
+    out = subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
     return out
 
 

@@ -16,8 +16,7 @@ def register_torch_optimizers():
         if module_name.startswith('__'):
             continue
         _optim = getattr(torch.optim, module_name)
-        if inspect.isclass(_optim) and issubclass(_optim,
-                                                  torch.optim.Optimizer):
+        if inspect.isclass(_optim) and issubclass(_optim, torch.optim.Optimizer):
             OPTIMIZERS.register_module()(_optim)
             torch_optimizers.append(module_name)
     return torch_optimizers
@@ -32,13 +31,10 @@ def build_optimizer_constructor(cfg):
 
 def build_optimizer(model, cfg):
     optimizer_cfg = copy.deepcopy(cfg)
-    constructor_type = optimizer_cfg.pop('constructor',
-                                         'DefaultOptimizerConstructor')
+    constructor_type = optimizer_cfg.pop('constructor', 'DefaultOptimizerConstructor')
     paramwise_cfg = optimizer_cfg.pop('paramwise_cfg', None)
     optim_constructor = build_optimizer_constructor(
-        dict(
-            type=constructor_type,
-            optimizer_cfg=optimizer_cfg,
-            paramwise_cfg=paramwise_cfg))
+        dict(type=constructor_type, optimizer_cfg=optimizer_cfg, paramwise_cfg=paramwise_cfg)
+    )
     optimizer = optim_constructor(model)
     return optimizer

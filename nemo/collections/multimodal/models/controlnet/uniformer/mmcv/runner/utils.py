@@ -59,8 +59,7 @@ def obj_from_dict(info, parent=None, default_args=None):
         else:
             obj_type = sys.modules[obj_type]
     elif not isinstance(obj_type, type):
-        raise TypeError('type must be a str or valid type, but '
-                        f'got {type(obj_type)}')
+        raise TypeError('type must be a str or valid type, but ' f'got {type(obj_type)}')
     if default_args is not None:
         for name, value in default_args.items():
             args.setdefault(name, value)

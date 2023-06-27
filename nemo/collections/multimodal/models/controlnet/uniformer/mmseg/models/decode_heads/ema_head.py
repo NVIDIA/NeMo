@@ -36,7 +36,7 @@ class EMAModule(nn.Module):
         self.momentum = momentum
 
         bases = torch.zeros(1, channels, self.num_bases)
-        bases.normal_(0, math.sqrt(2. / self.num_bases))
+        bases.normal_(0, math.sqrt(2.0 / self.num_bases))
         # [1, channels, num_bases]
         bases = F.normalize(bases, dim=1, p=2)
         self.register_buffer('bases', bases)
@@ -69,8 +69,7 @@ class EMAModule(nn.Module):
             bases = reduce_mean(bases)
             # l2 norm
             bases = F.normalize(bases, dim=1, p=2)
-            self.bases = (1 -
-                          self.momentum) * self.bases + self.momentum * bases
+            self.bases = (1 - self.momentum) * self.bases + self.momentum * bases
 
         return feats_recon
 
@@ -91,21 +90,14 @@ class EMAHead(BaseDecodeHead):
         momentum (float): Momentum to update the base. Default: 0.1.
     """
 
-    def __init__(self,
-                 ema_channels,
-                 num_bases,
-                 num_stages,
-                 concat_input=True,
-                 momentum=0.1,
-                 **kwargs):
+    def __init__(self, ema_channels, num_bases, num_stages, concat_input=True, momentum=0.1, **kwargs):
         super(EMAHead, self).__init__(**kwargs)
         self.ema_channels = ema_channels
         self.num_bases = num_bases
         self.num_stages = num_stages
         self.concat_input = concat_input
         self.momentum = momentum
-        self.ema_module = EMAModule(self.ema_channels, self.num_bases,
-                                    self.num_stages, self.momentum)
+        self.ema_module = EMAModule(self.ema_channels, self.num_bases, self.num_stages, self.momentum)
 
         self.ema_in_conv = ConvModule(
             self.in_channels,
@@ -114,25 +106,18 @@ class EMAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         # project (0, inf) -> (-inf, inf)
         self.ema_mid_conv = ConvModule(
-            self.ema_channels,
-            self.ema_channels,
-            1,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=None,
-            act_cfg=None)
+            self.ema_channels, self.ema_channels, 1, conv_cfg=self.conv_cfg, norm_cfg=None, act_cfg=None
+        )
         for param in self.ema_mid_conv.parameters():
             param.requires_grad = False
 
         self.ema_out_conv = ConvModule(
-            self.ema_channels,
-            self.ema_channels,
-            1,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg,
-            act_cfg=None)
+            self.ema_channels, self.ema_channels, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, act_cfg=None
+        )
         self.bottleneck = ConvModule(
             self.ema_channels,
             self.channels,
@@ -140,7 +125,8 @@ class EMAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         if self.concat_input:
             self.conv_cat = ConvModule(
                 self.in_channels + self.channels,
@@ -149,7 +135,8 @@ class EMAHead(BaseDecodeHead):
                 padding=1,
                 conv_cfg=self.conv_cfg,
                 norm_cfg=self.norm_cfg,
-                act_cfg=self.act_cfg)
+                act_cfg=self.act_cfg,
+            )
 
     def forward(self, inputs):
         """Forward function."""

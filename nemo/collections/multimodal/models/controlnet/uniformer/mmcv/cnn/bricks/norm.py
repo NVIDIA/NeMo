@@ -4,7 +4,12 @@ import inspect
 import torch.nn as nn
 
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import is_tuple_of
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils.parrots_wrapper import SyncBatchNorm, _BatchNorm, _InstanceNorm
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils.parrots_wrapper import (
+    SyncBatchNorm,
+    _BatchNorm,
+    _InstanceNorm,
+)
+
 from .registry import NORM_LAYERS
 
 NORM_LAYERS.register_module('BN', module=nn.BatchNorm2d)
@@ -43,8 +48,7 @@ def infer_abbr(class_type):
         str: The inferred abbreviation.
     """
     if not inspect.isclass(class_type):
-        raise TypeError(
-            f'class_type must be a type, but got {type(class_type)}')
+        raise TypeError(f'class_type must be a type, but got {type(class_type)}')
     if hasattr(class_type, '_abbr_'):
         return class_type._abbr_
     if issubclass(class_type, _InstanceNorm):  # IN is a subclass of BN
@@ -131,11 +135,11 @@ def is_norm(layer, exclude=None):
     """
     if exclude is not None:
         if not isinstance(exclude, tuple):
-            exclude = (exclude, )
+            exclude = (exclude,)
         if not is_tuple_of(exclude, type):
             raise TypeError(
-                f'"exclude" must be either None or type or a tuple of types, '
-                f'but got {type(exclude)}: {exclude}')
+                f'"exclude" must be either None or type or a tuple of types, ' f'but got {type(exclude)}: {exclude}'
+            )
 
     if exclude and isinstance(layer, exclude):
         return False

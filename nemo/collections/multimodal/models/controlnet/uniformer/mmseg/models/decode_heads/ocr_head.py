@@ -39,8 +39,7 @@ class SpatialGatherModule(nn.Module):
 class ObjectAttentionBlock(_SelfAttentionBlock):
     """Make a OCR used SelfAttentionBlock."""
 
-    def __init__(self, in_channels, channels, scale, conv_cfg, norm_cfg,
-                 act_cfg):
+    def __init__(self, in_channels, channels, scale, conv_cfg, norm_cfg, act_cfg):
         if scale > 1:
             query_downsample = nn.MaxPool2d(kernel_size=scale)
         else:
@@ -61,19 +60,15 @@ class ObjectAttentionBlock(_SelfAttentionBlock):
             with_out=True,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+            act_cfg=act_cfg,
+        )
         self.bottleneck = ConvModule(
-            in_channels * 2,
-            in_channels,
-            1,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            in_channels * 2, in_channels, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg
+        )
 
     def forward(self, query_feats, key_feats):
         """Forward function."""
-        context = super(ObjectAttentionBlock,
-                        self).forward(query_feats, key_feats)
+        context = super(ObjectAttentionBlock, self).forward(query_feats, key_feats)
         output = self.bottleneck(torch.cat([context, query_feats], dim=1))
         if self.query_downsample is not None:
             output = resize(query_feats)
@@ -104,7 +99,8 @@ class OCRHead(BaseCascadeDecodeHead):
             self.scale,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         self.spatial_gather_module = SpatialGatherModule(self.scale)
 
         self.bottleneck = ConvModule(
@@ -114,7 +110,8 @@ class OCRHead(BaseCascadeDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
 
     def forward(self, inputs, prev_output):
         """Forward function."""

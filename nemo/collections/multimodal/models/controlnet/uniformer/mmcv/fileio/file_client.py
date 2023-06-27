@@ -63,8 +63,7 @@ class CephBackend(BaseStorageBackend):
         except ImportError:
             raise ImportError('Please install ceph to enable CephBackend.')
 
-        warnings.warn(
-            'CephBackend will be deprecated, please use PetrelBackend instead')
+        warnings.warn('CephBackend will be deprecated, please use PetrelBackend instead')
         self._client = ceph.S3Client()
         assert isinstance(path_mapping, dict) or path_mapping is None
         self.path_mapping = path_mapping
@@ -105,14 +104,11 @@ class PetrelBackend(BaseStorageBackend):
         >>> client.get(filepath2)  # get data from 'cluster-name' cluster
     """
 
-    def __init__(self,
-                 path_mapping: Optional[dict] = None,
-                 enable_mc: bool = True):
+    def __init__(self, path_mapping: Optional[dict] = None, enable_mc: bool = True):
         try:
             from petrel_client import client
         except ImportError:
-            raise ImportError('Please install petrel_client to enable '
-                              'PetrelBackend.')
+            raise ImportError('Please install petrel_client to enable ' 'PetrelBackend.')
 
         self._client = client.Client(enable_mc=enable_mc)
         assert isinstance(path_mapping, dict) or path_mapping is None
@@ -161,9 +157,7 @@ class PetrelBackend(BaseStorageBackend):
         value_buf = memoryview(value)
         return value_buf
 
-    def get_text(self,
-                 filepath: Union[str, Path],
-                 encoding: str = 'utf-8') -> str:
+    def get_text(self, filepath: Union[str, Path], encoding: str = 'utf-8') -> str:
         """Read data from a given ``filepath`` with 'r' mode.
 
         Args:
@@ -187,10 +181,7 @@ class PetrelBackend(BaseStorageBackend):
         filepath = self._format_path(filepath)
         self._client.put(filepath, obj)
 
-    def put_text(self,
-                 obj: str,
-                 filepath: Union[str, Path],
-                 encoding: str = 'utf-8') -> None:
+    def put_text(self, obj: str, filepath: Union[str, Path], encoding: str = 'utf-8') -> None:
         """Save data to a given ``filepath``.
 
         Args:
@@ -209,9 +200,12 @@ class PetrelBackend(BaseStorageBackend):
         """
         if not has_method(self._client, 'delete'):
             raise NotImplementedError(
-                ('Current version of Petrel Python SDK has not supported '
-                 'the `delete` method, please use a higher version or dev'
-                 ' branch instead.'))
+                (
+                    'Current version of Petrel Python SDK has not supported '
+                    'the `delete` method, please use a higher version or dev'
+                    ' branch instead.'
+                )
+            )
 
         filepath = self._map_path(filepath)
         filepath = self._format_path(filepath)
@@ -226,12 +220,14 @@ class PetrelBackend(BaseStorageBackend):
         Returns:
             bool: Return ``True`` if ``filepath`` exists, ``False`` otherwise.
         """
-        if not (has_method(self._client, 'contains')
-                and has_method(self._client, 'isdir')):
+        if not (has_method(self._client, 'contains') and has_method(self._client, 'isdir')):
             raise NotImplementedError(
-                ('Current version of Petrel Python SDK has not supported '
-                 'the `contains` and `isdir` methods, please use a higher'
-                 'version or dev branch instead.'))
+                (
+                    'Current version of Petrel Python SDK has not supported '
+                    'the `contains` and `isdir` methods, please use a higher'
+                    'version or dev branch instead.'
+                )
+            )
 
         filepath = self._map_path(filepath)
         filepath = self._format_path(filepath)
@@ -250,9 +246,12 @@ class PetrelBackend(BaseStorageBackend):
         """
         if not has_method(self._client, 'isdir'):
             raise NotImplementedError(
-                ('Current version of Petrel Python SDK has not supported '
-                 'the `isdir` method, please use a higher version or dev'
-                 ' branch instead.'))
+                (
+                    'Current version of Petrel Python SDK has not supported '
+                    'the `isdir` method, please use a higher version or dev'
+                    ' branch instead.'
+                )
+            )
 
         filepath = self._map_path(filepath)
         filepath = self._format_path(filepath)
@@ -270,16 +269,18 @@ class PetrelBackend(BaseStorageBackend):
         """
         if not has_method(self._client, 'contains'):
             raise NotImplementedError(
-                ('Current version of Petrel Python SDK has not supported '
-                 'the `contains` method, please use a higher version or '
-                 'dev branch instead.'))
+                (
+                    'Current version of Petrel Python SDK has not supported '
+                    'the `contains` method, please use a higher version or '
+                    'dev branch instead.'
+                )
+            )
 
         filepath = self._map_path(filepath)
         filepath = self._format_path(filepath)
         return self._client.contains(filepath)
 
-    def join_path(self, filepath: Union[str, Path],
-                  *filepaths: Union[str, Path]) -> str:
+    def join_path(self, filepath: Union[str, Path], *filepaths: Union[str, Path]) -> str:
         """Concatenate all file paths.
 
         Args:
@@ -328,12 +329,14 @@ class PetrelBackend(BaseStorageBackend):
         finally:
             os.remove(f.name)
 
-    def list_dir_or_file(self,
-                         dir_path: Union[str, Path],
-                         list_dir: bool = True,
-                         list_file: bool = True,
-                         suffix: Optional[Union[str, Tuple[str]]] = None,
-                         recursive: bool = False) -> Iterator[str]:
+    def list_dir_or_file(
+        self,
+        dir_path: Union[str, Path],
+        list_dir: bool = True,
+        list_file: bool = True,
+        suffix: Optional[Union[str, Tuple[str]]] = None,
+        recursive: bool = False,
+    ) -> Iterator[str]:
         """Scan a directory to find the interested directories or files in
         arbitrary order.
 
@@ -362,15 +365,17 @@ class PetrelBackend(BaseStorageBackend):
         """
         if not has_method(self._client, 'list'):
             raise NotImplementedError(
-                ('Current version of Petrel Python SDK has not supported '
-                 'the `list` method, please use a higher version or dev'
-                 ' branch instead.'))
+                (
+                    'Current version of Petrel Python SDK has not supported '
+                    'the `list` method, please use a higher version or dev'
+                    ' branch instead.'
+                )
+            )
 
         dir_path = self._map_path(dir_path)
         dir_path = self._format_path(dir_path)
         if list_dir and suffix is not None:
-            raise TypeError(
-                '`list_dir` should be False when `suffix` is not None')
+            raise TypeError('`list_dir` should be False when `suffix` is not None')
 
         if (suffix is not None) and not isinstance(suffix, (str, tuple)):
             raise TypeError('`suffix` must be a string or tuple of strings')
@@ -382,8 +387,7 @@ class PetrelBackend(BaseStorageBackend):
 
         root = dir_path
 
-        def _list_dir_or_file(dir_path, list_dir, list_file, suffix,
-                              recursive):
+        def _list_dir_or_file(dir_path, list_dir, list_file, suffix, recursive):
             for path in self._client.list(dir_path):
                 # the `self.isdir` is not used here to determine whether path
                 # is a directory, because `self.isdir` relies on
@@ -393,21 +397,17 @@ class PetrelBackend(BaseStorageBackend):
                     if list_dir:
                         # get the relative path and exclude the last
                         # character '/'
-                        rel_dir = next_dir_path[len(root):-1]
+                        rel_dir = next_dir_path[len(root) : -1]
                         yield rel_dir
                     if recursive:
-                        yield from _list_dir_or_file(next_dir_path, list_dir,
-                                                     list_file, suffix,
-                                                     recursive)
+                        yield from _list_dir_or_file(next_dir_path, list_dir, list_file, suffix, recursive)
                 else:  # a file path
                     absolute_path = self.join_path(dir_path, path)
-                    rel_path = absolute_path[len(root):]
-                    if (suffix is None
-                            or rel_path.endswith(suffix)) and list_file:
+                    rel_path = absolute_path[len(root) :]
+                    if (suffix is None or rel_path.endswith(suffix)) and list_file:
                         yield rel_path
 
-        return _list_dir_or_file(dir_path, list_dir, list_file, suffix,
-                                 recursive)
+        return _list_dir_or_file(dir_path, list_dir, list_file, suffix, recursive)
 
 
 class MemcachedBackend(BaseStorageBackend):
@@ -423,23 +423,23 @@ class MemcachedBackend(BaseStorageBackend):
     def __init__(self, server_list_cfg, client_cfg, sys_path=None):
         if sys_path is not None:
             import sys
+
             sys.path.append(sys_path)
         try:
             import mc
         except ImportError:
-            raise ImportError(
-                'Please install memcached to enable MemcachedBackend.')
+            raise ImportError('Please install memcached to enable MemcachedBackend.')
 
         self.server_list_cfg = server_list_cfg
         self.client_cfg = client_cfg
-        self._client = mc.MemcachedClient.GetInstance(self.server_list_cfg,
-                                                      self.client_cfg)
+        self._client = mc.MemcachedClient.GetInstance(self.server_list_cfg, self.client_cfg)
         # mc.pyvector servers as a point which points to a memory cache
         self._mc_buffer = mc.pyvector()
 
     def get(self, filepath):
         filepath = str(filepath)
         import mc
+
         self._client.Get(filepath, self._mc_buffer)
         value_buf = mc.ConvertBuffer(self._mc_buffer)
         return value_buf
@@ -466,24 +466,14 @@ class LmdbBackend(BaseStorageBackend):
         db_path (str): Lmdb database path.
     """
 
-    def __init__(self,
-                 db_path,
-                 readonly=True,
-                 lock=False,
-                 readahead=False,
-                 **kwargs):
+    def __init__(self, db_path, readonly=True, lock=False, readahead=False, **kwargs):
         try:
             import lmdb
         except ImportError:
             raise ImportError('Please install lmdb to enable LmdbBackend.')
 
         self.db_path = str(db_path)
-        self._client = lmdb.open(
-            self.db_path,
-            readonly=readonly,
-            lock=lock,
-            readahead=readahead,
-            **kwargs)
+        self._client = lmdb.open(self.db_path, readonly=readonly, lock=lock, readahead=readahead, **kwargs)
 
     def get(self, filepath):
         """Get values according to the filepath.
@@ -518,9 +508,7 @@ class HardDiskBackend(BaseStorageBackend):
             value_buf = f.read()
         return value_buf
 
-    def get_text(self,
-                 filepath: Union[str, Path],
-                 encoding: str = 'utf-8') -> str:
+    def get_text(self, filepath: Union[str, Path], encoding: str = 'utf-8') -> str:
         """Read data from a given ``filepath`` with 'r' mode.
 
         Args:
@@ -550,10 +538,7 @@ class HardDiskBackend(BaseStorageBackend):
         with open(filepath, 'wb') as f:
             f.write(obj)
 
-    def put_text(self,
-                 obj: str,
-                 filepath: Union[str, Path],
-                 encoding: str = 'utf-8') -> None:
+    def put_text(self, obj: str, filepath: Union[str, Path], encoding: str = 'utf-8') -> None:
         """Write data to a given ``filepath`` with 'w' mode.
 
         Note:
@@ -614,8 +599,7 @@ class HardDiskBackend(BaseStorageBackend):
         """
         return osp.isfile(filepath)
 
-    def join_path(self, filepath: Union[str, Path],
-                  *filepaths: Union[str, Path]) -> str:
+    def join_path(self, filepath: Union[str, Path], *filepaths: Union[str, Path]) -> str:
         """Concatenate all file paths.
 
         Join one or more filepath components intelligently. The return value
@@ -630,17 +614,18 @@ class HardDiskBackend(BaseStorageBackend):
         return osp.join(filepath, *filepaths)
 
     @contextmanager
-    def get_local_path(
-            self, filepath: Union[str, Path]) -> Iterable[Union[str, Path]]:
+    def get_local_path(self, filepath: Union[str, Path]) -> Iterable[Union[str, Path]]:
         """Only for unified API and do nothing."""
         yield filepath
 
-    def list_dir_or_file(self,
-                         dir_path: Union[str, Path],
-                         list_dir: bool = True,
-                         list_file: bool = True,
-                         suffix: Optional[Union[str, Tuple[str]]] = None,
-                         recursive: bool = False) -> Iterator[str]:
+    def list_dir_or_file(
+        self,
+        dir_path: Union[str, Path],
+        list_dir: bool = True,
+        list_file: bool = True,
+        suffix: Optional[Union[str, Tuple[str]]] = None,
+        recursive: bool = False,
+    ) -> Iterator[str]:
         """Scan a directory to find the interested directories or files in
         arbitrary order.
 
@@ -667,25 +652,20 @@ class HardDiskBackend(BaseStorageBackend):
 
         root = dir_path
 
-        def _list_dir_or_file(dir_path, list_dir, list_file, suffix,
-                              recursive):
+        def _list_dir_or_file(dir_path, list_dir, list_file, suffix, recursive):
             for entry in os.scandir(dir_path):
                 if not entry.name.startswith('.') and entry.is_file():
                     rel_path = osp.relpath(entry.path, root)
-                    if (suffix is None
-                            or rel_path.endswith(suffix)) and list_file:
+                    if (suffix is None or rel_path.endswith(suffix)) and list_file:
                         yield rel_path
                 elif osp.isdir(entry.path):
                     if list_dir:
                         rel_dir = osp.relpath(entry.path, root)
                         yield rel_dir
                     if recursive:
-                        yield from _list_dir_or_file(entry.path, list_dir,
-                                                     list_file, suffix,
-                                                     recursive)
+                        yield from _list_dir_or_file(entry.path, list_dir, list_file, suffix, recursive)
 
-        return _list_dir_or_file(dir_path, list_dir, list_file, suffix,
-                                 recursive)
+        return _list_dir_or_file(dir_path, list_dir, list_file, suffix, recursive)
 
 
 class HTTPBackend(BaseStorageBackend):
@@ -789,12 +769,13 @@ class FileClient:
             backend = 'disk'
         if backend is not None and backend not in cls._backends:
             raise ValueError(
-                f'Backend {backend} is not supported. Currently supported ones'
-                f' are {list(cls._backends.keys())}')
+                f'Backend {backend} is not supported. Currently supported ones' f' are {list(cls._backends.keys())}'
+            )
         if prefix is not None and prefix not in cls._prefix_to_backends:
             raise ValueError(
                 f'prefix {prefix} is not supported. Currently supported ones '
-                f'are {list(cls._prefix_to_backends.keys())}')
+                f'are {list(cls._prefix_to_backends.keys())}'
+            )
 
         # concatenate the arguments to a unique key for determining whether
         # objects with the same arguments were created
@@ -803,9 +784,11 @@ class FileClient:
             arg_key += f':{key}:{value}'
 
         # if a backend was overridden, it will create a new object
-        if (arg_key in cls._instances
-                and backend not in cls._overridden_backends
-                and prefix not in cls._overridden_prefixes):
+        if (
+            arg_key in cls._instances
+            and backend not in cls._overridden_backends
+            and prefix not in cls._overridden_prefixes
+        ):
             _instance = cls._instances[arg_key]
         else:
             # create a new object and put it to _instance
@@ -855,9 +838,9 @@ class FileClient:
             return prefix
 
     @classmethod
-    def infer_client(cls,
-                     file_client_args: Optional[dict] = None,
-                     uri: Optional[Union[str, Path]] = None) -> 'FileClient':
+    def infer_client(
+        cls, file_client_args: Optional[dict] = None, uri: Optional[Union[str, Path]] = None
+    ) -> 'FileClient':
         """Infer a suitable file client based on the URI and arguments.
 
         Args:
@@ -885,18 +868,15 @@ class FileClient:
     @classmethod
     def _register_backend(cls, name, backend, force=False, prefixes=None):
         if not isinstance(name, str):
-            raise TypeError('the backend name should be a string, '
-                            f'but got {type(name)}')
+            raise TypeError('the backend name should be a string, ' f'but got {type(name)}')
         if not inspect.isclass(backend):
-            raise TypeError(
-                f'backend should be a class but got {type(backend)}')
+            raise TypeError(f'backend should be a class but got {type(backend)}')
         if not issubclass(backend, BaseStorageBackend):
-            raise TypeError(
-                f'backend {backend} is not a subclass of BaseStorageBackend')
+            raise TypeError(f'backend {backend} is not a subclass of BaseStorageBackend')
         if not force and name in cls._backends:
             raise KeyError(
-                f'{name} is already registered as a storage backend, '
-                'add "force=True" if you want to override it')
+                f'{name} is already registered as a storage backend, ' 'add "force=True" if you want to override it'
+            )
 
         if name in cls._backends and force:
             cls._overridden_backends.add(name)
@@ -916,7 +896,8 @@ class FileClient:
                 else:
                     raise KeyError(
                         f'{prefix} is already registered as a storage backend,'
-                        ' add "force=True" if you want to override it')
+                        ' add "force=True" if you want to override it'
+                    )
 
     @classmethod
     def register_backend(cls, name, backend=None, force=False, prefixes=None):
@@ -962,13 +943,11 @@ class FileClient:
                 `New in version 1.3.15.`
         """
         if backend is not None:
-            cls._register_backend(
-                name, backend, force=force, prefixes=prefixes)
+            cls._register_backend(name, backend, force=force, prefixes=prefixes)
             return
 
         def _register(backend_cls):
-            cls._register_backend(
-                name, backend_cls, force=force, prefixes=prefixes)
+            cls._register_backend(name, backend_cls, force=force, prefixes=prefixes)
             return backend_cls
 
         return _register
@@ -1076,8 +1055,7 @@ class FileClient:
         """
         return self.client.isfile(filepath)
 
-    def join_path(self, filepath: Union[str, Path],
-                  *filepaths: Union[str, Path]) -> str:
+    def join_path(self, filepath: Union[str, Path], *filepaths: Union[str, Path]) -> str:
         """Concatenate all file paths.
 
         Join one or more filepath components intelligently. The return value
@@ -1120,12 +1098,14 @@ class FileClient:
         with self.client.get_local_path(str(filepath)) as local_path:
             yield local_path
 
-    def list_dir_or_file(self,
-                         dir_path: Union[str, Path],
-                         list_dir: bool = True,
-                         list_file: bool = True,
-                         suffix: Optional[Union[str, Tuple[str]]] = None,
-                         recursive: bool = False) -> Iterator[str]:
+    def list_dir_or_file(
+        self,
+        dir_path: Union[str, Path],
+        list_dir: bool = True,
+        list_file: bool = True,
+        suffix: Optional[Union[str, Tuple[str]]] = None,
+        recursive: bool = False,
+    ) -> Iterator[str]:
         """Scan a directory to find the interested directories or files in
         arbitrary order.
 
@@ -1144,5 +1124,4 @@ class FileClient:
         Yields:
             Iterable[str]: A relative path to ``dir_path``.
         """
-        yield from self.client.list_dir_or_file(dir_path, list_dir, list_file,
-                                                suffix, recursive)
+        yield from self.client.list_dir_or_file(dir_path, list_dir, list_file, suffix, recursive)

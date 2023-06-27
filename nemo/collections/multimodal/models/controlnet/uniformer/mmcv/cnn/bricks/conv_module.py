@@ -67,22 +67,24 @@ class ConvModule(nn.Module):
 
     _abbr_ = 'conv_block'
 
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 kernel_size,
-                 stride=1,
-                 padding=0,
-                 dilation=1,
-                 groups=1,
-                 bias='auto',
-                 conv_cfg=None,
-                 norm_cfg=None,
-                 act_cfg=dict(type='ReLU'),
-                 inplace=True,
-                 with_spectral_norm=False,
-                 padding_mode='zeros',
-                 order=('conv', 'norm', 'act')):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias='auto',
+        conv_cfg=None,
+        norm_cfg=None,
+        act_cfg=dict(type='ReLU'),
+        inplace=True,
+        with_spectral_norm=False,
+        padding_mode='zeros',
+        order=('conv', 'norm', 'act'),
+    ):
         super(ConvModule, self).__init__()
         assert conv_cfg is None or isinstance(conv_cfg, dict)
         assert norm_cfg is None or isinstance(norm_cfg, dict)
@@ -121,7 +123,8 @@ class ConvModule(nn.Module):
             padding=conv_padding,
             dilation=dilation,
             groups=groups,
-            bias=bias)
+            bias=bias,
+        )
         # export the attributes of self.conv to a higher level for convenience
         self.in_channels = self.conv.in_channels
         self.out_channels = self.conv.out_channels
@@ -147,8 +150,7 @@ class ConvModule(nn.Module):
             self.add_module(self.norm_name, norm)
             if self.with_bias:
                 if isinstance(norm, (_BatchNorm, _InstanceNorm)):
-                    warnings.warn(
-                        'Unnecessary conv bias before batch/instance norm')
+                    warnings.warn('Unnecessary conv bias before batch/instance norm')
         else:
             self.norm_name = None
 
@@ -156,9 +158,7 @@ class ConvModule(nn.Module):
         if self.with_activation:
             act_cfg_ = act_cfg.copy()
             # nn.Tanh has no 'inplace' argument
-            if act_cfg_['type'] not in [
-                    'Tanh', 'PReLU', 'Sigmoid', 'HSigmoid', 'Swish'
-            ]:
+            if act_cfg_['type'] not in ['Tanh', 'PReLU', 'Sigmoid', 'HSigmoid', 'Swish']:
                 act_cfg_.setdefault('inplace', inplace)
             self.activate = build_activation_layer(act_cfg_)
 

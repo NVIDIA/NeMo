@@ -7,8 +7,7 @@ from collections import OrderedDict
 import torch
 import torch.multiprocessing as mp
 from torch import distributed as dist
-from torch._utils import (_flatten_dense_tensors, _take_tensors,
-                          _unflatten_dense_tensors)
+from torch._utils import _flatten_dense_tensors, _take_tensors, _unflatten_dense_tensors
 
 
 def init_dist(launcher, backend='nccl', **kwargs):
@@ -56,8 +55,7 @@ def _init_dist_slurm(backend, port=None):
     node_list = os.environ['SLURM_NODELIST']
     num_gpus = torch.cuda.device_count()
     torch.cuda.set_device(proc_id % num_gpus)
-    addr = subprocess.getoutput(
-        f'scontrol show hostname {node_list} | head -n1')
+    addr = subprocess.getoutput(f'scontrol show hostname {node_list} | head -n1')
     # specify master port
     if port is not None:
         os.environ['MASTER_PORT'] = str(port)
@@ -86,7 +84,6 @@ def get_dist_info():
 
 
 def master_only(func):
-
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         rank, _ = get_dist_info()
@@ -128,10 +125,7 @@ def allreduce_grads(params, coalesce=True, bucket_size_mb=-1):
         bucket_size_mb (int, optional): Size of bucket, the unit is MB.
             Defaults to -1.
     """
-    grads = [
-        param.grad.data for param in params
-        if param.requires_grad and param.grad is not None
-    ]
+    grads = [param.grad.data for param in params if param.requires_grad and param.grad is not None]
     _, world_size = get_dist_info()
     if world_size == 1:
         return
@@ -159,6 +153,5 @@ def _allreduce_coalesced(tensors, world_size, bucket_size_mb=-1):
         flat_tensors = _flatten_dense_tensors(bucket)
         dist.all_reduce(flat_tensors)
         flat_tensors.div_(world_size)
-        for tensor, synced in zip(
-                bucket, _unflatten_dense_tensors(flat_tensors, bucket)):
+        for tensor, synced in zip(bucket, _unflatten_dense_tensors(flat_tensors, bucket)):
             tensor.copy_(synced)

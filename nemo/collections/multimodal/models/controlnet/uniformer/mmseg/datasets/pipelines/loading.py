@@ -1,7 +1,8 @@
 import os.path as osp
 
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import numpy as np
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 
 from ..builder import PIPELINES
 
@@ -28,11 +29,9 @@ class LoadImageFromFile(object):
             'cv2'
     """
 
-    def __init__(self,
-                 to_float32=False,
-                 color_type='color',
-                 file_client_args=dict(backend='disk'),
-                 imdecode_backend='cv2'):
+    def __init__(
+        self, to_float32=False, color_type='color', file_client_args=dict(backend='disk'), imdecode_backend='cv2'
+    ):
         self.to_float32 = to_float32
         self.color_type = color_type
         self.file_client_args = file_client_args.copy()
@@ -53,13 +52,11 @@ class LoadImageFromFile(object):
             self.file_client = mmcv.FileClient(**self.file_client_args)
 
         if results.get('img_prefix') is not None:
-            filename = osp.join(results['img_prefix'],
-                                results['img_info']['filename'])
+            filename = osp.join(results['img_prefix'], results['img_info']['filename'])
         else:
             filename = results['img_info']['filename']
         img_bytes = self.file_client.get(filename)
-        img = mmcv.imfrombytes(
-            img_bytes, flag=self.color_type, backend=self.imdecode_backend)
+        img = mmcv.imfrombytes(img_bytes, flag=self.color_type, backend=self.imdecode_backend)
         if self.to_float32:
             img = img.astype(np.float32)
 
@@ -73,9 +70,8 @@ class LoadImageFromFile(object):
         results['scale_factor'] = 1.0
         num_channels = 1 if len(img.shape) < 3 else img.shape[2]
         results['img_norm_cfg'] = dict(
-            mean=np.zeros(num_channels, dtype=np.float32),
-            std=np.ones(num_channels, dtype=np.float32),
-            to_rgb=False)
+            mean=np.zeros(num_channels, dtype=np.float32), std=np.ones(num_channels, dtype=np.float32), to_rgb=False
+        )
         return results
 
     def __repr__(self):
@@ -101,10 +97,7 @@ class LoadAnnotations(object):
             'pillow'
     """
 
-    def __init__(self,
-                 reduce_zero_label=False,
-                 file_client_args=dict(backend='disk'),
-                 imdecode_backend='pillow'):
+    def __init__(self, reduce_zero_label=False, file_client_args=dict(backend='disk'), imdecode_backend='pillow'):
         self.reduce_zero_label = reduce_zero_label
         self.file_client_args = file_client_args.copy()
         self.file_client = None
@@ -124,14 +117,13 @@ class LoadAnnotations(object):
             self.file_client = mmcv.FileClient(**self.file_client_args)
 
         if results.get('seg_prefix', None) is not None:
-            filename = osp.join(results['seg_prefix'],
-                                results['ann_info']['seg_map'])
+            filename = osp.join(results['seg_prefix'], results['ann_info']['seg_map'])
         else:
             filename = results['ann_info']['seg_map']
         img_bytes = self.file_client.get(filename)
-        gt_semantic_seg = mmcv.imfrombytes(
-            img_bytes, flag='unchanged',
-            backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        gt_semantic_seg = (
+            mmcv.imfrombytes(img_bytes, flag='unchanged', backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        )
         # modify if custom classes
         if results.get('label_map', None) is not None:
             for old_id, new_id in results['label_map'].items():

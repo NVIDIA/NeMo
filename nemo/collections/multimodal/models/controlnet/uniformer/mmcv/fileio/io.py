@@ -11,7 +11,7 @@ file_handlers = {
     'yaml': YamlHandler(),
     'yml': YamlHandler(),
     'pickle': PickleHandler(),
-    'pkl': PickleHandler()
+    'pkl': PickleHandler(),
 }
 
 
@@ -99,8 +99,7 @@ def dump(obj, file=None, file_format=None, file_client_args=None, **kwargs):
         if is_str(file):
             file_format = file.split('.')[-1]
         elif file is None:
-            raise ValueError(
-                'file_format must be specified since file is None')
+            raise ValueError('file_format must be specified since file is None')
     if file_format not in file_handlers:
         raise TypeError(f'Unsupported format: {file_format}')
 
@@ -132,8 +131,7 @@ def _register_handler(handler, file_formats):
             handler.
     """
     if not isinstance(handler, BaseFileHandler):
-        raise TypeError(
-            f'handler must be a child of BaseFileHandler, not {type(handler)}')
+        raise TypeError(f'handler must be a child of BaseFileHandler, not {type(handler)}')
     if isinstance(file_formats, str):
         file_formats = [file_formats]
     if not is_list_of(file_formats, str):
@@ -143,7 +141,6 @@ def _register_handler(handler, file_formats):
 
 
 def register_handler(file_formats, **kwargs):
-
     def wrap(cls):
         _register_handler(cls(**kwargs), file_formats)
         return cls

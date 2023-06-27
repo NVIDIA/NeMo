@@ -173,7 +173,7 @@ def imequalize(img):
     return equalized_img.astype(img.dtype)
 
 
-def adjust_brightness(img, factor=1.):
+def adjust_brightness(img, factor=1.0):
     """Adjust image brightness.
 
     This function controls the brightness of an image. An
@@ -198,14 +198,12 @@ def adjust_brightness(img, factor=1.):
     # Note manually convert the dtype to np.float32, to
     # achieve as close results as PIL.ImageEnhance.Brightness.
     # Set beta=1-factor, and gamma=0
-    brightened_img = cv2.addWeighted(
-        img.astype(np.float32), factor, degenerated.astype(np.float32),
-        1 - factor, 0)
+    brightened_img = cv2.addWeighted(img.astype(np.float32), factor, degenerated.astype(np.float32), 1 - factor, 0)
     brightened_img = np.clip(brightened_img, 0, 255)
     return brightened_img.astype(img.dtype)
 
 
-def adjust_contrast(img, factor=1.):
+def adjust_contrast(img, factor=1.0):
     """Adjust image contrast.
 
     This function controls the contrast of an image. An
@@ -228,9 +226,7 @@ def adjust_contrast(img, factor=1.):
     mean = round(np.sum(gray_img) / np.sum(hist))
     degenerated = (np.ones_like(img[..., 0]) * mean).astype(img.dtype)
     degenerated = gray2bgr(degenerated)
-    contrasted_img = cv2.addWeighted(
-        img.astype(np.float32), factor, degenerated.astype(np.float32),
-        1 - factor, 0)
+    contrasted_img = cv2.addWeighted(img.astype(np.float32), factor, degenerated.astype(np.float32), 1 - factor, 0)
     contrasted_img = np.clip(contrasted_img, 0, 255)
     return contrasted_img.astype(img.dtype)
 
@@ -280,8 +276,9 @@ def auto_contrast(img, cutoff=0):
     if isinstance(cutoff, (int, float)):
         cutoff = (cutoff, cutoff)
     else:
-        assert isinstance(cutoff, tuple), 'cutoff must be of type int, ' \
-            f'float or tuple, but got {type(cutoff)} instead.'
+        assert isinstance(cutoff, tuple), (
+            'cutoff must be of type int, ' f'float or tuple, but got {type(cutoff)} instead.'
+        )
     # Auto adjusts contrast for each channel independently and then stacks
     # the result.
     s1 = _auto_contrast_channel(img, 0, cutoff)
@@ -291,7 +288,7 @@ def auto_contrast(img, cutoff=0):
     return contrasted_img.astype(img.dtype)
 
 
-def adjust_sharpness(img, factor=1., kernel=None):
+def adjust_sharpness(img, factor=1.0, kernel=None):
     """Adjust image sharpness.
 
     This function controls the sharpness of an image. An
@@ -321,16 +318,12 @@ def adjust_sharpness(img, factor=1., kernel=None):
 
     if kernel is None:
         # adopted from PIL.ImageFilter.SMOOTH
-        kernel = np.array([[1., 1., 1.], [1., 5., 1.], [1., 1., 1.]]) / 13
-    assert isinstance(kernel, np.ndarray), \
-        f'kernel must be of type np.ndarray, but got {type(kernel)} instead.'
-    assert kernel.ndim == 2, \
-        f'kernel must have a dimension of 2, but got {kernel.ndim} instead.'
+        kernel = np.array([[1.0, 1.0, 1.0], [1.0, 5.0, 1.0], [1.0, 1.0, 1.0]]) / 13
+    assert isinstance(kernel, np.ndarray), f'kernel must be of type np.ndarray, but got {type(kernel)} instead.'
+    assert kernel.ndim == 2, f'kernel must have a dimension of 2, but got {kernel.ndim} instead.'
 
     degenerated = cv2.filter2D(img, -1, kernel)
-    sharpened_img = cv2.addWeighted(
-        img.astype(np.float32), factor, degenerated.astype(np.float32),
-        1 - factor, 0)
+    sharpened_img = cv2.addWeighted(img.astype(np.float32), factor, degenerated.astype(np.float32), 1 - factor, 0)
     sharpened_img = np.clip(sharpened_img, 0, 255)
     return sharpened_img.astype(img.dtype)
 
@@ -355,24 +348,25 @@ def adjust_lighting(img, eigval, eigvec, alphastd=0.1, to_rgb=True):
     Returns:
         ndarray: The adjusted image.
     """
-    assert isinstance(eigval, np.ndarray) and isinstance(eigvec, np.ndarray), \
-        f'eigval and eigvec should both be of type np.ndarray, got ' \
-        f'{type(eigval)} and {type(eigvec)} instead.'
+    assert isinstance(eigval, np.ndarray) and isinstance(eigvec, np.ndarray), (
+        f'eigval and eigvec should both be of type np.ndarray, got ' f'{type(eigval)} and {type(eigvec)} instead.'
+    )
 
     assert eigval.ndim == 1 and eigvec.ndim == 2
     assert eigvec.shape == (3, eigval.shape[0])
     n_eigval = eigval.shape[0]
-    assert isinstance(alphastd, float), 'alphastd should be of type float, ' \
-        f'got {type(alphastd)} instead.'
+    assert isinstance(alphastd, float), 'alphastd should be of type float, ' f'got {type(alphastd)} instead.'
 
     img = img.copy().astype(np.float32)
     if to_rgb:
         cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)  # inplace
 
     alpha = np.random.normal(0, alphastd, n_eigval)
-    alter = eigvec \
-        * np.broadcast_to(alpha.reshape(1, n_eigval), (3, n_eigval)) \
+    alter = (
+        eigvec
+        * np.broadcast_to(alpha.reshape(1, n_eigval), (3, n_eigval))
         * np.broadcast_to(eigval.reshape(1, n_eigval), (3, n_eigval))
+    )
     alter = np.broadcast_to(alter.sum(axis=1).reshape(1, 1, 3), img.shape)
     img_adjusted = img + alter
     return img_adjusted
@@ -397,7 +391,7 @@ def lut_transform(img, lut_table):
     assert isinstance(img, np.ndarray)
     assert 0 <= np.min(img) and np.max(img) <= 255
     assert isinstance(lut_table, np.ndarray)
-    assert lut_table.shape == (256, )
+    assert lut_table.shape == (256,)
 
     return cv2.LUT(np.array(img, dtype=np.uint8), lut_table)
 

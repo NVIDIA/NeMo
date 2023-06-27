@@ -8,10 +8,20 @@ from pytorch_lightning import Callback
 from pytorch_lightning.utilities.distributed import rank_zero_only
 from nemo.collections.multimodal.models.controlnet.uniformer import UniformerDetector
 
+
 class ImageLogger(Callback):
-    def __init__(self, batch_frequency=2000, max_images=4, clamp=True, increase_log_steps=True,
-                 rescale=True, disabled=False, log_on_batch_idx=False, log_first_step=False,
-                 log_images_kwargs=None):
+    def __init__(
+        self,
+        batch_frequency=2000,
+        max_images=4,
+        clamp=True,
+        increase_log_steps=True,
+        rescale=True,
+        disabled=False,
+        log_on_batch_idx=False,
+        log_first_step=False,
+        log_images_kwargs=None,
+    ):
         super().__init__()
         self.rescale = rescale
         self.batch_freq = batch_frequency
@@ -43,10 +53,12 @@ class ImageLogger(Callback):
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         check_idx = batch_idx  # if self.log_on_batch_idx else pl_module.global_step
-        if (self.check_frequency(check_idx) and  # batch_idx % self.batch_freq == 0
-                hasattr(pl_module, "log_images") and
-                callable(pl_module.log_images) and
-                self.max_images > 0):
+        if (
+            self.check_frequency(check_idx)
+            and hasattr(pl_module, "log_images")  # batch_idx % self.batch_freq == 0
+            and callable(pl_module.log_images)
+            and self.max_images > 0
+        ):
             logger = type(pl_module.logger)
 
             is_train = pl_module.training
@@ -62,16 +74,17 @@ class ImageLogger(Callback):
                 if isinstance(images[k], torch.Tensor):
                     images[k] = images[k].detach().cpu()
                     if self.clamp:
-                        images[k] = torch.clamp(images[k], -1., 1.)
+                        images[k] = torch.clamp(images[k], -1.0, 1.0)
 
-            self.log_local(pl_module.logger.save_dir, split, images,
-                           pl_module.global_step, pl_module.current_epoch, batch_idx)
+            self.log_local(
+                pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch, batch_idx
+            )
 
             if is_train:
                 pl_module.train()
 
     def check_frequency(self, check_idx):
-        return (check_idx % self.batch_freq == 0)
+        return check_idx % self.batch_freq == 0
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if not self.disabled:

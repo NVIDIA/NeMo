@@ -24,8 +24,7 @@ class PixelShufflePack(nn.Module):
             channels.
     """
 
-    def __init__(self, in_channels, out_channels, scale_factor,
-                 upsample_kernel):
+    def __init__(self, in_channels, out_channels, scale_factor, upsample_kernel):
         super(PixelShufflePack, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -35,7 +34,8 @@ class PixelShufflePack(nn.Module):
             self.in_channels,
             self.out_channels * scale_factor * scale_factor,
             self.upsample_kernel,
-            padding=(self.upsample_kernel - 1) // 2)
+            padding=(self.upsample_kernel - 1) // 2,
+        )
         self.init_weights()
 
     def init_weights(self):
@@ -68,8 +68,7 @@ def build_upsample_layer(cfg, *args, **kwargs):
     if not isinstance(cfg, dict):
         raise TypeError(f'cfg must be a dict, but got {type(cfg)}')
     if 'type' not in cfg:
-        raise KeyError(
-            f'the cfg dict must contain the key "type", but got {cfg}')
+        raise KeyError(f'the cfg dict must contain the key "type", but got {cfg}')
     cfg_ = cfg.copy()
 
     layer_type = cfg_.pop('type')

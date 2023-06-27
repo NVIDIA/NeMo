@@ -5,13 +5,12 @@ import torch
 
 
 def assert_tensor_type(func):
-
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if not isinstance(args[0].data, torch.Tensor):
             raise AttributeError(
-                f'{args[0].__class__.__name__} has no attribute '
-                f'{func.__name__} for type {args[0].datatype}')
+                f'{args[0].__class__.__name__} has no attribute ' f'{func.__name__} for type {args[0].datatype}'
+            )
         return func(*args, **kwargs)
 
     return wrapper
@@ -34,12 +33,7 @@ class DataContainer:
     - pad_dims specifies the number of last few dimensions to do padding
     """
 
-    def __init__(self,
-                 data,
-                 stack=False,
-                 padding_value=0,
-                 cpu_only=False,
-                 pad_dims=2):
+    def __init__(self, data, stack=False, padding_value=0, cpu_only=False, pad_dims=2):
         self._data = data
         self._cpu_only = cpu_only
         self._stack = stack

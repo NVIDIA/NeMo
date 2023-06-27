@@ -39,8 +39,7 @@ def _any(judge_result):
     return False
 
 
-def assert_dict_contains_subset(dict_obj: Dict[Any, Any],
-                                expected_subset: Dict[Any, Any]) -> bool:
+def assert_dict_contains_subset(dict_obj: Dict[Any, Any], expected_subset: Dict[Any, Any]) -> bool:
     """Check if the dict_obj contains the expected_subset.
 
     Args:
@@ -74,8 +73,7 @@ def assert_attrs_equal(obj: Any, expected_attrs: Dict[str, Any]) -> bool:
     return True
 
 
-def assert_dict_has_keys(obj: Dict[str, Any],
-                         expected_keys: List[str]) -> bool:
+def assert_dict_has_keys(obj: Dict[str, Any], expected_keys: List[str]) -> bool:
     """Check if the obj has all the expected_keys.
 
     Args:
@@ -111,8 +109,10 @@ def assert_is_norm_layer(module) -> bool:
     Returns:
         bool: Whether the module is a norm layer.
     """
-    from .parrots_wrapper import _BatchNorm, _InstanceNorm
     from torch.nn import GroupNorm, LayerNorm
+
+    from .parrots_wrapper import _BatchNorm, _InstanceNorm
+
     norm_layer_candidates = (_BatchNorm, _InstanceNorm, GroupNorm, LayerNorm)
     return isinstance(module, norm_layer_candidates)
 
@@ -127,13 +127,11 @@ def assert_params_all_zeros(module) -> bool:
         bool: Whether the parameters of the module is all zeros.
     """
     weight_data = module.weight.data
-    is_weight_zero = weight_data.allclose(
-        weight_data.new_zeros(weight_data.size()))
+    is_weight_zero = weight_data.allclose(weight_data.new_zeros(weight_data.size()))
 
     if hasattr(module, 'bias') and module.bias is not None:
         bias_data = module.bias.data
-        is_bias_zero = bias_data.allclose(
-            bias_data.new_zeros(bias_data.size()))
+        is_bias_zero = bias_data.allclose(bias_data.new_zeros(bias_data.size()))
     else:
         is_bias_zero = True
 

@@ -10,17 +10,21 @@ from torch.nn.parameter import Parameter
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import NORM_LAYERS
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext('_ext', [
-    'sync_bn_forward_mean', 'sync_bn_forward_var', 'sync_bn_forward_output',
-    'sync_bn_backward_param', 'sync_bn_backward_data'
-])
+ext_module = ext_loader.load_ext(
+    '_ext',
+    [
+        'sync_bn_forward_mean',
+        'sync_bn_forward_var',
+        'sync_bn_forward_output',
+        'sync_bn_backward_param',
+        'sync_bn_backward_data',
+    ],
+)
 
 
 class SyncBatchNormFunction(Function):
-
     @staticmethod
-    def symbolic(g, input, running_mean, running_var, weight, bias, momentum,
-                 eps, group, group_size, stats_mode):
+    def symbolic(g, input, running_mean, running_var, weight, bias, momentum, eps, group, group_size, stats_mode):
         return g.op(
             'mmcv::MMCVSyncBatchNorm',
             input,
@@ -32,11 +36,11 @@ class SyncBatchNormFunction(Function):
             eps_f=eps,
             group_i=group,
             group_size_i=group_size,
-            stats_mode=stats_mode)
+            stats_mode=stats_mode,
+        )
 
     @staticmethod
-    def forward(self, input, running_mean, running_var, weight, bias, momentum,
-                eps, group, group_size, stats_mode):
+    def forward(self, input, running_mean, running_var, weight, bias, momentum, eps, group, group_size, stats_mode):
         self.momentum = momentum
         self.eps = eps
         self.group = group
@@ -44,9 +48,8 @@ class SyncBatchNormFunction(Function):
         self.stats_mode = stats_mode
 
         assert isinstance(
-                   input, (torch.HalfTensor, torch.FloatTensor,
-                           torch.cuda.HalfTensor, torch.cuda.FloatTensor)), \
-               f'only support Half or Float Tensor, but {input.type()}'
+            input, (torch.HalfTensor, torch.FloatTensor, torch.cuda.HalfTensor, torch.cuda.FloatTensor)
+        ), f'only support Half or Float Tensor, but {input.type()}'
         output = torch.zeros_like(input)
         input3d = input.flatten(start_dim=2)
         output3d = output.view_as(input3d)
@@ -54,14 +57,10 @@ class SyncBatchNormFunction(Function):
 
         # ensure mean/var/norm/std are initialized as zeros
         # ``torch.empty()`` does not guarantee that
-        mean = torch.zeros(
-            num_channels, dtype=torch.float, device=input3d.device)
-        var = torch.zeros(
-            num_channels, dtype=torch.float, device=input3d.device)
-        norm = torch.zeros_like(
-            input3d, dtype=torch.float, device=input3d.device)
-        std = torch.zeros(
-            num_channels, dtype=torch.float, device=input3d.device)
+        mean = torch.zeros(num_channels, dtype=torch.float, device=input3d.device)
+        var = torch.zeros(num_channels, dtype=torch.float, device=input3d.device)
+        norm = torch.zeros_like(input3d, dtype=torch.float, device=input3d.device)
+        std = torch.zeros(num_channels, dtype=torch.float, device=input3d.device)
 
         batch_size = input3d.size(0)
         if batch_size > 0:
@@ -120,7 +119,8 @@ class SyncBatchNormFunction(Function):
             output3d,
             eps=self.eps,
             momentum=momentum,
-            group_size=self.group_size)
+            group_size=self.group_size,
+        )
         self.save_for_backward(norm, std, weight)
         return output
 
@@ -136,8 +136,7 @@ class SyncBatchNormFunction(Function):
 
         batch_size = grad_input3d.size(0)
         if batch_size > 0:
-            ext_module.sync_bn_backward_param(grad_output3d, norm, grad_weight,
-                                              grad_bias)
+            ext_module.sync_bn_backward_param(grad_output3d, norm, grad_weight, grad_bias)
 
         # all reduce
         if self.group_size > 1:
@@ -147,12 +146,9 @@ class SyncBatchNormFunction(Function):
             grad_bias /= self.group_size
 
         if batch_size > 0:
-            ext_module.sync_bn_backward_data(grad_output3d, weight,
-                                             grad_weight, grad_bias, norm, std,
-                                             grad_input3d)
+            ext_module.sync_bn_backward_data(grad_output3d, weight, grad_weight, grad_bias, norm, std, grad_input3d)
 
-        return grad_input, None, None, grad_weight, grad_bias, \
-            None, None, None, None, None
+        return grad_input, None, None, grad_weight, grad_bias, None, None, None, None, None
 
 
 @NORM_LAYERS.register_module(name='MMSyncBN')
@@ -190,14 +186,16 @@ class SyncBatchNorm(Module):
             number of batch.
     """
 
-    def __init__(self,
-                 num_features,
-                 eps=1e-5,
-                 momentum=0.1,
-                 affine=True,
-                 track_running_stats=True,
-                 group=None,
-                 stats_mode='default'):
+    def __init__(
+        self,
+        num_features,
+        eps=1e-5,
+        momentum=0.1,
+        affine=True,
+        track_running_stats=True,
+        group=None,
+        stats_mode='default',
+    ):
         super(SyncBatchNorm, self).__init__()
         self.num_features = num_features
         self.eps = eps
@@ -207,8 +205,7 @@ class SyncBatchNorm(Module):
         group = dist.group.WORLD if group is None else group
         self.group = group
         self.group_size = dist.get_world_size(group)
-        assert stats_mode in ['default', 'N'], \
-            f'"stats_mode" only accepts "default" and "N", got "{stats_mode}"'
+        assert stats_mode in ['default', 'N'], f'"stats_mode" only accepts "default" and "N", got "{stats_mode}"'
         self.stats_mode = stats_mode
         if self.affine:
             self.weight = Parameter(torch.Tensor(num_features))
@@ -219,8 +216,7 @@ class SyncBatchNorm(Module):
         if self.track_running_stats:
             self.register_buffer('running_mean', torch.zeros(num_features))
             self.register_buffer('running_var', torch.ones(num_features))
-            self.register_buffer('num_batches_tracked',
-                                 torch.tensor(0, dtype=torch.long))
+            self.register_buffer('num_batches_tracked', torch.tensor(0, dtype=torch.long))
         else:
             self.register_buffer('running_mean', None)
             self.register_buffer('running_var', None)
@@ -241,8 +237,7 @@ class SyncBatchNorm(Module):
 
     def forward(self, input):
         if input.dim() < 2:
-            raise ValueError(
-                f'expected at least 2D input, got {input.dim()}D input')
+            raise ValueError(f'expected at least 2D input, got {input.dim()}D input')
         if self.momentum is None:
             exponential_average_factor = 0.0
         else:
@@ -252,20 +247,34 @@ class SyncBatchNorm(Module):
             if self.num_batches_tracked is not None:
                 self.num_batches_tracked += 1
                 if self.momentum is None:  # use cumulative moving average
-                    exponential_average_factor = 1.0 / float(
-                        self.num_batches_tracked)
+                    exponential_average_factor = 1.0 / float(self.num_batches_tracked)
                 else:  # use exponential moving average
                     exponential_average_factor = self.momentum
 
         if self.training or not self.track_running_stats:
             return SyncBatchNormFunction.apply(
-                input, self.running_mean, self.running_var, self.weight,
-                self.bias, exponential_average_factor, self.eps, self.group,
-                self.group_size, self.stats_mode)
+                input,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                exponential_average_factor,
+                self.eps,
+                self.group,
+                self.group_size,
+                self.stats_mode,
+            )
         else:
-            return F.batch_norm(input, self.running_mean, self.running_var,
-                                self.weight, self.bias, False,
-                                exponential_average_factor, self.eps)
+            return F.batch_norm(
+                input,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                False,
+                exponential_average_factor,
+                self.eps,
+            )
 
     def __repr__(self):
         s = self.__class__.__name__

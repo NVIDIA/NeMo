@@ -3,11 +3,12 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner import auto_fp16
 
 
@@ -28,8 +29,7 @@ class BaseSegmentor(nn.Module):
     @property
     def with_auxiliary_head(self):
         """bool: whether the segmentor has auxiliary head"""
-        return hasattr(self,
-                       'auxiliary_head') and self.auxiliary_head is not None
+        return hasattr(self, 'auxiliary_head') and self.auxiliary_head is not None
 
     @property
     def with_decode_head(self):
@@ -85,13 +85,11 @@ class BaseSegmentor(nn.Module):
         """
         for var, name in [(imgs, 'imgs'), (img_metas, 'img_metas')]:
             if not isinstance(var, list):
-                raise TypeError(f'{name} must be a list, but got '
-                                f'{type(var)}')
+                raise TypeError(f'{name} must be a list, but got ' f'{type(var)}')
 
         num_augs = len(imgs)
         if num_augs != len(img_metas):
-            raise ValueError(f'num of augmentations ({len(imgs)}) != '
-                             f'num of image meta ({len(img_metas)})')
+            raise ValueError(f'num of augmentations ({len(imgs)}) != ' f'num of image meta ({len(img_metas)})')
         # all images in the same aug batch all of the same ori_shape and pad
         # shape
         for img_meta in img_metas:
@@ -107,7 +105,7 @@ class BaseSegmentor(nn.Module):
         else:
             return self.aug_test(imgs, img_metas, **kwargs)
 
-    @auto_fp16(apply_to=('img', ))
+    @auto_fp16(apply_to=('img',))
     def forward(self, img, img_metas, return_loss=True, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.
@@ -152,10 +150,7 @@ class BaseSegmentor(nn.Module):
         losses = self(**data_batch)
         loss, log_vars = self._parse_losses(losses)
 
-        outputs = dict(
-            loss=loss,
-            log_vars=log_vars,
-            num_samples=len(data_batch['img_metas']))
+        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data_batch['img_metas']))
 
         return outputs
 
@@ -189,11 +184,9 @@ class BaseSegmentor(nn.Module):
             elif isinstance(loss_value, list):
                 log_vars[loss_name] = sum(_loss.mean() for _loss in loss_value)
             else:
-                raise TypeError(
-                    f'{loss_name} is not a tensor or list of tensors')
+                raise TypeError(f'{loss_name} is not a tensor or list of tensors')
 
-        loss = sum(_value for _key, _value in log_vars.items()
-                   if 'loss' in _key)
+        loss = sum(_value for _key, _value in log_vars.items() if 'loss' in _key)
 
         log_vars['loss'] = loss
         for loss_name, loss_value in log_vars.items():
@@ -205,15 +198,7 @@ class BaseSegmentor(nn.Module):
 
         return loss, log_vars
 
-    def show_result(self,
-                    img,
-                    result,
-                    palette=None,
-                    win_name='',
-                    show=False,
-                    wait_time=0,
-                    out_file=None,
-                    opacity=0.5):
+    def show_result(self, img, result, palette=None, win_name='', show=False, wait_time=0, out_file=None, opacity=0.5):
         """Draw `result` over `img`.
 
         Args:
@@ -241,8 +226,7 @@ class BaseSegmentor(nn.Module):
         seg = result[0]
         if palette is None:
             if self.PALETTE is None:
-                palette = np.random.randint(
-                    0, 255, size=(len(self.CLASSES), 3))
+                palette = np.random.randint(0, 255, size=(len(self.CLASSES), 3))
             else:
                 palette = self.PALETTE
         palette = np.array(palette)
@@ -268,6 +252,5 @@ class BaseSegmentor(nn.Module):
             mmcv.imwrite(img, out_file)
 
         if not (show or out_file):
-            warnings.warn('show==False and out_file is not specified, only '
-                          'result image will be returned')
+            warnings.warn('show==False and out_file is not specified, only ' 'result image will be returned')
             return img

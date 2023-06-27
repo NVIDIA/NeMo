@@ -32,12 +32,12 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.multimodal.models.clip.megatron_clip_models import MegatronCLIPModel
+from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
 from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.models.imagen.imagen import MegatronImagen
 from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -161,8 +161,9 @@ def convert(local_rank, rank, world_size, args):
     elif args.model_type == 'imagen':
         model = MegatronImagen.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     elif args.model_type == 'controlnet':
-        model = MegatronControlNet.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file,
-                                                             trainer=trainer)
+        model = MegatronControlNet.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     else:
         raise ValueError(f"Unrecognized model_type {args.model_type}.")
 

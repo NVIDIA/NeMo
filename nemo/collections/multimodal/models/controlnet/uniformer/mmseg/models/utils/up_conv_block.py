@@ -41,21 +41,23 @@ class UpConvBlock(nn.Module):
         plugins (dict): plugins for convolutional layers. Default: None.
     """
 
-    def __init__(self,
-                 conv_block,
-                 in_channels,
-                 skip_channels,
-                 out_channels,
-                 num_convs=2,
-                 stride=1,
-                 dilation=1,
-                 with_cp=False,
-                 conv_cfg=None,
-                 norm_cfg=dict(type='BN'),
-                 act_cfg=dict(type='ReLU'),
-                 upsample_cfg=dict(type='InterpConv'),
-                 dcn=None,
-                 plugins=None):
+    def __init__(
+        self,
+        conv_block,
+        in_channels,
+        skip_channels,
+        out_channels,
+        num_convs=2,
+        stride=1,
+        dilation=1,
+        with_cp=False,
+        conv_cfg=None,
+        norm_cfg=dict(type='BN'),
+        act_cfg=dict(type='ReLU'),
+        upsample_cfg=dict(type='InterpConv'),
+        dcn=None,
+        plugins=None,
+    ):
         super(UpConvBlock, self).__init__()
         assert dcn is None, 'Not implemented yet.'
         assert plugins is None, 'Not implemented yet.'
@@ -71,7 +73,8 @@ class UpConvBlock(nn.Module):
             norm_cfg=norm_cfg,
             act_cfg=act_cfg,
             dcn=None,
-            plugins=None)
+            plugins=None,
+        )
         if upsample_cfg is not None:
             self.upsample = build_upsample_layer(
                 cfg=upsample_cfg,
@@ -79,7 +82,8 @@ class UpConvBlock(nn.Module):
                 out_channels=skip_channels,
                 with_cp=with_cp,
                 norm_cfg=norm_cfg,
-                act_cfg=act_cfg)
+                act_cfg=act_cfg,
+            )
         else:
             self.upsample = ConvModule(
                 in_channels,
@@ -89,7 +93,8 @@ class UpConvBlock(nn.Module):
                 padding=0,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
-                act_cfg=act_cfg)
+                act_cfg=act_cfg,
+            )
 
     def forward(self, skip, x):
         """Forward function."""

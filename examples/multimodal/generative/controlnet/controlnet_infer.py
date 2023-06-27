@@ -8,20 +8,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
-import cv2
 import os
 import time
-import einops
 
+import cv2
+import einops
+import torch
 from PIL import Image
+
 from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
+from nemo.collections.multimodal.models.controlnet.util import get_preprocessing_function
+from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
+from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 
-from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
-from nemo.collections.multimodal.models.stable_diffusion.samplers.plms import PLMSSampler
-from nemo.collections.multimodal.models.controlnet.util import get_preprocessing_function
 
 def get_control_input(image_path, batch_size, hint_image_size, control_image_preprocess=None):
     image = cv2.imread(image_path)
@@ -35,9 +36,10 @@ def get_control_input(image_path, batch_size, hint_image_size, control_image_pre
     control = einops.rearrange(control, 'b h w c -> b c h w')
     return control
 
+
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
     c = cond_stage_model.encode(batch_size * [prompt])
-    if unconditional_guidance_scale != 1.:
+    if unconditional_guidance_scale != 1.0:
         uc = cond_stage_model.encode(batch_size * [""])
     else:
         uc = None
@@ -57,13 +59,15 @@ def initialize_sampler(model, sampler_type):
 def decode_images(model, samples):
     images = model.decode_first_stage(samples)
 
-    images = torch.clamp((images + 1.) / 2., min=0., max=1.)
+    images = torch.clamp((images + 1.0) / 2.0, min=0.0, max=1.0)
 
     return images
+
 
 def torch_to_numpy(images):
     numpy_images = [x.float().cpu().permute(0, 2, 3, 1).numpy() for x in images]
     return numpy_images
+
 
 def numpy_to_pil(images):
     """
@@ -106,11 +110,11 @@ def pipeline(model, cfg, rng=None, verbose=True):
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')
 
-    with torch.no_grad(), torch.cuda.amp.autocast(enabled=autocast_dtype in (torch.half, torch.bfloat16),
-                                                  dtype=autocast_dtype, ):
+    with torch.no_grad(), torch.cuda.amp.autocast(
+        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    ):
 
         in_channels = model.model.diffusion_model.in_channels
-
 
         sampler = initialize_sampler(model, sampler_type.upper())
 
@@ -120,31 +124,29 @@ def pipeline(model, cfg, rng=None, verbose=True):
         if isinstance(prompts, str):
             prompts = [prompts]
 
+        assert len(prompts) == len(control)
 
-        assert (len(prompts) == len(control))
-
-
-        for control, prompt in zip(control,prompts):
+        for control, prompt in zip(control, prompts):
             tic = time.perf_counter()
             tic_total = tic
-            txt_cond, txt_u_cond = encode_prompt(model.cond_stage_model, prompt, unconditional_guidance_scale, batch_size)
+            txt_cond, txt_u_cond = encode_prompt(
+                model.cond_stage_model, prompt, unconditional_guidance_scale, batch_size
+            )
 
-            control = get_control_input(control, batch_size, hint_image_size, control_image_preprocess).to(torch.cuda.current_device(), dtype=autocast_dtype)
-
-
+            control = get_control_input(control, batch_size, hint_image_size, control_image_preprocess).to(
+                torch.cuda.current_device(), dtype=autocast_dtype
+            )
 
             cond = {"c_concat": control, "c_crossattn": txt_cond}
-            u_cond = {"c_concat": None if guess_mode else control,"c_crossattn": txt_u_cond}
+            u_cond = {"c_concat": None if guess_mode else control, "c_crossattn": txt_u_cond}
 
             toc = time.perf_counter()
             conditioning_time = toc - tic
 
             latent_shape = [batch_size, height // downsampling_factor, width // downsampling_factor]
             latents = torch.randn(
-                [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor],
-                generator=rng).to(
-                torch.cuda.current_device())
-
+                [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor], generator=rng
+            ).to(torch.cuda.current_device())
 
             tic = time.perf_counter()
             samples, intermediates = sampler.sample(
@@ -156,7 +158,7 @@ def pipeline(model, cfg, rng=None, verbose=True):
                 unconditional_guidance_scale=unconditional_guidance_scale,
                 unconditional_conditioning=u_cond,
                 eta=eta,
-                x_T=latents
+                x_T=latents,
             )
             toc = time.perf_counter()
             sampling_time = toc - tic
@@ -170,13 +172,15 @@ def pipeline(model, cfg, rng=None, verbose=True):
             total_time = toc_total - tic_total
             output.append(images)
 
-            throughput.append({
-                'text-conditioning-time': conditioning_time,
-                'sampling-time': sampling_time,
-                'decode-time': decode_time,
-                'total-time': total_time,
-                'sampling-steps': inference_steps,
-            })
+            throughput.append(
+                {
+                    'text-conditioning-time': conditioning_time,
+                    'sampling-time': sampling_time,
+                    'decode-time': decode_time,
+                    'total-time': total_time,
+                    'sampling-steps': inference_steps,
+                }
+            )
 
         # Convert output type and save to disk
         if output_type == 'torch':
@@ -189,7 +193,7 @@ def pipeline(model, cfg, rng=None, verbose=True):
         if save_to_file:
             os.makedirs(out_path, exist_ok=True)
             # Saving control map
-            control_image = control[0].float().cpu().permute(1,2,0).numpy()
+            control_image = control[0].float().cpu().permute(1, 2, 0).numpy()
             control_image = Image.fromarray((control_image * 255).round().astype("uint8"))
             control_image.save(os.path.join(out_path, f'{prompt[:50]}_control.png'))
             if output_type == 'pil':
@@ -209,7 +213,6 @@ def pipeline(model, cfg, rng=None, verbose=True):
             print(ave_metrics)
 
 
-
 @hydra_runner(config_path='conf', config_name='controlnet_infer')
 def main(cfg):
     def model_cfg_modifier(model_cfg):
@@ -224,15 +227,17 @@ def main(cfg):
 
     torch.backends.cuda.matmul.allow_tf32 = True
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronControlNet,
-        cfg=cfg,
-        model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronControlNet, cfg=cfg, model_cfg_modifier=model_cfg_modifier
     )
     model = megatron_diffusion_model.model
     model.cuda().eval()
 
     guess_mode = cfg.model.guess_mode
-    model.contol_scales = [cfg.model.strength * (0.825 ** float(12 - i)) for i in range(13)] if guess_mode else ([cfg.model.strength] * 13)
+    model.contol_scales = (
+        [cfg.model.strength * (0.825 ** float(12 - i)) for i in range(13)]
+        if guess_mode
+        else ([cfg.model.strength] * 13)
+    )
 
     rng = torch.Generator().manual_seed(cfg.infer.seed)
     pipeline(model, cfg, rng=rng)

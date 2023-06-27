@@ -15,18 +15,18 @@ from .base import LoggerHook
 
 @HOOKS.register_module()
 class PaviLoggerHook(LoggerHook):
-
-    def __init__(self,
-                 init_kwargs=None,
-                 add_graph=False,
-                 add_last_ckpt=False,
-                 interval=10,
-                 ignore_last=True,
-                 reset_flag=False,
-                 by_epoch=True,
-                 img_key='img_info'):
-        super(PaviLoggerHook, self).__init__(interval, ignore_last, reset_flag,
-                                             by_epoch)
+    def __init__(
+        self,
+        init_kwargs=None,
+        add_graph=False,
+        add_last_ckpt=False,
+        interval=10,
+        ignore_last=True,
+        reset_flag=False,
+        by_epoch=True,
+        img_key='img_info',
+    ):
+        super(PaviLoggerHook, self).__init__(interval, ignore_last, reset_flag, by_epoch)
         self.init_kwargs = init_kwargs
         self.add_graph = add_graph
         self.add_last_ckpt = add_last_ckpt
@@ -49,10 +49,9 @@ class PaviLoggerHook(LoggerHook):
         if runner.meta is not None:
             if 'config_dict' in runner.meta:
                 config_dict = runner.meta['config_dict']
-                assert isinstance(
-                    config_dict,
-                    dict), ('meta["config_dict"] has to be of a dict, '
-                            f'but got {type(config_dict)}')
+                assert isinstance(config_dict, dict), (
+                    'meta["config_dict"] has to be of a dict, ' f'but got {type(config_dict)}'
+                )
             elif 'config_file' in runner.meta:
                 config_file = runner.meta['config_file']
                 config_dict = dict(mmcv.Config.fromfile(config_file))
@@ -65,8 +64,7 @@ class PaviLoggerHook(LoggerHook):
                 config_dict.setdefault('max_iter', runner.max_iters)
                 # non-serializable values are first converted in
                 # mmcv.dump to json
-                config_dict = json.loads(
-                    mmcv.dump(config_dict, file_format='json'))
+                config_dict = json.loads(mmcv.dump(config_dict, file_format='json'))
                 session_text = yaml.dump(config_dict)
                 self.init_kwargs['session_text'] = session_text
         self.writer = SummaryWriter(**self.init_kwargs)
@@ -82,8 +80,7 @@ class PaviLoggerHook(LoggerHook):
     def log(self, runner):
         tags = self.get_loggable_tags(runner, add_mode=False)
         if tags:
-            self.writer.add_scalars(
-                self.get_mode(runner), tags, self.get_step(runner))
+            self.writer.add_scalars(self.get_mode(runner), tags, self.get_step(runner))
 
     @master_only
     def after_run(self, runner):
@@ -96,9 +93,8 @@ class PaviLoggerHook(LoggerHook):
                 # runner.epoch += 1 has been done before `after_run`.
                 iteration = runner.epoch if self.by_epoch else runner.iter
                 return self.writer.add_snapshot_file(
-                    tag=self.run_name,
-                    snapshot_file_path=ckpt_path,
-                    iteration=iteration)
+                    tag=self.run_name, snapshot_file_path=ckpt_path, iteration=iteration
+                )
 
         # flush the buffer and send a task ending signal to Pavi
         self.writer.close()

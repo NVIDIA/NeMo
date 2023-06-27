@@ -10,19 +10,18 @@ from torch.autograd import Function
 
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext('_ext',
-                                 ['tin_shift_forward', 'tin_shift_backward'])
+ext_module = ext_loader.load_ext('_ext', ['tin_shift_forward', 'tin_shift_backward'])
 
 
 class TINShiftFunction(Function):
-
     @staticmethod
     def forward(ctx, input, shift):
         C = input.size(2)
         num_segments = shift.size(1)
         if C // num_segments <= 0 or C % num_segments != 0:
-            raise ValueError('C should be a multiple of num_segments, '
-                             f'but got C={C} and num_segments={num_segments}.')
+            raise ValueError(
+                'C should be a multiple of num_segments, ' f'but got C={C} and num_segments={num_segments}.'
+            )
 
         ctx.save_for_backward(shift)
 

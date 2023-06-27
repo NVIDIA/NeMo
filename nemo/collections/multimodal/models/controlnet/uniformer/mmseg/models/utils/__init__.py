@@ -8,6 +8,13 @@ from .up_conv_block import UpConvBlock
 from .weight_init import trunc_normal_
 
 __all__ = [
-    'ResLayer', 'SelfAttentionBlock', 'make_divisible', 'InvertedResidual',
-    'UpConvBlock', 'InvertedResidualV3', 'SELayer', 'DropPath', 'trunc_normal_'
+    'ResLayer',
+    'SelfAttentionBlock',
+    'make_divisible',
+    'InvertedResidual',
+    'UpConvBlock',
+    'InvertedResidualV3',
+    'SELayer',
+    'DropPath',
+    'trunc_normal_',
 ]

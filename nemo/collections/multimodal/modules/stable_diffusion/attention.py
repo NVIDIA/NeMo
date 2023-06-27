@@ -38,8 +38,8 @@ def check_cuda():
 
 
 try:
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_kvpacked_func
     from flash_attn.flash_attention import FlashAttention
+    from flash_attn.flash_attn_interface import flash_attn_unpadded_kvpacked_func
 
     flash_attn_installed = check_cuda()
     print("FlashAttention Installed")
@@ -296,8 +296,14 @@ class BasicTransformerBlock(nn.Module):
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
-        self.attn1 = CrossAttention(query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout,
-                                    use_flash_attention=use_flash_attention, context_dim=context_dim if self.disable_self_attn else None)  # is a self-attention
+        self.attn1 = CrossAttention(
+            query_dim=dim,
+            heads=n_heads,
+            dim_head=d_head,
+            dropout=dropout,
+            use_flash_attention=use_flash_attention,
+            context_dim=context_dim if self.disable_self_attn else None,
+        )  # is a self-attention
         self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
         self.attn2 = CrossAttention(
             query_dim=dim,
@@ -366,7 +372,7 @@ class SpatialTransformer(nn.Module):
                     context_dim=context_dim[d],
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
-                    disable_self_attn = disable_self_attn
+                    disable_self_attn=disable_self_attn,
                 )
                 for d in range(depth)
             ]

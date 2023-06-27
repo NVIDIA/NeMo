@@ -52,34 +52,33 @@ class ProfilerHook(Hook):
         >>> runner.run(data_loaders=[trainloader], workflow=[('train', 1)])
     """
 
-    def __init__(self,
-                 by_epoch: bool = True,
-                 profile_iters: int = 1,
-                 activities: List[str] = ['cpu', 'cuda'],
-                 schedule: Optional[dict] = None,
-                 on_trace_ready: Optional[Union[Callable, dict]] = None,
-                 record_shapes: bool = False,
-                 profile_memory: bool = False,
-                 with_stack: bool = False,
-                 with_flops: bool = False,
-                 json_trace_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        by_epoch: bool = True,
+        profile_iters: int = 1,
+        activities: List[str] = ['cpu', 'cuda'],
+        schedule: Optional[dict] = None,
+        on_trace_ready: Optional[Union[Callable, dict]] = None,
+        record_shapes: bool = False,
+        profile_memory: bool = False,
+        with_stack: bool = False,
+        with_flops: bool = False,
+        json_trace_path: Optional[str] = None,
+    ) -> None:
         try:
             from torch import profiler  # torch version >= 1.8.1
         except ImportError:
-            raise ImportError('profiler is the new feature of torch1.8.1, '
-                              f'but your version is {torch.__version__}')
+            raise ImportError('profiler is the new feature of torch1.8.1, ' f'but your version is {torch.__version__}')
 
         assert isinstance(by_epoch, bool), '``by_epoch`` should be a boolean.'
         self.by_epoch = by_epoch
 
         if profile_iters < 1:
-            raise ValueError('profile_iters should be greater than 0, but got '
-                             f'{profile_iters}')
+            raise ValueError('profile_iters should be greater than 0, but got ' f'{profile_iters}')
         self.profile_iters = profile_iters
 
         if not isinstance(activities, list):
-            raise ValueError(
-                f'activities should be list, but got {type(activities)}')
+            raise ValueError(f'activities should be list, but got {type(activities)}')
         self.activities = []
         for activity in activities:
             activity = activity.lower()
@@ -88,8 +87,7 @@ class ProfilerHook(Hook):
             elif activity == 'cuda':
                 self.activities.append(profiler.ProfilerActivity.CUDA)
             else:
-                raise ValueError(
-                    f'activity should be "cpu" or "cuda", but got {activity}')
+                raise ValueError(f'activity should be "cpu" or "cuda", but got {activity}')
 
         if schedule is not None:
             self.schedule = profiler.schedule(**schedule)
@@ -106,12 +104,10 @@ class ProfilerHook(Hook):
     @master_only
     def before_run(self, runner):
         if self.by_epoch and runner.max_epochs < self.profile_iters:
-            raise ValueError('self.profile_iters should not be greater than '
-                             f'{runner.max_epochs}')
+            raise ValueError('self.profile_iters should not be greater than ' f'{runner.max_epochs}')
 
         if not self.by_epoch and runner.max_iters < self.profile_iters:
-            raise ValueError('self.profile_iters should not be greater than '
-                             f'{runner.max_iters}')
+            raise ValueError('self.profile_iters should not be greater than ' f'{runner.max_iters}')
 
         if callable(self.on_trace_ready):  # handler
             _on_trace_ready = self.on_trace_ready
@@ -128,27 +124,24 @@ class ProfilerHook(Hook):
                 try:
                     import torch_tb_profiler  # noqa: F401
                 except ImportError:
-                    raise ImportError('please run "pip install '
-                                      'torch-tb-profiler" to install '
-                                      'torch_tb_profiler')
-                _on_trace_ready = torch.profiler.tensorboard_trace_handler(
-                    **trace_cfg)
+                    raise ImportError('please run "pip install ' 'torch-tb-profiler" to install ' 'torch_tb_profiler')
+                _on_trace_ready = torch.profiler.tensorboard_trace_handler(**trace_cfg)
             else:
-                raise ValueError('trace_type should be "log_trace" or '
-                                 f'"tb_trace", but got {trace_type}')
+                raise ValueError('trace_type should be "log_trace" or ' f'"tb_trace", but got {trace_type}')
         elif self.on_trace_ready is None:
             _on_trace_ready = None  # type: ignore
         else:
-            raise ValueError('on_trace_ready should be handler, dict or None, '
-                             f'but got {type(self.on_trace_ready)}')
+            raise ValueError('on_trace_ready should be handler, dict or None, ' f'but got {type(self.on_trace_ready)}')
 
         if runner.max_epochs > 1:
-            warnings.warn(f'profiler will profile {runner.max_epochs} epochs '
-                          'instead of 1 epoch. Since profiler will slow down '
-                          'the training, it is recommended to train 1 epoch '
-                          'with ProfilerHook and adjust your setting according'
-                          ' to the profiler summary. During normal training '
-                          '(epoch > 1), you may disable the ProfilerHook.')
+            warnings.warn(
+                f'profiler will profile {runner.max_epochs} epochs '
+                'instead of 1 epoch. Since profiler will slow down '
+                'the training, it is recommended to train 1 epoch '
+                'with ProfilerHook and adjust your setting according'
+                ' to the profiler summary. During normal training '
+                '(epoch > 1), you may disable the ProfilerHook.'
+            )
 
         self.profiler = torch.profiler.profile(
             activities=self.activities,
@@ -157,7 +150,8 @@ class ProfilerHook(Hook):
             record_shapes=self.record_shapes,
             profile_memory=self.profile_memory,
             with_stack=self.with_stack,
-            with_flops=self.with_flops)
+            with_flops=self.with_flops,
+        )
 
         self.profiler.__enter__()
         runner.logger.info('profiler is profiling...')

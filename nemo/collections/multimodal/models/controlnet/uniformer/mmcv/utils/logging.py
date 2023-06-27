@@ -65,8 +65,7 @@ def get_logger(name, log_file=None, log_level=logging.INFO, file_mode='w'):
         file_handler = logging.FileHandler(log_file, file_mode)
         handlers.append(file_handler)
 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     for handler in handlers:
         handler.setFormatter(formatter)
         handler.setLevel(log_level)
@@ -106,5 +105,5 @@ def print_log(msg, logger=None, level=logging.INFO):
         _logger.log(level, msg)
     else:
         raise TypeError(
-            'logger should be either a logging.Logger object, str, '
-            f'"silent" or None, but got {type(logger)}')
+            'logger should be either a logging.Logger object, str, ' f'"silent" or None, but got {type(logger)}'
+        )

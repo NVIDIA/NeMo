@@ -26,16 +26,12 @@ class EMAHook(Hook):
         resume_from (str): The checkpoint path. Defaults to None.
     """
 
-    def __init__(self,
-                 momentum=0.0002,
-                 interval=1,
-                 warm_up=100,
-                 resume_from=None):
+    def __init__(self, momentum=0.0002, interval=1, warm_up=100, resume_from=None):
         assert isinstance(interval, int) and interval > 0
         self.warm_up = warm_up
         self.interval = interval
         assert momentum > 0 and momentum < 1
-        self.momentum = momentum**interval
+        self.momentum = momentum ** interval
         self.checkpoint = resume_from
 
     def before_run(self, runner):
@@ -61,8 +57,7 @@ class EMAHook(Hook):
         """Update ema parameter every self.interval iterations."""
         curr_step = runner.iter
         # We warm up the momentum considering the instability at beginning
-        momentum = min(self.momentum,
-                       (1 + curr_step) / (self.warm_up + curr_step))
+        momentum = min(self.momentum, (1 + curr_step) / (self.warm_up + curr_step))
         if curr_step % self.interval != 0:
             return
         for name, parameter in self.model_parameters.items():

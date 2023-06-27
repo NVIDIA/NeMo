@@ -1,28 +1,26 @@
-from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
-from nemo.core.config import hydra_runner
-from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
 from datetime import timedelta
-from pytorch_lightning.strategies.ddp import DDPStrategy
-import torch
+
 import pytorch_lightning as pl
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
-
-
+import torch
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+from pytorch_lightning.strategies.ddp import DDPStrategy
 
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
 from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import (
     construct_image_augmentations,
     identical_transform,
 )
-
+from nemo.collections.multimodal.models.controlnet.controlnet import MegatronControlNet
 from nemo.collections.multimodal.models.controlnet.util import ImageLogger
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+    PipelineMixedPrecisionPlugin,
+)
+from nemo.core.config import hydra_runner
+from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
 @hydra_runner(config_path='conf', config_name='controlnet_v1-5.yaml')
@@ -30,9 +28,8 @@ def main(cfg):
     megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
 
-    plugins=[]
+    plugins = []
     callbacks = []
-
 
     # Tune for DDP
     strategy = NLPDDPStrategy(
@@ -59,19 +56,16 @@ def main(cfg):
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-
     if cfg.model.get('image_logger', None):
         callbacks.append(ImageLogger(**cfg.model.image_logger))
 
-    trainer = pl.Trainer(**cfg.trainer,
-                         plugins=plugins,
-                         callbacks=callbacks,
-                         strategy=strategy)
+    trainer = pl.Trainer(**cfg.trainer, plugins=plugins, callbacks=callbacks, strategy=strategy)
 
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     model = MegatronControlNet(cfg.model, trainer)
     trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()

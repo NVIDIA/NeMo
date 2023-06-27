@@ -6,20 +6,19 @@ from nemo.collections.multimodal.models.controlnet.uniformer.mmcv import build_f
 from .registry import DROPOUT_LAYERS
 
 
-def drop_path(x, drop_prob=0., training=False):
+def drop_path(x, drop_prob=0.0, training=False):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of
     residual blocks).
 
     We follow the implementation
     https://github.com/rwightman/pytorch-image-models/blob/a2727c1bf78ba0d7b5727f5f95e37fb7f8866b1f/timm/models/layers/drop.py  # noqa: E501
     """
-    if drop_prob == 0. or not training:
+    if drop_prob == 0.0 or not training:
         return x
     keep_prob = 1 - drop_prob
     # handle tensors with different dimensions, not just 4D tensors.
-    shape = (x.shape[0], ) + (1, ) * (x.ndim - 1)
-    random_tensor = keep_prob + torch.rand(
-        shape, dtype=x.dtype, device=x.device)
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
     output = x.div(keep_prob) * random_tensor.floor()
     return output
 

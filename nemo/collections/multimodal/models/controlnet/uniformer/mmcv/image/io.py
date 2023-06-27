@@ -5,8 +5,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from cv2 import (IMREAD_COLOR, IMREAD_GRAYSCALE, IMREAD_IGNORE_ORIENTATION,
-                 IMREAD_UNCHANGED)
+from cv2 import IMREAD_COLOR, IMREAD_GRAYSCALE, IMREAD_IGNORE_ORIENTATION, IMREAD_UNCHANGED
 
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import check_file_exist, is_str, mkdir_or_exist
 
@@ -33,8 +32,7 @@ imread_flags = {
     'grayscale': IMREAD_GRAYSCALE,
     'unchanged': IMREAD_UNCHANGED,
     'color_ignore_orientation': IMREAD_IGNORE_ORIENTATION | IMREAD_COLOR,
-    'grayscale_ignore_orientation':
-    IMREAD_IGNORE_ORIENTATION | IMREAD_GRAYSCALE
+    'grayscale_ignore_orientation': IMREAD_IGNORE_ORIENTATION | IMREAD_GRAYSCALE,
 }
 
 imread_backend = 'cv2'
@@ -133,7 +131,8 @@ def _pillow2array(img, flag='color', channel_order='bgr'):
             raise ValueError(
                 'flag must be "color", "grayscale", "unchanged", '
                 f'"color_ignore_orientation" or "grayscale_ignore_orientation"'
-                f' but got {flag}')
+                f' but got {flag}'
+            )
     return array
 
 
@@ -165,20 +164,19 @@ def imread(img_or_path, flag='color', channel_order='bgr', backend=None):
     if backend is None:
         backend = imread_backend
     if backend not in supported_backends:
-        raise ValueError(f'backend: {backend} is not supported. Supported '
-                         "backends are 'cv2', 'turbojpeg', 'pillow'")
+        raise ValueError(
+            f'backend: {backend} is not supported. Supported ' "backends are 'cv2', 'turbojpeg', 'pillow'"
+        )
     if isinstance(img_or_path, Path):
         img_or_path = str(img_or_path)
 
     if isinstance(img_or_path, np.ndarray):
         return img_or_path
     elif is_str(img_or_path):
-        check_file_exist(img_or_path,
-                         f'img file does not exist: {img_or_path}')
+        check_file_exist(img_or_path, f'img file does not exist: {img_or_path}')
         if backend == 'turbojpeg':
             with open(img_or_path, 'rb') as in_file:
-                img = jpeg.decode(in_file.read(),
-                                  _jpegflag(flag, channel_order))
+                img = jpeg.decode(in_file.read(), _jpegflag(flag, channel_order))
                 if img.shape[-1] == 1:
                     img = img[:, :, 0]
             return img
@@ -196,8 +194,7 @@ def imread(img_or_path, flag='color', channel_order='bgr', backend=None):
                 cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
             return img
     else:
-        raise TypeError('"img" must be a numpy array or a str or '
-                        'a pathlib.Path object')
+        raise TypeError('"img" must be a numpy array or a str or ' 'a pathlib.Path object')
 
 
 def imfrombytes(content, flag='color', channel_order='bgr', backend=None):
@@ -218,8 +215,9 @@ def imfrombytes(content, flag='color', channel_order='bgr', backend=None):
     if backend is None:
         backend = imread_backend
     if backend not in supported_backends:
-        raise ValueError(f'backend: {backend} is not supported. Supported '
-                         "backends are 'cv2', 'turbojpeg', 'pillow'")
+        raise ValueError(
+            f'backend: {backend} is not supported. Supported ' "backends are 'cv2', 'turbojpeg', 'pillow'"
+        )
     if backend == 'turbojpeg':
         img = jpeg.decode(content, _jpegflag(flag, channel_order))
         if img.shape[-1] == 1:

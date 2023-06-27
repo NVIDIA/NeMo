@@ -15,11 +15,9 @@ class KNN(Function):
     """
 
     @staticmethod
-    def forward(ctx,
-                k: int,
-                xyz: torch.Tensor,
-                center_xyz: torch.Tensor = None,
-                transposed: bool = False) -> torch.Tensor:
+    def forward(
+        ctx, k: int, xyz: torch.Tensor, center_xyz: torch.Tensor = None, transposed: bool = False
+    ) -> torch.Tensor:
         """
         Args:
             k (int): number of nearest neighbors.
@@ -50,8 +48,7 @@ class KNN(Function):
         assert center_xyz.is_contiguous()  # [B, npoint, 3]
 
         center_xyz_device = center_xyz.get_device()
-        assert center_xyz_device == xyz.get_device(), \
-            'center_xyz and xyz should be put on the same device'
+        assert center_xyz_device == xyz.get_device(), 'center_xyz and xyz should be put on the same device'
         if torch.cuda.current_device() != center_xyz_device:
             torch.cuda.set_device(center_xyz_device)
 
@@ -61,8 +58,7 @@ class KNN(Function):
         idx = center_xyz.new_zeros((B, npoint, k)).int()
         dist2 = center_xyz.new_zeros((B, npoint, k)).float()
 
-        ext_module.knn_forward(
-            xyz, center_xyz, idx, dist2, b=B, n=N, m=npoint, nsample=k)
+        ext_module.knn_forward(xyz, center_xyz, idx, dist2, b=B, n=N, m=npoint, nsample=k)
         # idx shape to [B, k, npoint]
         idx = idx.transpose(2, 1).contiguous()
         if torch.__version__ != 'parrots':

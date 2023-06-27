@@ -2,11 +2,7 @@
 norm_cfg = dict(type='SyncBN', eps=0.001, requires_grad=True)
 model = dict(
     type='EncoderDecoder',
-    backbone=dict(
-        type='MobileNetV3',
-        arch='large',
-        out_indices=(1, 3, 16),
-        norm_cfg=norm_cfg),
+    backbone=dict(type='MobileNetV3', arch='large', out_indices=(1, 3, 16), norm_cfg=norm_cfg),
     decode_head=dict(
         type='LRASPPHead',
         in_channels=(16, 24, 960),
@@ -18,8 +14,9 @@ model = dict(
         norm_cfg=norm_cfg,
         act_cfg=dict(type='ReLU'),
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+    ),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='whole'),
+)

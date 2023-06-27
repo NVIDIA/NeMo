@@ -7,22 +7,14 @@ from torch.nn.modules.utils import _pair
 
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext(
-    '_ext', ['correlation_forward', 'correlation_backward'])
+ext_module = ext_loader.load_ext('_ext', ['correlation_forward', 'correlation_backward'])
 
 
 class CorrelationFunction(Function):
-
     @staticmethod
-    def forward(ctx,
-                input1,
-                input2,
-                kernel_size=1,
-                max_displacement=1,
-                stride=1,
-                padding=1,
-                dilation=1,
-                dilation_patch=1):
+    def forward(
+        ctx, input1, input2, kernel_size=1, max_displacement=1, stride=1, padding=1, dilation=1, dilation_patch=1
+    ):
 
         ctx.save_for_backward(input1, input2)
 
@@ -32,8 +24,7 @@ class CorrelationFunction(Function):
         dH, dW = ctx.stride = _pair(stride)
         padH, padW = ctx.padding = _pair(padding)
         dilationH, dilationW = ctx.dilation = _pair(dilation)
-        dilation_patchH, dilation_patchW = ctx.dilation_patch = _pair(
-            dilation_patch)
+        dilation_patchH, dilation_patchW = ctx.dilation_patch = _pair(dilation_patch)
 
         output_size = CorrelationFunction._output_size(ctx, input1)
 
@@ -54,7 +45,8 @@ class CorrelationFunction(Function):
             dilation_patchH=dilation_patchH,
             dilation_patchW=dilation_patchW,
             dH=dH,
-            dW=dW)
+            dW=dW,
+        )
 
         return output
 
@@ -89,7 +81,8 @@ class CorrelationFunction(Function):
             dilation_patchH=dilation_patchH,
             dilation_patchW=dilation_patchW,
             dH=dH,
-            dW=dW)
+            dW=dW,
+        )
         return grad_input1, grad_input2, None, None, None, None, None, None
 
     @staticmethod
@@ -164,13 +157,15 @@ class Correlation(nn.Module):
             correlation.  Defaults to 1.
     """
 
-    def __init__(self,
-                 kernel_size: int = 1,
-                 max_displacement: int = 1,
-                 stride: int = 1,
-                 padding: int = 0,
-                 dilation: int = 1,
-                 dilation_patch: int = 1) -> None:
+    def __init__(
+        self,
+        kernel_size: int = 1,
+        max_displacement: int = 1,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        dilation_patch: int = 1,
+    ) -> None:
         super().__init__()
         self.kernel_size = kernel_size
         self.max_displacement = max_displacement
@@ -180,10 +175,16 @@ class Correlation(nn.Module):
         self.dilation_patch = dilation_patch
 
     def forward(self, input1: Tensor, input2: Tensor) -> Tensor:
-        return CorrelationFunction.apply(input1, input2, self.kernel_size,
-                                         self.max_displacement, self.stride,
-                                         self.padding, self.dilation,
-                                         self.dilation_patch)
+        return CorrelationFunction.apply(
+            input1,
+            input2,
+            self.kernel_size,
+            self.max_displacement,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.dilation_patch,
+        )
 
     def __repr__(self) -> str:
         s = self.__class__.__name__

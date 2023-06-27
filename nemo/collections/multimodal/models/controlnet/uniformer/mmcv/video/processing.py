@@ -8,11 +8,7 @@ from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import r
 
 
 @requires_executable('ffmpeg')
-def convert_video(in_file,
-                  out_file,
-                  print_cmd=False,
-                  pre_options='',
-                  **kwargs):
+def convert_video(in_file, out_file, print_cmd=False, pre_options='', **kwargs):
     """Convert a video with ffmpeg.
 
     This provides a general api to ffmpeg, the executed command is::
@@ -37,28 +33,18 @@ def convert_video(in_file,
             if v:
                 options.append(f'-{k}')
         elif k == 'log_level':
-            assert v in [
-                'quiet', 'panic', 'fatal', 'error', 'warning', 'info',
-                'verbose', 'debug', 'trace'
-            ]
+            assert v in ['quiet', 'panic', 'fatal', 'error', 'warning', 'info', 'verbose', 'debug', 'trace']
             options.append(f'-loglevel {v}')
         else:
             options.append(f'-{k} {v}')
-    cmd = f'ffmpeg -y {pre_options} -i {in_file} {" ".join(options)} ' \
-          f'{out_file}'
+    cmd = f'ffmpeg -y {pre_options} -i {in_file} {" ".join(options)} ' f'{out_file}'
     if print_cmd:
         print(cmd)
     subprocess.call(cmd, shell=True)
 
 
 @requires_executable('ffmpeg')
-def resize_video(in_file,
-                 out_file,
-                 size=None,
-                 ratio=None,
-                 keep_ar=False,
-                 log_level='info',
-                 print_cmd=False):
+def resize_video(in_file, out_file, size=None, ratio=None, keep_ar=False, log_level='info', print_cmd=False):
     """Resize a video.
 
     Args:
@@ -80,8 +66,7 @@ def resize_video(in_file,
         if not keep_ar:
             options['vf'] = f'scale={size[0]}:{size[1]}'
         else:
-            options['vf'] = f'scale=w={size[0]}:h={size[1]}:' \
-                            'force_original_aspect_ratio=decrease'
+            options['vf'] = f'scale=w={size[0]}:h={size[1]}:' 'force_original_aspect_ratio=decrease'
     else:
         if not isinstance(ratio, tuple):
             ratio = (ratio, ratio)
@@ -90,14 +75,7 @@ def resize_video(in_file,
 
 
 @requires_executable('ffmpeg')
-def cut_video(in_file,
-              out_file,
-              start=None,
-              end=None,
-              vcodec=None,
-              acodec=None,
-              log_level='info',
-              print_cmd=False):
+def cut_video(in_file, out_file, start=None, end=None, vcodec=None, acodec=None, log_level='info', print_cmd=False):
     """Cut a clip from a video.
 
     Args:
@@ -125,12 +103,7 @@ def cut_video(in_file,
 
 
 @requires_executable('ffmpeg')
-def concat_video(video_list,
-                 out_file,
-                 vcodec=None,
-                 acodec=None,
-                 log_level='info',
-                 print_cmd=False):
+def concat_video(video_list, out_file, vcodec=None, acodec=None, log_level='info', print_cmd=False):
     """Concatenate multiple videos into a single one.
 
     Args:
@@ -150,11 +123,6 @@ def concat_video(video_list,
         options['vcodec'] = 'copy'
     if acodec is None:
         options['acodec'] = 'copy'
-    convert_video(
-        tmp_filename,
-        out_file,
-        print_cmd,
-        pre_options='-f concat -safe 0',
-        **options)
+    convert_video(tmp_filename, out_file, print_cmd, pre_options='-f concat -safe 0', **options)
     os.close(tmp_filehandler)
     os.remove(tmp_filename)

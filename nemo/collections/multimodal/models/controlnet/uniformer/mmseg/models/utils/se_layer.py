@@ -1,5 +1,6 @@
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import torch.nn as nn
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import ConvModule
 
 from .make_divisible import make_divisible
@@ -23,12 +24,13 @@ class SELayer(nn.Module):
             divisor=6.0)).
     """
 
-    def __init__(self,
-                 channels,
-                 ratio=16,
-                 conv_cfg=None,
-                 act_cfg=(dict(type='ReLU'),
-                          dict(type='HSigmoid', bias=3.0, divisor=6.0))):
+    def __init__(
+        self,
+        channels,
+        ratio=16,
+        conv_cfg=None,
+        act_cfg=(dict(type='ReLU'), dict(type='HSigmoid', bias=3.0, divisor=6.0)),
+    ):
         super(SELayer, self).__init__()
         if isinstance(act_cfg, dict):
             act_cfg = (act_cfg, act_cfg)
@@ -41,14 +43,16 @@ class SELayer(nn.Module):
             kernel_size=1,
             stride=1,
             conv_cfg=conv_cfg,
-            act_cfg=act_cfg[0])
+            act_cfg=act_cfg[0],
+        )
         self.conv2 = ConvModule(
             in_channels=make_divisible(channels // ratio, 8),
             out_channels=channels,
             kernel_size=1,
             stride=1,
             conv_cfg=conv_cfg,
-            act_cfg=act_cfg[1])
+            act_cfg=act_cfg[1],
+        )
 
     def forward(self, x):
         out = self.global_avgpool(x)

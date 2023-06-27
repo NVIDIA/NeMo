@@ -7,12 +7,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as cp
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import (Conv2d, Linear, build_activation_layer, build_norm_layer,
-                      constant_init, kaiming_init, normal_init)
+
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import (
+    Conv2d,
+    Linear,
+    build_activation_layer,
+    build_norm_layer,
+    constant_init,
+    kaiming_init,
+    normal_init,
+)
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner import _load_checkpoint
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils.parrots_wrapper import _BatchNorm
-
 from nemo.collections.multimodal.models.controlnet.uniformer.mmseg.utils import get_root_logger
+
 from ..builder import BACKBONES
 from ..utils import DropPath, trunc_normal_
 
@@ -33,12 +41,7 @@ class Mlp(nn.Module):
             to be between 0 and 1. Default: 0.
     """
 
-    def __init__(self,
-                 in_features,
-                 hidden_features=None,
-                 out_features=None,
-                 act_cfg=dict(type='GELU'),
-                 drop=0.):
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_cfg=dict(type='GELU'), drop=0.0):
         super(Mlp, self).__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -69,17 +72,11 @@ class Attention(nn.Module):
         proj_drop (float): Drop rate for output weights. Default: 0.
     """
 
-    def __init__(self,
-                 dim,
-                 num_heads=8,
-                 qkv_bias=False,
-                 qk_scale=None,
-                 attn_drop=0.,
-                 proj_drop=0.):
+    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0.0, proj_drop=0.0):
         super(Attention, self).__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim**-0.5
+        self.scale = qk_scale or head_dim ** -0.5
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
@@ -88,8 +85,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         b, n, c = x.shape
-        qkv = self.qkv(x).reshape(b, n, 3, self.num_heads,
-                                  c // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv = self.qkv(x).reshape(b, n, 3, self.num_heads, c // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -125,36 +121,31 @@ class Block(nn.Module):
             memory while slowing down the training speed. Default: False.
     """
 
-    def __init__(self,
-                 dim,
-                 num_heads,
-                 mlp_ratio=4,
-                 qkv_bias=False,
-                 qk_scale=None,
-                 drop=0.,
-                 attn_drop=0.,
-                 proj_drop=0.,
-                 drop_path=0.,
-                 act_cfg=dict(type='GELU'),
-                 norm_cfg=dict(type='LN', eps=1e-6),
-                 with_cp=False):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        mlp_ratio=4,
+        qkv_bias=False,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        drop_path=0.0,
+        act_cfg=dict(type='GELU'),
+        norm_cfg=dict(type='LN', eps=1e-6),
+        with_cp=False,
+    ):
         super(Block, self).__init__()
         self.with_cp = with_cp
         _, self.norm1 = build_norm_layer(norm_cfg, dim)
-        self.attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop,
-                              proj_drop)
-        self.drop_path = DropPath(
-            drop_path) if drop_path > 0. else nn.Identity()
+        self.attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop, proj_drop)
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         _, self.norm2 = build_norm_layer(norm_cfg, dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(
-            in_features=dim,
-            hidden_features=mlp_hidden_dim,
-            act_cfg=act_cfg,
-            drop=drop)
+        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_cfg=act_cfg, drop=drop)
 
     def forward(self, x):
-
         def _inner_forward(x):
             out = x + self.drop_path(self.attn(self.norm1(x)))
             out = out + self.drop_path(self.mlp(self.norm2(out)))
@@ -180,11 +171,7 @@ class PatchEmbed(nn.Module):
         embed_dim (int): The embedding dimension. Default: 768.
     """
 
-    def __init__(self,
-                 img_size=224,
-                 patch_size=16,
-                 in_channels=3,
-                 embed_dim=768):
+    def __init__(self, img_size=224, patch_size=16, in_channels=3, embed_dim=768):
         super(PatchEmbed, self).__init__()
         if isinstance(img_size, int):
             self.img_size = (img_size, img_size)
@@ -195,8 +182,7 @@ class PatchEmbed(nn.Module):
         h, w = self.img_size
         self.patch_size = (patch_size, patch_size)
         self.num_patches = (h // patch_size) * (w // patch_size)
-        self.proj = Conv2d(
-            in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.proj = Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
 
     def forward(self, x):
         return self.proj(x).flatten(2).transpose(1, 2)
@@ -243,41 +229,40 @@ class VisionTransformer(nn.Module):
             Default: False.
     """
 
-    def __init__(self,
-                 img_size=(224, 224),
-                 patch_size=16,
-                 in_channels=3,
-                 embed_dim=768,
-                 depth=12,
-                 num_heads=12,
-                 mlp_ratio=4,
-                 out_indices=11,
-                 qkv_bias=True,
-                 qk_scale=None,
-                 drop_rate=0.,
-                 attn_drop_rate=0.,
-                 drop_path_rate=0.,
-                 norm_cfg=dict(type='LN', eps=1e-6, requires_grad=True),
-                 act_cfg=dict(type='GELU'),
-                 norm_eval=False,
-                 final_norm=False,
-                 with_cls_token=True,
-                 interpolate_mode='bicubic',
-                 with_cp=False):
+    def __init__(
+        self,
+        img_size=(224, 224),
+        patch_size=16,
+        in_channels=3,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4,
+        out_indices=11,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.0,
+        norm_cfg=dict(type='LN', eps=1e-6, requires_grad=True),
+        act_cfg=dict(type='GELU'),
+        norm_eval=False,
+        final_norm=False,
+        with_cls_token=True,
+        interpolate_mode='bicubic',
+        with_cp=False,
+    ):
         super(VisionTransformer, self).__init__()
         self.img_size = img_size
         self.patch_size = patch_size
         self.features = self.embed_dim = embed_dim
         self.patch_embed = PatchEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
-            in_channels=in_channels,
-            embed_dim=embed_dim)
+            img_size=img_size, patch_size=patch_size, in_channels=in_channels, embed_dim=embed_dim
+        )
 
         self.with_cls_token = with_cls_token
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
-        self.pos_embed = nn.Parameter(
-            torch.zeros(1, self.patch_embed.num_patches + 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patches + 1, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         if isinstance(out_indices, int):
@@ -287,21 +272,24 @@ class VisionTransformer(nn.Module):
         else:
             raise TypeError('out_indices must be type of int, list or tuple')
 
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)
-               ]  # stochastic depth decay rule
-        self.blocks = nn.ModuleList([
-            Block(
-                dim=embed_dim,
-                num_heads=num_heads,
-                mlp_ratio=mlp_ratio,
-                qkv_bias=qkv_bias,
-                qk_scale=qk_scale,
-                drop=dpr[i],
-                attn_drop=attn_drop_rate,
-                act_cfg=act_cfg,
-                norm_cfg=norm_cfg,
-                with_cp=with_cp) for i in range(depth)
-        ])
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=dpr[i],
+                    attn_drop=attn_drop_rate,
+                    act_cfg=act_cfg,
+                    norm_cfg=norm_cfg,
+                    with_cp=with_cp,
+                )
+                for i in range(depth)
+            ]
+        )
 
         self.interpolate_mode = interpolate_mode
         self.final_norm = final_norm
@@ -322,25 +310,26 @@ class VisionTransformer(nn.Module):
 
             if 'pos_embed' in state_dict.keys():
                 if self.pos_embed.shape != state_dict['pos_embed'].shape:
-                    logger.info(msg=f'Resize the pos_embed shape from \
-{state_dict["pos_embed"].shape} to {self.pos_embed.shape}')
+                    logger.info(
+                        msg=f'Resize the pos_embed shape from \
+{state_dict["pos_embed"].shape} to {self.pos_embed.shape}'
+                    )
                     h, w = self.img_size
-                    pos_size = int(
-                        math.sqrt(state_dict['pos_embed'].shape[1] - 1))
+                    pos_size = int(math.sqrt(state_dict['pos_embed'].shape[1] - 1))
                     state_dict['pos_embed'] = self.resize_pos_embed(
-                        state_dict['pos_embed'], (h, w), (pos_size, pos_size),
-                        self.patch_size, self.interpolate_mode)
+                        state_dict['pos_embed'], (h, w), (pos_size, pos_size), self.patch_size, self.interpolate_mode
+                    )
 
             self.load_state_dict(state_dict, False)
 
         elif pretrained is None:
             # We only implement the 'jax_impl' initialization implemented at
             # https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py#L353  # noqa: E501
-            trunc_normal_(self.pos_embed, std=.02)
-            trunc_normal_(self.cls_token, std=.02)
+            trunc_normal_(self.pos_embed, std=0.02)
+            trunc_normal_(self.cls_token, std=0.02)
             for n, m in self.named_modules():
                 if isinstance(m, Linear):
-                    trunc_normal_(m.weight, std=.02)
+                    trunc_normal_(m.weight, std=0.02)
                     if m.bias is not None:
                         if 'mlp' in n:
                             normal_init(m.bias, std=1e-6)
@@ -371,21 +360,19 @@ class VisionTransformer(nn.Module):
         Return:
             torch.Tensor: The pos encoded image feature.
         """
-        assert patched_img.ndim == 3 and pos_embed.ndim == 3, \
-            'the shapes of patched_img and pos_embed must be [B, L, C]'
+        assert (
+            patched_img.ndim == 3 and pos_embed.ndim == 3
+        ), 'the shapes of patched_img and pos_embed must be [B, L, C]'
         x_len, pos_len = patched_img.shape[1], pos_embed.shape[1]
         if x_len != pos_len:
-            if pos_len == (self.img_size[0] // self.patch_size) * (
-                    self.img_size[1] // self.patch_size) + 1:
+            if pos_len == (self.img_size[0] // self.patch_size) * (self.img_size[1] // self.patch_size) + 1:
                 pos_h = self.img_size[0] // self.patch_size
                 pos_w = self.img_size[1] // self.patch_size
             else:
-                raise ValueError(
-                    'Unexpected shape of pos_embed, got {}.'.format(
-                        pos_embed.shape))
-            pos_embed = self.resize_pos_embed(pos_embed, img.shape[2:],
-                                              (pos_h, pos_w), self.patch_size,
-                                              self.interpolate_mode)
+                raise ValueError('Unexpected shape of pos_embed, got {}.'.format(pos_embed.shape))
+            pos_embed = self.resize_pos_embed(
+                pos_embed, img.shape[2:], (pos_h, pos_w), self.patch_size, self.interpolate_mode
+            )
         return self.pos_drop(patched_img + pos_embed)
 
     @staticmethod
@@ -405,14 +392,11 @@ class VisionTransformer(nn.Module):
         input_h, input_w = input_shpae
         pos_h, pos_w = pos_shape
         cls_token_weight = pos_embed[:, 0]
-        pos_embed_weight = pos_embed[:, (-1 * pos_h * pos_w):]
-        pos_embed_weight = pos_embed_weight.reshape(
-            1, pos_h, pos_w, pos_embed.shape[2]).permute(0, 3, 1, 2)
+        pos_embed_weight = pos_embed[:, (-1 * pos_h * pos_w) :]
+        pos_embed_weight = pos_embed_weight.reshape(1, pos_h, pos_w, pos_embed.shape[2]).permute(0, 3, 1, 2)
         pos_embed_weight = F.interpolate(
-            pos_embed_weight,
-            size=[input_h // patch_size, input_w // patch_size],
-            align_corners=False,
-            mode=mode)
+            pos_embed_weight, size=[input_h // patch_size, input_w // patch_size], align_corners=False, mode=mode
+        )
         cls_token_weight = cls_token_weight.unsqueeze(1)
         pos_embed_weight = torch.flatten(pos_embed_weight, 2).transpose(1, 2)
         pos_embed = torch.cat((cls_token_weight, pos_embed_weight), dim=1)
@@ -444,9 +428,9 @@ class VisionTransformer(nn.Module):
                 else:
                     out = x
                 B, _, C = out.shape
-                out = out.reshape(B, inputs.shape[2] // self.patch_size,
-                                  inputs.shape[3] // self.patch_size,
-                                  C).permute(0, 3, 1, 2)
+                out = out.reshape(
+                    B, inputs.shape[2] // self.patch_size, inputs.shape[3] // self.patch_size, C
+                ).permute(0, 3, 1, 2)
                 outs.append(out)
 
         return tuple(outs)

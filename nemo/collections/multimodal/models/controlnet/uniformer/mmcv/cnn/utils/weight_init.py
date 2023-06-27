@@ -8,7 +8,12 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import Registry, build_from_cfg, get_logger, print_log
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import (
+    Registry,
+    build_from_cfg,
+    get_logger,
+    print_log,
+)
 
 INITIALIZERS = Registry('initializer')
 
@@ -23,9 +28,7 @@ def update_init_info(module, init_info):
             information.
         init_info (str): The string that describes the initialization.
     """
-    assert hasattr(
-        module,
-        '_params_init_info'), f'Can not find `_params_init_info` in {module}'
+    assert hasattr(module, '_params_init_info'), f'Can not find `_params_init_info` in {module}'
     for name, param in module.named_parameters():
 
         assert param in module._params_init_info, (
@@ -35,7 +38,8 @@ def update_init_info(module, init_info):
             f'`{module.__class__.__name__}`. '
             f'Please do not add or '
             f'replace parameters during executing '
-            f'the `init_weights`. ')
+            f'the `init_weights`. '
+        )
 
         # The parameter has been changed during executing the
         # `init_weights` of module
@@ -70,12 +74,9 @@ def normal_init(module, mean=0, std=1, bias=0):
         nn.init.constant_(module.bias, bias)
 
 
-def trunc_normal_init(module: nn.Module,
-                      mean: float = 0,
-                      std: float = 1,
-                      a: float = -2,
-                      b: float = 2,
-                      bias: float = 0) -> None:
+def trunc_normal_init(
+    module: nn.Module, mean: float = 0, std: float = 1, a: float = -2, b: float = 2, bias: float = 0
+) -> None:
     if hasattr(module, 'weight') and module.weight is not None:
         trunc_normal_(module.weight, mean, std, a, b)  # type: ignore
     if hasattr(module, 'bias') and module.bias is not None:
@@ -89,20 +90,13 @@ def uniform_init(module, a=0, b=1, bias=0):
         nn.init.constant_(module.bias, bias)
 
 
-def kaiming_init(module,
-                 a=0,
-                 mode='fan_out',
-                 nonlinearity='relu',
-                 bias=0,
-                 distribution='normal'):
+def kaiming_init(module, a=0, mode='fan_out', nonlinearity='relu', bias=0, distribution='normal'):
     assert distribution in ['uniform', 'normal']
     if hasattr(module, 'weight') and module.weight is not None:
         if distribution == 'uniform':
-            nn.init.kaiming_uniform_(
-                module.weight, a=a, mode=mode, nonlinearity=nonlinearity)
+            nn.init.kaiming_uniform_(module.weight, a=a, mode=mode, nonlinearity=nonlinearity)
         else:
-            nn.init.kaiming_normal_(
-                module.weight, a=a, mode=mode, nonlinearity=nonlinearity)
+            nn.init.kaiming_normal_(module.weight, a=a, mode=mode, nonlinearity=nonlinearity)
     if hasattr(module, 'bias') and module.bias is not None:
         nn.init.constant_(module.bias, bias)
 
@@ -110,13 +104,7 @@ def kaiming_init(module,
 def caffe2_xavier_init(module, bias=0):
     # `XavierFill` in Caffe2 corresponds to `kaiming_uniform_` in PyTorch
     # Acknowledgment to FAIR's internal code
-    kaiming_init(
-        module,
-        a=1,
-        mode='fan_in',
-        nonlinearity='leaky_relu',
-        bias=bias,
-        distribution='uniform')
+    kaiming_init(module, a=1, mode='fan_in', nonlinearity='leaky_relu', bias=bias, distribution='uniform')
 
 
 def bias_init_with_prob(prior_prob):
@@ -130,7 +118,6 @@ def _get_bases_name(m):
 
 
 class BaseInit(object):
-
     def __init__(self, *, bias=0, bias_prob=None, layer=None):
         self.wholemodule = False
         if not isinstance(bias, (int, float)):
@@ -138,13 +125,17 @@ class BaseInit(object):
 
         if bias_prob is not None:
             if not isinstance(bias_prob, float):
-                raise TypeError(f'bias_prob type must be float, \
-                    but got {type(bias_prob)}')
+                raise TypeError(
+                    f'bias_prob type must be float, \
+                    but got {type(bias_prob)}'
+                )
 
         if layer is not None:
             if not isinstance(layer, (str, list)):
-                raise TypeError(f'layer must be a str or a list of str, \
-                    but got a {type(layer)}')
+                raise TypeError(
+                    f'layer must be a str or a list of str, \
+                    but got a {type(layer)}'
+                )
         else:
             layer = []
 
@@ -177,7 +168,6 @@ class ConstantInit(BaseInit):
         self.val = val
 
     def __call__(self, module):
-
         def init(m):
             if self.wholemodule:
                 constant_init(m, self.val, self.bias)
@@ -220,7 +210,6 @@ class XavierInit(BaseInit):
         self.distribution = distribution
 
     def __call__(self, module):
-
         def init(m):
             if self.wholemodule:
                 xavier_init(m, self.gain, self.bias, self.distribution)
@@ -235,8 +224,7 @@ class XavierInit(BaseInit):
             update_init_info(module, init_info=self._get_init_info())
 
     def _get_init_info(self):
-        info = f'{self.__class__.__name__}: gain={self.gain}, ' \
-               f'distribution={self.distribution}, bias={self.bias}'
+        info = f'{self.__class__.__name__}: gain={self.gain}, ' f'distribution={self.distribution}, bias={self.bias}'
         return info
 
 
@@ -263,7 +251,6 @@ class NormalInit(BaseInit):
         self.std = std
 
     def __call__(self, module):
-
         def init(m):
             if self.wholemodule:
                 normal_init(m, self.mean, self.std, self.bias)
@@ -278,8 +265,7 @@ class NormalInit(BaseInit):
             update_init_info(module, init_info=self._get_init_info())
 
     def _get_init_info(self):
-        info = f'{self.__class__.__name__}: mean={self.mean},' \
-               f' std={self.std}, bias={self.bias}'
+        info = f'{self.__class__.__name__}: mean={self.mean},' f' std={self.std}, bias={self.bias}'
         return info
 
 
@@ -303,12 +289,7 @@ class TruncNormalInit(BaseInit):
 
     """
 
-    def __init__(self,
-                 mean: float = 0,
-                 std: float = 1,
-                 a: float = -2,
-                 b: float = 2,
-                 **kwargs) -> None:
+    def __init__(self, mean: float = 0, std: float = 1, a: float = -2, b: float = 2, **kwargs) -> None:
         super().__init__(**kwargs)
         self.mean = mean
         self.std = std
@@ -316,25 +297,24 @@ class TruncNormalInit(BaseInit):
         self.b = b
 
     def __call__(self, module: nn.Module) -> None:
-
         def init(m):
             if self.wholemodule:
-                trunc_normal_init(m, self.mean, self.std, self.a, self.b,
-                                  self.bias)
+                trunc_normal_init(m, self.mean, self.std, self.a, self.b, self.bias)
             else:
                 layername = m.__class__.__name__
                 basesname = _get_bases_name(m)
                 if len(set(self.layer) & set([layername] + basesname)):
-                    trunc_normal_init(m, self.mean, self.std, self.a, self.b,
-                                      self.bias)
+                    trunc_normal_init(m, self.mean, self.std, self.a, self.b, self.bias)
 
         module.apply(init)
         if hasattr(module, '_params_init_info'):
             update_init_info(module, init_info=self._get_init_info())
 
     def _get_init_info(self):
-        info = f'{self.__class__.__name__}: a={self.a}, b={self.b},' \
-               f' mean={self.mean}, std={self.std}, bias={self.bias}'
+        info = (
+            f'{self.__class__.__name__}: a={self.a}, b={self.b},'
+            f' mean={self.mean}, std={self.std}, bias={self.bias}'
+        )
         return info
 
 
@@ -361,7 +341,6 @@ class UniformInit(BaseInit):
         self.b = b
 
     def __call__(self, module):
-
         def init(m):
             if self.wholemodule:
                 uniform_init(m, self.a, self.b, self.bias)
@@ -376,8 +355,7 @@ class UniformInit(BaseInit):
             update_init_info(module, init_info=self._get_init_info())
 
     def _get_init_info(self):
-        info = f'{self.__class__.__name__}: a={self.a},' \
-               f' b={self.b}, bias={self.bias}'
+        info = f'{self.__class__.__name__}: a={self.a},' f' b={self.b}, bias={self.bias}'
         return info
 
 
@@ -408,12 +386,7 @@ class KaimingInit(BaseInit):
             Defaults to None.
     """
 
-    def __init__(self,
-                 a=0,
-                 mode='fan_out',
-                 nonlinearity='relu',
-                 distribution='normal',
-                 **kwargs):
+    def __init__(self, a=0, mode='fan_out', nonlinearity='relu', distribution='normal', **kwargs):
         super().__init__(**kwargs)
         self.a = a
         self.mode = mode
@@ -421,26 +394,25 @@ class KaimingInit(BaseInit):
         self.distribution = distribution
 
     def __call__(self, module):
-
         def init(m):
             if self.wholemodule:
-                kaiming_init(m, self.a, self.mode, self.nonlinearity,
-                             self.bias, self.distribution)
+                kaiming_init(m, self.a, self.mode, self.nonlinearity, self.bias, self.distribution)
             else:
                 layername = m.__class__.__name__
                 basesname = _get_bases_name(m)
                 if len(set(self.layer) & set([layername] + basesname)):
-                    kaiming_init(m, self.a, self.mode, self.nonlinearity,
-                                 self.bias, self.distribution)
+                    kaiming_init(m, self.a, self.mode, self.nonlinearity, self.bias, self.distribution)
 
         module.apply(init)
         if hasattr(module, '_params_init_info'):
             update_init_info(module, init_info=self._get_init_info())
 
     def _get_init_info(self):
-        info = f'{self.__class__.__name__}: a={self.a}, mode={self.mode}, ' \
-               f'nonlinearity={self.nonlinearity}, ' \
-               f'distribution ={self.distribution}, bias={self.bias}'
+        info = (
+            f'{self.__class__.__name__}: a={self.a}, mode={self.mode}, '
+            f'nonlinearity={self.nonlinearity}, '
+            f'distribution ={self.distribution}, bias={self.bias}'
+        )
         return info
 
 
@@ -449,12 +421,7 @@ class Caffe2XavierInit(KaimingInit):
     # `XavierFill` in Caffe2 corresponds to `kaiming_uniform_` in PyTorch
     # Acknowledgment to FAIR's internal code
     def __init__(self, **kwargs):
-        super().__init__(
-            a=1,
-            mode='fan_in',
-            nonlinearity='leaky_relu',
-            distribution='uniform',
-            **kwargs)
+        super().__init__(a=1, mode='fan_in', nonlinearity='leaky_relu', distribution='uniform', **kwargs)
 
     def __call__(self, module):
         super().__call__(module)
@@ -481,23 +448,19 @@ class PretrainedInit(object):
         self.map_location = map_location
 
     def __call__(self, module):
-        from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner import (_load_checkpoint_with_prefix, load_checkpoint,
-                                 load_state_dict)
+        from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner import (
+            _load_checkpoint_with_prefix,
+            load_checkpoint,
+            load_state_dict,
+        )
+
         logger = get_logger('mmcv')
         if self.prefix is None:
             print_log(f'load model from: {self.checkpoint}', logger=logger)
-            load_checkpoint(
-                module,
-                self.checkpoint,
-                map_location=self.map_location,
-                strict=False,
-                logger=logger)
+            load_checkpoint(module, self.checkpoint, map_location=self.map_location, strict=False, logger=logger)
         else:
-            print_log(
-                f'load {self.prefix} in model from: {self.checkpoint}',
-                logger=logger)
-            state_dict = _load_checkpoint_with_prefix(
-                self.prefix, self.checkpoint, map_location=self.map_location)
+            print_log(f'load {self.prefix} in model from: {self.checkpoint}', logger=logger)
+            state_dict = _load_checkpoint_with_prefix(self.prefix, self.checkpoint, map_location=self.map_location)
             load_state_dict(module, state_dict, strict=False, logger=logger)
 
         if hasattr(module, '_params_init_info'):
@@ -519,8 +482,10 @@ def _initialize(module, cfg, wholemodule=False):
 
 def _initialize_override(module, override, cfg):
     if not isinstance(override, (dict, list)):
-        raise TypeError(f'override must be a dict or a list of dict, \
-                but got {type(override)}')
+        raise TypeError(
+            f'override must be a dict or a list of dict, \
+                but got {type(override)}'
+        )
 
     override = [override] if isinstance(override, dict) else override
 
@@ -529,22 +494,19 @@ def _initialize_override(module, override, cfg):
         cp_override = copy.deepcopy(override_)
         name = cp_override.pop('name', None)
         if name is None:
-            raise ValueError('`override` must contain the key "name",'
-                             f'but got {cp_override}')
+            raise ValueError('`override` must contain the key "name",' f'but got {cp_override}')
         # if override only has name key, it means use args in init_cfg
         if not cp_override:
             cp_override.update(cfg)
         # if override has name key and other args except type key, it will
         # raise error
         elif 'type' not in cp_override.keys():
-            raise ValueError(
-                f'`override` need "type" key, but got {cp_override}')
+            raise ValueError(f'`override` need "type" key, but got {cp_override}')
 
         if hasattr(module, name):
             _initialize(getattr(module, name), cp_override, wholemodule=True)
         else:
-            raise RuntimeError(f'module did not have attribute {name}, '
-                               f'but init_cfg is {cp_override}.')
+            raise RuntimeError(f'module did not have attribute {name}, ' f'but init_cfg is {cp_override}.')
 
 
 def initialize(module, init_cfg):
@@ -596,8 +558,10 @@ def initialize(module, init_cfg):
                 checkpoint=url, prefix='backbone.')
     """
     if not isinstance(init_cfg, (dict, list)):
-        raise TypeError(f'init_cfg must be a dict or a list of dict, \
-                but got {type(init_cfg)}')
+        raise TypeError(
+            f'init_cfg must be a dict or a list of dict, \
+                but got {type(init_cfg)}'
+        )
 
     if isinstance(init_cfg, dict):
         init_cfg = [init_cfg]
@@ -619,21 +583,21 @@ def initialize(module, init_cfg):
             pass
 
 
-def _no_grad_trunc_normal_(tensor: Tensor, mean: float, std: float, a: float,
-                           b: float) -> Tensor:
+def _no_grad_trunc_normal_(tensor: Tensor, mean: float, std: float, a: float, b: float) -> Tensor:
     # Method based on
     # https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
     # Modified from
     # https://github.com/pytorch/pytorch/blob/master/torch/nn/init.py
     def norm_cdf(x):
         # Computes standard normal cumulative distribution function
-        return (1. + math.erf(x / math.sqrt(2.))) / 2.
+        return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
 
     if (mean < a - 2 * std) or (mean > b + 2 * std):
         warnings.warn(
             'mean is more than 2 std from [a, b] in nn.init.trunc_normal_. '
             'The distribution of values may be incorrect.',
-            stacklevel=2)
+            stacklevel=2,
+        )
 
     with torch.no_grad():
         # Values are generated by using a truncated uniform distribution and
@@ -651,7 +615,7 @@ def _no_grad_trunc_normal_(tensor: Tensor, mean: float, std: float, a: float,
         tensor.erfinv_()
 
         # Transform to proper mean, std
-        tensor.mul_(std * math.sqrt(2.))
+        tensor.mul_(std * math.sqrt(2.0))
         tensor.add_(mean)
 
         # Clamp to ensure it's in the proper range
@@ -659,11 +623,7 @@ def _no_grad_trunc_normal_(tensor: Tensor, mean: float, std: float, a: float,
         return tensor
 
 
-def trunc_normal_(tensor: Tensor,
-                  mean: float = 0.,
-                  std: float = 1.,
-                  a: float = -2.,
-                  b: float = 2.) -> Tensor:
+def trunc_normal_(tensor: Tensor, mean: float = 0.0, std: float = 1.0, a: float = -2.0, b: float = 2.0) -> Tensor:
     r"""Fills the input Tensor with values drawn from a truncated
     normal distribution. The values are effectively drawn from the
     normal distribution :math:`\mathcal{N}(\text{mean}, \text{std}^2)`

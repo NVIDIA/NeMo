@@ -14,12 +14,10 @@ def _fuse_conv_bn(conv, bn):
         nn.Module: Fused module.
     """
     conv_w = conv.weight
-    conv_b = conv.bias if conv.bias is not None else torch.zeros_like(
-        bn.running_mean)
+    conv_b = conv.bias if conv.bias is not None else torch.zeros_like(bn.running_mean)
 
     factor = bn.weight / torch.sqrt(bn.running_var + bn.eps)
-    conv.weight = nn.Parameter(conv_w *
-                               factor.reshape([conv.out_channels, 1, 1, 1]))
+    conv.weight = nn.Parameter(conv_w * factor.reshape([conv.out_channels, 1, 1, 1]))
     conv.bias = nn.Parameter((conv_b - bn.running_mean) * factor + bn.bias)
     return conv
 
@@ -42,8 +40,7 @@ def fuse_conv_bn(module):
     last_conv_name = None
 
     for name, child in module.named_children():
-        if isinstance(child,
-                      (nn.modules.batchnorm._BatchNorm, nn.SyncBatchNorm)):
+        if isinstance(child, (nn.modules.batchnorm._BatchNorm, nn.SyncBatchNorm)):
             if last_conv is None:  # only fuse BN that is after Conv
                 continue
             fused_conv = _fuse_conv_bn(last_conv, child)

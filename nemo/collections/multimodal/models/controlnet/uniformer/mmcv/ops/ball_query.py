@@ -11,8 +11,9 @@ class BallQuery(Function):
     """Find nearby points in spherical space."""
 
     @staticmethod
-    def forward(ctx, min_radius: float, max_radius: float, sample_num: int,
-                xyz: torch.Tensor, center_xyz: torch.Tensor) -> torch.Tensor:
+    def forward(
+        ctx, min_radius: float, max_radius: float, sample_num: int, xyz: torch.Tensor, center_xyz: torch.Tensor
+    ) -> torch.Tensor:
         """
         Args:
             min_radius (float): minimum radius of the balls.
@@ -34,15 +35,8 @@ class BallQuery(Function):
         idx = xyz.new_zeros(B, npoint, sample_num, dtype=torch.int)
 
         ext_module.ball_query_forward(
-            center_xyz,
-            xyz,
-            idx,
-            b=B,
-            n=N,
-            m=npoint,
-            min_radius=min_radius,
-            max_radius=max_radius,
-            nsample=sample_num)
+            center_xyz, xyz, idx, b=B, n=N, m=npoint, min_radius=min_radius, max_radius=max_radius, nsample=sample_num
+        )
         if torch.__version__ != 'parrots':
             ctx.mark_non_differentiable(idx)
         return idx

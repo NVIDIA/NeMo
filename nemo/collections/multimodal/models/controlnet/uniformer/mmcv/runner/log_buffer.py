@@ -5,7 +5,6 @@ import numpy as np
 
 
 class LogBuffer:
-
     def __init__(self):
         self.val_history = OrderedDict()
         self.n_history = OrderedDict()

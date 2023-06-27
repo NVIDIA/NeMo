@@ -54,22 +54,22 @@ class OHEMPixelSampler(BasePixelSampler):
                 sort_prob, sort_indices = seg_prob[valid_mask].sort()
 
                 if sort_prob.numel() > 0:
-                    min_threshold = sort_prob[min(batch_kept,
-                                                  sort_prob.numel() - 1)]
+                    min_threshold = sort_prob[min(batch_kept, sort_prob.numel() - 1)]
                 else:
                     min_threshold = 0.0
                 threshold = max(min_threshold, self.thresh)
-                valid_seg_weight[seg_prob[valid_mask] < threshold] = 1.
+                valid_seg_weight[seg_prob[valid_mask] < threshold] = 1.0
             else:
                 losses = self.context.loss_decode(
                     seg_logit,
                     seg_label,
                     weight=None,
                     ignore_index=self.context.ignore_index,
-                    reduction_override='none')
+                    reduction_override='none',
+                )
                 # faster than topk according to https://github.com/pytorch/pytorch/issues/22812  # noqa
                 _, sort_indices = losses[valid_mask].sort(descending=True)
-                valid_seg_weight[sort_indices[:batch_kept]] = 1.
+                valid_seg_weight[sort_indices[:batch_kept]] = 1.0
 
             seg_weight[valid_mask] = valid_seg_weight
 

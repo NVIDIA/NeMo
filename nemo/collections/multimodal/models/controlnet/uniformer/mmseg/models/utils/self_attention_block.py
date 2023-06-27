@@ -1,7 +1,8 @@
 import torch
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import ConvModule, constant_init
 from torch import nn as nn
 from torch.nn import functional as F
+
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import ConvModule, constant_init
 
 
 class SelfAttentionBlock(nn.Module):
@@ -29,11 +30,25 @@ class SelfAttentionBlock(nn.Module):
         act_cfg (dict|None): Config of activation layers.
     """
 
-    def __init__(self, key_in_channels, query_in_channels, channels,
-                 out_channels, share_key_query, query_downsample,
-                 key_downsample, key_query_num_convs, value_out_num_convs,
-                 key_query_norm, value_out_norm, matmul_norm, with_out,
-                 conv_cfg, norm_cfg, act_cfg):
+    def __init__(
+        self,
+        key_in_channels,
+        query_in_channels,
+        channels,
+        out_channels,
+        share_key_query,
+        query_downsample,
+        key_downsample,
+        key_query_num_convs,
+        value_out_num_convs,
+        key_query_norm,
+        value_out_norm,
+        matmul_norm,
+        with_out,
+        conv_cfg,
+        norm_cfg,
+        act_cfg,
+    ):
         super(SelfAttentionBlock, self).__init__()
         if share_key_query:
             assert key_in_channels == query_in_channels
@@ -52,7 +67,8 @@ class SelfAttentionBlock(nn.Module):
             use_conv_module=key_query_norm,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+            act_cfg=act_cfg,
+        )
         if share_key_query:
             self.query_project = self.key_project
         else:
@@ -63,7 +79,8 @@ class SelfAttentionBlock(nn.Module):
                 use_conv_module=key_query_norm,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
-                act_cfg=act_cfg)
+                act_cfg=act_cfg,
+            )
         self.value_project = self.build_project(
             key_in_channels,
             channels if with_out else out_channels,
@@ -71,7 +88,8 @@ class SelfAttentionBlock(nn.Module):
             use_conv_module=value_out_norm,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+            act_cfg=act_cfg,
+        )
         if with_out:
             self.out_project = self.build_project(
                 channels,
@@ -80,7 +98,8 @@ class SelfAttentionBlock(nn.Module):
                 use_conv_module=value_out_norm,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
-                act_cfg=act_cfg)
+                act_cfg=act_cfg,
+            )
         else:
             self.out_project = None
 
@@ -96,28 +115,12 @@ class SelfAttentionBlock(nn.Module):
             if not isinstance(self.out_project, ConvModule):
                 constant_init(self.out_project, 0)
 
-    def build_project(self, in_channels, channels, num_convs, use_conv_module,
-                      conv_cfg, norm_cfg, act_cfg):
+    def build_project(self, in_channels, channels, num_convs, use_conv_module, conv_cfg, norm_cfg, act_cfg):
         """Build projection layer for key/query/value/out."""
         if use_conv_module:
-            convs = [
-                ConvModule(
-                    in_channels,
-                    channels,
-                    1,
-                    conv_cfg=conv_cfg,
-                    norm_cfg=norm_cfg,
-                    act_cfg=act_cfg)
-            ]
+            convs = [ConvModule(in_channels, channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)]
             for _ in range(num_convs - 1):
-                convs.append(
-                    ConvModule(
-                        channels,
-                        channels,
-                        1,
-                        conv_cfg=conv_cfg,
-                        norm_cfg=norm_cfg,
-                        act_cfg=act_cfg))
+                convs.append(ConvModule(channels, channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg))
         else:
             convs = [nn.Conv2d(in_channels, channels, 1)]
             for _ in range(num_convs - 1):
@@ -148,7 +151,7 @@ class SelfAttentionBlock(nn.Module):
 
         sim_map = torch.matmul(query, key)
         if self.matmul_norm:
-            sim_map = (self.channels**-.5) * sim_map
+            sim_map = (self.channels ** -0.5) * sim_map
         sim_map = F.softmax(sim_map, dim=-1)
 
         context = torch.matmul(sim_map, value)

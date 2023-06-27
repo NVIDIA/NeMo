@@ -8,7 +8,11 @@ from logging import FileHandler
 import torch.nn as nn
 
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner.dist_utils import master_only
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils.logging import get_logger, logger_initialized, print_log
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils.logging import (
+    get_logger,
+    logger_initialized,
+    print_log,
+)
 
 
 class BaseModule(nn.Module, metaclass=ABCMeta):
@@ -76,12 +80,12 @@ class BaseModule(nn.Module, metaclass=ABCMeta):
             # the corresponding parameter is changed, update related
             # initialization information
             for name, param in self.named_parameters():
-                self._params_init_info[param][
-                    'init_info'] = f'The value is the same before and ' \
-                                   f'after calling `init_weights` ' \
-                                   f'of {self.__class__.__name__} '
-                self._params_init_info[param][
-                    'tmp_mean_value'] = param.data.mean()
+                self._params_init_info[param]['init_info'] = (
+                    f'The value is the same before and '
+                    f'after calling `init_weights` '
+                    f'of {self.__class__.__name__} '
+                )
+                self._params_init_info[param]['tmp_mean_value'] = param.data.mean()
 
             # pass `params_init_info` to all submodules
             # All submodules share the same `params_init_info`,
@@ -97,12 +101,11 @@ class BaseModule(nn.Module, metaclass=ABCMeta):
 
         from ..cnn import initialize
         from ..cnn.utils.weight_init import update_init_info
+
         module_name = self.__class__.__name__
         if not self._is_init:
             if self.init_cfg:
-                print_log(
-                    f'initialize {module_name} with init_cfg {self.init_cfg}',
-                    logger=logger_name)
+                print_log(f'initialize {module_name} with init_cfg {self.init_cfg}', logger=logger_name)
                 initialize(self, self.init_cfg)
                 if isinstance(self.init_cfg, dict):
                     # prevent the parameters of
@@ -117,15 +120,12 @@ class BaseModule(nn.Module, metaclass=ABCMeta):
                     m.init_weights()
                     # users may overload the `init_weights`
                     update_init_info(
-                        m,
-                        init_info=f'Initialized by '
-                        f'user-defined `init_weights`'
-                        f' in {m.__class__.__name__} ')
+                        m, init_info=f'Initialized by ' f'user-defined `init_weights`' f' in {m.__class__.__name__} '
+                    )
 
             self._is_init = True
         else:
-            warnings.warn(f'init_weights of {self.__class__.__name__} has '
-                          f'been called more than once.')
+            warnings.warn(f'init_weights of {self.__class__.__name__} has ' f'been called more than once.')
 
         if is_top_level_module:
             self._dump_init_info(logger_name)
@@ -148,20 +148,19 @@ class BaseModule(nn.Module, metaclass=ABCMeta):
         # dump the information to the logger file if there is a `FileHandler`
         for handler in logger.handlers:
             if isinstance(handler, FileHandler):
-                handler.stream.write(
-                    'Name of parameter - Initialization information\n')
+                handler.stream.write('Name of parameter - Initialization information\n')
                 for name, param in self.named_parameters():
                     handler.stream.write(
-                        f'\n{name} - {param.shape}: '
-                        f"\n{self._params_init_info[param]['init_info']} \n")
+                        f'\n{name} - {param.shape}: ' f"\n{self._params_init_info[param]['init_info']} \n"
+                    )
                 handler.stream.flush()
                 with_file_handler = True
         if not with_file_handler:
             for name, param in self.named_parameters():
                 print_log(
-                    f'\n{name} - {param.shape}: '
-                    f"\n{self._params_init_info[param]['init_info']} \n ",
-                    logger=logger_name)
+                    f'\n{name} - {param.shape}: ' f"\n{self._params_init_info[param]['init_info']} \n ",
+                    logger=logger_name,
+                )
 
     def __repr__(self):
         s = super().__repr__()

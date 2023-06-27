@@ -50,45 +50,31 @@ class MultiScaleFlipAug(object):
             It has no effect when flip == False. Default: "horizontal".
     """
 
-    def __init__(self,
-                 transforms,
-                 img_scale,
-                 img_ratios=None,
-                 flip=False,
-                 flip_direction='horizontal'):
+    def __init__(self, transforms, img_scale, img_ratios=None, flip=False, flip_direction='horizontal'):
         self.transforms = Compose(transforms)
         if img_ratios is not None:
-            img_ratios = img_ratios if isinstance(img_ratios,
-                                                  list) else [img_ratios]
+            img_ratios = img_ratios if isinstance(img_ratios, list) else [img_ratios]
             assert mmcv.is_list_of(img_ratios, float)
         if img_scale is None:
             # mode 1: given img_scale=None and a range of image ratio
             self.img_scale = None
             assert mmcv.is_list_of(img_ratios, float)
-        elif isinstance(img_scale, tuple) and mmcv.is_list_of(
-                img_ratios, float):
+        elif isinstance(img_scale, tuple) and mmcv.is_list_of(img_ratios, float):
             assert len(img_scale) == 2
             # mode 2: given a scale and a range of image ratio
-            self.img_scale = [(int(img_scale[0] * ratio),
-                               int(img_scale[1] * ratio))
-                              for ratio in img_ratios]
+            self.img_scale = [(int(img_scale[0] * ratio), int(img_scale[1] * ratio)) for ratio in img_ratios]
         else:
             # mode 3: given multiple scales
-            self.img_scale = img_scale if isinstance(img_scale,
-                                                     list) else [img_scale]
+            self.img_scale = img_scale if isinstance(img_scale, list) else [img_scale]
         assert mmcv.is_list_of(self.img_scale, tuple) or self.img_scale is None
         self.flip = flip
         self.img_ratios = img_ratios
-        self.flip_direction = flip_direction if isinstance(
-            flip_direction, list) else [flip_direction]
+        self.flip_direction = flip_direction if isinstance(flip_direction, list) else [flip_direction]
         assert mmcv.is_list_of(self.flip_direction, str)
         if not self.flip and self.flip_direction != ['horizontal']:
-            warnings.warn(
-                'flip_direction has no effect when flip is set to False')
-        if (self.flip
-                and not any([t['type'] == 'RandomFlip' for t in transforms])):
-            warnings.warn(
-                'flip has no effect when RandomFlip is not in transforms')
+            warnings.warn('flip_direction has no effect when flip is set to False')
+        if self.flip and not any([t['type'] == 'RandomFlip' for t in transforms]):
+            warnings.warn('flip has no effect when RandomFlip is not in transforms')
 
     def __call__(self, results):
         """Call function to apply test time augment transforms on results.
@@ -104,8 +90,7 @@ class MultiScaleFlipAug(object):
         aug_data = []
         if self.img_scale is None and mmcv.is_list_of(self.img_ratios, float):
             h, w = results['img'].shape[:2]
-            img_scale = [(int(w * ratio), int(h * ratio))
-                         for ratio in self.img_ratios]
+            img_scale = [(int(w * ratio), int(h * ratio)) for ratio in self.img_ratios]
         else:
             img_scale = self.img_scale
         flip_aug = [False, True] if self.flip else [False]

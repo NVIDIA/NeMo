@@ -21,8 +21,7 @@ from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentation
 
 
 def build_train_valid_datasets(
-        model_cfg,
-        consumed_samples,
+    model_cfg, consumed_samples,
 ):
     data_cfg = model_cfg.data
 
@@ -65,8 +64,7 @@ def build_train_valid_datasets(
 
 
 def build_train_valid_precached_datasets(
-        model_cfg,
-        consumed_samples,
+    model_cfg, consumed_samples,
 ):
     data_cfg = model_cfg.data
 

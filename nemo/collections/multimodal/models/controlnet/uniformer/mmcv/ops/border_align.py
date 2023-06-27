@@ -9,16 +9,13 @@ from torch.autograd.function import once_differentiable
 
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext(
-    '_ext', ['border_align_forward', 'border_align_backward'])
+ext_module = ext_loader.load_ext('_ext', ['border_align_forward', 'border_align_backward'])
 
 
 class BorderAlignFunction(Function):
-
     @staticmethod
     def symbolic(g, input, boxes, pool_size):
-        return g.op(
-            'mmcv::MMCVBorderAlign', input, boxes, pool_size_i=pool_size)
+        return g.op('mmcv::MMCVBorderAlign', input, boxes, pool_size_i=pool_size)
 
     @staticmethod
     def forward(ctx, input, boxes, pool_size):
@@ -26,10 +23,8 @@ class BorderAlignFunction(Function):
         ctx.input_shape = input.size()
 
         assert boxes.ndim == 3, 'boxes must be with shape [B, H*W, 4]'
-        assert boxes.size(2) == 4, \
-            'the last dimension of boxes must be (x1, y1, x2, y2)'
-        assert input.size(1) % 4 == 0, \
-            'the channel for input feature must be divisible by factor 4'
+        assert boxes.size(2) == 4, 'the last dimension of boxes must be (x1, y1, x2, y2)'
+        assert input.size(1) % 4 == 0, 'the channel for input feature must be divisible by factor 4'
 
         # [B, C//4, H*W, 4]
         output_shape = (input.size(0), input.size(1) // 4, boxes.size(1), 4)
@@ -37,8 +32,7 @@ class BorderAlignFunction(Function):
         # `argmax_idx` only used for backward
         argmax_idx = input.new_zeros(output_shape).to(torch.int)
 
-        ext_module.border_align_forward(
-            input, boxes, output, argmax_idx, pool_size=ctx.pool_size)
+        ext_module.border_align_forward(input, boxes, output, argmax_idx, pool_size=ctx.pool_size)
 
         ctx.save_for_backward(boxes, argmax_idx)
         return output
@@ -50,12 +44,7 @@ class BorderAlignFunction(Function):
         grad_input = grad_output.new_zeros(ctx.input_shape)
         # complex head architecture may cause grad_output uncontiguous
         grad_output = grad_output.contiguous()
-        ext_module.border_align_backward(
-            grad_output,
-            boxes,
-            argmax_idx,
-            grad_input,
-            pool_size=ctx.pool_size)
+        ext_module.border_align_backward(grad_output, boxes, argmax_idx, grad_input, pool_size=ctx.pool_size)
         return grad_input, None, None
 
 

@@ -20,8 +20,6 @@ class DRIVEDataset(CustomDataset):
 
     def __init__(self, **kwargs):
         super(DRIVEDataset, self).__init__(
-            img_suffix='.png',
-            seg_map_suffix='_manual1.png',
-            reduce_zero_label=False,
-            **kwargs)
+            img_suffix='.png', seg_map_suffix='_manual1.png', reduce_zero_label=False, **kwargs
+        )
         assert osp.exists(self.img_dir)

@@ -1,8 +1,9 @@
 import functools
 
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import numpy as np
 import torch.nn.functional as F
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 
 
 def get_class_weight(class_weight):
@@ -107,12 +108,7 @@ def weighted_loss(loss_func):
     """
 
     @functools.wraps(loss_func)
-    def wrapper(pred,
-                target,
-                weight=None,
-                reduction='mean',
-                avg_factor=None,
-                **kwargs):
+    def wrapper(pred, target, weight=None, reduction='mean', avg_factor=None, **kwargs):
         # get element-wise loss
         loss = loss_func(pred, target, **kwargs)
         loss = weight_reduce_loss(loss, weight, reduction, avg_factor)

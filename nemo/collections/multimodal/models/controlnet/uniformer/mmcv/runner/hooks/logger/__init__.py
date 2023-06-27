@@ -9,7 +9,12 @@ from .text import TextLoggerHook
 from .wandb import WandbLoggerHook
 
 __all__ = [
-    'LoggerHook', 'MlflowLoggerHook', 'PaviLoggerHook',
-    'TensorboardLoggerHook', 'TextLoggerHook', 'WandbLoggerHook',
-    'NeptuneLoggerHook', 'DvcliveLoggerHook'
+    'LoggerHook',
+    'MlflowLoggerHook',
+    'PaviLoggerHook',
+    'TensorboardLoggerHook',
+    'TextLoggerHook',
+    'WandbLoggerHook',
+    'NeptuneLoggerHook',
+    'DvcliveLoggerHook',
 ]

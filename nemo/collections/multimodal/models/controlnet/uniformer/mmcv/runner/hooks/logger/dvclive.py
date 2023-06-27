@@ -26,15 +26,9 @@ class DvcliveLoggerHook(LoggerHook):
         https://dvc.org/doc/dvclive
     """
 
-    def __init__(self,
-                 path,
-                 interval=10,
-                 ignore_last=True,
-                 reset_flag=True,
-                 by_epoch=True):
+    def __init__(self, path, interval=10, ignore_last=True, reset_flag=True, by_epoch=True):
 
-        super(DvcliveLoggerHook, self).__init__(interval, ignore_last,
-                                                reset_flag, by_epoch)
+        super(DvcliveLoggerHook, self).__init__(interval, ignore_last, reset_flag, by_epoch)
         self.path = path
         self.import_dvclive()
 
@@ -42,8 +36,7 @@ class DvcliveLoggerHook(LoggerHook):
         try:
             import dvclive
         except ImportError:
-            raise ImportError(
-                'Please run "pip install dvclive" to install dvclive')
+            raise ImportError('Please run "pip install dvclive" to install dvclive')
         self.dvclive = dvclive
 
     @master_only

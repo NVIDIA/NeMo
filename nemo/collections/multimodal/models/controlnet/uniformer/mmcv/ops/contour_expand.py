@@ -7,8 +7,7 @@ from ..utils import ext_loader
 ext_module = ext_loader.load_ext('_ext', ['contour_expand'])
 
 
-def contour_expand(kernel_mask, internal_kernel_label, min_kernel_area,
-                   kernel_num):
+def contour_expand(kernel_mask, internal_kernel_label, min_kernel_area, kernel_num):
     """Expand kernel contours so that foreground pixels are assigned into
     instances.
 
@@ -38,12 +37,9 @@ def contour_expand(kernel_mask, internal_kernel_label, min_kernel_area,
             label = []
         else:
             label = ext_module.contour_expand(
-                kernel_mask,
-                internal_kernel_label,
-                min_kernel_area=min_kernel_area,
-                kernel_num=kernel_num)
+                kernel_mask, internal_kernel_label, min_kernel_area=min_kernel_area, kernel_num=kernel_num
+            )
             label = label.tolist()
     else:
-        label = ext_module.contour_expand(kernel_mask, internal_kernel_label,
-                                          min_kernel_area, kernel_num)
+        label = ext_module.contour_expand(kernel_mask, internal_kernel_label, min_kernel_area, kernel_num)
     return label

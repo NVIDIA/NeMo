@@ -60,8 +60,7 @@ def scandir(dir_path, suffix=None, recursive=False, case_sensitive=True):
         raise TypeError('"suffix" must be a string or tuple of strings')
 
     if suffix is not None and not case_sensitive:
-        suffix = suffix.lower() if isinstance(suffix, str) else tuple(
-            item.lower() for item in suffix)
+        suffix = suffix.lower() if isinstance(suffix, str) else tuple(item.lower() for item in suffix)
 
     root = dir_path
 
@@ -74,13 +73,12 @@ def scandir(dir_path, suffix=None, recursive=False, case_sensitive=True):
                     yield rel_path
             elif recursive and os.path.isdir(entry.path):
                 # scan recursively if entry.path is a directory
-                yield from _scandir(entry.path, suffix, recursive,
-                                    case_sensitive)
+                yield from _scandir(entry.path, suffix, recursive, case_sensitive)
 
     return _scandir(dir_path, suffix, recursive, case_sensitive)
 
 
-def find_vcs_root(path, markers=('.git', )):
+def find_vcs_root(path, markers=('.git',)):
     """Finds the root directory (including itself) of specified markers.
 
     Args:

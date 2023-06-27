@@ -16,8 +16,7 @@ class ThreeNN(Function):
     """
 
     @staticmethod
-    def forward(ctx, target: torch.Tensor,
-                source: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(ctx, target: torch.Tensor, source: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
             target (Tensor): shape (B, N, 3), points set that needs to

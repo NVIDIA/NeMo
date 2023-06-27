@@ -6,19 +6,12 @@ from torch.nn.modules.utils import _pair
 
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext(
-    '_ext', ['dynamic_voxelize_forward', 'hard_voxelize_forward'])
+ext_module = ext_loader.load_ext('_ext', ['dynamic_voxelize_forward', 'hard_voxelize_forward'])
 
 
 class _Voxelization(Function):
-
     @staticmethod
-    def forward(ctx,
-                points,
-                voxel_size,
-                coors_range,
-                max_points=35,
-                max_voxels=20000):
+    def forward(ctx, points, voxel_size, coors_range, max_points=35, max_voxels=20000):
         """Convert kitti points(N, >=3) to voxels.
 
         Args:
@@ -46,18 +39,15 @@ class _Voxelization(Function):
         """
         if max_points == -1 or max_voxels == -1:
             coors = points.new_zeros(size=(points.size(0), 3), dtype=torch.int)
-            ext_module.dynamic_voxelize_forward(points, coors, voxel_size,
-                                                coors_range, 3)
+            ext_module.dynamic_voxelize_forward(points, coors, voxel_size, coors_range, 3)
             return coors
         else:
-            voxels = points.new_zeros(
-                size=(max_voxels, max_points, points.size(1)))
+            voxels = points.new_zeros(size=(max_voxels, max_points, points.size(1)))
             coors = points.new_zeros(size=(max_voxels, 3), dtype=torch.int)
-            num_points_per_voxel = points.new_zeros(
-                size=(max_voxels, ), dtype=torch.int)
+            num_points_per_voxel = points.new_zeros(size=(max_voxels,), dtype=torch.int)
             voxel_num = ext_module.hard_voxelize_forward(
-                points, voxels, coors, num_points_per_voxel, voxel_size,
-                coors_range, max_points, max_voxels, 3)
+                points, voxels, coors, num_points_per_voxel, voxel_size, coors_range, max_points, max_voxels, 3
+            )
             # select the valid voxels
             voxels_out = voxels[:voxel_num]
             coors_out = coors[:voxel_num]
@@ -86,11 +76,7 @@ class Voxelization(nn.Module):
             Default: 20000.
     """
 
-    def __init__(self,
-                 voxel_size,
-                 point_cloud_range,
-                 max_num_points,
-                 max_voxels=20000):
+    def __init__(self, voxel_size, point_cloud_range, max_num_points, max_voxels=20000):
         super().__init__()
 
         self.voxel_size = voxel_size
@@ -101,11 +87,9 @@ class Voxelization(nn.Module):
         else:
             self.max_voxels = _pair(max_voxels)
 
-        point_cloud_range = torch.tensor(
-            point_cloud_range, dtype=torch.float32)
+        point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
         voxel_size = torch.tensor(voxel_size, dtype=torch.float32)
-        grid_size = (point_cloud_range[3:] -
-                     point_cloud_range[:3]) / voxel_size
+        grid_size = (point_cloud_range[3:] - point_cloud_range[:3]) / voxel_size
         grid_size = torch.round(grid_size).long()
         input_feat_shape = grid_size[:2]
         self.grid_size = grid_size
@@ -119,8 +103,7 @@ class Voxelization(nn.Module):
         else:
             max_voxels = self.max_voxels[1]
 
-        return voxelization(input, self.voxel_size, self.point_cloud_range,
-                            self.max_num_points, max_voxels)
+        return voxelization(input, self.voxel_size, self.point_cloud_range, self.max_num_points, max_voxels)
 
     def __repr__(self):
         s = self.__class__.__name__ + '('

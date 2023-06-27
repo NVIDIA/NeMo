@@ -1,8 +1,7 @@
 # dataset settings
 dataset_type = 'PascalVOCDataset'
 data_root = 'data/VOCdevkit/VOC2012'
-img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 crop_size = (512, 512)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -29,7 +28,8 @@ test_pipeline = [
             dict(type='Normalize', **img_norm_cfg),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='Collect', keys=['img']),
-        ])
+        ],
+    ),
 ]
 data = dict(
     samples_per_gpu=4,
@@ -40,18 +40,22 @@ data = dict(
         img_dir='JPEGImages',
         ann_dir='SegmentationClass',
         split='ImageSets/Segmentation/train.txt',
-        pipeline=train_pipeline),
+        pipeline=train_pipeline,
+    ),
     val=dict(
         type=dataset_type,
         data_root=data_root,
         img_dir='JPEGImages',
         ann_dir='SegmentationClass',
         split='ImageSets/Segmentation/val.txt',
-        pipeline=test_pipeline),
+        pipeline=test_pipeline,
+    ),
     test=dict(
         type=dataset_type,
         data_root=data_root,
         img_dir='JPEGImages',
         ann_dir='SegmentationClass',
         split='ImageSets/Segmentation/val.txt',
-        pipeline=test_pipeline))
+        pipeline=test_pipeline,
+    ),
+)

@@ -3,13 +3,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import TORCH_VERSION, build_from_cfg, digit_version
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import (
+    TORCH_VERSION,
+    build_from_cfg,
+    digit_version,
+)
+
 from .registry import ACTIVATION_LAYERS
 
-for module in [
-        nn.ReLU, nn.LeakyReLU, nn.PReLU, nn.RReLU, nn.ReLU6, nn.ELU,
-        nn.Sigmoid, nn.Tanh
-]:
+for module in [nn.ReLU, nn.LeakyReLU, nn.PReLU, nn.RReLU, nn.ReLU6, nn.ELU, nn.Sigmoid, nn.Tanh]:
     ACTIVATION_LAYERS.register_module(module=module)
 
 
@@ -28,7 +30,7 @@ class Clamp(nn.Module):
             Default to 1.
     """
 
-    def __init__(self, min=-1., max=1.):
+    def __init__(self, min=-1.0, max=1.0):
         super(Clamp, self).__init__()
         self.min = min
         self.max = max
@@ -71,8 +73,7 @@ class GELU(nn.Module):
         return F.gelu(input)
 
 
-if (TORCH_VERSION == 'parrots'
-        or digit_version(TORCH_VERSION) < digit_version('1.4')):
+if TORCH_VERSION == 'parrots' or digit_version(TORCH_VERSION) < digit_version('1.4'):
     ACTIVATION_LAYERS.register_module(module=GELU)
 else:
     ACTIVATION_LAYERS.register_module(module=nn.GELU)

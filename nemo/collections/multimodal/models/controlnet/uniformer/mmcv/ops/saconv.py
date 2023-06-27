@@ -34,16 +34,18 @@ class SAConv2d(ConvAWS2d):
             convolution. Default: ``False``.
     """
 
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 kernel_size,
-                 stride=1,
-                 padding=0,
-                 dilation=1,
-                 groups=1,
-                 bias=True,
-                 use_deform=False):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        use_deform=False,
+    ):
         super().__init__(
             in_channels,
             out_channels,
@@ -52,30 +54,16 @@ class SAConv2d(ConvAWS2d):
             padding=padding,
             dilation=dilation,
             groups=groups,
-            bias=bias)
+            bias=bias,
+        )
         self.use_deform = use_deform
-        self.switch = nn.Conv2d(
-            self.in_channels, 1, kernel_size=1, stride=stride, bias=True)
+        self.switch = nn.Conv2d(self.in_channels, 1, kernel_size=1, stride=stride, bias=True)
         self.weight_diff = nn.Parameter(torch.Tensor(self.weight.size()))
-        self.pre_context = nn.Conv2d(
-            self.in_channels, self.in_channels, kernel_size=1, bias=True)
-        self.post_context = nn.Conv2d(
-            self.out_channels, self.out_channels, kernel_size=1, bias=True)
+        self.pre_context = nn.Conv2d(self.in_channels, self.in_channels, kernel_size=1, bias=True)
+        self.post_context = nn.Conv2d(self.out_channels, self.out_channels, kernel_size=1, bias=True)
         if self.use_deform:
-            self.offset_s = nn.Conv2d(
-                self.in_channels,
-                18,
-                kernel_size=3,
-                padding=1,
-                stride=stride,
-                bias=True)
-            self.offset_l = nn.Conv2d(
-                self.in_channels,
-                18,
-                kernel_size=3,
-                padding=1,
-                stride=stride,
-                bias=True)
+            self.offset_s = nn.Conv2d(self.in_channels, 18, kernel_size=3, padding=1, stride=stride, bias=True)
+            self.offset_l = nn.Conv2d(self.in_channels, 18, kernel_size=3, padding=1, stride=stride, bias=True)
         self.init_weights()
 
     def init_weights(self):
@@ -99,16 +87,13 @@ class SAConv2d(ConvAWS2d):
         switch = self.switch(avg_x)
         # sac
         weight = self._get_weight(self.weight)
-        zero_bias = torch.zeros(
-            self.out_channels, device=weight.device, dtype=weight.dtype)
+        zero_bias = torch.zeros(self.out_channels, device=weight.device, dtype=weight.dtype)
 
         if self.use_deform:
             offset = self.offset_s(avg_x)
-            out_s = deform_conv2d(x, offset, weight, self.stride, self.padding,
-                                  self.dilation, self.groups, 1)
+            out_s = deform_conv2d(x, offset, weight, self.stride, self.padding, self.dilation, self.groups, 1)
         else:
-            if (TORCH_VERSION == 'parrots'
-                    or digit_version(TORCH_VERSION) < digit_version('1.5.0')):
+            if TORCH_VERSION == 'parrots' or digit_version(TORCH_VERSION) < digit_version('1.5.0'):
                 out_s = super().conv2d_forward(x, weight)
             elif digit_version(TORCH_VERSION) >= digit_version('1.8.0'):
                 # bias is a required argument of _conv_forward in torch 1.8.0
@@ -122,11 +107,9 @@ class SAConv2d(ConvAWS2d):
         weight = weight + self.weight_diff
         if self.use_deform:
             offset = self.offset_l(avg_x)
-            out_l = deform_conv2d(x, offset, weight, self.stride, self.padding,
-                                  self.dilation, self.groups, 1)
+            out_l = deform_conv2d(x, offset, weight, self.stride, self.padding, self.dilation, self.groups, 1)
         else:
-            if (TORCH_VERSION == 'parrots'
-                    or digit_version(TORCH_VERSION) < digit_version('1.5.0')):
+            if TORCH_VERSION == 'parrots' or digit_version(TORCH_VERSION) < digit_version('1.5.0'):
                 out_l = super().conv2d_forward(x, weight)
             elif digit_version(TORCH_VERSION) >= digit_version('1.8.0'):
                 # bias is a required argument of _conv_forward in torch 1.8.0

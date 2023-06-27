@@ -32,14 +32,16 @@ class _NonLocalNd(nn.Module, metaclass=ABCMeta):
             `embedded_gaussian` and `dot_product`. Default: embedded_gaussian.
     """
 
-    def __init__(self,
-                 in_channels,
-                 reduction=2,
-                 use_scale=True,
-                 conv_cfg=None,
-                 norm_cfg=None,
-                 mode='embedded_gaussian',
-                 **kwargs):
+    def __init__(
+        self,
+        in_channels,
+        reduction=2,
+        use_scale=True,
+        conv_cfg=None,
+        norm_cfg=None,
+        mode='embedded_gaussian',
+        **kwargs,
+    ):
         super(_NonLocalNd, self).__init__()
         self.in_channels = in_channels
         self.reduction = reduction
@@ -47,52 +49,32 @@ class _NonLocalNd(nn.Module, metaclass=ABCMeta):
         self.inter_channels = max(in_channels // reduction, 1)
         self.mode = mode
 
-        if mode not in [
-                'gaussian', 'embedded_gaussian', 'dot_product', 'concatenation'
-        ]:
-            raise ValueError("Mode should be in 'gaussian', 'concatenation', "
-                             f"'embedded_gaussian' or 'dot_product', but got "
-                             f'{mode} instead.')
+        if mode not in ['gaussian', 'embedded_gaussian', 'dot_product', 'concatenation']:
+            raise ValueError(
+                "Mode should be in 'gaussian', 'concatenation', "
+                f"'embedded_gaussian' or 'dot_product', but got "
+                f'{mode} instead.'
+            )
 
         # g, theta, phi are defaulted as `nn.ConvNd`.
         # Here we use ConvModule for potential usage.
-        self.g = ConvModule(
-            self.in_channels,
-            self.inter_channels,
-            kernel_size=1,
-            conv_cfg=conv_cfg,
-            act_cfg=None)
+        self.g = ConvModule(self.in_channels, self.inter_channels, kernel_size=1, conv_cfg=conv_cfg, act_cfg=None)
         self.conv_out = ConvModule(
-            self.inter_channels,
-            self.in_channels,
-            kernel_size=1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=None)
+            self.inter_channels, self.in_channels, kernel_size=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=None
+        )
 
         if self.mode != 'gaussian':
             self.theta = ConvModule(
-                self.in_channels,
-                self.inter_channels,
-                kernel_size=1,
-                conv_cfg=conv_cfg,
-                act_cfg=None)
+                self.in_channels, self.inter_channels, kernel_size=1, conv_cfg=conv_cfg, act_cfg=None
+            )
             self.phi = ConvModule(
-                self.in_channels,
-                self.inter_channels,
-                kernel_size=1,
-                conv_cfg=conv_cfg,
-                act_cfg=None)
+                self.in_channels, self.inter_channels, kernel_size=1, conv_cfg=conv_cfg, act_cfg=None
+            )
 
         if self.mode == 'concatenation':
             self.concat_project = ConvModule(
-                self.inter_channels * 2,
-                1,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                bias=False,
-                act_cfg=dict(type='ReLU'))
+                self.inter_channels * 2, 1, kernel_size=1, stride=1, padding=0, bias=False, act_cfg=dict(type='ReLU')
+            )
 
         self.init_weights(**kwargs)
 
@@ -128,7 +110,7 @@ class _NonLocalNd(nn.Module, metaclass=ABCMeta):
         pairwise_weight = torch.matmul(theta_x, phi_x)
         if self.use_scale:
             # theta_x.shape[-1] is `self.inter_channels`
-            pairwise_weight /= theta_x.shape[-1]**0.5
+            pairwise_weight /= theta_x.shape[-1] ** 0.5
         pairwise_weight = pairwise_weight.softmax(dim=-1)
         return pairwise_weight
 
@@ -203,8 +185,7 @@ class _NonLocalNd(nn.Module, metaclass=ABCMeta):
         # NonLocal1d y: [N, C, H]
         # NonLocal2d y: [N, C, H, W]
         # NonLocal3d y: [N, C, T, H, W]
-        y = y.permute(0, 2, 1).contiguous().reshape(n, self.inter_channels,
-                                                    *x.size()[2:])
+        y = y.permute(0, 2, 1).contiguous().reshape(n, self.inter_channels, *x.size()[2:])
 
         output = x + self.conv_out(y)
 
@@ -223,13 +204,8 @@ class NonLocal1d(_NonLocalNd):
             Default: dict(type='Conv1d').
     """
 
-    def __init__(self,
-                 in_channels,
-                 sub_sample=False,
-                 conv_cfg=dict(type='Conv1d'),
-                 **kwargs):
-        super(NonLocal1d, self).__init__(
-            in_channels, conv_cfg=conv_cfg, **kwargs)
+    def __init__(self, in_channels, sub_sample=False, conv_cfg=dict(type='Conv1d'), **kwargs):
+        super(NonLocal1d, self).__init__(in_channels, conv_cfg=conv_cfg, **kwargs)
 
         self.sub_sample = sub_sample
 
@@ -257,13 +233,8 @@ class NonLocal2d(_NonLocalNd):
 
     _abbr_ = 'nonlocal_block'
 
-    def __init__(self,
-                 in_channels,
-                 sub_sample=False,
-                 conv_cfg=dict(type='Conv2d'),
-                 **kwargs):
-        super(NonLocal2d, self).__init__(
-            in_channels, conv_cfg=conv_cfg, **kwargs)
+    def __init__(self, in_channels, sub_sample=False, conv_cfg=dict(type='Conv2d'), **kwargs):
+        super(NonLocal2d, self).__init__(in_channels, conv_cfg=conv_cfg, **kwargs)
 
         self.sub_sample = sub_sample
 
@@ -288,13 +259,8 @@ class NonLocal3d(_NonLocalNd):
             Default: dict(type='Conv3d').
     """
 
-    def __init__(self,
-                 in_channels,
-                 sub_sample=False,
-                 conv_cfg=dict(type='Conv3d'),
-                 **kwargs):
-        super(NonLocal3d, self).__init__(
-            in_channels, conv_cfg=conv_cfg, **kwargs)
+    def __init__(self, in_channels, sub_sample=False, conv_cfg=dict(type='Conv3d'), **kwargs):
+        super(NonLocal3d, self).__init__(in_channels, conv_cfg=conv_cfg, **kwargs)
         self.sub_sample = sub_sample
 
         if sub_sample:

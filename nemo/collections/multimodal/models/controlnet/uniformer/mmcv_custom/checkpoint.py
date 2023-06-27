@@ -11,16 +11,16 @@ from tempfile import TemporaryDirectory
 
 import torch
 import torchvision
+from torch.nn import functional as F
 from torch.optim import Optimizer
 from torch.utils import model_zoo
-from torch.nn import functional as F
 
 import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.fileio import FileClient
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.fileio import load as load_file
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.parallel import is_module_wrapper
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import mkdir_or_exist
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner import get_dist_info
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import mkdir_or_exist
 
 ENV_MMCV_HOME = 'MMCV_HOME'
 ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
@@ -29,10 +29,8 @@ DEFAULT_CACHE_DIR = '~/.cache'
 
 def _get_mmcv_home():
     mmcv_home = os.path.expanduser(
-        os.getenv(
-            ENV_MMCV_HOME,
-            os.path.join(
-                os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'mmcv')))
+        os.getenv(ENV_MMCV_HOME, os.path.join(os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'mmcv'))
+    )
 
     mkdir_or_exist(mmcv_home)
     return mmcv_home
@@ -69,11 +67,10 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
         # complicated structure, e.g., nn.Module(nn.Module(DDP))
         if is_module_wrapper(module):
             module = module.module
-        local_metadata = {} if metadata is None else metadata.get(
-            prefix[:-1], {})
-        module._load_from_state_dict(state_dict, prefix, local_metadata, True,
-                                     all_missing_keys, unexpected_keys,
-                                     err_msg)
+        local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+        module._load_from_state_dict(
+            state_dict, prefix, local_metadata, True, all_missing_keys, unexpected_keys, err_msg
+        )
         for name, child in module._modules.items():
             if child is not None:
                 load(child, prefix + name + '.')
@@ -82,21 +79,16 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
     load = None  # break load->load reference cycle
 
     # ignore "num_batches_tracked" of BN layers
-    missing_keys = [
-        key for key in all_missing_keys if 'num_batches_tracked' not in key
-    ]
+    missing_keys = [key for key in all_missing_keys if 'num_batches_tracked' not in key]
 
     if unexpected_keys:
-        err_msg.append('unexpected key in source '
-                       f'state_dict: {", ".join(unexpected_keys)}\n')
+        err_msg.append('unexpected key in source ' f'state_dict: {", ".join(unexpected_keys)}\n')
     if missing_keys:
-        err_msg.append(
-            f'missing keys in source state_dict: {", ".join(missing_keys)}\n')
+        err_msg.append(f'missing keys in source state_dict: {", ".join(missing_keys)}\n')
 
     rank, _ = get_dist_info()
     if len(err_msg) > 0 and rank == 0:
-        err_msg.insert(
-            0, 'The model and loaded state dict do not match exactly\n')
+        err_msg.insert(0, 'The model and loaded state dict do not match exactly\n')
         err_msg = '\n'.join(err_msg)
         if strict:
             raise RuntimeError(err_msg)
@@ -126,8 +118,7 @@ def load_pavimodel_dist(model_path, map_location=None):
     try:
         from pavi import modelcloud
     except ImportError:
-        raise ImportError(
-            'Please install pavi to load checkpoint from modelcloud.')
+        raise ImportError('Please install pavi to load checkpoint from modelcloud.')
     rank, world_size = get_dist_info()
     rank = int(os.environ.get('LOCAL_RANK', rank))
     if rank == 0:
@@ -143,8 +134,7 @@ def load_pavimodel_dist(model_path, map_location=None):
             with TemporaryDirectory() as tmp_dir:
                 downloaded_file = osp.join(tmp_dir, model.name)
                 model.download(downloaded_file)
-                checkpoint = torch.load(
-                    downloaded_file, map_location=map_location)
+                checkpoint = torch.load(downloaded_file, map_location=map_location)
     return checkpoint
 
 
@@ -203,8 +193,7 @@ def get_mmcls_models():
 
 
 def get_deprecated_model_names():
-    deprecate_json_path = osp.join(mmcv.__path__[0],
-                                   'model_zoo/deprecated.json')
+    deprecate_json_path = osp.join(mmcv.__path__[0], 'model_zoo/deprecated.json')
     deprecate_urls = load_file(deprecate_json_path)
     assert isinstance(deprecate_urls, dict)
 
@@ -237,8 +226,7 @@ def _load_checkpoint(filename, map_location=None):
             information, which depends on the checkpoint.
     """
     if filename.startswith('modelzoo://'):
-        warnings.warn('The URL scheme of "modelzoo://" is deprecated, please '
-                      'use "torchvision://" instead')
+        warnings.warn('The URL scheme of "modelzoo://" is deprecated, please ' 'use "torchvision://" instead')
         model_urls = get_torchvision_models()
         model_name = filename[11:]
         checkpoint = load_url_dist(model_urls[model_name])
@@ -251,8 +239,9 @@ def _load_checkpoint(filename, map_location=None):
         model_name = filename[13:]
         deprecated_urls = get_deprecated_model_names()
         if model_name in deprecated_urls:
-            warnings.warn(f'open-mmlab://{model_name} is deprecated in favor '
-                          f'of open-mmlab://{deprecated_urls[model_name]}')
+            warnings.warn(
+                f'open-mmlab://{model_name} is deprecated in favor ' f'of open-mmlab://{deprecated_urls[model_name]}'
+            )
             model_name = deprecated_urls[model_name]
         model_url = model_urls[model_name]
         # check if is url
@@ -274,8 +263,7 @@ def _load_checkpoint(filename, map_location=None):
         model_path = filename[7:]
         checkpoint = load_pavimodel_dist(model_path, map_location=map_location)
     elif filename.startswith('s3://'):
-        checkpoint = load_fileclient_dist(
-            filename, backend='ceph', map_location=map_location)
+        checkpoint = load_fileclient_dist(filename, backend='ceph', map_location=map_location)
     else:
         if not osp.isfile(filename):
             raise IOError(f'{filename} is not a checkpoint file')
@@ -283,11 +271,7 @@ def _load_checkpoint(filename, map_location=None):
     return checkpoint
 
 
-def load_checkpoint(model,
-                    filename,
-                    map_location='cpu',
-                    strict=False,
-                    logger=None):
+def load_checkpoint(model, filename, map_location='cpu', strict=False, logger=None):
     """Load checkpoint from a file or URI.
 
     Args:
@@ -306,8 +290,7 @@ def load_checkpoint(model,
     checkpoint = _load_checkpoint(filename, map_location)
     # OrderedDict is a subclass of dict
     if not isinstance(checkpoint, dict):
-        raise RuntimeError(
-            f'No state_dict found in checkpoint file {filename}')
+        raise RuntimeError(f'No state_dict found in checkpoint file {filename}')
     # get state_dict from checkpoint
     if 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
@@ -328,7 +311,7 @@ def load_checkpoint(model,
         absolute_pos_embed = state_dict['absolute_pos_embed']
         N1, L, C1 = absolute_pos_embed.size()
         N2, C2, H, W = model.absolute_pos_embed.size()
-        if N1 != N2 or C1 != C2 or L != H*W:
+        if N1 != N2 or C1 != C2 or L != H * W:
             logger.warning("Error in loading absolute_pos_embed, pass")
         else:
             state_dict['absolute_pos_embed'] = absolute_pos_embed.view(N2, H, W, C2).permute(0, 3, 1, 2)
@@ -347,8 +330,8 @@ def load_checkpoint(model,
                 S1 = int(L1 ** 0.5)
                 S2 = int(L2 ** 0.5)
                 table_pretrained_resized = F.interpolate(
-                     table_pretrained.permute(1, 0).view(1, nH1, S1, S1),
-                     size=(S2, S2), mode='bicubic')
+                    table_pretrained.permute(1, 0).view(1, nH1, S1, S1), size=(S2, S2), mode='bicubic'
+                )
                 state_dict[table_key] = table_pretrained_resized.view(nH2, L2).permute(1, 0)
 
     # load state_dict
@@ -421,13 +404,11 @@ def get_state_dict(module, destination=None, prefix='', keep_vars=False):
     if destination is None:
         destination = OrderedDict()
         destination._metadata = OrderedDict()
-    destination._metadata[prefix[:-1]] = local_metadata = dict(
-        version=module._version)
+    destination._metadata[prefix[:-1]] = local_metadata = dict(version=module._version)
     _save_to_state_dict(module, destination, prefix, keep_vars)
     for name, child in module._modules.items():
         if child is not None:
-            get_state_dict(
-                child, destination, prefix + name + '.', keep_vars=keep_vars)
+            get_state_dict(child, destination, prefix + name + '.', keep_vars=keep_vars)
     for hook in module._state_dict_hooks.values():
         hook_result = hook(module, destination, prefix, local_metadata)
         if hook_result is not None:
@@ -460,10 +441,7 @@ def save_checkpoint(model, filename, optimizer=None, meta=None):
         # save class name to the meta
         meta.update(CLASSES=model.CLASSES)
 
-    checkpoint = {
-        'meta': meta,
-        'state_dict': weights_to_cpu(get_state_dict(model))
-    }
+    checkpoint = {'meta': meta, 'state_dict': weights_to_cpu(get_state_dict(model))}
     # save optimizer state dict in the checkpoint
     if isinstance(optimizer, Optimizer):
         checkpoint['optimizer'] = optimizer.state_dict()
@@ -477,8 +455,7 @@ def save_checkpoint(model, filename, optimizer=None, meta=None):
             from pavi import modelcloud
             from pavi.exception import NodeNotFoundError
         except ImportError:
-            raise ImportError(
-                'Please install pavi to load checkpoint from modelcloud.')
+            raise ImportError('Please install pavi to load checkpoint from modelcloud.')
         model_path = filename[7:]
         root = modelcloud.Folder()
         model_dir, model_name = osp.split(model_path)

@@ -1,9 +1,10 @@
 import torch
 import torch.nn.functional as F
-from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import ConvModule, Scale
 from torch import nn
 
+from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.cnn import ConvModule, Scale
 from nemo.collections.multimodal.models.controlnet.uniformer.mmseg.core import add_prefix
+
 from ..builder import HEADS
 from ..utils import SelfAttentionBlock as _SelfAttentionBlock
 from .decode_head import BaseDecodeHead
@@ -34,7 +35,8 @@ class PAM(_SelfAttentionBlock):
             with_out=False,
             conv_cfg=None,
             norm_cfg=None,
-            act_cfg=None)
+            act_cfg=None,
+        )
 
         self.gamma = Scale(0)
 
@@ -59,8 +61,7 @@ class CAM(nn.Module):
         proj_query = x.view(batch_size, channels, -1)
         proj_key = x.view(batch_size, channels, -1).permute(0, 2, 1)
         energy = torch.bmm(proj_query, proj_key)
-        energy_new = torch.max(
-            energy, -1, keepdim=True)[0].expand_as(energy) - energy
+        energy_new = torch.max(energy, -1, keepdim=True)[0].expand_as(energy) - energy
         attention = F.softmax(energy_new, dim=-1)
         proj_value = x.view(batch_size, channels, -1)
 
@@ -92,7 +93,8 @@ class DAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         self.pam = PAM(self.channels, pam_channels)
         self.pam_out_conv = ConvModule(
             self.channels,
@@ -101,9 +103,9 @@ class DAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
-        self.pam_conv_seg = nn.Conv2d(
-            self.channels, self.num_classes, kernel_size=1)
+            act_cfg=self.act_cfg,
+        )
+        self.pam_conv_seg = nn.Conv2d(self.channels, self.num_classes, kernel_size=1)
 
         self.cam_in_conv = ConvModule(
             self.in_channels,
@@ -112,7 +114,8 @@ class DAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         self.cam = CAM()
         self.cam_out_conv = ConvModule(
             self.channels,
@@ -121,9 +124,9 @@ class DAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
-        self.cam_conv_seg = nn.Conv2d(
-            self.channels, self.num_classes, kernel_size=1)
+            act_cfg=self.act_cfg,
+        )
+        self.cam_conv_seg = nn.Conv2d(self.channels, self.num_classes, kernel_size=1)
 
     def pam_cls_seg(self, feat):
         """PAM feature classification."""
@@ -165,14 +168,7 @@ class DAHead(BaseDecodeHead):
         """Compute ``pam_cam``, ``pam``, ``cam`` loss."""
         pam_cam_seg_logit, pam_seg_logit, cam_seg_logit = seg_logit
         loss = dict()
-        loss.update(
-            add_prefix(
-                super(DAHead, self).losses(pam_cam_seg_logit, seg_label),
-                'pam_cam'))
-        loss.update(
-            add_prefix(
-                super(DAHead, self).losses(pam_seg_logit, seg_label), 'pam'))
-        loss.update(
-            add_prefix(
-                super(DAHead, self).losses(cam_seg_logit, seg_label), 'cam'))
+        loss.update(add_prefix(super(DAHead, self).losses(pam_cam_seg_logit, seg_label), 'pam_cam'))
+        loss.update(add_prefix(super(DAHead, self).losses(pam_seg_logit, seg_label), 'pam'))
+        loss.update(add_prefix(super(DAHead, self).losses(cam_seg_logit, seg_label), 'cam'))
         return loss

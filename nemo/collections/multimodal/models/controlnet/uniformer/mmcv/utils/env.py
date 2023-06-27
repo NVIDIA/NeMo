@@ -10,6 +10,7 @@ import cv2
 import torch
 
 import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
+
 from .parrots_wrapper import get_build_config
 
 
@@ -50,14 +51,14 @@ def collect_env():
             env_info['GPU ' + ','.join(device_ids)] = name
 
         from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils.parrots_wrapper import _get_cuda_home
+
         CUDA_HOME = _get_cuda_home()
         env_info['CUDA_HOME'] = CUDA_HOME
 
         if CUDA_HOME is not None and osp.isdir(CUDA_HOME):
             try:
                 nvcc = osp.join(CUDA_HOME, 'bin/nvcc')
-                nvcc = subprocess.check_output(
-                    f'"{nvcc}" -V | tail -n1', shell=True)
+                nvcc = subprocess.check_output(f'"{nvcc}" -V | tail -n1', shell=True)
                 nvcc = nvcc.decode('utf-8').strip()
             except subprocess.SubprocessError:
                 nvcc = 'Not Available'
@@ -75,6 +76,7 @@ def collect_env():
 
     try:
         import torchvision
+
         env_info['TorchVision'] = torchvision.__version__
     except ModuleNotFoundError:
         pass
@@ -84,7 +86,10 @@ def collect_env():
     env_info['MMCV'] = mmcv.__version__
 
     try:
-        from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.ops import get_compiler_version, get_compiling_cuda_version
+        from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.ops import (
+            get_compiler_version,
+            get_compiling_cuda_version,
+        )
     except ModuleNotFoundError:
         env_info['MMCV Compiler'] = 'n/a'
         env_info['MMCV CUDA Compiler'] = 'n/a'

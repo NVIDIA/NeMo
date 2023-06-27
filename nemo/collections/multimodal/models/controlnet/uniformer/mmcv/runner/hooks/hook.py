@@ -5,10 +5,18 @@ HOOKS = Registry('hook')
 
 
 class Hook:
-    stages = ('before_run', 'before_train_epoch', 'before_train_iter',
-              'after_train_iter', 'after_train_epoch', 'before_val_epoch',
-              'before_val_iter', 'after_val_iter', 'after_val_epoch',
-              'after_run')
+    stages = (
+        'before_run',
+        'before_train_epoch',
+        'before_train_iter',
+        'after_train_iter',
+        'after_train_epoch',
+        'before_val_epoch',
+        'before_val_iter',
+        'after_val_iter',
+        'after_val_epoch',
+        'after_run',
+    )
 
     def before_run(self, runner):
         pass

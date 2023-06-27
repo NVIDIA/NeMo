@@ -5,13 +5,10 @@ from torch.autograd import Function
 
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext(
-    '_ext',
-    ['dynamic_point_to_voxel_forward', 'dynamic_point_to_voxel_backward'])
+ext_module = ext_loader.load_ext('_ext', ['dynamic_point_to_voxel_forward', 'dynamic_point_to_voxel_backward'])
 
 
 class _DynamicScatter(Function):
-
     @staticmethod
     def forward(ctx, feats, coors, reduce_type='max'):
         """convert kitti points(N, >=3) to voxels.
@@ -30,26 +27,28 @@ class _DynamicScatter(Function):
                 one row.
             voxel_coors (torch.Tensor): [M, ndim]. Voxel coordinates.
         """
-        results = ext_module.dynamic_point_to_voxel_forward(
-            feats, coors, reduce_type)
-        (voxel_feats, voxel_coors, point2voxel_map,
-         voxel_points_count) = results
+        results = ext_module.dynamic_point_to_voxel_forward(feats, coors, reduce_type)
+        (voxel_feats, voxel_coors, point2voxel_map, voxel_points_count) = results
         ctx.reduce_type = reduce_type
-        ctx.save_for_backward(feats, voxel_feats, point2voxel_map,
-                              voxel_points_count)
+        ctx.save_for_backward(feats, voxel_feats, point2voxel_map, voxel_points_count)
         ctx.mark_non_differentiable(voxel_coors)
         return voxel_feats, voxel_coors
 
     @staticmethod
     def backward(ctx, grad_voxel_feats, grad_voxel_coors=None):
-        (feats, voxel_feats, point2voxel_map,
-         voxel_points_count) = ctx.saved_tensors
+        (feats, voxel_feats, point2voxel_map, voxel_points_count) = ctx.saved_tensors
         grad_feats = torch.zeros_like(feats)
         # TODO: whether to use index put or use cuda_backward
         # To use index put, need point to voxel index
         ext_module.dynamic_point_to_voxel_backward(
-            grad_feats, grad_voxel_feats.contiguous(), feats, voxel_feats,
-            point2voxel_map, voxel_points_count, ctx.reduce_type)
+            grad_feats,
+            grad_voxel_feats.contiguous(),
+            feats,
+            voxel_feats,
+            point2voxel_map,
+            voxel_points_count,
+            ctx.reduce_type,
+        )
         return grad_feats, None, None
 
 
@@ -115,10 +114,8 @@ class DynamicScatter(nn.Module):
             voxels, voxel_coors = [], []
             for i in range(batch_size):
                 inds = torch.where(coors[:, 0] == i)
-                voxel, voxel_coor = self.forward_single(
-                    points[inds], coors[inds][:, 1:])
-                coor_pad = nn.functional.pad(
-                    voxel_coor, (1, 0), mode='constant', value=i)
+                voxel, voxel_coor = self.forward_single(points[inds], coors[inds][:, 1:])
+                coor_pad = nn.functional.pad(voxel_coor, (1, 0), mode='constant', value=i)
                 voxel_coors.append(coor_pad)
                 voxels.append(voxel)
             features = torch.cat(voxels, dim=0)

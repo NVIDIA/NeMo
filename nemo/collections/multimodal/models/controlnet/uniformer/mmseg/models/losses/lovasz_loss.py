@@ -2,10 +2,11 @@
 ch/lovasz_losses.py Lovasz-Softmax and Jaccard hinge loss in PyTorch Maxim
 Berman 2018 ESAT-PSI KU Leuven (MIT License)"""
 
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 
 from ..builder import LOSSES
 from .utils import get_class_weight, weight_reduce_loss
@@ -20,7 +21,7 @@ def lovasz_grad(gt_sorted):
     gts = gt_sorted.sum()
     intersection = gts - gt_sorted.float().cumsum(0)
     union = gts + (1 - gt_sorted).float().cumsum(0)
-    jaccard = 1. - intersection / union
+    jaccard = 1.0 - intersection / union
     if p > 1:  # cover 1-pixel case
         jaccard[1:p] = jaccard[1:p] - jaccard[0:-1]
     return jaccard
@@ -33,7 +34,7 @@ def flatten_binary_logits(logits, labels, ignore_index=None):
     labels = labels.view(-1)
     if ignore_index is None:
         return logits, labels
-    valid = (labels != ignore_index)
+    valid = labels != ignore_index
     vlogits = logits[valid]
     vlabels = labels[valid]
     return vlogits, vlabels
@@ -50,7 +51,7 @@ def flatten_probs(probs, labels, ignore_index=None):
     labels = labels.view(-1)
     if ignore_index is None:
         return probs, labels
-    valid = (labels != ignore_index)
+    valid = labels != ignore_index
     vprobs = probs[valid.nonzero().squeeze()]
     vlabels = labels[valid]
     return vprobs, vlabels
@@ -69,9 +70,9 @@ def lovasz_hinge_flat(logits, labels):
     """
     if len(labels) == 0:
         # only void pixels, the gradients should be 0
-        return logits.sum() * 0.
-    signs = 2. * labels.float() - 1.
-    errors = (1. - logits * signs)
+        return logits.sum() * 0.0
+    signs = 2.0 * labels.float() - 1.0
+    errors = 1.0 - logits * signs
     errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
     perm = perm.data
     gt_sorted = labels[perm]
@@ -80,14 +81,16 @@ def lovasz_hinge_flat(logits, labels):
     return loss
 
 
-def lovasz_hinge(logits,
-                 labels,
-                 classes='present',
-                 per_image=False,
-                 class_weight=None,
-                 reduction='mean',
-                 avg_factor=None,
-                 ignore_index=255):
+def lovasz_hinge(
+    logits,
+    labels,
+    classes='present',
+    per_image=False,
+    class_weight=None,
+    reduction='mean',
+    avg_factor=None,
+    ignore_index=255,
+):
     """Binary Lovasz hinge loss.
 
     Args:
@@ -113,15 +116,12 @@ def lovasz_hinge(logits,
     """
     if per_image:
         loss = [
-            lovasz_hinge_flat(*flatten_binary_logits(
-                logit.unsqueeze(0), label.unsqueeze(0), ignore_index))
+            lovasz_hinge_flat(*flatten_binary_logits(logit.unsqueeze(0), label.unsqueeze(0), ignore_index))
             for logit, label in zip(logits, labels)
         ]
-        loss = weight_reduce_loss(
-            torch.stack(loss), None, reduction, avg_factor)
+        loss = weight_reduce_loss(torch.stack(loss), None, reduction, avg_factor)
     else:
-        loss = lovasz_hinge_flat(
-            *flatten_binary_logits(logits, labels, ignore_index))
+        loss = lovasz_hinge_flat(*flatten_binary_logits(logits, labels, ignore_index))
     return loss
 
 
@@ -143,13 +143,13 @@ def lovasz_softmax_flat(probs, labels, classes='present', class_weight=None):
     """
     if probs.numel() == 0:
         # only void pixels, the gradients should be 0
-        return probs * 0.
+        return probs * 0.0
     C = probs.size(1)
     losses = []
     class_to_sum = list(range(C)) if classes in ['all', 'present'] else classes
     for c in class_to_sum:
         fg = (labels == c).float()  # foreground for class c
-        if (classes == 'present' and fg.sum() == 0):
+        if classes == 'present' and fg.sum() == 0:
             continue
         if C == 1:
             if len(classes) > 1:
@@ -168,14 +168,16 @@ def lovasz_softmax_flat(probs, labels, classes='present', class_weight=None):
     return torch.stack(losses).mean()
 
 
-def lovasz_softmax(probs,
-                   labels,
-                   classes='present',
-                   per_image=False,
-                   class_weight=None,
-                   reduction='mean',
-                   avg_factor=None,
-                   ignore_index=255):
+def lovasz_softmax(
+    probs,
+    labels,
+    classes='present',
+    per_image=False,
+    class_weight=None,
+    reduction='mean',
+    avg_factor=None,
+    ignore_index=255,
+):
     """Multi-class Lovasz-Softmax loss.
 
     Args:
@@ -205,19 +207,17 @@ def lovasz_softmax(probs,
     if per_image:
         loss = [
             lovasz_softmax_flat(
-                *flatten_probs(
-                    prob.unsqueeze(0), label.unsqueeze(0), ignore_index),
+                *flatten_probs(prob.unsqueeze(0), label.unsqueeze(0), ignore_index),
                 classes=classes,
-                class_weight=class_weight)
+                class_weight=class_weight
+            )
             for prob, label in zip(probs, labels)
         ]
-        loss = weight_reduce_loss(
-            torch.stack(loss), None, reduction, avg_factor)
+        loss = weight_reduce_loss(torch.stack(loss), None, reduction, avg_factor)
     else:
         loss = lovasz_softmax_flat(
-            *flatten_probs(probs, labels, ignore_index),
-            classes=classes,
-            class_weight=class_weight)
+            *flatten_probs(probs, labels, ignore_index), classes=classes, class_weight=class_weight
+        )
     return loss
 
 
@@ -245,15 +245,20 @@ class LovaszLoss(nn.Module):
         loss_weight (float, optional): Weight of the loss. Defaults to 1.0.
     """
 
-    def __init__(self,
-                 loss_type='multi_class',
-                 classes='present',
-                 per_image=False,
-                 reduction='mean',
-                 class_weight=None,
-                 loss_weight=1.0):
+    def __init__(
+        self,
+        loss_type='multi_class',
+        classes='present',
+        per_image=False,
+        reduction='mean',
+        class_weight=None,
+        loss_weight=1.0,
+    ):
         super(LovaszLoss, self).__init__()
-        assert loss_type in ('binary', 'multi_class'), "loss_type should be \
+        assert loss_type in (
+            'binary',
+            'multi_class',
+        ), "loss_type should be \
                                                     'binary' or 'multi_class'."
 
         if loss_type == 'binary':
@@ -262,7 +267,9 @@ class LovaszLoss(nn.Module):
             self.cls_criterion = lovasz_softmax
         assert classes in ('all', 'present') or mmcv.is_list_of(classes, int)
         if not per_image:
-            assert reduction == 'none', "reduction should be 'none' when \
+            assert (
+                reduction == 'none'
+            ), "reduction should be 'none' when \
                                                         per_image is False."
 
         self.classes = classes
@@ -271,17 +278,10 @@ class LovaszLoss(nn.Module):
         self.loss_weight = loss_weight
         self.class_weight = get_class_weight(class_weight)
 
-    def forward(self,
-                cls_score,
-                label,
-                weight=None,
-                avg_factor=None,
-                reduction_override=None,
-                **kwargs):
+    def forward(self, cls_score, label, weight=None, avg_factor=None, reduction_override=None, **kwargs):
         """Forward function."""
         assert reduction_override in (None, 'none', 'mean', 'sum')
-        reduction = (
-            reduction_override if reduction_override else self.reduction)
+        reduction = reduction_override if reduction_override else self.reduction
         if self.class_weight is not None:
             class_weight = cls_score.new_tensor(self.class_weight)
         else:
@@ -299,5 +299,6 @@ class LovaszLoss(nn.Module):
             class_weight=class_weight,
             reduction=reduction,
             avg_factor=avg_factor,
-            **kwargs)
+            **kwargs
+        )
         return loss_cls

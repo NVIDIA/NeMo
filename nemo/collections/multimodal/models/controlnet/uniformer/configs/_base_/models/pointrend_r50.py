@@ -14,12 +14,9 @@ model = dict(
         norm_cfg=norm_cfg,
         norm_eval=False,
         style='pytorch',
-        contract_dilation=True),
-    neck=dict(
-        type='FPN',
-        in_channels=[256, 512, 1024, 2048],
-        out_channels=256,
-        num_outs=4),
+        contract_dilation=True,
+    ),
+    neck=dict(type='FPN', in_channels=[256, 512, 1024, 2048], out_channels=256, num_outs=4),
     decode_head=[
         dict(
             type='FPNHead',
@@ -31,8 +28,8 @@ model = dict(
             num_classes=19,
             norm_cfg=norm_cfg,
             align_corners=False,
-            loss_decode=dict(
-                type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+            loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+        ),
         dict(
             type='PointHead',
             in_channels=[256],
@@ -43,14 +40,10 @@ model = dict(
             dropout_ratio=-1,
             num_classes=19,
             align_corners=False,
-            loss_decode=dict(
-                type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0))
+            loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+        ),
     ],
     # model training and testing settings
-    train_cfg=dict(
-        num_points=2048, oversample_ratio=3, importance_sample_ratio=0.75),
-    test_cfg=dict(
-        mode='whole',
-        subdivision_steps=2,
-        subdivision_num_points=8196,
-        scale_factor=2))
+    train_cfg=dict(num_points=2048, oversample_ratio=3, importance_sample_ratio=0.75),
+    test_cfg=dict(mode='whole', subdivision_steps=2, subdivision_num_points=8196, scale_factor=2),
+)

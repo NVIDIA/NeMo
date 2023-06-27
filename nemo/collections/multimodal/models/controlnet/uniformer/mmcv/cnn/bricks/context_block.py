@@ -33,11 +33,7 @@ class ContextBlock(nn.Module):
 
     _abbr_ = 'context_block'
 
-    def __init__(self,
-                 in_channels,
-                 ratio,
-                 pooling_type='att',
-                 fusion_types=('channel_add', )):
+    def __init__(self, in_channels, ratio, pooling_type='att', fusion_types=('channel_add',)):
         super(ContextBlock, self).__init__()
         assert pooling_type in ['avg', 'att']
         assert isinstance(fusion_types, (list, tuple))
@@ -59,7 +55,8 @@ class ContextBlock(nn.Module):
                 nn.Conv2d(self.in_channels, self.planes, kernel_size=1),
                 nn.LayerNorm([self.planes, 1, 1]),
                 nn.ReLU(inplace=True),  # yapf: disable
-                nn.Conv2d(self.planes, self.in_channels, kernel_size=1))
+                nn.Conv2d(self.planes, self.in_channels, kernel_size=1),
+            )
         else:
             self.channel_add_conv = None
         if 'channel_mul' in fusion_types:
@@ -67,7 +64,8 @@ class ContextBlock(nn.Module):
                 nn.Conv2d(self.in_channels, self.planes, kernel_size=1),
                 nn.LayerNorm([self.planes, 1, 1]),
                 nn.ReLU(inplace=True),  # yapf: disable
-                nn.Conv2d(self.planes, self.in_channels, kernel_size=1))
+                nn.Conv2d(self.planes, self.in_channels, kernel_size=1),
+            )
         else:
             self.channel_mul_conv = None
         self.reset_parameters()

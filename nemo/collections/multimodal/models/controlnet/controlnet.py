@@ -1,32 +1,37 @@
+from typing import Any, Dict, Optional, Union
+
+import einops
 import torch
 import torch.nn as nn
-import einops
+from einops import rearrange, repeat
 from omegaconf import DictConfig, OmegaConf, open_dict
-from torch._dynamo import optimize
-from torch._inductor import config as inductor_config
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.distributed import rank_zero_only
-from typing import Any, Dict, Optional, Union
-from nemo.utils import logging
+from torch._dynamo import optimize
+from torch._inductor import config as inductor_config
+from torchvision.utils import make_grid
 
+from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion
+from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
+from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import (
+    AttentionBlock,
+    Downsample,
+    ResBlock,
+    TimestepEmbedSequential,
+    UNetModel,
+)
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     conv_nd,
     linear,
-    zero_module,
     timestep_embedding,
+    zero_module,
 )
-from einops import rearrange, repeat
-from torchvision.utils import make_grid
-from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample, AttentionBlock
-from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion
 from nemo.collections.multimodal.parts.stable_diffusion.utils import exists, log_txt_as_img
-from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
-
-from nemo.collections.multimodal.models.stable_diffusion.samplers.ddim import DDIMSampler
-
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.utils import logging
 
 try:
     from apex import amp
@@ -74,7 +79,6 @@ class ControlledUnetModel(UNetModel):
         return self.out(h)
 
 
-
 class ControlLDM(LatentDiffusion):
     def __init__(self, cfg):
         super().__init__(cfg=cfg)
@@ -92,7 +96,6 @@ class ControlLDM(LatentDiffusion):
 
         if self.channels_last:
             self.control_model = self.control_model.to(memory_format=torch.channels_last)
-
 
     @torch.no_grad()
     def get_input(self, batch, k, bs=None, *args, **kwargs):
@@ -112,16 +115,19 @@ class ControlLDM(LatentDiffusion):
         assert isinstance(cond, dict)
         diffusion_model = self.model.diffusion_model
 
-        #cond_txt = torch.cat(cond['c_crossattn'], 1) ## Has removed this first dim in the get_input function, same for below hint input
+        # cond_txt = torch.cat(cond['c_crossattn'], 1) ## Has removed this first dim in the get_input function, same for below hint input
         cond_txt = cond['c_crossattn']
 
-
         if cond['c_concat'] is None:
-            eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
+            eps = diffusion_model(
+                x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control
+            )
         else:
             control = self.control_model(x=x_noisy, hint=cond['c_concat'], timesteps=t, context=cond_txt)
             control = [c * scale for c, scale in zip(control, self.control_scales)]
-            eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control)
+            eps = diffusion_model(
+                x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control
+            )
         return eps
 
     @torch.no_grad()
@@ -129,11 +135,25 @@ class ControlLDM(LatentDiffusion):
         return self.get_learned_conditioning([""] * N)
 
     @torch.no_grad()
-    def log_images(self, batch, N=4, n_row=2, sample=False, ddim_steps=50, ddim_eta=0.0, return_keys=None,
-                   quantize_denoised=True, inpaint=True, plot_denoise_rows=False, plot_progressive_rows=True,
-                   plot_diffusion_rows=False, unconditional_guidance_scale=9.0, unconditional_guidance_label=None,
-                   use_ema_scope=True,
-                   **kwargs):
+    def log_images(
+        self,
+        batch,
+        N=4,
+        n_row=2,
+        sample=False,
+        ddim_steps=50,
+        ddim_eta=0.0,
+        return_keys=None,
+        quantize_denoised=True,
+        inpaint=True,
+        plot_denoise_rows=False,
+        plot_progressive_rows=True,
+        plot_diffusion_rows=False,
+        unconditional_guidance_scale=9.0,
+        unconditional_guidance_label=None,
+        use_ema_scope=True,
+        **kwargs,
+    ):
         use_ddim = ddim_steps is not None
 
         log = dict()
@@ -166,9 +186,13 @@ class ControlLDM(LatentDiffusion):
 
         if sample:
             # get denoise row
-            samples, z_denoise_row = self.sample_log(cond={"c_concat": c_cat, "c_crossattn": c},
-                                                     batch_size=N, ddim=use_ddim,
-                                                     ddim_steps=ddim_steps, eta=ddim_eta)
+            samples, z_denoise_row = self.sample_log(
+                cond={"c_concat": c_cat, "c_crossattn": c},
+                batch_size=N,
+                ddim=use_ddim,
+                ddim_steps=ddim_steps,
+                eta=ddim_eta,
+            )
             x_samples = self.decode_first_stage(samples)
             log["samples"] = x_samples
             if plot_denoise_rows:
@@ -179,12 +203,15 @@ class ControlLDM(LatentDiffusion):
             uc_cross = self.get_unconditional_conditioning(N)
             uc_cat = c_cat  # torch.zeros_like(c_cat)
             uc_full = {"c_concat": uc_cat, "c_crossattn": uc_cross}
-            samples_cfg, _ = self.sample_log(cond={"c_concat": c_cat, "c_crossattn": c},
-                                             batch_size=N, ddim=use_ddim,
-                                             ddim_steps=ddim_steps, eta=ddim_eta,
-                                             unconditional_guidance_scale=unconditional_guidance_scale,
-                                             unconditional_conditioning=uc_full,
-                                             )
+            samples_cfg, _ = self.sample_log(
+                cond={"c_concat": c_cat, "c_crossattn": c},
+                batch_size=N,
+                ddim=use_ddim,
+                ddim_steps=ddim_steps,
+                eta=ddim_eta,
+                unconditional_guidance_scale=unconditional_guidance_scale,
+                unconditional_conditioning=uc_full,
+            )
             x_samples_cfg = self.decode_first_stage(samples_cfg)
             log[f"samples_cfg_scale_{unconditional_guidance_scale:.2f}"] = x_samples_cfg
 
@@ -198,14 +225,12 @@ class ControlLDM(LatentDiffusion):
         samples, intermediates = ddim_sampler.sample(ddim_steps, batch_size, shape, cond, verbose=False, **kwargs)
         return samples, intermediates
 
-
     def parameters(self):
         params = list(self.control_model.parameters())
         if not self.sd_locked:
             params += list(self.model.diffusion_model.output_blocks.parameters())
             params += list(self.model.diffusion_model.out.parameters())
         return params
-
 
     def low_vram_shift(self, is_diffusing):
         if is_diffusing:
@@ -219,47 +244,53 @@ class ControlLDM(LatentDiffusion):
             self.first_stage_model = self.first_stage_model.cuda()
             self.cond_stage_model = self.cond_stage_model.cuda()
 
+
 class ControlNet(nn.Module):
     def __init__(
-            self,
-            image_size,
-            in_channels,
-            model_channels,
-            hint_channels,
-            num_res_blocks,
-            attention_resolutions,
-            dropout=0,
-            channel_mult=(1, 2, 4, 8),
-            conv_resample=True,
-            dims=2,
-            use_checkpoint=False,
-            use_fp16=False,
-            num_heads=-1,
-            num_head_channels=-1,
-            num_heads_upsample=-1,
-            use_scale_shift_norm=False,
-            resblock_updown=False,
-            use_new_attention_order=False,
-            use_spatial_transformer=False,  # custom transformer support
-            transformer_depth=1,  # custom transformer support
-            context_dim=None,  # custom transformer support
-            n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
-            legacy=True,
-            disable_self_attentions=None,  ###TODO MMY these are new
-            num_attention_blocks=None,
-            disable_middle_self_attn=False,
-            use_linear_in_transformer=False,
-            use_flash_attention=False,
-            from_pretrained_unet=None,
-            from_NeMo=True
+        self,
+        image_size,
+        in_channels,
+        model_channels,
+        hint_channels,
+        num_res_blocks,
+        attention_resolutions,
+        dropout=0,
+        channel_mult=(1, 2, 4, 8),
+        conv_resample=True,
+        dims=2,
+        use_checkpoint=False,
+        use_fp16=False,
+        num_heads=-1,
+        num_head_channels=-1,
+        num_heads_upsample=-1,
+        use_scale_shift_norm=False,
+        resblock_updown=False,
+        use_new_attention_order=False,
+        use_spatial_transformer=False,  # custom transformer support
+        transformer_depth=1,  # custom transformer support
+        context_dim=None,  # custom transformer support
+        n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
+        legacy=True,
+        disable_self_attentions=None,  ###TODO MMY these are new
+        num_attention_blocks=None,
+        disable_middle_self_attn=False,
+        use_linear_in_transformer=False,
+        use_flash_attention=False,
+        from_pretrained_unet=None,
+        from_NeMo=True,
     ):
         super().__init__()
         if use_spatial_transformer:
-            assert context_dim is not None, 'Fool!! You forgot to include the dimension of your cross-attention conditioning...'
+            assert (
+                context_dim is not None
+            ), 'Fool!! You forgot to include the dimension of your cross-attention conditioning...'
 
         if context_dim is not None:
-            assert use_spatial_transformer, 'Fool!! You forgot to use the spatial transformer for your cross-attention conditioning...'
+            assert (
+                use_spatial_transformer
+            ), 'Fool!! You forgot to use the spatial transformer for your cross-attention conditioning...'
             from omegaconf.listconfig import ListConfig
+
             if type(context_dim) == ListConfig:
                 context_dim = list(context_dim)
 
@@ -280,19 +311,25 @@ class ControlNet(nn.Module):
             self.num_res_blocks = len(channel_mult) * [num_res_blocks]
         else:
             if len(num_res_blocks) != len(channel_mult):
-                raise ValueError("provide num_res_blocks either as an int (globally constant) or "
-                                 "as a list/tuple (per-level) with the same length as channel_mult")
+                raise ValueError(
+                    "provide num_res_blocks either as an int (globally constant) or "
+                    "as a list/tuple (per-level) with the same length as channel_mult"
+                )
             self.num_res_blocks = num_res_blocks
         if disable_self_attentions is not None:
             # should be a list of booleans, indicating whether to disable self-attention in TransformerBlocks or not
             assert len(disable_self_attentions) == len(channel_mult)
         if num_attention_blocks is not None:
             assert len(num_attention_blocks) == len(self.num_res_blocks)
-            assert all(map(lambda i: self.num_res_blocks[i] >= num_attention_blocks[i], range(len(num_attention_blocks))))
-            print(f"Constructor of UNetModel received num_attention_blocks={num_attention_blocks}. "
-                  f"This option has LESS priority than attention_resolutions {attention_resolutions}, "
-                  f"i.e., in cases where num_attention_blocks[i] > 0 but 2**i not in attention_resolutions, "
-                  f"attention will still not be set.")
+            assert all(
+                map(lambda i: self.num_res_blocks[i] >= num_attention_blocks[i], range(len(num_attention_blocks)))
+            )
+            print(
+                f"Constructor of UNetModel received num_attention_blocks={num_attention_blocks}. "
+                f"This option has LESS priority than attention_resolutions {attention_resolutions}, "
+                f"i.e., in cases where num_attention_blocks[i] > 0 but 2**i not in attention_resolutions, "
+                f"attention will still not be set."
+            )
 
         self.attention_resolutions = attention_resolutions
         self.dropout = dropout
@@ -307,17 +344,11 @@ class ControlNet(nn.Module):
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
-            linear(model_channels, time_embed_dim),
-            nn.SiLU(),
-            linear(time_embed_dim, time_embed_dim),
+            linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
         )
 
         self.input_blocks = nn.ModuleList(
-            [
-                TimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
-                )
-            ]
+            [TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))]
         )
         self.zero_convs = nn.ModuleList([self.make_zero_conv(model_channels)])
 
@@ -336,7 +367,7 @@ class ControlNet(nn.Module):
             nn.SiLU(),
             conv_nd(dims, 96, 256, 3, padding=1, stride=2),
             nn.SiLU(),
-            zero_module(conv_nd(dims, 256, model_channels, 3, padding=1))
+            zero_module(conv_nd(dims, 256, model_channels, 3, padding=1)),
         )
 
         self._feature_size = model_channels
@@ -379,10 +410,18 @@ class ControlNet(nn.Module):
                                 num_heads=num_heads,
                                 num_head_channels=dim_head,
                                 use_new_attention_order=use_new_attention_order,
-                            ) if not use_spatial_transformer else SpatialTransformer(
-                                ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                                disable_self_attn=disabled_sa, use_linear=use_linear_in_transformer,
-                                use_checkpoint=use_checkpoint, use_flash_attention=use_flash_attention
+                            )
+                            if not use_spatial_transformer
+                            else SpatialTransformer(
+                                ch,
+                                num_heads,
+                                dim_head,
+                                depth=transformer_depth,
+                                context_dim=context_dim,
+                                disable_self_attn=disabled_sa,
+                                use_linear=use_linear_in_transformer,
+                                use_checkpoint=use_checkpoint,
+                                use_flash_attention=use_flash_attention,
                             )
                         )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -404,9 +443,7 @@ class ControlNet(nn.Module):
                             down=True,
                         )
                         if resblock_updown
-                        else Downsample(
-                            ch, conv_resample, dims=dims, out_channels=out_ch
-                        )
+                        else Downsample(ch, conv_resample, dims=dims, out_channels=out_ch)
                     )
                 )
                 ch = out_ch
@@ -438,10 +475,18 @@ class ControlNet(nn.Module):
                 num_heads=num_heads,
                 num_head_channels=dim_head,
                 use_new_attention_order=use_new_attention_order,
-            ) if not use_spatial_transformer else SpatialTransformer(  # always uses a self-attn
-                ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                disable_self_attn=disable_middle_self_attn, use_linear=use_linear_in_transformer,
-                use_checkpoint=use_checkpoint, use_flash_attention=use_flash_attention
+            )
+            if not use_spatial_transformer
+            else SpatialTransformer(  # always uses a self-attn
+                ch,
+                num_heads,
+                dim_head,
+                depth=transformer_depth,
+                context_dim=context_dim,
+                disable_self_attn=disable_middle_self_attn,
+                use_linear=use_linear_in_transformer,
+                use_checkpoint=use_checkpoint,
+                use_flash_attention=use_flash_attention,
             ),
             ResBlock(
                 ch,
@@ -481,29 +526,31 @@ class ControlNet(nn.Module):
 
             expected_keys = list(model_state_dict.keys())
             loaded_keys = list(re_state_dict.keys())
-            missing_keys = list(set(expected_keys)-set(loaded_keys))
-            unexpected_keys = list(set(loaded_keys)-set(expected_keys))
+            missing_keys = list(set(expected_keys) - set(loaded_keys))
+            unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
-
-
-            if 'input_blocks.1.0.in_layers.2.weight' in loaded_keys and 'input_blocks.1.0.in_layers.1.weight' in expected_keys:
+            if (
+                'input_blocks.1.0.in_layers.2.weight' in loaded_keys
+                and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
+            ):
                 # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
                 for key_ in missing_keys:
                     if key_.startswith('input_blocks') or key_.startswith('middle_block.'):
                         s = key_.split('.')
                         idx = int(s[-2])
-                        new_key_ = ".".join(s[:-2] + [str(int(idx+1))] + [s[-1]])
+                        new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
                         re_state_dict[key_] = re_state_dict[new_key_]
 
                 loaded_keys = list(re_state_dict.keys())
                 missing_keys = list(set(expected_keys) - set(loaded_keys))
                 unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
-
             self.load_state_dict(re_state_dict, strict=False)
 
             if len(missing_keys) > 42:
-                print('warning: only input hint blocks and zero conv layers are randomly initialized. This message indicates some unet blocks are not loaded correctly.')
+                print(
+                    'warning: only input hint blocks and zero conv layers are randomly initialized. This message indicates some unet blocks are not loaded correctly.'
+                )
                 print(f'There is {len(missing_keys)} total missing keys')
                 print("Missing:", missing_keys)
                 print("Unexpected:", unexpected_keys)
@@ -518,10 +565,6 @@ class ControlNet(nn.Module):
             #         pass
             #     else:
             #         print(f"{key} not matching after loading")
-
-
-
-
 
     def make_zero_conv(self, channels):
         return TimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
@@ -591,9 +634,8 @@ class MegatronControlNet(MegatronMultimodalModel):
     @torch.no_grad()
     def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
         if self.cfg.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0:
-            assert self.cfg.scale_factor == 1., 'rather not use custom rescaling and std-rescaling simultaneously'
-            batch[self.cfg.first_stage_key] = \
-                batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+            assert self.cfg.scale_factor == 1.0, 'rather not use custom rescaling and std-rescaling simultaneously'
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
             self.model.on_train_batch_start(batch, batch_idx)
 
     def training_step(self, dataloader_iter, batch_idx):
@@ -667,8 +709,7 @@ class MegatronControlNet(MegatronMultimodalModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log_dict(loss_dict, prog_bar=False,
-                      logger=True, on_step=True, rank_zero_only=True, batch_size=1)
+        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
@@ -678,7 +719,7 @@ class MegatronControlNet(MegatronMultimodalModel):
             self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
-            batch_size = 1
+            batch_size=1,
         )
         return loss_mean
 
@@ -720,8 +761,7 @@ class MegatronControlNet(MegatronMultimodalModel):
 
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
-                    self.autocast_dtype in (torch.half, torch.bfloat16),
-                    dtype=self.autocast_dtype,
+                self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
                 x, c = self.model.get_input(batch, self.cfg.first_stage_key)
 
@@ -842,13 +882,11 @@ class MegatronControlNet(MegatronMultimodalModel):
 
         if self.cfg.first_stage_key.endswith("encoded"):
             self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
-                model_cfg=self.cfg,
-                consumed_samples=self.compute_consumed_samples(0),
+                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
             )
         else:
             self._train_ds, self._validation_ds = build_train_valid_datasets(
-                model_cfg=self.cfg,
-                consumed_samples=self.compute_consumed_samples(0)
+                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
             )
         self._test_ds = None
 
@@ -898,8 +936,7 @@ class MegatronControlNet(MegatronMultimodalModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = torch.utils.data.DataLoader(
-                self._test_ds, batch_size=self._micro_batch_size,
-                num_workers=cfg.num_workers, pin_memory=True,
+                self._test_ds, batch_size=self._micro_batch_size, num_workers=cfg.num_workers, pin_memory=True,
             )
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
@@ -931,5 +968,3 @@ class MegatronControlNet(MegatronMultimodalModel):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
-
-

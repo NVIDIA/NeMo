@@ -48,21 +48,23 @@ class BaseRunner(metaclass=ABCMeta):
         max_iters (int, optional): Total training iterations.
     """
 
-    def __init__(self,
-                 model,
-                 batch_processor=None,
-                 optimizer=None,
-                 work_dir=None,
-                 logger=None,
-                 meta=None,
-                 max_iters=None,
-                 max_epochs=None):
+    def __init__(
+        self,
+        model,
+        batch_processor=None,
+        optimizer=None,
+        work_dir=None,
+        logger=None,
+        meta=None,
+        max_iters=None,
+        max_epochs=None,
+    ):
         if batch_processor is not None:
             if not callable(batch_processor):
-                raise TypeError('batch_processor must be callable, '
-                                f'but got {type(batch_processor)}')
-            warnings.warn('batch_processor is deprecated, please implement '
-                          'train_step() and val_step() in the model instead.')
+                raise TypeError('batch_processor must be callable, ' f'but got {type(batch_processor)}')
+            warnings.warn(
+                'batch_processor is deprecated, please implement ' 'train_step() and val_step() in the model instead.'
+            )
             # raise an error is `batch_processor` is not None and
             # `model.train_step()` exists.
             if is_module_wrapper(model):
@@ -71,8 +73,8 @@ class BaseRunner(metaclass=ABCMeta):
                 _model = model
             if hasattr(_model, 'train_step') or hasattr(_model, 'val_step'):
                 raise RuntimeError(
-                    'batch_processor and model.train_step()/model.val_step() '
-                    'cannot be both available.')
+                    'batch_processor and model.train_step()/model.val_step() ' 'cannot be both available.'
+                )
         else:
             assert hasattr(model, 'train_step')
 
@@ -82,21 +84,20 @@ class BaseRunner(metaclass=ABCMeta):
                 if not isinstance(optim, Optimizer):
                     raise TypeError(
                         f'optimizer must be a dict of torch.optim.Optimizers, '
-                        f'but optimizer["{name}"] is a {type(optim)}')
+                        f'but optimizer["{name}"] is a {type(optim)}'
+                    )
         elif not isinstance(optimizer, Optimizer) and optimizer is not None:
             raise TypeError(
-                f'optimizer must be a torch.optim.Optimizer object '
-                f'or dict or None, but got {type(optimizer)}')
+                f'optimizer must be a torch.optim.Optimizer object ' f'or dict or None, but got {type(optimizer)}'
+            )
 
         # check the type of `logger`
         if not isinstance(logger, logging.Logger):
-            raise TypeError(f'logger must be a logging.Logger object, '
-                            f'but got {type(logger)}')
+            raise TypeError(f'logger must be a logging.Logger object, ' f'but got {type(logger)}')
 
         # check the type of `meta`
         if meta is not None and not isinstance(meta, dict):
-            raise TypeError(
-                f'meta must be a dict or None, but got {type(meta)}')
+            raise TypeError(f'meta must be a dict or None, but got {type(meta)}')
 
         self.model = model
         self.batch_processor = batch_processor
@@ -127,8 +128,7 @@ class BaseRunner(metaclass=ABCMeta):
         self._inner_iter = 0
 
         if max_epochs is not None and max_iters is not None:
-            raise ValueError(
-                'Only one of `max_epochs` or `max_iters` can be set.')
+            raise ValueError('Only one of `max_epochs` or `max_iters` can be set.')
 
         self._max_epochs = max_epochs
         self._max_iters = max_iters
@@ -194,12 +194,7 @@ class BaseRunner(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def save_checkpoint(self,
-                        out_dir,
-                        filename_tmpl,
-                        save_optimizer=True,
-                        meta=None,
-                        create_symlink=True):
+    def save_checkpoint(self, out_dir, filename_tmpl, save_optimizer=True, meta=None, create_symlink=True):
         pass
 
     def current_lr(self):
@@ -217,8 +212,7 @@ class BaseRunner(metaclass=ABCMeta):
             for name, optim in self.optimizer.items():
                 lr[name] = [group['lr'] for group in optim.param_groups]
         else:
-            raise RuntimeError(
-                'lr is not applicable because optimizer does not exist.')
+            raise RuntimeError('lr is not applicable because optimizer does not exist.')
         return lr
 
     def current_momentum(self):
@@ -242,8 +236,7 @@ class BaseRunner(metaclass=ABCMeta):
             return momentums
 
         if self.optimizer is None:
-            raise RuntimeError(
-                'momentum is not applicable because optimizer does not exist.')
+            raise RuntimeError('momentum is not applicable because optimizer does not exist.')
         elif isinstance(self.optimizer, torch.optim.Optimizer):
             momentums = _get_momentum(self.optimizer)
         elif isinstance(self.optimizer, dict):
@@ -329,34 +322,20 @@ class BaseRunner(metaclass=ABCMeta):
                 stage_hook_infos.append(info)
         return '\n'.join(stage_hook_infos)
 
-    def load_checkpoint(self,
-                        filename,
-                        map_location='cpu',
-                        strict=False,
-                        revise_keys=[(r'^module.', '')]):
-        return load_checkpoint(
-            self.model,
-            filename,
-            map_location,
-            strict,
-            self.logger,
-            revise_keys=revise_keys)
+    def load_checkpoint(self, filename, map_location='cpu', strict=False, revise_keys=[(r'^module.', '')]):
+        return load_checkpoint(self.model, filename, map_location, strict, self.logger, revise_keys=revise_keys)
 
-    def resume(self,
-               checkpoint,
-               resume_optimizer=True,
-               map_location='default'):
+    def resume(self, checkpoint, resume_optimizer=True, map_location='default'):
         if map_location == 'default':
             if torch.cuda.is_available():
                 device_id = torch.cuda.current_device()
                 checkpoint = self.load_checkpoint(
-                    checkpoint,
-                    map_location=lambda storage, loc: storage.cuda(device_id))
+                    checkpoint, map_location=lambda storage, loc: storage.cuda(device_id)
+                )
             else:
                 checkpoint = self.load_checkpoint(checkpoint)
         else:
-            checkpoint = self.load_checkpoint(
-                checkpoint, map_location=map_location)
+            checkpoint = self.load_checkpoint(checkpoint, map_location=map_location)
 
         self._epoch = checkpoint['meta']['epoch']
         self._iter = checkpoint['meta']['iter']
@@ -369,15 +348,11 @@ class BaseRunner(metaclass=ABCMeta):
         # Re-calculate the number of iterations when resuming
         # models with different number of GPUs
         if 'config' in checkpoint['meta']:
-            config = mmcv.Config.fromstring(
-                checkpoint['meta']['config'], file_format='.py')
+            config = mmcv.Config.fromstring(checkpoint['meta']['config'], file_format='.py')
             previous_gpu_ids = config.get('gpu_ids', None)
-            if previous_gpu_ids and len(previous_gpu_ids) > 0 and len(
-                    previous_gpu_ids) != self.world_size:
-                self._iter = int(self._iter * len(previous_gpu_ids) /
-                                 self.world_size)
-                self.logger.info('the iteration number is changed due to '
-                                 'change of GPU number')
+            if previous_gpu_ids and len(previous_gpu_ids) > 0 and len(previous_gpu_ids) != self.world_size:
+                self._iter = int(self._iter * len(previous_gpu_ids) / self.world_size)
+                self.logger.info('the iteration number is changed due to ' 'change of GPU number')
 
         # resume meta information meta
         self.meta = checkpoint['meta']
@@ -387,12 +362,9 @@ class BaseRunner(metaclass=ABCMeta):
                 self.optimizer.load_state_dict(checkpoint['optimizer'])
             elif isinstance(self.optimizer, dict):
                 for k in self.optimizer.keys():
-                    self.optimizer[k].load_state_dict(
-                        checkpoint['optimizer'][k])
+                    self.optimizer[k].load_state_dict(checkpoint['optimizer'][k])
             else:
-                raise TypeError(
-                    'Optimizer should be dict or torch.optim.Optimizer '
-                    f'but got {type(self.optimizer)}')
+                raise TypeError('Optimizer should be dict or torch.optim.Optimizer ' f'but got {type(self.optimizer)}')
 
         self.logger.info('resumed epoch %d, iter %d', self.epoch, self.iter)
 
@@ -463,8 +435,7 @@ class BaseRunner(metaclass=ABCMeta):
             return
         log_interval = log_config['interval']
         for info in log_config['hooks']:
-            logger_hook = mmcv.build_from_cfg(
-                info, HOOKS, default_args=dict(interval=log_interval))
+            logger_hook = mmcv.build_from_cfg(info, HOOKS, default_args=dict(interval=log_interval))
             self.register_hook(logger_hook, priority='VERY_LOW')
 
     def register_timer_hook(self, timer_config):
@@ -500,14 +471,16 @@ class BaseRunner(metaclass=ABCMeta):
             hook = profiler_config
         self.register_hook(hook)
 
-    def register_training_hooks(self,
-                                lr_config,
-                                optimizer_config=None,
-                                checkpoint_config=None,
-                                log_config=None,
-                                momentum_config=None,
-                                timer_config=dict(type='IterTimerHook'),
-                                custom_hooks_config=None):
+    def register_training_hooks(
+        self,
+        lr_config,
+        optimizer_config=None,
+        checkpoint_config=None,
+        log_config=None,
+        momentum_config=None,
+        timer_config=dict(type='IterTimerHook'),
+        custom_hooks_config=None,
+    ):
         """Register default and custom hooks for training.
 
         Default and custom hooks include:

@@ -111,16 +111,12 @@ def collect_results_cpu(result_part, size, tmpdir=None):
     if tmpdir is None:
         MAX_LEN = 512
         # 32 is whitespace
-        dir_tensor = torch.full((MAX_LEN, ),
-                                32,
-                                dtype=torch.uint8,
-                                device='cuda')
+        dir_tensor = torch.full((MAX_LEN,), 32, dtype=torch.uint8, device='cuda')
         if rank == 0:
             mmcv.mkdir_or_exist('.dist_test')
             tmpdir = tempfile.mkdtemp(dir='.dist_test')
-            tmpdir = torch.tensor(
-                bytearray(tmpdir.encode()), dtype=torch.uint8, device='cuda')
-            dir_tensor[:len(tmpdir)] = tmpdir
+            tmpdir = torch.tensor(bytearray(tmpdir.encode()), dtype=torch.uint8, device='cuda')
+            dir_tensor[: len(tmpdir)] = tmpdir
         dist.broadcast(dir_tensor, 0)
         tmpdir = dir_tensor.cpu().numpy().tobytes().decode().rstrip()
     else:
@@ -169,8 +165,7 @@ def collect_results_gpu(result_part, size):
     """
     rank, world_size = get_dist_info()
     # dump result part to tensor with pickle
-    part_tensor = torch.tensor(
-        bytearray(pickle.dumps(result_part)), dtype=torch.uint8, device='cuda')
+    part_tensor = torch.tensor(bytearray(pickle.dumps(result_part)), dtype=torch.uint8, device='cuda')
     # gather all result part tensor shape
     shape_tensor = torch.tensor(part_tensor.shape, device='cuda')
     shape_list = [shape_tensor.clone() for _ in range(world_size)]
@@ -178,17 +173,15 @@ def collect_results_gpu(result_part, size):
     # padding result part tensor to max length
     shape_max = torch.tensor(shape_list).max()
     part_send = torch.zeros(shape_max, dtype=torch.uint8, device='cuda')
-    part_send[:shape_tensor[0]] = part_tensor
-    part_recv_list = [
-        part_tensor.new_zeros(shape_max) for _ in range(world_size)
-    ]
+    part_send[: shape_tensor[0]] = part_tensor
+    part_recv_list = [part_tensor.new_zeros(shape_max) for _ in range(world_size)]
     # gather all result part
     dist.all_gather(part_recv_list, part_send)
 
     if rank == 0:
         part_list = []
         for recv, shape in zip(part_recv_list, shape_list):
-            part_result = pickle.loads(recv[:shape[0]].cpu().numpy().tobytes())
+            part_result = pickle.loads(recv[: shape[0]].cpu().numpy().tobytes())
             # When data is severely insufficient, an empty part_result
             # on a certain gpu could makes the overall outputs empty.
             if part_result:

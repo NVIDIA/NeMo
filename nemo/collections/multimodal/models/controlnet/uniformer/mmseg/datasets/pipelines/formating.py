@@ -1,8 +1,9 @@
 from collections.abc import Sequence
 
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import numpy as np
 import torch
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.parallel import DataContainer as DC
 
 from ..builder import PIPELINES
@@ -131,8 +132,7 @@ class Transpose(object):
         return results
 
     def __repr__(self):
-        return self.__class__.__name__ + \
-               f'(keys={self.keys}, order={self.order})'
+        return self.__class__.__name__ + f'(keys={self.keys}, order={self.order})'
 
 
 @PIPELINES.register_module()
@@ -147,9 +147,7 @@ class ToDataContainer(object):
             dict(key='gt_semantic_seg'))``.
     """
 
-    def __init__(self,
-                 fields=(dict(key='img',
-                              stack=True), dict(key='gt_semantic_seg'))):
+    def __init__(self, fields=(dict(key='img', stack=True), dict(key='gt_semantic_seg'))):
         self.fields = fields
 
     def __call__(self, results):
@@ -206,9 +204,8 @@ class DefaultFormatBundle(object):
         if 'gt_semantic_seg' in results:
             # convert to long
             results['gt_semantic_seg'] = DC(
-                to_tensor(results['gt_semantic_seg'][None,
-                                                     ...].astype(np.int64)),
-                stack=True)
+                to_tensor(results['gt_semantic_seg'][None, ...].astype(np.int64)), stack=True
+            )
         return results
 
     def __repr__(self):
@@ -253,11 +250,21 @@ class Collect(object):
             'img_norm_cfg')``
     """
 
-    def __init__(self,
-                 keys,
-                 meta_keys=('filename', 'ori_filename', 'ori_shape',
-                            'img_shape', 'pad_shape', 'scale_factor', 'flip',
-                            'flip_direction', 'img_norm_cfg')):
+    def __init__(
+        self,
+        keys,
+        meta_keys=(
+            'filename',
+            'ori_filename',
+            'ori_shape',
+            'img_shape',
+            'pad_shape',
+            'scale_factor',
+            'flip',
+            'flip_direction',
+            'img_norm_cfg',
+        ),
+    ):
         self.keys = keys
         self.meta_keys = meta_keys
 
@@ -284,5 +291,4 @@ class Collect(object):
         return data
 
     def __repr__(self):
-        return self.__class__.__name__ + \
-               f'(keys={self.keys}, meta_keys={self.meta_keys})'
+        return self.__class__.__name__ + f'(keys={self.keys}, meta_keys={self.meta_keys})'

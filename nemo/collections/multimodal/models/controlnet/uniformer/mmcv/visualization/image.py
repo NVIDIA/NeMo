@@ -27,15 +27,9 @@ def imshow(img, win_name='', wait_time=0):
         ret = cv2.waitKey(wait_time)
 
 
-def imshow_bboxes(img,
-                  bboxes,
-                  colors='green',
-                  top_k=-1,
-                  thickness=1,
-                  show=True,
-                  win_name='',
-                  wait_time=0,
-                  out_file=None):
+def imshow_bboxes(
+    img, bboxes, colors='green', top_k=-1, thickness=1, show=True, win_name='', wait_time=0, out_file=None
+):
     """Draw bboxes on an image.
 
     Args:
@@ -71,8 +65,7 @@ def imshow_bboxes(img,
         for j in range(_top_k):
             left_top = (_bboxes[j, 0], _bboxes[j, 1])
             right_bottom = (_bboxes[j, 2], _bboxes[j, 3])
-            cv2.rectangle(
-                img, left_top, right_bottom, colors[i], thickness=thickness)
+            cv2.rectangle(img, left_top, right_bottom, colors[i], thickness=thickness)
 
     if show:
         imshow(img, win_name, wait_time)
@@ -81,19 +74,21 @@ def imshow_bboxes(img,
     return img
 
 
-def imshow_det_bboxes(img,
-                      bboxes,
-                      labels,
-                      class_names=None,
-                      score_thr=0,
-                      bbox_color='green',
-                      text_color='green',
-                      thickness=1,
-                      font_scale=0.5,
-                      show=True,
-                      win_name='',
-                      wait_time=0,
-                      out_file=None):
+def imshow_det_bboxes(
+    img,
+    bboxes,
+    labels,
+    class_names=None,
+    score_thr=0,
+    bbox_color='green',
+    text_color='green',
+    thickness=1,
+    font_scale=0.5,
+    show=True,
+    win_name='',
+    wait_time=0,
+    out_file=None,
+):
     """Draw bboxes and class labels (with scores) on an image.
 
     Args:
@@ -136,14 +131,11 @@ def imshow_det_bboxes(img,
         bbox_int = bbox.astype(np.int32)
         left_top = (bbox_int[0], bbox_int[1])
         right_bottom = (bbox_int[2], bbox_int[3])
-        cv2.rectangle(
-            img, left_top, right_bottom, bbox_color, thickness=thickness)
-        label_text = class_names[
-            label] if class_names is not None else f'cls {label}'
+        cv2.rectangle(img, left_top, right_bottom, bbox_color, thickness=thickness)
+        label_text = class_names[label] if class_names is not None else f'cls {label}'
         if len(bbox) > 4:
             label_text += f'|{bbox[-1]:.02f}'
-        cv2.putText(img, label_text, (bbox_int[0], bbox_int[1] - 2),
-                    cv2.FONT_HERSHEY_COMPLEX, font_scale, text_color)
+        cv2.putText(img, label_text, (bbox_int[0], bbox_int[1] - 2), cv2.FONT_HERSHEY_COMPLEX, font_scale, text_color)
 
     if show:
         imshow(img, win_name, wait_time)

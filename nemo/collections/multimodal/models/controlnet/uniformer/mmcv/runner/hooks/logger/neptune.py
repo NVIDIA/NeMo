@@ -35,16 +35,11 @@ class NeptuneLoggerHook(LoggerHook):
         https://docs.neptune.ai/you-should-know/logging-metadata
     """
 
-    def __init__(self,
-                 init_kwargs=None,
-                 interval=10,
-                 ignore_last=True,
-                 reset_flag=True,
-                 with_step=True,
-                 by_epoch=True):
+    def __init__(
+        self, init_kwargs=None, interval=10, ignore_last=True, reset_flag=True, with_step=True, by_epoch=True
+    ):
 
-        super(NeptuneLoggerHook, self).__init__(interval, ignore_last,
-                                                reset_flag, by_epoch)
+        super(NeptuneLoggerHook, self).__init__(interval, ignore_last, reset_flag, by_epoch)
         self.import_neptune()
         self.init_kwargs = init_kwargs
         self.with_step = with_step
@@ -53,8 +48,7 @@ class NeptuneLoggerHook(LoggerHook):
         try:
             import neptune.new as neptune
         except ImportError:
-            raise ImportError(
-                'Please run "pip install neptune-client" to install neptune')
+            raise ImportError('Please run "pip install neptune-client" to install neptune')
         self.neptune = neptune
         self.run = None
 
@@ -71,8 +65,7 @@ class NeptuneLoggerHook(LoggerHook):
         if tags:
             for tag_name, tag_value in tags.items():
                 if self.with_step:
-                    self.run[tag_name].log(
-                        tag_value, step=self.get_iter(runner))
+                    self.run[tag_name].log(tag_value, step=self.get_iter(runner))
                 else:
                     tags['global_step'] = self.get_iter(runner)
                     self.run[tag_name].log(tags)

@@ -31,7 +31,6 @@ RESERVED_KEYS = ['filename', 'text', 'pretty_text']
 
 
 class ConfigDict(Dict):
-
     def __missing__(self, name):
         raise KeyError(name)
 
@@ -39,8 +38,7 @@ class ConfigDict(Dict):
         try:
             value = super(ConfigDict, self).__getattr__(name)
         except KeyError:
-            ex = AttributeError(f"'{self.__class__.__name__}' object has no "
-                                f"attribute '{name}'")
+            ex = AttributeError(f"'{self.__class__.__name__}' object has no " f"attribute '{name}'")
         except Exception as e:
             ex = e
         else:
@@ -100,8 +98,7 @@ class Config:
         try:
             ast.parse(content)
         except SyntaxError as e:
-            raise SyntaxError('There are syntax errors in config '
-                              f'file {filename}: {e}')
+            raise SyntaxError('There are syntax errors in config ' f'file {filename}: {e}')
 
     @staticmethod
     def _substitute_predefined_vars(filename, temp_config_name):
@@ -113,7 +110,8 @@ class Config:
             fileDirname=file_dirname,
             fileBasename=file_basename,
             fileBasenameNoExtension=file_basename_no_extension,
-            fileExtname=file_extname)
+            fileExtname=file_extname,
+        )
         with open(filename, 'r', encoding='utf-8') as f:
             # Setting encoding explicitly to resolve coding issue on windows
             config_file = f.read()
@@ -156,17 +154,11 @@ class Config:
                         new_v = new_v[new_k]
                     cfg[k] = new_v
                 elif isinstance(v, (list, tuple, dict)):
-                    cfg[k] = Config._substitute_base_vars(
-                        v, base_var_dict, base_cfg)
+                    cfg[k] = Config._substitute_base_vars(v, base_var_dict, base_cfg)
         elif isinstance(cfg, tuple):
-            cfg = tuple(
-                Config._substitute_base_vars(c, base_var_dict, base_cfg)
-                for c in cfg)
+            cfg = tuple(Config._substitute_base_vars(c, base_var_dict, base_cfg) for c in cfg)
         elif isinstance(cfg, list):
-            cfg = [
-                Config._substitute_base_vars(c, base_var_dict, base_cfg)
-                for c in cfg
-            ]
+            cfg = [Config._substitute_base_vars(c, base_var_dict, base_cfg) for c in cfg]
         elif isinstance(cfg, str) and cfg in base_var_dict:
             new_v = base_cfg
             for new_k in base_var_dict[cfg].split('.'):
@@ -184,20 +176,17 @@ class Config:
             raise IOError('Only py/yml/yaml/json type are supported now!')
 
         with tempfile.TemporaryDirectory() as temp_config_dir:
-            temp_config_file = tempfile.NamedTemporaryFile(
-                dir=temp_config_dir, suffix=fileExtname)
+            temp_config_file = tempfile.NamedTemporaryFile(dir=temp_config_dir, suffix=fileExtname)
             if platform.system() == 'Windows':
                 temp_config_file.close()
             temp_config_name = osp.basename(temp_config_file.name)
             # Substitute predefined variables
             if use_predefined_variables:
-                Config._substitute_predefined_vars(filename,
-                                                   temp_config_file.name)
+                Config._substitute_predefined_vars(filename, temp_config_file.name)
             else:
                 shutil.copyfile(filename, temp_config_file.name)
             # Substitute base variables from placeholders to strings
-            base_var_dict = Config._pre_substitute_base_vars(
-                temp_config_file.name, temp_config_file.name)
+            base_var_dict = Config._pre_substitute_base_vars(temp_config_file.name, temp_config_file.name)
 
             if filename.endswith('.py'):
                 temp_module_name = osp.splitext(temp_config_name)[0]
@@ -205,15 +194,12 @@ class Config:
                 Config._validate_py_syntax(filename)
                 mod = import_module(temp_module_name)
                 sys.path.pop(0)
-                cfg_dict = {
-                    name: value
-                    for name, value in mod.__dict__.items()
-                    if not name.startswith('__')
-                }
+                cfg_dict = {name: value for name, value in mod.__dict__.items() if not name.startswith('__')}
                 # delete imported module
                 del sys.modules[temp_module_name]
             elif filename.endswith(('.yml', '.yaml', '.json')):
                 import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
+
                 cfg_dict = mmcv.load(temp_config_file.name)
             # close temp file
             temp_config_file.close()
@@ -221,14 +207,11 @@ class Config:
         # check deprecation information
         if DEPRECATION_KEY in cfg_dict:
             deprecation_info = cfg_dict.pop(DEPRECATION_KEY)
-            warning_msg = f'The config file {filename} will be deprecated ' \
-                'in the future.'
+            warning_msg = f'The config file {filename} will be deprecated ' 'in the future.'
             if 'expected' in deprecation_info:
-                warning_msg += f' Please use {deprecation_info["expected"]} ' \
-                    'instead.'
+                warning_msg += f' Please use {deprecation_info["expected"]} ' 'instead.'
             if 'reference' in deprecation_info:
-                warning_msg += ' More information can be found at ' \
-                    f'{deprecation_info["reference"]}'
+                warning_msg += ' More information can be found at ' f'{deprecation_info["reference"]}'
             warnings.warn(warning_msg)
 
         cfg_text = filename + '\n'
@@ -239,8 +222,7 @@ class Config:
         if BASE_KEY in cfg_dict:
             cfg_dir = osp.dirname(filename)
             base_filename = cfg_dict.pop(BASE_KEY)
-            base_filename = base_filename if isinstance(
-                base_filename, list) else [base_filename]
+            base_filename = base_filename if isinstance(base_filename, list) else [base_filename]
 
             cfg_dict_list = list()
             cfg_text_list = list()
@@ -253,13 +235,11 @@ class Config:
             for c in cfg_dict_list:
                 duplicate_keys = base_cfg_dict.keys() & c.keys()
                 if len(duplicate_keys) > 0:
-                    raise KeyError('Duplicate key is not allowed among bases. '
-                                   f'Duplicate keys: {duplicate_keys}')
+                    raise KeyError('Duplicate key is not allowed among bases. ' f'Duplicate keys: {duplicate_keys}')
                 base_cfg_dict.update(c)
 
             # Substitute base variables from strings to their actual values
-            cfg_dict = Config._substitute_base_vars(cfg_dict, base_var_dict,
-                                                    base_cfg_dict)
+            cfg_dict = Config._substitute_base_vars(cfg_dict, base_var_dict, base_cfg_dict)
 
             base_cfg_dict = Config._merge_a_into_b(cfg_dict, base_cfg_dict)
             cfg_dict = base_cfg_dict
@@ -310,26 +290,23 @@ class Config:
                 if len(b) <= k:
                     raise KeyError(f'Index {k} exceeds the length of list {b}')
                 b[k] = Config._merge_a_into_b(v, b[k], allow_list_keys)
-            elif isinstance(v,
-                            dict) and k in b and not v.pop(DELETE_KEY, False):
+            elif isinstance(v, dict) and k in b and not v.pop(DELETE_KEY, False):
                 allowed_types = (dict, list) if allow_list_keys else dict
                 if not isinstance(b[k], allowed_types):
                     raise TypeError(
                         f'{k}={v} in child config cannot inherit from base '
                         f'because {k} is a dict in the child config but is of '
                         f'type {type(b[k])} in base config. You may set '
-                        f'`{DELETE_KEY}=True` to ignore the base config')
+                        f'`{DELETE_KEY}=True` to ignore the base config'
+                    )
                 b[k] = Config._merge_a_into_b(v, b[k], allow_list_keys)
             else:
                 b[k] = v
         return b
 
     @staticmethod
-    def fromfile(filename,
-                 use_predefined_variables=True,
-                 import_custom_modules=True):
-        cfg_dict, cfg_text = Config._file2dict(filename,
-                                               use_predefined_variables)
+    def fromfile(filename, use_predefined_variables=True, import_custom_modules=True):
+        cfg_dict, cfg_text = Config._file2dict(filename, use_predefined_variables)
         if import_custom_modules and cfg_dict.get('custom_imports', None):
             import_modules_from_strings(**cfg_dict['custom_imports'])
         return Config(cfg_dict, cfg_text=cfg_text, filename=filename)
@@ -350,11 +327,8 @@ class Config:
             raise IOError('Only py/yml/yaml/json type are supported now!')
         if file_format != '.py' and 'dict(' in cfg_str:
             # check if users specify a wrong suffix for python
-            warnings.warn(
-                'Please check "file_format", the file format may be .py')
-        with tempfile.NamedTemporaryFile(
-                'w', encoding='utf-8', suffix=file_format,
-                delete=False) as temp_file:
+            warnings.warn('Please check "file_format", the file format may be .py')
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', suffix=file_format, delete=False) as temp_file:
             temp_file.write(cfg_str)
             # on windows, previous implementation cause error
             # see PR 1077 for details
@@ -378,8 +352,7 @@ class Config:
         if cfg_dict is None:
             cfg_dict = dict()
         elif not isinstance(cfg_dict, dict):
-            raise TypeError('cfg_dict must be a dict, but '
-                            f'got {type(cfg_dict)}')
+            raise TypeError('cfg_dict must be a dict, but ' f'got {type(cfg_dict)}')
         for key in cfg_dict:
             if key in RESERVED_KEYS:
                 raise KeyError(f'{key} is reserved for config file')
@@ -437,9 +410,7 @@ class Config:
             # check if all items in the list are dict
             if all(isinstance(_, dict) for _ in v):
                 v_str = '[\n'
-                v_str += '\n'.join(
-                    f'dict({_indent(_format_dict(v_), indent)}),'
-                    for v_ in v).rstrip(',')
+                v_str += '\n'.join(f'dict({_indent(_format_dict(v_), indent)}),' for v_ in v).rstrip(',')
                 if use_mapping:
                     k_str = f"'{k}'" if isinstance(k, str) else str(k)
                     attr_str = f'{k_str}: {v_str}'
@@ -453,8 +424,7 @@ class Config:
         def _contain_invalid_identifier(dict_str):
             contain_invalid_identifier = False
             for key_name in dict_str:
-                contain_invalid_identifier |= \
-                    (not str(key_name).isidentifier())
+                contain_invalid_identifier |= not str(key_name).isidentifier()
             return contain_invalid_identifier
 
         def _format_dict(input_dict, outest_level=False):
@@ -492,7 +462,8 @@ class Config:
         yapf_style = dict(
             based_on_style='pep8',
             blank_line_before_nested_class_or_def=True,
-            split_before_expression_after_opening_paren=True)
+            split_before_expression_after_opening_paren=True,
+        )
         text, _ = FormatCode(text, style_config=yapf_style, verify=True)
 
         return text
@@ -541,6 +512,7 @@ class Config:
                     f.write(self.pretty_text)
         else:
             import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
+
             if file is None:
                 file_format = self.filename.split('.')[-1]
                 return mmcv.dump(cfg_dict, file_format=file_format)
@@ -589,9 +561,8 @@ class Config:
 
         cfg_dict = super(Config, self).__getattribute__('_cfg_dict')
         super(Config, self).__setattr__(
-            '_cfg_dict',
-            Config._merge_a_into_b(
-                option_cfg_dict, cfg_dict, allow_list_keys=allow_list_keys))
+            '_cfg_dict', Config._merge_a_into_b(option_cfg_dict, cfg_dict, allow_list_keys=allow_list_keys)
+        )
 
 
 class DictAction(Action):
@@ -646,14 +617,13 @@ class DictAction(Action):
             inside these brackets are ignored.
             """
             assert (string.count('(') == string.count(')')) and (
-                    string.count('[') == string.count(']')), \
-                f'Imbalanced brackets exist in {string}'
+                string.count('[') == string.count(']')
+            ), f'Imbalanced brackets exist in {string}'
             end = len(string)
             for idx, char in enumerate(string):
                 pre = string[:idx]
                 # The string before this ',' is balanced
-                if ((char == ',') and (pre.count('(') == pre.count(')'))
-                        and (pre.count('[') == pre.count(']'))):
+                if (char == ',') and (pre.count('(') == pre.count(')')) and (pre.count('[') == pre.count(']')):
                     end = idx
                     break
             return end
@@ -675,7 +645,7 @@ class DictAction(Action):
             comma_idx = find_next_comma(val)
             element = DictAction._parse_iterable(val[:comma_idx])
             values.append(element)
-            val = val[comma_idx + 1:]
+            val = val[comma_idx + 1 :]
         if is_tuple:
             values = tuple(values)
         return values

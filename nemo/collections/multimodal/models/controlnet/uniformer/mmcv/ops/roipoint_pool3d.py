@@ -34,12 +34,10 @@ class RoIPointPool3d(nn.Module):
                 shape is (B, M, 512, 3 + C).
             pooled_empty_flag (torch.Tensor): Empty flag whose shape is (B, M).
         """
-        return RoIPointPool3dFunction.apply(points, point_features, boxes3d,
-                                            self.num_sampled_points)
+        return RoIPointPool3dFunction.apply(points, point_features, boxes3d, self.num_sampled_points)
 
 
 class RoIPointPool3dFunction(Function):
-
     @staticmethod
     def forward(ctx, points, point_features, boxes3d, num_sampled_points=512):
         """
@@ -57,18 +55,18 @@ class RoIPointPool3dFunction(Function):
             pooled_empty_flag (torch.Tensor): Empty flag whose shape is (B, M).
         """
         assert len(points.shape) == 3 and points.shape[2] == 3
-        batch_size, boxes_num, feature_len = points.shape[0], boxes3d.shape[
-            1], point_features.shape[2]
+        batch_size, boxes_num, feature_len = points.shape[0], boxes3d.shape[1], point_features.shape[2]
         pooled_boxes3d = boxes3d.view(batch_size, -1, 7)
-        pooled_features = point_features.new_zeros(
-            (batch_size, boxes_num, num_sampled_points, 3 + feature_len))
-        pooled_empty_flag = point_features.new_zeros(
-            (batch_size, boxes_num)).int()
+        pooled_features = point_features.new_zeros((batch_size, boxes_num, num_sampled_points, 3 + feature_len))
+        pooled_empty_flag = point_features.new_zeros((batch_size, boxes_num)).int()
 
-        ext_module.roipoint_pool3d_forward(points.contiguous(),
-                                           pooled_boxes3d.contiguous(),
-                                           point_features.contiguous(),
-                                           pooled_features, pooled_empty_flag)
+        ext_module.roipoint_pool3d_forward(
+            points.contiguous(),
+            pooled_boxes3d.contiguous(),
+            point_features.contiguous(),
+            pooled_features,
+            pooled_empty_flag,
+        )
 
         return pooled_features, pooled_empty_flag
 

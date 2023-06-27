@@ -23,7 +23,6 @@ def set_default(obj):
 
 
 class JsonHandler(BaseFileHandler):
-
     def load_from_fileobj(self, file):
         return json.load(file)
 

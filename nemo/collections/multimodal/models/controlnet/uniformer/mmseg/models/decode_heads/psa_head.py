@@ -32,14 +32,16 @@ class PSAHead(BaseDecodeHead):
         psa_softmax (bool): Whether use softmax for attention.
     """
 
-    def __init__(self,
-                 mask_size,
-                 psa_type='bi-direction',
-                 compact=False,
-                 shrink_factor=2,
-                 normalization_factor=1.0,
-                 psa_softmax=True,
-                 **kwargs):
+    def __init__(
+        self,
+        mask_size,
+        psa_type='bi-direction',
+        compact=False,
+        shrink_factor=2,
+        normalization_factor=1.0,
+        psa_softmax=True,
+        **kwargs
+    ):
         if PSAMask is None:
             raise RuntimeError('Please install mmcv-full for PSAMask ops')
         super(PSAHead, self).__init__(**kwargs)
@@ -60,7 +62,8 @@ class PSAHead(BaseDecodeHead):
             kernel_size=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         self.attention = nn.Sequential(
             ConvModule(
                 self.channels,
@@ -68,9 +71,10 @@ class PSAHead(BaseDecodeHead):
                 kernel_size=1,
                 conv_cfg=self.conv_cfg,
                 norm_cfg=self.norm_cfg,
-                act_cfg=self.act_cfg),
-            nn.Conv2d(
-                self.channels, mask_h * mask_w, kernel_size=1, bias=False))
+                act_cfg=self.act_cfg,
+            ),
+            nn.Conv2d(self.channels, mask_h * mask_w, kernel_size=1, bias=False),
+        )
         if psa_type == 'bi-direction':
             self.reduce_p = ConvModule(
                 self.in_channels,
@@ -78,7 +82,8 @@ class PSAHead(BaseDecodeHead):
                 kernel_size=1,
                 conv_cfg=self.conv_cfg,
                 norm_cfg=self.norm_cfg,
-                act_cfg=self.act_cfg)
+                act_cfg=self.act_cfg,
+            )
             self.attention_p = nn.Sequential(
                 ConvModule(
                     self.channels,
@@ -86,9 +91,10 @@ class PSAHead(BaseDecodeHead):
                     kernel_size=1,
                     conv_cfg=self.conv_cfg,
                     norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg),
-                nn.Conv2d(
-                    self.channels, mask_h * mask_w, kernel_size=1, bias=False))
+                    act_cfg=self.act_cfg,
+                ),
+                nn.Conv2d(self.channels, mask_h * mask_w, kernel_size=1, bias=False),
+            )
             self.psamask_collect = PSAMask('collect', mask_size)
             self.psamask_distribute = PSAMask('distribute', mask_size)
         else:
@@ -100,7 +106,8 @@ class PSAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
         self.bottleneck = ConvModule(
             self.in_channels * 2,
             self.channels,
@@ -108,7 +115,8 @@ class PSAHead(BaseDecodeHead):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+        )
 
     def forward(self, inputs):
         """Forward function."""
@@ -127,23 +135,18 @@ class PSAHead(BaseDecodeHead):
                     h = h // self.shrink_factor
                     w = w // self.shrink_factor
                     align_corners = False
-                out = resize(
-                    out,
-                    size=(h, w),
-                    mode='bilinear',
-                    align_corners=align_corners)
+                out = resize(out, size=(h, w), mode='bilinear', align_corners=align_corners)
             y = self.attention(out)
             if self.compact:
                 if self.psa_type == 'collect':
-                    y = y.view(n, h * w,
-                               h * w).transpose(1, 2).view(n, h * w, h, w)
+                    y = y.view(n, h * w, h * w).transpose(1, 2).view(n, h * w, h, w)
             else:
                 y = self.psamask(y)
             if self.psa_softmax:
                 y = F.softmax(y, dim=1)
-            out = torch.bmm(
-                out.view(n, c, h * w), y.view(n, h * w, h * w)).view(
-                    n, c, h, w) * (1.0 / self.normalization_factor)
+            out = torch.bmm(out.view(n, c, h * w), y.view(n, h * w, h * w)).view(n, c, h, w) * (
+                1.0 / self.normalization_factor
+            )
         else:
             x_col = self.reduce(x)
             x_dis = self.reduce_p(x)
@@ -157,40 +160,27 @@ class PSAHead(BaseDecodeHead):
                     h = h // self.shrink_factor
                     w = w // self.shrink_factor
                     align_corners = False
-                x_col = resize(
-                    x_col,
-                    size=(h, w),
-                    mode='bilinear',
-                    align_corners=align_corners)
-                x_dis = resize(
-                    x_dis,
-                    size=(h, w),
-                    mode='bilinear',
-                    align_corners=align_corners)
+                x_col = resize(x_col, size=(h, w), mode='bilinear', align_corners=align_corners)
+                x_dis = resize(x_dis, size=(h, w), mode='bilinear', align_corners=align_corners)
             y_col = self.attention(x_col)
             y_dis = self.attention_p(x_dis)
             if self.compact:
-                y_dis = y_dis.view(n, h * w,
-                                   h * w).transpose(1, 2).view(n, h * w, h, w)
+                y_dis = y_dis.view(n, h * w, h * w).transpose(1, 2).view(n, h * w, h, w)
             else:
                 y_col = self.psamask_collect(y_col)
                 y_dis = self.psamask_distribute(y_dis)
             if self.psa_softmax:
                 y_col = F.softmax(y_col, dim=1)
                 y_dis = F.softmax(y_dis, dim=1)
-            x_col = torch.bmm(
-                x_col.view(n, c, h * w), y_col.view(n, h * w, h * w)).view(
-                    n, c, h, w) * (1.0 / self.normalization_factor)
-            x_dis = torch.bmm(
-                x_dis.view(n, c, h * w), y_dis.view(n, h * w, h * w)).view(
-                    n, c, h, w) * (1.0 / self.normalization_factor)
+            x_col = torch.bmm(x_col.view(n, c, h * w), y_col.view(n, h * w, h * w)).view(n, c, h, w) * (
+                1.0 / self.normalization_factor
+            )
+            x_dis = torch.bmm(x_dis.view(n, c, h * w), y_dis.view(n, h * w, h * w)).view(n, c, h, w) * (
+                1.0 / self.normalization_factor
+            )
             out = torch.cat([x_col, x_dis], 1)
         out = self.proj(out)
-        out = resize(
-            out,
-            size=identity.shape[2:],
-            mode='bilinear',
-            align_corners=align_corners)
+        out = resize(out, size=identity.shape[2:], mode='bilinear', align_corners=align_corners)
         out = self.bottleneck(torch.cat((identity, out), dim=1))
         out = self.cls_seg(out)
         return out

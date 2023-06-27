@@ -11,6 +11,7 @@ class Color(Enum):
 
     Contains red, green, blue, cyan, yellow, magenta, white and black.
     """
+
     red = (0, 0, 255)
     green = (0, 255, 0)
     blue = (255, 0, 0)

@@ -6,8 +6,7 @@ from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.utils import d
 
 
 def is_jit_tracing() -> bool:
-    if (torch.__version__ != 'parrots'
-            and digit_version(torch.__version__) >= digit_version('1.6.0')):
+    if torch.__version__ != 'parrots' and digit_version(torch.__version__) >= digit_version('1.6.0'):
         on_trace = torch.jit.is_tracing()
         # In PyTorch 1.6, torch.jit.is_tracing has a bug.
         # Refers to https://github.com/pytorch/pytorch/issues/42448
@@ -19,5 +18,7 @@ def is_jit_tracing() -> bool:
         warnings.warn(
             'torch.jit.is_tracing is only supported after v1.6.0. '
             'Therefore is_tracing returns False automatically. Please '
-            'set on_trace manually if you are using trace.', UserWarning)
+            'set on_trace manually if you are using trace.',
+            UserWarning,
+        )
         return False

@@ -12,7 +12,6 @@ from itertools import repeat
 
 # From PyTorch internals
 def _ntuple(n):
-
     def parse(x):
         if isinstance(x, collections.abc.Iterable):
             return x
@@ -62,19 +61,16 @@ def import_modules_from_strings(imports, allow_failed_imports=False):
         single_import = True
         imports = [imports]
     if not isinstance(imports, list):
-        raise TypeError(
-            f'custom_imports must be a list but got type {type(imports)}')
+        raise TypeError(f'custom_imports must be a list but got type {type(imports)}')
     imported = []
     for imp in imports:
         if not isinstance(imp, str):
-            raise TypeError(
-                f'{imp} is of type {type(imp)} and cannot be imported.')
+            raise TypeError(f'{imp} is of type {type(imp)} and cannot be imported.')
         try:
             imported_tmp = import_module(imp)
         except ImportError:
             if allow_failed_imports:
-                warnings.warn(f'{imp} failed to import and is ignored.',
-                              UserWarning)
+                warnings.warn(f'{imp} failed to import and is ignored.', UserWarning)
                 imported_tmp = None
             else:
                 raise ImportError
@@ -181,12 +177,11 @@ def slice_list(in_list, lens):
     if not isinstance(lens, list):
         raise TypeError('"indices" must be an integer or a list of integers')
     elif sum(lens) != len(in_list):
-        raise ValueError('sum of lens and list length does not '
-                         f'match: {sum(lens)} != {len(in_list)}')
+        raise ValueError('sum of lens and list length does not ' f'match: {sum(lens)} != {len(in_list)}')
     out_list = []
     idx = 0
     for i in range(len(lens)):
-        out_list.append(in_list[idx:idx + lens[i]])
+        out_list.append(in_list[idx : idx + lens[i]])
         idx += lens[i]
     return out_list
 
@@ -204,10 +199,10 @@ def concat_list(in_list):
 
 
 def check_prerequisites(
-        prerequisites,
-        checker,
-        msg_tmpl='Prerequisites "{}" are required in method "{}" but not '
-        'found, please install them first.'):  # yapf: disable
+    prerequisites,
+    checker,
+    msg_tmpl='Prerequisites "{}" are required in method "{}" but not ' 'found, please install them first.',
+):  # yapf: disable
     """A decorator factory to check if prerequisites are satisfied.
 
     Args:
@@ -221,11 +216,9 @@ def check_prerequisites(
     """
 
     def wrap(func):
-
         @functools.wraps(func)
         def wrapped_func(*args, **kwargs):
-            requirements = [prerequisites] if isinstance(
-                prerequisites, str) else prerequisites
+            requirements = [prerequisites] if isinstance(prerequisites, str) else prerequisites
             missing = []
             for item in requirements:
                 if not checker(item):
@@ -299,7 +292,6 @@ def deprecated_api_warning(name_dict, cls_name=None):
     """
 
     def api_warning_wrapper(old_func):
-
         @functools.wraps(old_func)
         def new_func(*args, **kwargs):
             # get the arg spec of the decorated method
@@ -309,13 +301,14 @@ def deprecated_api_warning(name_dict, cls_name=None):
             if cls_name is not None:
                 func_name = f'{cls_name}.{func_name}'
             if args:
-                arg_names = args_info.args[:len(args)]
+                arg_names = args_info.args[: len(args)]
                 for src_arg_name, dst_arg_name in name_dict.items():
                     if src_arg_name in arg_names:
                         warnings.warn(
                             f'"{src_arg_name}" is deprecated in '
                             f'`{func_name}`, please use "{dst_arg_name}" '
-                            'instead')
+                            'instead'
+                        )
                         arg_names[arg_names.index(src_arg_name)] = dst_arg_name
             if kwargs:
                 for src_arg_name, dst_arg_name in name_dict.items():
@@ -328,12 +321,14 @@ def deprecated_api_warning(name_dict, cls_name=None):
                             f'in the arguments at the same time, which '
                             f'is confusing. `{src_arg_name} will be '
                             f'deprecated in the future, please '
-                            f'use `{dst_arg_name}` instead.')
+                            f'use `{dst_arg_name}` instead.'
+                        )
 
                         warnings.warn(
                             f'"{src_arg_name}" is deprecated in '
                             f'`{func_name}`, please use "{dst_arg_name}" '
-                            'instead')
+                            'instead'
+                        )
                         kwargs[dst_arg_name] = kwargs.pop(src_arg_name)
 
             # apply converted arguments to the decorated method
@@ -353,8 +348,7 @@ def is_method_overridden(method, base_class, derived_class):
         base_class (type): the class of the base class.
         derived_class (type | Any): the class or instance of the derived class.
     """
-    assert isinstance(base_class, type), \
-        "base_class doesn't accept instance, Please pass class instead."
+    assert isinstance(base_class, type), "base_class doesn't accept instance, Please pass class instead."
 
     if not isinstance(derived_class, type):
         derived_class = derived_class.__class__

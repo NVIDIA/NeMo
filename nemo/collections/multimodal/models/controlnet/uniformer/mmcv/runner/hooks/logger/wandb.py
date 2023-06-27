@@ -6,17 +6,17 @@ from .base import LoggerHook
 
 @HOOKS.register_module()
 class WandbLoggerHook(LoggerHook):
-
-    def __init__(self,
-                 init_kwargs=None,
-                 interval=10,
-                 ignore_last=True,
-                 reset_flag=False,
-                 commit=True,
-                 by_epoch=True,
-                 with_step=True):
-        super(WandbLoggerHook, self).__init__(interval, ignore_last,
-                                              reset_flag, by_epoch)
+    def __init__(
+        self,
+        init_kwargs=None,
+        interval=10,
+        ignore_last=True,
+        reset_flag=False,
+        commit=True,
+        by_epoch=True,
+        with_step=True,
+    ):
+        super(WandbLoggerHook, self).__init__(interval, ignore_last, reset_flag, by_epoch)
         self.import_wandb()
         self.init_kwargs = init_kwargs
         self.commit = commit
@@ -26,8 +26,7 @@ class WandbLoggerHook(LoggerHook):
         try:
             import wandb
         except ImportError:
-            raise ImportError(
-                'Please run "pip install wandb" to install wandb')
+            raise ImportError('Please run "pip install wandb" to install wandb')
         self.wandb = wandb
 
     @master_only
@@ -45,8 +44,7 @@ class WandbLoggerHook(LoggerHook):
         tags = self.get_loggable_tags(runner)
         if tags:
             if self.with_step:
-                self.wandb.log(
-                    tags, step=self.get_iter(runner), commit=self.commit)
+                self.wandb.log(tags, step=self.get_iter(runner), commit=self.commit)
             else:
                 tags['global_step'] = self.get_iter(runner)
                 self.wandb.log(tags, commit=self.commit)

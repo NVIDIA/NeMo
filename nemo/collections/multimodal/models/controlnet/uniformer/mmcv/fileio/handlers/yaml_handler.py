@@ -2,7 +2,8 @@
 import yaml
 
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
     from yaml import Loader, Dumper
 
@@ -10,7 +11,6 @@ from .base import BaseFileHandler  # isort:skip
 
 
 class YamlHandler(BaseFileHandler):
-
     def load_from_fileobj(self, file, **kwargs):
         kwargs.setdefault('Loader', Loader)
         return yaml.load(file, **kwargs)

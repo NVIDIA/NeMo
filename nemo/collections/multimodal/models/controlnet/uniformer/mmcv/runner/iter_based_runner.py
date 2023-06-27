@@ -17,7 +17,6 @@ from .utils import get_host_info
 
 
 class IterLoader:
-
     def __init__(self, dataloader):
         self._dataloader = dataloader
         self.iter_loader = iter(self._dataloader)
@@ -100,19 +99,15 @@ class IterBasedRunner(BaseRunner):
         assert len(data_loaders) == len(workflow)
         if max_iters is not None:
             warnings.warn(
-                'setting max_iters in run is deprecated, '
-                'please set max_iters in runner_config', DeprecationWarning)
+                'setting max_iters in run is deprecated, ' 'please set max_iters in runner_config', DeprecationWarning
+            )
             self._max_iters = max_iters
-        assert self._max_iters is not None, (
-            'max_iters must be specified during instantiation')
+        assert self._max_iters is not None, 'max_iters must be specified during instantiation'
 
         work_dir = self.work_dir if self.work_dir is not None else 'NONE'
-        self.logger.info('Start running, host: %s, work_dir: %s',
-                         get_host_info(), work_dir)
-        self.logger.info('Hooks will be executed in the following order:\n%s',
-                         self.get_hook_info())
-        self.logger.info('workflow: %s, max: %d iters', workflow,
-                         self._max_iters)
+        self.logger.info('Start running, host: %s, work_dir: %s', get_host_info(), work_dir)
+        self.logger.info('Hooks will be executed in the following order:\n%s', self.get_hook_info())
+        self.logger.info('workflow: %s, max: %d iters', workflow, self._max_iters)
         self.call_hook('before_run')
 
         iter_loaders = [IterLoader(x) for x in data_loaders]
@@ -124,9 +119,7 @@ class IterBasedRunner(BaseRunner):
                 self._inner_iter = 0
                 mode, iters = flow
                 if not isinstance(mode, str) or not hasattr(self, mode):
-                    raise ValueError(
-                        'runner has no method named "{}" to run a workflow'.
-                        format(mode))
+                    raise ValueError('runner has no method named "{}" to run a workflow'.format(mode))
                 iter_runner = getattr(self, mode)
                 for _ in range(iters):
                     if mode == 'train' and self.iter >= self._max_iters:
@@ -137,10 +130,7 @@ class IterBasedRunner(BaseRunner):
         self.call_hook('after_epoch')
         self.call_hook('after_run')
 
-    def resume(self,
-               checkpoint,
-               resume_optimizer=True,
-               map_location='default'):
+    def resume(self, checkpoint, resume_optimizer=True, map_location='default'):
         """Resume model from checkpoint.
 
         Args:
@@ -152,12 +142,9 @@ class IterBasedRunner(BaseRunner):
         """
         if map_location == 'default':
             device_id = torch.cuda.current_device()
-            checkpoint = self.load_checkpoint(
-                checkpoint,
-                map_location=lambda storage, loc: storage.cuda(device_id))
+            checkpoint = self.load_checkpoint(checkpoint, map_location=lambda storage, loc: storage.cuda(device_id))
         else:
-            checkpoint = self.load_checkpoint(
-                checkpoint, map_location=map_location)
+            checkpoint = self.load_checkpoint(checkpoint, map_location=map_location)
 
         self._epoch = checkpoint['meta']['epoch']
         self._iter = checkpoint['meta']['iter']
@@ -167,21 +154,15 @@ class IterBasedRunner(BaseRunner):
                 self.optimizer.load_state_dict(checkpoint['optimizer'])
             elif isinstance(self.optimizer, dict):
                 for k in self.optimizer.keys():
-                    self.optimizer[k].load_state_dict(
-                        checkpoint['optimizer'][k])
+                    self.optimizer[k].load_state_dict(checkpoint['optimizer'][k])
             else:
-                raise TypeError(
-                    'Optimizer should be dict or torch.optim.Optimizer '
-                    f'but got {type(self.optimizer)}')
+                raise TypeError('Optimizer should be dict or torch.optim.Optimizer ' f'but got {type(self.optimizer)}')
 
         self.logger.info(f'resumed from epoch: {self.epoch}, iter {self.iter}')
 
-    def save_checkpoint(self,
-                        out_dir,
-                        filename_tmpl='iter_{}.pth',
-                        meta=None,
-                        save_optimizer=True,
-                        create_symlink=True):
+    def save_checkpoint(
+        self, out_dir, filename_tmpl='iter_{}.pth', meta=None, save_optimizer=True, create_symlink=True
+    ):
         """Save checkpoint to file.
 
         Args:
@@ -198,8 +179,7 @@ class IterBasedRunner(BaseRunner):
         if meta is None:
             meta = {}
         elif not isinstance(meta, dict):
-            raise TypeError(
-                f'meta should be a dict or None, but got {type(meta)}')
+            raise TypeError(f'meta should be a dict or None, but got {type(meta)}')
         if self.meta is not None:
             meta.update(self.meta)
             # Note: meta.update(self.meta) should be done before
@@ -221,13 +201,15 @@ class IterBasedRunner(BaseRunner):
             else:
                 shutil.copy(filepath, dst_file)
 
-    def register_training_hooks(self,
-                                lr_config,
-                                optimizer_config=None,
-                                checkpoint_config=None,
-                                log_config=None,
-                                momentum_config=None,
-                                custom_hooks_config=None):
+    def register_training_hooks(
+        self,
+        lr_config,
+        optimizer_config=None,
+        checkpoint_config=None,
+        log_config=None,
+        momentum_config=None,
+        custom_hooks_config=None,
+    ):
         """Register default hooks for iter-based training.
 
         Checkpoint hook, optimizer stepper hook and logger hooks will be set to
@@ -270,4 +252,5 @@ class IterBasedRunner(BaseRunner):
             checkpoint_config=checkpoint_config,
             log_config=log_config,
             timer_config=IterTimerHook(),
-            custom_hooks_config=custom_hooks_config)
+            custom_hooks_config=custom_hooks_config,
+        )

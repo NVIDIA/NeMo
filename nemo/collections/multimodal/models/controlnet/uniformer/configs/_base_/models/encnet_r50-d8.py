@@ -13,7 +13,8 @@ model = dict(
         norm_cfg=norm_cfg,
         norm_eval=False,
         style='pytorch',
-        contract_dilation=True),
+        contract_dilation=True,
+    ),
     decode_head=dict(
         type='EncHead',
         in_channels=[512, 1024, 2048],
@@ -26,10 +27,9 @@ model = dict(
         num_classes=19,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-        loss_se_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.2)),
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+        loss_se_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.2),
+    ),
     auxiliary_head=dict(
         type='FCNHead',
         in_channels=1024,
@@ -41,8 +41,9 @@ model = dict(
         num_classes=19,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4),
+    ),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='whole'),
+)

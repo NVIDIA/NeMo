@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
-import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 import torch
+
+import nemo.collections.multimodal.models.controlnet.uniformer.mmcv as mmcv
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.parallel import collate, scatter
 from nemo.collections.multimodal.models.controlnet.uniformer.mmcv.runner import load_checkpoint
-
 from nemo.collections.multimodal.models.controlnet.uniformer.mmseg.datasets.pipelines import Compose
 from nemo.collections.multimodal.models.controlnet.uniformer.mmseg.models import build_segmentor
 
@@ -24,8 +24,7 @@ def init_segmentor(config, checkpoint=None, device='cuda:0'):
     if isinstance(config, str):
         config = mmcv.Config.fromfile(config)
     elif not isinstance(config, mmcv.Config):
-        raise TypeError('config must be a filename or Config object, '
-                        'but got {}'.format(type(config)))
+        raise TypeError('config must be a filename or Config object, ' 'but got {}'.format(type(config)))
     config.model.pretrained = None
     config.model.train_cfg = None
     model = build_segmentor(config.model, test_cfg=config.get('test_cfg'))
@@ -98,14 +97,7 @@ def inference_segmentor(model, img):
     return result
 
 
-def show_result_pyplot(model,
-                       img,
-                       result,
-                       palette=None,
-                       fig_size=(15, 10),
-                       opacity=0.5,
-                       title='',
-                       block=True):
+def show_result_pyplot(model, img, result, palette=None, fig_size=(15, 10), opacity=0.5, title='', block=True):
     """Visualize the segmentation results on the image.
 
     Args:
@@ -126,8 +118,7 @@ def show_result_pyplot(model,
     """
     if hasattr(model, 'module'):
         model = model.module
-    img = model.show_result(
-        img, result, palette=palette, show=False, opacity=opacity)
+    img = model.show_result(img, result, palette=palette, show=False, opacity=opacity)
     # plt.figure(figsize=fig_size)
     # plt.imshow(mmcv.bgr2rgb(img))
     # plt.title(title)

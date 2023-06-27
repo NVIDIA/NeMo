@@ -2,8 +2,7 @@ from torch.autograd import Function
 
 from ..utils import ext_loader
 
-ext_module = ext_loader.load_ext(
-    '_ext', ['assign_score_withk_forward', 'assign_score_withk_backward'])
+ext_module = ext_loader.load_ext('_ext', ['assign_score_withk_forward', 'assign_score_withk_backward'])
 
 
 class AssignScoreWithK(Function):
@@ -26,12 +25,7 @@ class AssignScoreWithK(Function):
     """
 
     @staticmethod
-    def forward(ctx,
-                scores,
-                point_features,
-                center_features,
-                knn_idx,
-                aggregate='sum'):
+    def forward(ctx, scores, point_features, center_features, knn_idx, aggregate='sum'):
         """
         Args:
             scores (torch.Tensor): (B, npoint, K, M), predicted scores to
@@ -69,10 +63,10 @@ class AssignScoreWithK(Function):
             M=M,
             K=K,
             O=out_dim,
-            aggregate=agg[aggregate])
+            aggregate=agg[aggregate],
+        )
 
-        ctx.save_for_backward(output, point_features, center_features, scores,
-                              knn_idx)
+        ctx.save_for_backward(output, point_features, center_features, scores, knn_idx)
         ctx.agg = agg[aggregate]
 
         return output
@@ -114,10 +108,10 @@ class AssignScoreWithK(Function):
             M=M,
             K=K,
             O=out_dim,
-            aggregate=agg)
+            aggregate=agg,
+        )
 
-        return grad_scores, grad_point_features, \
-            grad_center_features, None, None
+        return grad_scores, grad_point_features, grad_center_features, None, None
 
 
 assign_score_withk = AssignScoreWithK.apply

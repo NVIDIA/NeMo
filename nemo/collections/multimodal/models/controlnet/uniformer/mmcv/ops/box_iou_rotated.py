@@ -38,8 +38,7 @@ def box_iou_rotated(bboxes1, bboxes2, mode='iou', aligned=False):
         ious = bboxes1.new_zeros((rows * cols))
     bboxes1 = bboxes1.contiguous()
     bboxes2 = bboxes2.contiguous()
-    ext_module.box_iou_rotated(
-        bboxes1, bboxes2, ious, mode_flag=mode_flag, aligned=aligned)
+    ext_module.box_iou_rotated(bboxes1, bboxes2, ious, mode_flag=mode_flag, aligned=aligned)
     if not aligned:
         ious = ious.view(rows, cols)
     return ious

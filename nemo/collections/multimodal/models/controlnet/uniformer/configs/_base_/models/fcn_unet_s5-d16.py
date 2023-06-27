@@ -19,7 +19,8 @@ model = dict(
         norm_cfg=norm_cfg,
         act_cfg=dict(type='ReLU'),
         upsample_cfg=dict(type='InterpConv'),
-        norm_eval=False),
+        norm_eval=False,
+    ),
     decode_head=dict(
         type='FCNHead',
         in_channels=64,
@@ -31,8 +32,8 @@ model = dict(
         num_classes=2,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+    ),
     auxiliary_head=dict(
         type='FCNHead',
         in_channels=128,
@@ -44,8 +45,9 @@ model = dict(
         num_classes=2,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4),
+    ),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=256, stride=170))
+    test_cfg=dict(mode='slide', crop_size=256, stride=170),
+)

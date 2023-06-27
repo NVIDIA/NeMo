@@ -5,12 +5,7 @@ from io import StringIO
 from .file_client import FileClient
 
 
-def list_from_file(filename,
-                   prefix='',
-                   offset=0,
-                   max_num=0,
-                   encoding='utf-8',
-                   file_client_args=None):
+def list_from_file(filename, prefix='', offset=0, max_num=0, encoding='utf-8', file_client_args=None):
     """Load a text file and parse the content as a list of strings.
 
     Note:
@@ -52,10 +47,7 @@ def list_from_file(filename,
     return item_list
 
 
-def dict_from_file(filename,
-                   key_type=str,
-                   encoding='utf-8',
-                   file_client_args=None):
+def dict_from_file(filename, key_type=str, encoding='utf-8', file_client_args=None):
     """Load a text file and parse the content as a dict.
 
     Each line of the text file will be two or more columns split by

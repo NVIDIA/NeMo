@@ -3,7 +3,6 @@ from time import time
 
 
 class TimerError(Exception):
-
     def __init__(self, message):
         self.message = message
         super(TimerError, self).__init__(message)
