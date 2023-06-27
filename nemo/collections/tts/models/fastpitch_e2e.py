@@ -440,7 +440,6 @@ class FastPitchE2EModel(TextToWaveform):
         audio_pred = self.hfg_model.generator(x=mels_pred)
         return audio_pred
 
-
     @typecheck(output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())})
     def convert_text_to_waveform(
         self, tokens: 'torch.tensor', speaker: Optional[int] = None, pace: float = 1.0
@@ -754,8 +753,6 @@ class FastPitchE2EModel(TextToWaveform):
 
         return list_of_models
 
-
-
     @property
     def input_types(self):
         return self._input_types
@@ -807,7 +804,6 @@ class FastPitchE2EModel(TextToWaveform):
             )
 
         return (inputs,)
-
 
     def interpolate_speaker(
         self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
