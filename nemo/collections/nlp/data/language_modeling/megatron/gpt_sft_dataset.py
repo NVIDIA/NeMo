@@ -171,7 +171,7 @@ class GPTSFTDataset(Dataset):
             pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
         else:
             pre_pad = []
-            
+
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
         context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]

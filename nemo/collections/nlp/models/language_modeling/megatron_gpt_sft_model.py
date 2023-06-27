@@ -293,7 +293,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
-        batch = {k: v for k,v in batch.items() if isinstance(v, torch.Tensor)}
+        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
@@ -358,25 +358,28 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         batch = next(dataloader_iter)
         labels_text = batch.pop('reference_texts')
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
-        
+
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-        
+
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
         if self.get_inference_config() is None:
             self._inference_config = {}
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
-            
+
         output = self.predict_step(batch, batch_idx, dataloader_idx)
-        input_text = [self.tokenizer.ids_to_text(c[:l.item()].tolist()) for c, l in zip(batch['contexts'], batch['context_lengths'])]
-        preds_text = [s[len(i):] for i, s in zip(input_text, output['sentences'])]
-        
+        input_text = [
+            self.tokenizer.ids_to_text(c[: l.item()].tolist())
+            for c, l in zip(batch['contexts'], batch['context_lengths'])
+        ]
+        preds_text = [s[len(i) :] for i, s in zip(input_text, output['sentences'])]
+
         return {
             'loss': loss,
-            'preds': preds_text, # [str]
-            'labels': labels_text, # [[str]]
-            'inputs': input_text, # [str]
+            'preds': preds_text,  # [str]
+            'labels': labels_text,  # [[str]]
+            'inputs': input_text,  # [str]
         }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
@@ -418,17 +421,19 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                             inp_label_set.add(key)
                             deduplicated_outputs['preds'].append(pred)
                             deduplicated_outputs['labels'].append(label)
-                            deduplicated_outputs['inputs'].append(input)  
-            
+                            deduplicated_outputs['inputs'].append(input)
+
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
             if metric_name != 'loss':
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                metric_fn = (
+                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                )
                 metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
 
                 if metric_name == 'rouge':
-                    for k,v in metric_result.items():
+                    for k, v in metric_result.items():
                         if 'fmeasure' in k:
                             self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
                             logging.info(f"{mode} {metric_name} {k}: {v.item()}")
@@ -438,7 +443,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
                 averaged_metric.append(metric_result)
-            
+
             # Write predictions to file
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
                 logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
