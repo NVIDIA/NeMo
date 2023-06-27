@@ -161,7 +161,7 @@ class ExportableEncDecModel(Exportable):
     @property
     def output_names(self):
         otypes = self.output_module.output_types
-        if hasattr(self.input_module, 'export_cache_support') and self.input_module.export_cache_support:
+        if getattr(self.input_module, 'export_cache_support', False):
             in_types = self.input_module.output_types
             otypes = {n: t for (n, t) in list(otypes.items())[:1]}
             for (n, t) in list(in_types.items())[1:]:
@@ -174,7 +174,6 @@ class ExportableEncDecModel(Exportable):
         """
         This forward is used when we need to export the model to ONNX format.
         Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
-        When they are passed, it just passes the inputs through the encoder part and currently the ONNX conversion does not fully work for this case.
         Args:
             input: Tensor that represents a batch of raw audio signals,
                 of shape [B, T]. T here represents timesteps.
