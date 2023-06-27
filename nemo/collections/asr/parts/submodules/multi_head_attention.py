@@ -126,11 +126,11 @@ class MultiHeadAttention(nn.Module):
             key (torch.Tensor): (batch, time2, size)
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
 
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache_next, size)
         """
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 
@@ -204,11 +204,11 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
             pos_emb (torch.Tensor) : (batch, time1, size)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
 
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+            cache (torch.Tensor) : (batch, time_cache_next, size)
         """
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 

@@ -154,7 +154,7 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterM
             key (torch.Tensor): (batch, time2, size)
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
 
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
@@ -250,7 +250,7 @@ class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, ad
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
             pos_emb (torch.Tensor) : (batch, time1, size)
-            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache (torch.Tensor) : (batch, time_cache, size)
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
             cache_next (torch.Tensor) : (batch, time_cache_next, size)
