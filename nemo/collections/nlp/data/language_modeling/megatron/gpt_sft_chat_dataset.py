@@ -48,7 +48,7 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
         if (s_id[1:] == 255002).any().item():
             if gtype == 'VALUE_TO_TEXT':
                 # if contains the token <extra_id_2>
-                assert skip_name_len - 1 == torch.where((s_id[1:] == 255002))[0].item() 
+                assert skip_name_len - 1 == torch.where((s_id[1:] == 255002))[0].item()
                 # find new line token id 14
                 more_skip_len = torch.where((s_id[skip_name_len:] == 14))[0][0].item()
                 skip_name_len += more_skip_len + 1
@@ -122,7 +122,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + END_SIGNAL
             )
         elif gtype == "VALUE_TO_TEXT":
-            sentence["value"] = (  
+            sentence["value"] = (
                 BEGIN_SIGNAL
                 + role_token
                 + sentence_from
@@ -132,7 +132,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + END_SIGNAL
             )
         elif gtype == "TEXT_TO_VALUE":
-            sentence["value"] = (  
+            sentence["value"] = (
                 BEGIN_SIGNAL
                 + role_token
                 + sentence_from
