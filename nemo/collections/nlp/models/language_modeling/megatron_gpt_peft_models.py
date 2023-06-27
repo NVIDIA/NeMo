@@ -205,18 +205,16 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTPEFTModel):
         self.tie_weights()
     
     def tie_weights(self,):
-        print(self.adapter_keys)
         layer0 = self.model.language_model.encoder.layers[0]
         for layer in self.model.language_model.encoder.layers[1:]:
             for adapter_l in layer.adapter_layer:
                 print(adapter_l)
                 adapter_model_l = layer.get_adapter_module(adapter_l)
                 adapter_model_0 = layer0.get_adapter_module(adapter_l)
-                adapter_model_l.tie_weights(adapter_model_0.linear_in, 
-                                            adapter_model_0.linear_out, 
-                                            adapter_model_0.position_embeddings, 
+                adapter_model_l.tie_weights(adapter_model_0.linear_in,
+                                            adapter_model_0.linear_out,
+                                            adapter_model_0.position_embeddings,
                                             adapter_model_0.layer_norm)
-                print("im here")
 
 class MegatronGPTIA3Model(MegatronGPTPEFTModel):
     """
