@@ -370,8 +370,14 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         super().__init__(in_features, out_features, dim, activation, norm_position, norm_type, column_init_method, row_init_method, gather_output, dropout)
         self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
     
-    def tie_weights(self, linear_in, linear_out, pos_embeddings, layer_norm=None):
-        pass
+    def tie_weights(self, linear_in, linear_out, position_embeddings=None, layer_norm=None):
+        self.linear_in.weight = linear_in.weight
+        self.linear_out.weight = linear_out.weight
+        if position_embeddings is not None:
+            self.position_embeddings.weight = position_embeddings.weight
+        if layer_norm is not None:
+            self.layer_norm.weight = layer_norm.weight
+        return True
 
 
 @dataclass
