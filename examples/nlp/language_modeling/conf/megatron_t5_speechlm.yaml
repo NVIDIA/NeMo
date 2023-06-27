@@ -5,7 +5,7 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: 16
-  logger: False 
+  logger: False
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: 10
@@ -13,7 +13,7 @@ trainer:
   log_every_n_steps: 10
   val_check_interval: 1.0
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null 
+  resume_from_checkpoint: null
 
 exp_manager:
   explicit_log_dir: null
@@ -47,8 +47,8 @@ model:
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 
-  global_batch_size: 4 
+  pipeline_model_parallel_size: 1
+  global_batch_size: 4
   micro_batch_size: 4 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
@@ -56,19 +56,19 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 9000 # Vocabulary size pertaining to speech
-  
+
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   existing_tasks: []
-  new_tasks: ["squad"] 
+  new_tasks: ["squad"]
 
 
-  task_templates: 
-  - taskname: "squad" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
+  task_templates:
+  - taskname: "squad"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}"
     total_virtual_tokens: 5
-    virtual_token_splits: [5] 
+    virtual_token_splits: [5]
     truncate_field: context
     answer_field: answer
 
@@ -82,8 +82,8 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/data/speech/LibriTTS2/LibriTTS/train_clean_100_normalized_speechlm_subset.json"]
-    validation_ds: ["/data/speech/LibriTTS2/LibriTTS/dev_clean_normalized_speechlm_subset.json"]
+    train_ds: ["/home/datasets/jasoli/speech_t5/LibriTTS/train_clean_100_normalized_speechlm_subset.json", "/home/datasets/jasoli/gitrepos/squad_train_1k.jsonl"]
+    validation_ds: ["/home/datasets/jasoli/speech_t5/LibriTTS/dev_clean_normalized_speechlm_subset.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
@@ -95,13 +95,14 @@ model:
     shuffle: true
     num_workers: 4
     pin_memory: true
+    speech_offset: 29185
     sup_data_path: ???
 
   optim:
     name: fused_adam
     lr: 1e-4
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     sched:

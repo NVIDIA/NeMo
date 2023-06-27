@@ -390,14 +390,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
-                # Need to subtract 1024*7, the last 7 heads of encodec
                 self.tokens_head = MegatronTokenLevelHead(
-                    self.word_embeddings_weight().size(0)-1024*7, parallel_output, bias=tokens_head_bias
+                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
                 )
-                self.speech_tokens_head = MegatronTokenLevelHead(
-                    1024, parallel_output, bias=tokens_head_bias
-                )
-                self.speech_residual_model = SimplestModule(decoder_cfg.hidden_size)
+                # Need to subtract 1024*7, the last 7 heads of encodec
+                # self.tokens_head = MegatronTokenLevelHead(
+                #     self.word_embeddings_weight().size(0)-1024*7, parallel_output, bias=tokens_head_bias
+                # )
+                # self.speech_tokens_head = MegatronTokenLevelHead(
+                #     1024, parallel_output, bias=tokens_head_bias
+                # )
+                # self.speech_residual_model = SimplestModule(decoder_cfg.hidden_size)
             else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
@@ -502,6 +505,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_output_attn_mask=None,
         enc_input=None,  # Result of running encoder embedding only
         output_enc_hidden_only=False,
+        speech_mask=None
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -610,19 +614,25 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
                     # @jasoli: Will have to check that this is indexed properly
-                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:1024*7,:]) # s, b, vocab
+                    # TODO: Remove hardcode of 9000 = num_speech_tokens
+                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:-(9000-1024),:]) # s, b, vocab
                     # @jasoli: We will have to define a speech_mask whether this is from the
                     # datalayer or we infer it from model output as below
-                    text_token_size = 256000
-                    speech_mask = torch.nn.argmax(token_logits, dim=-1) > text_token_size
+                    # text_token_size = 29184
+                    # speech_mask = torch.nn.argmax(token_logits, dim=-1) > text_token_size
                     speech_layers = 7
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
-                    speech_logits = torch.nn.zeros([*token_logits.shape, speech_layers])
+                    speech_logits = torch.zeros([*token_logits.shape[:-1], 1024, speech_layers])
+                    # import ipdb; ipdb.set_trace()
                     for i in range(speech_layers):
                         last_layer_output = self.speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
                         # Need to check that the below line is correct
-                        last_layer_logits = self.speech_tokens_head(last_layer_output, self.word_embeddings_weight()[-1024*(7-i):-1024*(7-i),:])
+                        # import ipdb; ipdb.set_trace()
+                        # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
+                        # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
+                        # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
+                        last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight()[-(9000-1024*(i+1)):-(9000-1024*(i+2)),:])
                         speech_logits[:,:,:,i] = last_layer_logits
                 else:
                     token_logits = self.tokens_head(dec_output)[0]
@@ -642,7 +652,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
                         for i in range(speech_layers):
                             # What is labels[:7, :, :] if this is text?
-                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float() * mask, labels[i, :, :], label_smoothing)
+                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float() * speech_mask, labels[i, :, :], label_smoothing)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
@@ -689,18 +699,3 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
 
-
-class SimplestModule(torch.nn.Module):
-    def __init__(self, dec_hid_size, kernel_size=15, dropout=0.5):
-        super().__init__()
-        self.conv = torch.nn.Conv1d(dec_hid_size+2, dec_hid_size, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = torch.nn.LayerNorm(dec_hid_size)
-        self.dropout = torch.nn.Dropout(dropout)
-
-    def forward(self, dec_hidden, dec_logits, layer_i, mask):
-        out = torch.stack([dec_hidden, dec_logits, layer_i.unsqueeze(0).unsqueeze(0)], dim=-1) * mask
-        out = torch.nn.functional.relu(self.conv(signal))
-        out = self.norm(out.transpose(1, 2)).transpose(1, 2)
-        out = self.dropout(out) * mask
-
-        return out

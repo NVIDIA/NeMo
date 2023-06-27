@@ -34,6 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -65,49 +66,68 @@ __all__ = ['MegatronT5SpeechLMModel']
 
 class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained T5 model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After p-tuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
-        
+
         # Expanding existing text vocabulary with speech vocabulary
-        self.new_embeddings = tensor_parallel.VocabParallelEmbedding(
-            num_embeddings=self.word_embeddings.num_embeddings + cfg.num_speech_tokens, 
+        # Old vocab is in first 29184 characters with curent checkpoint
+        # New vocab is next 9000 tokens
+        old_token_size = self.word_embeddings.num_embeddings
+        new_embeddings = tensor_parallel.VocabParallelEmbedding(
+            num_embeddings=self.word_embeddings.num_embeddings + cfg.num_speech_tokens,
             embedding_dim=self.word_embeddings.embedding_dim
         )
-        new_weight = self.new_embeddings.weight.clone()
-        new_weight[:self.word_embeddings.num_embeddings, :] = self.word_embeddings.weight.clone()
+        new_weight = new_embeddings.weight.clone()
+        new_weight[:old_token_size, :] = self.word_embeddings.weight.clone()
         new_weight = torch.nn.Parameter(new_weight)
-        self.new_embeddings.weight = new_weight
-        self.word_embeddings = self.new_embeddings
-        del self.new_embeddings
+        new_embeddings.weight = new_weight
+        self.word_embeddings = new_embeddings
+        del new_embeddings
         del new_weight
         self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings = self.word_embeddings
         self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings = self.word_embeddings
-        
-        # Expand the dimension of bias of tokens head
-        bias_size = self.frozen_model.enc_dec_model.tokens_head.bias.size()[0]
-        new_parameter = torch.nn.Parameter(torch.zeros(bias_size + cfg.num_speech_tokens))
-        new_parameter.data[:bias_size] = self.frozen_model.enc_dec_model.tokens_head.bias.data.clone()
-        self.frozen_model.enc_dec_model.tokens_head.bias = new_parameter
-        del new_parameter
+
+        # # Expand the dimension of bias of tokens head
+        # bias_size = self.frozen_model.enc_dec_model.tokens_head.bias.size()[0]
+        # new_parameter = torch.nn.Parameter(torch.zeros(bias_size + cfg.num_speech_tokens))
+        # new_parameter.data[:bias_size] = self.frozen_model.enc_dec_model.tokens_head.bias.data.clone()
+        # self.frozen_model.enc_dec_model.tokens_head.bias = new_parameter
+        # del new_parameter
+
+        # # Expanding existing text vocabulary with speech vocabulary
+        # Add first layer
+        new_token_head = MegatronTokenLevelHead(old_token_size + 1024, self.word_embeddings.embedding_dim)
+        new_bias = new_token_head.bias.clone()
+        new_bias[:old_token_size] = self.frozen_model.enc_dec_model.tokens_head.bias.clone()
+        new_bias = torch.nn.Parameter(new_bias)
+        new_token_head.bias = new_bias
+        self.frozen_model.enc_dec_model.tokens_head = new_token_head
+
+        list_of_speech_heads = []
+        for _ in range(7):
+            list_of_speech_heads.append(MegatronTokenLevelHead(1024, self.word_embeddings.embedding_dim))
+        self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
+
+        self.frozen_model.enc_dec_model.speech_residual_model = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size)
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -115,7 +135,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         return False
 
     def forward(
-        self, virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self, virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, speech_mask=None, inference=False,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -125,6 +145,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
             # input_embeds = self.embed_input(input_ids, taskname_ids, inference)
+            # import ipdb; ipdb.set_trace()
             input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids, inference)
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
@@ -152,6 +173,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
                 labels=labels,
                 output_enc_hidden_only=False,
                 enc_input=encoder_input,
+                speech_mask=speech_mask
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
@@ -164,6 +186,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
                     labels=labels,
                     output_enc_hidden_only=False,
                     enc_input=encoder_input,
+                    speech_mask=speech_mask
                 )
 
         return output, encoder_input
@@ -242,11 +265,11 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
-            virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids = batch
+            virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
             # enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
             output_tensor, encoder_input = model(
-                virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=labels, inference=False,
+                virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=labels, speech_mask=speech_mask, inference=False,
             )
             output_tensor = output_tensor.contiguous()
 
@@ -335,11 +358,15 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
             'labels': labels_text,
             'enc_inputs': input_text,
         }
-    
+
     def get_embeddings(self, tokens, taskname_ids, inference=False):
+        '''
+        Does the speech embeddings here
+        '''
         out = None
         if tokens.dim() > 2:
             for i in range(tokens.size()[1]):
+                # import ipdb; ipdb.set_trace()
                 cur = self.embed_input(tokens[:, i, :], taskname_ids, inference)
                 if out is None:
                     out = cur
@@ -348,7 +375,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         else:
             out = self.embed_input(tokens, taskname_ids, inference)
         return out
-    
+
     def get_embeddings_and_combine(self, token_list, taskname_ids, inference):
         embedding_list = []
         for tokens in token_list:
@@ -356,7 +383,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         return torch.cat(embedding_list, dim=1)
 
     def validation_step(self, batch, batch_idx, inference=False):
-        virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids = batch
+        virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
         # does not use dataloader_iter due to device placement issues arising from PTL
         mode = self.training
         self.eval()
@@ -582,3 +609,22 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
             acc = correct / len(gather_results_dedup) if all_labels[0] else None
             logging.info(f'Prediction results: {acc}')
             logging.info(f'Test finish')
+
+
+class SimplestModule(torch.nn.Module):
+    def __init__(self, dec_hid_size, kernel_size=15, dropout=0.5):
+        super().__init__()
+        self.conv = torch.nn.Conv1d(dec_hid_size+2, dec_hid_size, kernel_size=kernel_size, padding=(kernel_size // 2))
+        self.norm = torch.nn.LayerNorm(dec_hid_size)
+        self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, dec_hidden, dec_logits, layer_i, mask):
+        layer_index_tensor = torch.tile(torch.tensor([layer_i]).to(dec_hidden.device), [*dec_hidden.shape[:-1],1])
+        dec_prediction = torch.argmax(dec_logits, dim=-1, keepdim=True)
+        out = torch.cat([dec_hidden, dec_prediction, layer_index_tensor], dim=-1) * mask.T.unsqueeze(-1)
+        # import ipdb; ipdb.set_trace()
+        out = torch.nn.functional.relu(self.conv(out.transpose(1, 2)))
+        out = self.norm(out.transpose(1, 2))
+        out = self.dropout(out) * mask.T.unsqueeze(-1)
+
+        return out

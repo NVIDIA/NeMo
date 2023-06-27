@@ -23,7 +23,7 @@ from nemo.core.classes import Dataset
 __all__ = ['GPTSFTDataset']
 
 
-class GPTSFTDataset(Dataset):
+class GPTSFTSpeechDataset(Dataset):
     def __init__(
         self,
         file_path: str,
@@ -46,16 +46,6 @@ class GPTSFTDataset(Dataset):
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
-        segment_max_duration: Optional[int] = None,
-        trim: bool = False,
-        trim_ref: Optional[float] = None,
-        trim_top_db: Optional[int] = None,
-        trim_frame_length: Optional[int] = None,
-        trim_hop_length: Optional[int] = None,
-        pad_multiple: int = 1,
-        pitch_augment: bool = False,
-        sup_data_path: Optional[Union[Path, str]] = None,
-        speech_offset: Optional[int] = None,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -98,67 +88,40 @@ class GPTSFTDataset(Dataset):
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
-        if self.prompt_template is not None:
+        if self.prompt_template is not None:  #jasoli: Should be None at the first stage
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
-        # Speech related variables
-        self.encodec_model = EncodecModel.encodec_model_24khz()
-        self.encodec_model.set_target_bandwidth(6.0)
-        self.base_data_dir = None
-        self.segment_max_duration = segment_max_duration
-        self.sample_rate = sample_rate
-        self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
-        self.pad_multiple = pad_multiple
-        self.pitch_augment = pitch_augment
-        self.trim = trim
-        self.trim_ref = trim_ref if trim_ref is not None else np.max
-        self.trim_top_db = trim_top_db if trim_top_db is not None else 60
-        self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
-        self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
-        self.speech_offset = speech_offset if speech_offset is not None else 3
-
-        # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
-        if sup_data_path is not None:
-            Path(sup_data_path).mkdir(parents=True, exist_ok=True)
-            self.sup_data_path = sup_data_path
-
-        self.codec_folder = kwargs.pop('codec_folder', None)
-        if self.codec_folder is None:
-            self.codec_folder = Path(self.sup_data_path) / "codec"
-        elif isinstance(self.codec_folder, str):
-            self.codec_folder = Path(self.codec_folder)
-
-        self.codec_folder.mkdir(exist_ok=True, parents=True)
-
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
 
         # Will be None after this call if `max_num_samples` is None
-        self._build_samples_mapping()
+        # Should be None, disabling
+        # self._build_samples_mapping()
 
-    def _build_samples_mapping(self):
-        if self.max_num_samples is not None:
-            self.samples_mapping = get_samples_mapping(
-                indexed_dataset=self.indexed_dataset,
-                data_prefix=self.file_path,
-                num_epochs=None,
-                max_num_samples=self.max_num_samples,
-                max_seq_length=self.max_seq_length - 2,
-                short_seq_prob=0,
-                seed=self.seed,
-                name=self.file_path.split('/')[-1],
-                binary_head=False,
-                index_mapping_dir=self.index_mapping_dir,
-            )
-        else:
-            self.samples_mapping = None
+    # def _build_samples_mapping(self):
+    #     if self.max_num_samples is not None:
+    #         self.samples_mapping = get_samples_mapping(
+    #             indexed_dataset=self.indexed_dataset,
+    #             data_prefix=self.file_path,
+    #             num_epochs=None,
+    #             max_num_samples=self.max_num_samples,
+    #             max_seq_length=self.max_seq_length - 2,
+    #             short_seq_prob=0,
+    #             seed=self.seed,
+    #             name=self.file_path.split('/')[-1],
+    #             binary_head=False,
+    #             index_mapping_dir=self.index_mapping_dir,
+    #         )
+    #     else:
+    #         self.samples_mapping = None
 
     def __len__(self):
-        if self.max_num_samples is None:
-            return len(self.indexed_dataset)
-        else:
-            return len(self.samples_mapping)
+        return len(self.indexed_dataset)
+        # if self.max_num_samples is None:
+        #     return len(self.indexed_dataset)
+        # else:
+        #     return len(self.samples_mapping)
 
     def __getitem__(self, idx):
         if isinstance(idx, np.int64):
@@ -180,81 +143,77 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        context = example[self.context_key]
-        output = example[self.label_key]
-
-        if self.prompt_template is not None:
-            assert '{input}' in self.prompt_template
-            assert '{output}' in self.prompt_template
-            # Make sure that '{output}' always occurs at the end of the prompt template string
-            assert self.prompt_template.index('{output}') == len(self.prompt_template) - len('{output}')
-            # Get the context by replacing only the input
-            original_context = context
-            context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
-            # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
-
-        if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = context + '\n' + output
-        elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = context + ' ' + output
-
-        if self.virtual_tokens:
-            # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
-            # these pad/eos tokens are placeholders for virtual tokens
-            pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
+        is_speech = False
+        if example.get("data_type") =="SPEECH":
+            is_speech = True
+            codec_file = example.get("file_path")
+            #TODO: load file, and tokenize
         else:
+            context = example[self.context_key]
+            output = example[self.label_key]
+
+            if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+                text = context + '\n' + output
+            elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+                text = context + ' ' + output
+
+            # if self.virtual_tokens:
+            #     # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
+            #     # these pad/eos tokens are placeholders for virtual tokens
+            #     pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
+            # else:
+            #     pre_pad = []
             pre_pad = []
-        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context_ids) :]
-        total_ids = len(context_ids) + len(answer_ids)
-        if self.add_bos:
-            total_ids += 1
-        if self.add_sep:
-            total_ids += 1
-        if self.add_eos:
-            total_ids += 1
+            tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
+            context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+            answer_ids = tokenized_text[len(context_ids) :]
+            total_ids = len(context_ids) + len(answer_ids)
+            if self.add_bos:
+                total_ids += 1
+            if self.add_sep:
+                total_ids += 1
+            if self.add_eos:
+                total_ids += 1
 
-        # If the total number of token is greater than the max, we will try to truncate the answer
-        if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            elif self.truncation_field == "context":
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+            # If the total number of token is greater than the max, we will try to truncate the answer
+            if total_ids > self.max_seq_length:
+                truncation_length = total_ids - self.max_seq_length
+                if self.truncation_field == "answer":
+                    answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+                elif self.truncation_field == "context":
+                    context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
-        if len(context_ids) > self.max_seq_length:
-            context_ids = context_ids[: self.max_seq_length]
+            if len(context_ids) > self.max_seq_length:
+                context_ids = context_ids[: self.max_seq_length]
 
-        assert len(context_ids) <= self.max_seq_length
-        input_ids = context_ids
+            assert len(context_ids) <= self.max_seq_length
+            input_ids = context_ids
 
-        answer_start_idx = len(input_ids)
-        # Adds sep token between text/prompt and answer
-        if self.add_sep:
-            input_ids = input_ids + [self.sep_id]
-            answer_start_idx += 1
+            answer_start_idx = len(input_ids)
+            # Adds sep token between text/prompt and answer
+            if self.add_sep:
+                input_ids = input_ids + [self.sep_id]
+                answer_start_idx += 1
 
-        input_ids = input_ids + answer_ids
+            input_ids = input_ids + answer_ids
 
-        if self.add_bos:
-            input_ids = [self.tokenizer.bos_id] + input_ids
-            answer_start_idx += 1
-        if self.add_eos:
-            input_ids = input_ids + [self.tokenizer.eos_id]
+            if self.add_bos:
+                input_ids = [self.tokenizer.bos_id] + input_ids
+                answer_start_idx += 1
+            if self.add_eos:
+                input_ids = input_ids + [self.tokenizer.eos_id]
 
-        if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
-            input_ids = input_ids[: self.max_seq_length]
+            if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
+                input_ids = input_ids[: self.max_seq_length]
 
-        processed_example = {
-            'input_ids': input_ids,
-            'answer_start_idx': answer_start_idx,
-            'context_ids': context_ids,
-            'context_length': len(context_ids),
-        }
+            processed_example = {
+                'input_ids': input_ids,
+                'answer_start_idx': answer_start_idx,
+                'context_ids': context_ids,
+                'context_length': len(context_ids),
+            }
 
-        return processed_example
+            return processed_example
 
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
@@ -326,7 +285,7 @@ class GPTSFTDataset(Dataset):
             'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
-            'contexts': contexts,
+            'contexts': contexts,  #@jasoli: Seems to only be used in predict_step
             'context_lengths': context_lengths,
         }
 

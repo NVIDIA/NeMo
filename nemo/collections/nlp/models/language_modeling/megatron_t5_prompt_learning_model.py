@@ -65,21 +65,21 @@ __all__ = ['MegatronT5PromptLearningModel']
 
 class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained T5 model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After p-tuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
