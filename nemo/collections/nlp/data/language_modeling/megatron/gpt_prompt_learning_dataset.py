@@ -353,7 +353,9 @@ class GPTPromptLearningDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        ceil_batch_max = self._ceil_to_nearest(batch_max, 8) # @adithyare this padding does not conflict with the tp_workers padding above 
+        ceil_batch_max = self._ceil_to_nearest(
+            batch_max, 8
+        )  # @adithyare this padding does not conflict with the tp_workers padding above
         # since tp_workers is always a multiple of 2. the padding to multiple of 8 is to ensure an mem-optimized softmax is used.
         batch_max = ceil_batch_max + 1
         input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
