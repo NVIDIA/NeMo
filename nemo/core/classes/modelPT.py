@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import inspect
 import os
+import sys
 import uuid
 from abc import abstractmethod
 from os import path
@@ -1650,6 +1651,11 @@ class ModelPT(LightningModule, Model):
             We use it here to enable nsys profiling and dynamic freezing.
         """
 
+
+        logging.info(f"Starting batch {batch_idx}")
+        sys.stdout.flush()
+        sys.stderr.flush()
+
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
@@ -1691,6 +1697,10 @@ class ModelPT(LightningModule, Model):
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
             We use it here to enable nsys profiling.
         """
+
+        logging.info(f"Finished batch {batch_idx}")
+        sys.stdout.flush()
+        sys.stderr.flush()
 
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
