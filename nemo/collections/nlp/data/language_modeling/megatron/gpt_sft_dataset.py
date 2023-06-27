@@ -172,6 +172,7 @@ class GPTSFTDataset(Dataset):
             pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
         else:
             pre_pad = []
+            
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
         context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
@@ -221,7 +222,6 @@ class GPTSFTDataset(Dataset):
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
-            'context_texts': self.tokenizer.ids_to_text(context_ids),
             'reference_texts': [reference] if isinstance(reference, str) else reference,
         }
         return processed_example
@@ -270,7 +270,6 @@ class GPTSFTDataset(Dataset):
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
-        context_texts = [item['context_texts'] for item in batch]
         reference_texts = [item['reference_texts'] for item in batch]
 
         max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
@@ -300,7 +299,6 @@ class GPTSFTDataset(Dataset):
             'position_ids': position_ids,
             'contexts': contexts,
             'context_lengths': context_lengths,
-            'context_texts': context_texts,
             'reference_texts': reference_texts,
         }
 

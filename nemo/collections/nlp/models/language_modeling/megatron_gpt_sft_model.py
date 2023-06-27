@@ -293,6 +293,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
+        batch = {k: v for k,v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
@@ -355,16 +356,20 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         batch = next(dataloader_iter)
-        input_text = batch.pop('context_texts')
         labels_text = batch.pop('reference_texts')
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
         
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-        if self.get_inference_config() is not None:
-            self._inference_config['add_BOS'] = data_cfg.add_bos
-            self._inference_config['tokens_to_generate'] = data_cfg.tokens_to_generate
         
+        # We need _inference_config to get generation params
+        # add_BOS and tokens_to_generate are set in dataset
+        if self.get_inference_config() is None:
+            self._inference_config = {}
+        self._inference_config['add_BOS'] = data_cfg.add_bos
+        self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+            
         output = self.predict_step(batch, batch_idx, dataloader_idx)
+        input_text = [self.tokenizer.ids_to_text(c[:l.item()].tolist()) for c, l in zip(batch['contexts'], batch['context_lengths'])]
         preds_text = [s[len(i):] for i, s in zip(input_text, output['sentences'])]
         
         return {
@@ -428,22 +433,22 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-            metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-            metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
+            if metric_name != 'loss':
+                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
 
-            if metric_name == 'rouge':
-                for k,v in metric_result.items():
-                    if 'fmeasure' in k:
-                        self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
-                        logging.info(f"{mode} {metric_name} {k}: {v.item()}")
-                metric_result = metric_result['rouge1_fmeasure']
-            else:
-                self.log(metric_log_key, metric_result.item(), sync_dist=True)
-                logging.info(f"{mode} {metric_name}: {metric_result.item()}")
+                if metric_name == 'rouge':
+                    for k,v in metric_result.items():
+                        if 'fmeasure' in k:
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                    metric_result = metric_result['rouge1_fmeasure']
+                else:
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                    logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
-            averaged_metric.append(metric_result)
-            
+                averaged_metric.append(metric_result)
             
             # Write predictions to file
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
@@ -483,11 +488,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
-        if inference_config is None:
-            return None
         # need to overwrite some configuration, make it immutable
         inference_config = inference_config.copy()
-        compute_logprob = inference_config['compute_logprob']
+        compute_logprob = inference_config.get('compute_logprob', False)
         if compute_logprob:
             inference_config['inputs'] = batch
             inference_config['tokens_to_generate'] = 1
@@ -643,27 +646,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             dataloaders.append(eval_dl)
         return dataloaders
 
-    def _reset_activation_checkpointing_args(self):
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-
-        base_module.language_model.encoder.activations_checkpoint_granularity = None
-        base_module.language_model.encoder.activations_checkpoint_method = None
-        base_module.language_model.encoder.activations_checkpoint_num_layers = None
-
-    def _restore_activation_checkpointing_args(self):
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-        base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
-        base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
-        base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
-
     def on_validation_epoch_start(self):
-        self._reset_activation_checkpointing_args()
+        super()._reset_activation_checkpointing_args()
+        super()._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -675,8 +660,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return super().on_validation_epoch_start()
 
     def on_test_epoch_start(self):
+        super()._reset_activation_checkpointing_args()
+        super()._reset_sequence_parallelism_args()
         app_state = AppState()
-        self._reset_activation_checkpointing_args()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -696,7 +682,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_inference_epoch_end(self, ds):
         app_state = AppState()
-        self._restore_activation_checkpointing_args()
+        super()._restore_activation_checkpointing_args()
+        super()._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
