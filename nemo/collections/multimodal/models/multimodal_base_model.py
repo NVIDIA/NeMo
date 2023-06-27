@@ -153,6 +153,11 @@ class MultimodalModel(ModelPT, Exportable):
                     cfg.unet_config.from_pretrained = None
                 if cfg.get('first_stage_config') and cfg.get('first_stage_config').get('from_pretrained'):
                     cfg.first_stage_config.from_pretrained = None
+                ## Append some dummy configs that DB didn't support
+                if not cfg.get('channels_last'):
+                    cfg.channels_last = True
+                if not cfg.get('capture_cudagraph_iters'):
+                    cfg.capture_cudagraph_iters = -1
 
             # compatibility for stable diffusion old checkpoint tweaks
             first_key = list(checkpoint['state_dict'].keys())[0]
@@ -163,8 +168,11 @@ class MultimodalModel(ModelPT, Exportable):
                     new_key = "model." + key
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
-            elif first_key == 'model.text_encoder.transformer.text_model.embeddings.position_ids':
-                # remap state keys from dreambooth
+            elif (
+                first_key == 'model.text_encoder.transformer.text_model.embeddings.position_ids'
+                or first_key == 'model.text_encoder.model.language_model.embedding.position_embeddings'
+            ):
+                # remap state keys from dreambooth when using HF clip
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
                     new_key = key.replace('._orig_mod', "")
