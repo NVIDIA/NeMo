@@ -442,11 +442,11 @@ class FastPitchE2EModel(TextToWaveform):
 
 
     @typecheck(output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())})
-    def generate_spectrogram(
+    def convert_text_to_waveform(
         self, tokens: 'torch.tensor', speaker: Optional[int] = None, pace: float = 1.0
     ) -> torch.tensor:
         if self.training:
-            logging.warning("generate_spectrogram() is meant to be called in eval mode.")
+            logging.warning("convert_text_to_waveform() is meant to be called in eval mode.")
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
         audio = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
@@ -771,7 +771,7 @@ class FastPitchE2EModel(TextToWaveform):
             A tuple of input examples.
         """
         par = next(self.fastpitch.parameters())
-        sz = (max_batch * max_dim,) if self.export_config["enable_ragged_batches"] else (max_batch, max_dim)
+        sz = (max_batch, max_dim)
         inp = torch.randint(
             0, self.fp_model.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
         )
