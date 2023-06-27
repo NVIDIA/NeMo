@@ -23,8 +23,7 @@ from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -190,11 +189,6 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         asr_model = imported_class.restore_from(
             restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
-        if hasattr(cfg, "model_change"):
-            asr_model.change_attention_model(
-                self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
-                att_context_size=cfg.model_change.conformer.get("att_context_size", None),
-            )
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
@@ -202,6 +196,12 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
             model_name=cfg.pretrained_name, map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
+
+    if hasattr(cfg, "model_change"):
+        asr_model.change_attention_model(
+            self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
+            att_context_size=cfg.model_change.conformer.get("att_context_size", None),
+        )
 
     return asr_model, model_name
 
@@ -388,7 +388,7 @@ def transcribe_partial_audio(
         decode_function = (
             asr_model.decoding.rnnt_decoder_predictions_tensor
             if decoder_type == 'rnnt'
-            else asr_model.decoding.ctc_decoder_predictions_tensor
+            else asr_model.ctc_decoding.ctc_decoder_predictions_tensor
         )
     elif hasattr(asr_model, 'joint'):  # RNNT model
         decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
@@ -421,6 +421,8 @@ def transcribe_partial_audio(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
             logits, logits_len = outputs[0], outputs[1]
+            if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
+                logits = asr_model.ctc_decoder(encoder_output=logits)
             if logprobs:
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
