@@ -129,7 +129,6 @@ FastPitch End-To-End
 This is an end-to-end joint model, which combines FastPitch spectrogram generator model with HiFi-GAN vocoder. This allows it to train and infer as a single model.
 
 
-
 Enhancers
 ---------
 

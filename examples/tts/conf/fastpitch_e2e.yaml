@@ -1,14 +1,14 @@
-# This config contains the default values for training a FastPitch model with aligner.
+# This config contains the default values for 44.1khz end-to-end training a FastPitch model with aligner and HiFi-GAN model.
 # If you want to train a model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-name: FastPitch2
+name: FastPitch-E2E
 
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: ["durations", "align_prior_matrix", "pitch", "speaker_id"] 
-sup_data_types_val: ["align_prior_matrix", "pitch", "speaker_id"]
+sup_data_types: ["align_prior_matrix", "pitch", "speaker_id"] #  
+sup_data_types_val: ["align_prior_matrix", "pitch","speaker_id"]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -38,9 +38,11 @@ model:
   use_patches: true
   inter_mel_loss: false
   use_pretrain: true
-  full_e2e: false
 
-  n_speakers: 13000
+  fastpitch_model: null
+  hifigan_model: null
+
+  n_speakers: ???
   segment_size: 16384
   max_token_duration: 75
   symbols_embedding_dim: 384
@@ -109,8 +111,6 @@ model:
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
       use_beta_binomial_interpolator: true
-      durs_file: "durations_hifitts_arpabet_v2"
-      durs_type: aligner-based
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -251,11 +251,12 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: null
+  exp_dir: ???
   name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
-    monitor: val_loss
+    monitor: loss_gen_all
+    mode: min
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

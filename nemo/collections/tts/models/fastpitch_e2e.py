@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import torch
+import torch.nn.functional as F
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -49,20 +50,17 @@ from nemo.core.neural_types.elements import (
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
-    TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing, compute_max_steps
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators.experimental import experimental
 
 HAVE_WANDB = True
 try:
     import wandb
 except ModuleNotFoundError:
     HAVE_WANDB = False
-
-FP_NAMES = {22050: "tts_en_fastpitch", 44100: "tts_en_fastpitch_multispeaker"}
-HFG_NAMES = {22050: "tts_en_hifigan", 44100: "tts_en_hifitts_hifigan_ft_fastpitch"}
 
 
 @dataclass
@@ -84,12 +82,18 @@ class TextTokenizer:
     add_blank_at: bool = True
     g2p: G2PConfig = G2PConfig()
 
+@dataclass
+class VocoderModel:
+    generator = None
+    msd = None
+    mpd = None
+
 
 @dataclass
 class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
 
-
+@experimental
 class FastPitchE2EModel(TextToWaveform):
     """
     FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text 
@@ -160,21 +164,25 @@ class FastPitchE2EModel(TextToWaveform):
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
+
         if cfg.use_pretrain:
+            if cfg.fastpitch_model is None or cfg.hifigan_model is None:
+                raise ValueError(f'Should provide model paths if using pretrain')
+            
             self.register_nemo_submodule(
                 "hfg_model",
                 config_field="hfg_model",
-                model=HifiGanModel.from_pretrained(HFG_NAMES[self.sample_rate], map_location=torch.device("cpu")),
+                model=HifiGanModel.from_pretrained(cfg.fastpitch_model, map_location=torch.device("cpu")),
             )
 
             self.register_nemo_submodule(
                 "fp_model",
                 config_field="fp_model",
-                model=FastPitchModel.from_pretrained(FP_NAMES[self.sample_rate], map_location=torch.device("cpu")),
+                model=FastPitchModel.from_pretrained(cfg.hifigan_mode, map_location=torch.device("cpu")),
             )
 
             self.tokenizer = self.fp_model.vocab
-
+            self.preprocessor = self.fp_model.preprocessor
         else:
             if (
                 not "input_fft" in cfg
@@ -189,37 +197,53 @@ class FastPitchE2EModel(TextToWaveform):
             output_fft = instantiate(self._cfg.output_fft)
             duration_predictor = instantiate(self._cfg.duration_predictor)
             pitch_predictor = instantiate(self._cfg.pitch_predictor)
+            speaker_encoder = instantiate(self._cfg.get("speaker_encoder", None))
             speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
             speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
             speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
             energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
             energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
-            self.register_nemo_submodule(
-                "fp_model",
-                config_field="fp_model",
-                model=FastPitchModule(
-                    input_fft,
-                    output_fft,
-                    duration_predictor,
-                    pitch_predictor,
-                    energy_predictor,
-                    self.aligner,
-                    cfg.n_speakers,
-                    cfg.symbols_embedding_dim,
-                    cfg.pitch_embedding_kernel_size,
-                    energy_embedding_kernel_size,
-                    cfg.n_mel_channels,
-                    cfg.max_token_duration,
-                    speaker_emb_condition_prosody,
-                    speaker_emb_condition_decoder,
-                    speaker_emb_condition_aligner,
-                ),
+            
+            n_speakers = cfg.get("n_speakers", 0)
+            speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
+            speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
+            speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
+            min_token_duration = cfg.get("min_token_duration", 0)
+            use_log_energy = cfg.get("use_log_energy", True)
+            if n_speakers > 1 and "add" not in input_fft.cond_input.condition_types:
+                input_fft.cond_input.condition_types.append("add")
+            if speaker_emb_condition_prosody:
+                duration_predictor.cond_input.condition_types.append("add")
+                pitch_predictor.cond_input.condition_types.append("add")
+            if speaker_emb_condition_decoder:
+                output_fft.cond_input.condition_types.append("add")
+            if speaker_emb_condition_aligner and self.aligner is not None:
+                self.aligner.cond_input.condition_types.append("add")
+
+            self.fp_model = FastPitchModule(
+                input_fft,
+                output_fft,
+                duration_predictor,
+                pitch_predictor,
+                energy_predictor,
+                self.aligner,
+                speaker_encoder,
+                n_speakers,
+                cfg.symbols_embedding_dim,
+                cfg.pitch_embedding_kernel_size,
+                energy_embedding_kernel_size,
+                cfg.n_mel_channels,
+                min_token_duration,
+                cfg.max_token_duration,
+                use_log_energy,
             )
+            
+            # [TODO] PTL fails to move it ro cerrect device himself, don't know if there is good way to do it
+            generator = instantiate(cfg.generator).cuda()
+            mpd = MultiPeriodDiscriminator(debug=False).cuda()
+            msd = MultiScaleDiscriminator(debug=False).cuda()
 
-            generator = instantiate(cfg.generator)
-            mpd = MultiPeriodDiscriminator(debug=False)
-            msd = MultiScaleDiscriminator(debug=False)
-
+            self.hfg_model = VocoderModel
             self.hfg_model.generator = generator
             self.hfg_model.mpd = mpd
             self.hfg_model.msd = msd
@@ -469,7 +493,7 @@ class FastPitchE2EModel(TextToWaveform):
         else:
             audio, audio_lens, text, text_lens, attn_prior, pitch, durs, speaker = batch
 
-        mels, spec_len = self.fp_model.preprocessor(input_signal=audio, length=audio_lens)
+        mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
         (
             mels_pred,
@@ -518,7 +542,7 @@ class FastPitchE2EModel(TextToWaveform):
 
         audio_pred = self.hfg_model.generator(x=mels_pred)
 
-        audio_pred_mel, _ = self.fp_model.preprocessor(input_signal=audio_pred.squeeze(1), length=audio_lens)
+        audio_pred_mel, _ = self.preprocessor(input_signal=audio_pred.squeeze(1), length=audio_lens)
 
         optim_g, optim_d = self.optimizers()
 
@@ -537,7 +561,7 @@ class FastPitchE2EModel(TextToWaveform):
 
         self.manual_backward(loss_d)
         norm_d = clip_grad_value_(
-            itertools.chain(self.hfg_model.msd.parameters(), self.hfg_model.mpd.parameters()), 20
+            itertools.chain(self.hfg_model.msd.parameters(), self.hfg_model.mpd.parameters()), None
         )
         optim_d.step()
 
@@ -569,7 +593,7 @@ class FastPitchE2EModel(TextToWaveform):
 
         self.manual_backward(loss_g)
         norm_g = clip_grad_value_(
-            itertools.chain(self.hfg_model.generator.parameters(), self.fp_model.parameters()), 20
+            itertools.chain(self.hfg_model.generator.parameters(), self.fp_model.parameters()), None
         )
         optim_g.step()
 
@@ -624,7 +648,7 @@ class FastPitchE2EModel(TextToWaveform):
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
-        mels, mel_lens = self.fp_model.preprocessor(input_signal=audio, length=audio_lens)
+        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
         (
@@ -654,7 +678,7 @@ class FastPitchE2EModel(TextToWaveform):
         )
 
         audio_pred = self.hfg_model.generator(x=mels_pred)
-        audio_mel_pred, audio_mel_pred_len = self.fp_model.preprocessor(
+        audio_mel_pred, audio_mel_pred_len = self.preprocessor(
             input_signal=audio_pred.squeeze(1), length=audio_lens
         )
 
@@ -759,114 +783,3 @@ class FastPitchE2EModel(TextToWaveform):
     @property
     def output_types(self):
         return self._output_types
-
-    def input_example(self, max_batch=1, max_dim=44):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        par = next(self.fastpitch.parameters())
-        sz = (max_batch, max_dim)
-        inp = torch.randint(
-            0, self.fp_model.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
-        )
-        pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
-        pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
-
-        inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
-
-        if self.export_config["enable_volume"]:
-            volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
-            inputs['volume'] = volume
-        if self.export_config["enable_ragged_batches"]:
-            batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int32)
-            left_over_size = sz[0]
-            batch_lengths[0] = 0
-            for i in range(1, max_batch):
-                length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=par.device)
-                batch_lengths[i] = length + batch_lengths[i - 1]
-                left_over_size -= length.detach().cpu().numpy()[0]
-            batch_lengths[-1] = left_over_size + batch_lengths[-2]
-
-            sum = 0
-            index = 1
-            while index < len(batch_lengths):
-                sum += batch_lengths[index] - batch_lengths[index - 1]
-                index += 1
-            assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
-            inputs['batch_lengths'] = batch_lengths
-
-        if self.fastpitch.speaker_emb is not None:
-            inputs['speaker'] = torch.randint(
-                0, self.fastpitch.speaker_emb.num_embeddings, (max_batch,), device=par.device, dtype=torch.int64
-            )
-
-        return (inputs,)
-
-    def interpolate_speaker(
-        self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
-    ):
-        """
-        This method performs speaker interpolation between two original speakers the model is trained on.
-
-        Inputs:
-            original_speaker_1: Integer speaker ID of first existing speaker in the model
-            original_speaker_2: Integer speaker ID of second existing speaker in the model
-            weight_speaker_1: Floating point weight associated in to first speaker during weight combination
-            weight_speaker_2: Floating point weight associated in to second speaker during weight combination
-            new_speaker_id: Integer speaker ID of new interpolated speaker in the model
-        """
-        if self.fastpitch.speaker_emb is None:
-            raise Exception(
-                "Current FastPitch model is not a multi-speaker FastPitch model. Speaker interpolation can only \
-                be performed with a multi-speaker model"
-            )
-        n_speakers = self.fastpitch.speaker_emb.weight.data.size()[0]
-        if original_speaker_1 >= n_speakers or original_speaker_2 >= n_speakers or new_speaker_id >= n_speakers:
-            raise Exception(
-                f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
-                total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
-            )
-        speaker_emb_1 = (
-            self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
-        )
-        speaker_emb_2 = (
-            self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
-        )
-        new_speaker_emb = weight_speaker_1 * speaker_emb_1 + weight_speaker_2 * speaker_emb_2
-        self.fastpitch.speaker_emb.weight.data[new_speaker_id] = new_speaker_emb
-
-
-@torch.jit.script
-def create_batch(
-    text: torch.Tensor,
-    pitch: torch.Tensor,
-    pace: torch.Tensor,
-    batch_lengths: torch.Tensor,
-    padding_idx: int = -1,
-    volume: Optional[torch.Tensor] = None,
-):
-    batch_lengths = batch_lengths.to(torch.int64)
-    max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
-
-    index = 1
-    texts = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.int64, device=text.device) + padding_idx
-    pitches = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device)
-    paces = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
-    volumes = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
-
-    while index < batch_lengths.shape[0]:
-        seq_start = batch_lengths[index - 1]
-        seq_end = batch_lengths[index]
-        cur_seq_len = seq_end - seq_start
-
-        texts[index - 1, :cur_seq_len] = text[seq_start:seq_end]
-        pitches[index - 1, :cur_seq_len] = pitch[seq_start:seq_end]
-        paces[index - 1, :cur_seq_len] = pace[seq_start:seq_end]
-        if volume is not None:
-            volumes[index - 1, :cur_seq_len] = volume[seq_start:seq_end]
-
-        index += 1
-
-    return texts, pitches, paces, volumes
