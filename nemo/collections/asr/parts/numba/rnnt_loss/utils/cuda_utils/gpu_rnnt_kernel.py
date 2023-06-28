@@ -43,7 +43,6 @@ def logp(
     acts: torch.Tensor, maxT: int, alphabet_size: int, mb: int, t: int, v: int
 ):
     col = mb * maxT + t
-    print('HERE col is', col, 'idx is', col * (1 + alphabet_size) + v, 'from', alphabet_size, mb, t, v)
     return acts[col * (1 + alphabet_size) + v]
 
 
@@ -102,14 +101,10 @@ def compute_alphas_kernel(
             alphas[offset + t * maxU + u] = 0.0
 
         elif u - 1 >= 0 and t >= 0:
-#            print('kernel alpha begin', t, u, alphas[offset + t * maxU + u])
             for tt in range(t):
-#                toadd = logp_jump(duration_acts, maxT, b, t, tt)
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                     alphas[offset + t * maxU + u],
-                    alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) + logp_jump(duration_acts, maxT, b, t, tt))
-#                print('kernel alpha', t, u, 'adding', alphas[offset + tt * maxU + u - 1], logp(acts, maxT, alphabet_size, b, tt, label), logp_jump(duration_acts, maxT, b, t, tt))
-#                print('kernel alpha end', t, u, alphas[offset + t * maxU + u])
+                    alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) + logp_jump(duration_acts, maxT, b, tt, t))
         elif u >= 0 and t >= 0:
             alphas[offset + t * maxU + u] = -9999.0
         else:
@@ -119,9 +114,8 @@ def compute_alphas_kernel(
 
     if u == 0:
         loglike = alphas[offset + (T - 1) * maxU + U] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
-        print("getting final", T - 1, U, alphas[offset + (T - 1) * maxU + U], logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size) )
-        print("act blank final", T - 1, maxT, alphabet_size, b, logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size) )
         llForward[b] = loglike
+        print("HERE forward", loglike)
 
 
 @cuda.jit()
@@ -139,86 +133,53 @@ def compute_betas_kernel(
     maxU: int,
     alphabet_size: int,
 ):
-    """
-    Compute beta (backward variable) probabilities over the transduction step.
 
-    Args:
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
-        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
-            across entire vocabulary.
-        betas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the backward variable
-            probabilities.
-        llBackward: Zero tensor of shape [B]. Represents the log-likelihood of the backward pass.
-            Returned as the backward pass loss that is reduced by the optimizer.
-        xlen: Vector of length B which contains the actual acoustic sequence lengths in the padded
-            activation tensor.
-        ylen: Vector of length B which contains the actual target sequence lengths in the padded
-            activation tensor.
-        mlabels: Matrix of shape [B, U+1] (+1 here is due to <SOS> token - usually the RNNT blank).
-            The matrix contains the padded target transcription that must be predicted.
-        minibatch: Int representing the batch size.
-        maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
-        maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
-        alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
 
-    Updates:
-        Kernel inplace updates the following inputs:
-        -   betas: backward variable scores.
-        -   llBackward: log-likelihood of backward variable.
-    """
     # // launch B blocks, each block has U threads
     b = cuda.blockIdx.x  # // batch id
     u = cuda.threadIdx.x  # label id, u
     T = xlen[b]  # select AM length of current sample
-    U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
+    U = ylen[b]
 
+#    print("HERE", ylen[b])
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
-    offset = b * maxT * maxU  # pointer indexing offset
 
-#    # betas += offset # pointer offset, ignored since we explicitly add offset
-#
-#    # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
-#    if u == 0:
-#        betas[offset + (T - 1) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_)
-#
-#    # sync until all betas are initialized
-#    cuda.syncthreads()
-#
-#    # Ordinary beta calculations, broadcast across B=b and U=u
-#    # Look up backward variable calculation from rnnt_numpy.backward_pass()
-#    for n in range(T + U - 2, -1, -1):
-#        t = n - u
-#
-#        if u == (U - 1):
-#            # for t in reversed(range(T - 1)) step to initialize betas[b, t, U-1]
-#            if t >= 0 and t < (T - 1):
-#                betas[offset + t * maxU + U - 1] = betas[offset + (t + 1) * maxU + U - 1] + logp(
-#                    denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_
-#                )
-#        elif u < U:
-#            if t == T - 1:
-#                # for u in reversed(range(U - 1)) step to initialize betas[b, T-1, u]
-#                betas[offset + (T - 1) * maxU + u] = betas[offset + (T - 1) * maxU + u + 1] + logp(
-#                    denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u]
-#                )
-#            elif (t >= 0) and (t < T - 1):
-#                # for t in reversed(range(T - 1)) for u in reversed(range(U - 1)) step to compute betas[b, t, u]
-#                no_emit = betas[offset + (t + 1) * maxU + u] + logp(
-#                    denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_
-#                )
-#                emit = betas[offset + t * maxU + u + 1] + logp(
-#                    denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
-#                )
-#                betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
-#
-#        # sync across all B=b and U=u
-#        cuda.syncthreads()
+    maxU = maxU + 2
+    offset = b * maxT * maxU # pointer indexing offset
 
-    # After final sync, betas[b, 0, 0] gives
-    # log-likelihood of backward pass.
+    # Ordinary alpha calculations, broadcast across B=b and U=u
+    # Look up forward variable calculation from rnnt_numpy.forward_pass()
+    for n in range(T + U, -1, -1):
+        t = n - u
+
+        label = labels[u - 1] if u >= 1 and u - 1 < U else alphabet_size
+
+        if t == T - 1 and u == U + 1:
+            betas[offset + t * maxU + u] = logp(acts, maxT, alphabet_size, b, t, alphabet_size)
+
+        elif u < U + 1 and t >= 0 and t < T:
+#            print("working on t, u", t, u, betas[offset + t * maxU + u])
+            betas[offset + t * maxU + u] = -9999.9
+            for tt in range(t + 1, T):
+                betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
+                    betas[offset + t * maxU + u],
+                    betas[offset + tt * maxU + u + 1] + logp(acts, maxT, alphabet_size, b, t, label) + logp_jump(duration_acts, maxT, b, t, tt))
+#                print("working on t, u,", t, u, " adding ", betas[offset + tt * maxU + u + 1], logp(acts, maxT, alphabet_size, b, t, label), logp_jump(duration_acts, maxT, b, t, tt))
+#            print("working on t, u", t, u, "done", betas[offset + t * maxU + u])
+
+        elif u >= 0 and t >= 0 and t >= 0 and t < T:
+            betas[offset + t * maxU + u] = -9999.0
+        else:
+            continue
+
+#        print("kernel beta", b, t, u, betas[offset + t * maxU + u])
+
+    cuda.syncthreads()
+
     if u == 0:
-        llBackward[b] = 0 # betas[offset]
+        loglike = betas[offset]
+        llBackward[b] = loglike
+        print("HERE backward", loglike)
 
 
 @cuda.jit()

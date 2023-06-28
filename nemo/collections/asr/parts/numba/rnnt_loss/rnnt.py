@@ -169,9 +169,6 @@ def rnnt_loss_gpu(
     alphabet_size = acts.shape[2] - 1  # shape is the vocab size with blank so minus 1
     maxU = label_lengths.max().item()
 
-    print("HERE COMPARE", alphabet_size, vocab_size)
-
-
     if hasattr(cuda, 'external_stream'):
         stream = cuda.external_stream(torch.cuda.current_stream(acts.device).cuda_stream)
     else:

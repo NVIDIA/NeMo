@@ -94,7 +94,6 @@ class RNNTLossPytorch(Loss):
                         label = labels[b, u - 2] if u >= 2 else -1
                         for tt in range(t):
                             if u - 1 >= 0:
-                                print('pytorch alpha', t, u, 'adding', log_alpha[b, tt, u - 1], acts[b, tt, label], jump_weight[b, tt, t])
                                 log_alpha[b, t, u] = torch.logsumexp(
                                     torch.stack(
                                         [
@@ -104,7 +103,6 @@ class RNNTLossPytorch(Loss):
                                     ),
                                     dim=0,
                                 )
-                                print('pytorch alpha end', t, u, log_alpha[b, t, u])
 
         log_probs = []
         for b in range(B):
@@ -116,7 +114,7 @@ class RNNTLossPytorch(Loss):
 
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
-        print()
+#        print()
         return log_prob
 
     def compute_backward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
@@ -155,9 +153,6 @@ class RNNTLossPytorch(Loss):
 
         log_probs = []
         for b in range(B):
-            # here we need to add the final blank emission weights.
-#            t = act_lens[b]
-#            u = label_lens[b]
             to_append = log_beta[b, 0, 0] # + acts[b, 0, -1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)

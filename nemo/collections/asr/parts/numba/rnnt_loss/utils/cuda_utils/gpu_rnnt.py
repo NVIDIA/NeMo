@@ -70,7 +70,6 @@ class GPURNNT:
         self.maxT_ = maxT
         self.maxU_ = maxU
         self.alphabet_size_ = alphabet_size
-        print("HERE alphabet_size is", alphabet_size)
         self.gpu_workspace = cuda.as_cuda_array(
             workspace
         )  # a flat vector of floatX numbers that represents allocated memory slices

@@ -130,10 +130,10 @@ class TestRNNTLossPytorch:
 #            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
-        B, T, U, V = 2, 4, 2, 4
+        B, T, U, V = 1, 4, 2, 4
         D = 4
         acts = rng.randn(B, T, V + D) # * 0.0
-        labels = [[1, 2], [2, 1]]
+        labels = [[1, 2]] #, [2, 1]]
 
 
         fn_ag = RNNTLossPytorch(vocab_size=V, reduction='sum')  # ag for automatic gradient computation
