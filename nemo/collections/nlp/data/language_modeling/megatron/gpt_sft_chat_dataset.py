@@ -19,6 +19,7 @@ import torch
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.utils import logging
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 __all__ = ['GPTSFTChatDataset']
 
@@ -37,30 +38,32 @@ TYPE_INSTRUCTION = {
 }
 
 
-def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype, extra_id_2_id):
+def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype, extra_id_2_token_id, new_line_token_id):
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
-        # note, sentence piece will add extra empty token in front. s_id has that extra token too
-        skip_name_len = len(tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
-        if extra_id_2_id is None:
+        # note, sentence piece will add extra empty token in front. has to compute the diff
+        id1 = tokenizer.text_to_ids("<extra_id_1>")
+        id2 = tokenizer.text_to_ids("<extra_id_1>" + TURN_TOKEN + speaker + END_NAME_SIGNAL)
+        skip_name_len = len(id2) - len(id1)
+        if extra_id_2_token_id is None:
             raise ValueError("extra_id_2 is not in the vocabulary")
-        if (s_id[1:] == extra_id_2_id).any().item():
+        if (s_id == extra_id_2_token_id).any().item():
             if gtype == 'VALUE_TO_TEXT':
                 # if contains the token <extra_id_2>
-                assert skip_name_len - 1 == torch.where((s_id[1:] == extra_id_2_id))[0].item()
+                assert skip_name_len == torch.where((s_id == extra_id_2_token_id))[0].item()
                 # find new line token id 14
-                more_skip_len = torch.where((s_id[skip_name_len:] == 14))[0][0].item()
-                skip_name_len += more_skip_len + 1
+                more_skip_len = torch.where((s_id[skip_name_len:] == new_line_token_id))[0][0].item() + 1
+                skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
-                skip_name_len = torch.where((s_id[1:] == extra_id_2_id))[0].item() + 2
+                skip_name_len = torch.where((s_id == extra_id_2_token_id))[0].item() + 1
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
             # Check whether the mask is applied to the correct position, the first token is turn token: <extra_id_1>
             # s_id[2:] skips the artifact empty token and the turn token
             # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
-            if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[2:]):
+            if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
                 logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
         if i == 0:
             # mask the first turn completely to provide at least one turn as context
@@ -70,7 +73,7 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
-            target[cur_idx : cur_idx + skip_name_len - 1] = IGNORE_INDEX
+            target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
         cur_idx += tokenized_len
 
 
@@ -145,7 +148,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
     return conversation
 
 
-def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_id: int):
+def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int, new_line_token_id: int):
     """
     Given a conversation list. This transform:
     1. Add signal '### ' at the beginning each sentence, with end signal '\n';
@@ -173,10 +176,16 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_id: int):
     ids = []
     tokenized_lens = []
     for s in source['conversations']:
-        tokenized_sentence = tokenizer.text_to_ids(s["value"])
-        ids.append(torch.tensor(tokenized_sentence))
-        # remove one token as it adds an empty token in front
-        tokenized_lens.append(len(tokenized_sentence) - 1)
+        if isinstance(tokenizer, SentencePieceTokenizer):
+            tokenized_sentence = tokenizer.text_to_ids(s["value"])
+            ids.append(torch.tensor(tokenized_sentence)[1:])
+            # remove one token as it adds an empty token in front
+            tokenized_lens.append(len(tokenized_sentence) - 1)
+        else:
+            tokenized_sentence = tokenizer.text_to_ids(s["value"])
+            ids.append(torch.tensor(tokenized_sentence))
+            # remove one token as it adds an empty token in front
+            tokenized_lens.append(len(tokenized_sentence))
     speakers = [sentence["from"] for sentence in source['conversations']]
     assert mask_role in speakers, "mask role not in the conversation"
     target = torch.LongTensor(target)
@@ -184,7 +193,7 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_id: int):
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
 
-    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type, extra_id_2_id)
+    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type, extra_id_2_token_id, new_line_token_id)
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
@@ -200,9 +209,12 @@ class GPTSFTChatDataset(GPTSFTDataset):
         if '<extra_id_2>' in self.tokenizer.vocab:
             ids_1 = self.tokenizer.text_to_ids('<extra_id_1><extra_id_2>')
             ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
-            self.extra_id_2_id = ids_1[len(ids_2) :][0]
+            self.extra_id_2_token_id = ids_1[len(ids_2) :][0]
         else:
-            self.extra_id_2_id = None
+            self.extra_id_2_token_id = None
+        ids_1 = self.tokenizer.text_to_ids('<extra_id_1>\n')
+        ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
+        self.new_line_token_id = ids_1[len(ids_2) :][0]
 
     def _process_example(self, example):
         """
@@ -210,7 +222,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = preprocess(example, self.tokenizer, self.extra_id_2_id)
+        result = preprocess(example, self.tokenizer, self.extra_id_2_token_id, self.new_line_token_id)
 
         return result
 
