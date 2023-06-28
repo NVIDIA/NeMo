@@ -722,6 +722,8 @@ class UNetModel(nn.Module):
                 self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
             else:
                 state_dict = load_state_dict(from_pretrained)
+                if 'state_dict' in state_dict.keys():
+                    state_dict = state_dict['state_dict']
                 self._load_pretrained_model(state_dict)
 
     def _input_blocks_mapping(self, input_dict):
@@ -860,6 +862,21 @@ class UNetModel(nn.Module):
         original_loaded_keys = loaded_keys
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
+
+        if (
+            'input_blocks.1.0.in_layers.2.weight' in loaded_keys
+            and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
+        ):
+            # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
+            for key_ in missing_keys:
+                s = key_.split('.')
+                idx = int(s[-2])
+                new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
+                state_dict[key_] = state_dict[new_key_]
+
+            loaded_keys = list(state_dict.keys())
+            missing_keys = list(set(expected_keys) - set(loaded_keys))
+            unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
         def _find_mismatched_keys(
             state_dict, model_state_dict, loaded_keys, ignore_mismatched_sizes,

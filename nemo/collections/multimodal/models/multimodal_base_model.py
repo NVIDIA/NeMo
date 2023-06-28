@@ -191,6 +191,14 @@ class MultimodalModel(ModelPT, Exportable):
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
 
+            # compatibility for inductor in inference
+            if not cfg.get('inductor', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('._orig_mod', '', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
             if cfg.get('megatron_amp_O2', False):
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():

@@ -292,10 +292,17 @@ class BasicTransformerBlock(nn.Module):
         gated_ff=True,
         use_checkpoint=False,
         use_flash_attention=False,
+        disable_self_attn=False,
     ):
         super().__init__()
+        self.disable_self_attn = disable_self_attn
         self.attn1 = CrossAttention(
-            query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout, use_flash_attention=use_flash_attention
+            query_dim=dim,
+            heads=n_heads,
+            dim_head=d_head,
+            dropout=dropout,
+            use_flash_attention=use_flash_attention,
+            context_dim=context_dim if self.disable_self_attn else None,
         )  # is a self-attention
         self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
         self.attn2 = CrossAttention(
@@ -315,7 +322,7 @@ class BasicTransformerBlock(nn.Module):
         return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x)) + x
+        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
         x = self.attn2(self.norm2(x), context=context) + x
         x = self.ff(self.norm3(x)) + x
         return x
@@ -338,11 +345,14 @@ class SpatialTransformer(nn.Module):
         depth=1,
         dropout=0.0,
         context_dim=None,
+        disable_self_attn=False,
         use_linear=False,
         use_checkpoint=False,
         use_flash_attention=False,
     ):
         super().__init__()
+        if exists(context_dim) and not isinstance(context_dim, list):
+            context_dim = [context_dim]
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)
@@ -359,9 +369,10 @@ class SpatialTransformer(nn.Module):
                     n_heads,
                     d_head,
                     dropout=dropout,
-                    context_dim=context_dim,
+                    context_dim=context_dim[d],
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
+                    disable_self_attn=disable_self_attn,
                 )
                 for d in range(depth)
             ]
@@ -375,6 +386,8 @@ class SpatialTransformer(nn.Module):
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention
+        if not isinstance(context, list):
+            context = [context]
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
@@ -384,11 +397,12 @@ class SpatialTransformer(nn.Module):
         x = x.contiguous()  # workaround for dynamo ddp bug
         if self.use_linear:
             x = self.proj_in(x)
-        for block in self.transformer_blocks:
-            x = block(x, context=context)
+        for i, block in enumerate(self.transformer_blocks):
+            x = block(x, context=context[i])
         if self.use_linear:
             x = self.proj_out(x)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
+        x = x.contiguous()  # workaround for dynamo ddp bu
         if not self.use_linear:
             x = self.proj_out(x)
         return x + x_in

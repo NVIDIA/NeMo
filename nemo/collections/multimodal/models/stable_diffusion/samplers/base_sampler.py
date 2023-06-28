@@ -113,7 +113,10 @@ class AbstractBaseSampler(ABC):
     ):
         if conditioning is not None:
             if isinstance(conditioning, dict):
-                cbs = conditioning[list(conditioning.keys())[0]][0].shape[0]
+                ctmp = conditioning[list(conditioning.keys())[0]]
+                while isinstance(ctmp, list):
+                    ctmp = ctmp[0]
+                cbs = ctmp.shape[0]
                 if cbs != batch_size:
                     print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
             else:
@@ -250,7 +253,10 @@ class AbstractBaseSampler(ABC):
         if unconditional_conditioning is None or unconditional_guidance_scale == 1.0:
             e_t = self.model.apply_model(x, t, c)
         elif isinstance(c, dict):
-            raise NotImplementedError
+            ### Contolnet conditioning is dict format
+            model_t = self.model.apply_model(x, t, c)
+            model_uncond = self.model.apply_model(x, t, unconditional_conditioning)
+            e_t = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
         else:
             x_in = torch.cat([x] * 2)
             t_in = torch.cat([t] * 2)
