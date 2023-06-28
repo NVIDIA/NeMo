@@ -58,7 +58,6 @@ def logp_jump(
 def compute_alphas_kernel(
     acts: torch.Tensor,
     duration_acts: torch.Tensor,
-    denom: torch.Tensor,
     alphas: torch.Tensor,
     llForward: torch.Tensor,
     xlen: torch.Tensor,
@@ -74,7 +73,7 @@ def compute_alphas_kernel(
     b = cuda.blockIdx.x  # // batch id
     u = cuda.threadIdx.x  # label id, u
     T = xlen[b]  # select AM length of current sample
-    U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
+    U = ylen[b]
 
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
 
@@ -92,7 +91,7 @@ def compute_alphas_kernel(
 
     # Ordinary alpha calculations, broadcast across B=b and U=u
     # Look up forward variable calculation from rnnt_numpy.forward_pass()
-    for n in range(0, T + U):
+    for n in range(0, T + U + 1):
         t = n - u
 
         label = labels[u - 2] if u >= 2 else alphabet_size
@@ -113,7 +112,7 @@ def compute_alphas_kernel(
     cuda.syncthreads()
 
     if u == 0:
-        loglike = alphas[offset + (T - 1) * maxU + U] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
+        loglike = alphas[offset + (T - 1) * maxU + U + 1] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
         llForward[b] = loglike
         print("HERE forward", loglike)
 
@@ -122,7 +121,6 @@ def compute_alphas_kernel(
 def compute_betas_kernel(
     acts: torch.Tensor,
     duration_acts: torch.Tensor,
-    denom: torch.Tensor,
     betas: torch.Tensor,
     llBackward: torch.Tensor,
     xlen: torch.Tensor,
@@ -141,7 +139,6 @@ def compute_betas_kernel(
     T = xlen[b]  # select AM length of current sample
     U = ylen[b]
 
-#    print("HERE", ylen[b])
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
 
     maxU = maxU + 2
@@ -158,21 +155,16 @@ def compute_betas_kernel(
             betas[offset + t * maxU + u] = logp(acts, maxT, alphabet_size, b, t, alphabet_size)
 
         elif u < U + 1 and t >= 0 and t < T:
-#            print("working on t, u", t, u, betas[offset + t * maxU + u])
             betas[offset + t * maxU + u] = -9999.9
             for tt in range(t + 1, T):
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                     betas[offset + t * maxU + u],
                     betas[offset + tt * maxU + u + 1] + logp(acts, maxT, alphabet_size, b, t, label) + logp_jump(duration_acts, maxT, b, t, tt))
-#                print("working on t, u,", t, u, " adding ", betas[offset + tt * maxU + u + 1], logp(acts, maxT, alphabet_size, b, t, label), logp_jump(duration_acts, maxT, b, t, tt))
-#            print("working on t, u", t, u, "done", betas[offset + t * maxU + u])
 
         elif u >= 0 and t >= 0 and t >= 0 and t < T:
             betas[offset + t * maxU + u] = -9999.0
         else:
             continue
-
-#        print("kernel beta", b, t, u, betas[offset + t * maxU + u])
 
     cuda.syncthreads()
 
@@ -186,7 +178,6 @@ def compute_betas_kernel(
 def compute_grad_kernel(
     grads: torch.Tensor,
     acts: torch.Tensor,
-    denom: torch.Tensor,
     alphas: torch.Tensor,
     betas: torch.Tensor,
     logll: torch.Tensor,

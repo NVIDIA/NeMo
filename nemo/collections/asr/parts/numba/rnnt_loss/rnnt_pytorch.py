@@ -426,10 +426,6 @@ class RNNTLossNumba(Module):
         duration_acts = acts[:,:,self.vocab_size + 1:]
         vocab_acts = torch.nn.functional.log_softmax(vocab_acts, -1)
 
-        print('HERE vocab_acts', vocab_acts.shape)
-        print("HERE", vocab_acts)
-
-
         B, T, D = duration_acts.shape
 
         d1 = torch.reshape(duration_acts, [B, T, 1, D])

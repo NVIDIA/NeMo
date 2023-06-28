@@ -67,6 +67,8 @@ def wrap_and_call(fn, acts, labels, device):
     else:
         grad = None
 
+    print("COST IS", costs.data.cpu().numpy())
+
     return costs.data.cpu().numpy(), grad
 
 

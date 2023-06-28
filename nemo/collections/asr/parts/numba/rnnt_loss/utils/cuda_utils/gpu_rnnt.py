@@ -120,13 +120,12 @@ class GPURNNT:
         if training:
             grads *= 0.0  # zero grads
 
-        used_offset, (denom, alphas, betas, llForward, llBackward) = self._prepare_workspace()
+        used_offset, (alphas, betas, llForward, llBackward) = self._prepare_workspace()
 
         # Compute alphas
         gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, self.maxU_ + 2, self.stream_, 0](
             acts,
             duration_acts,
-            denom,
             alphas,
             llForward,
             input_lengths,
@@ -143,7 +142,6 @@ class GPURNNT:
             gpu_rnnt_kernel.compute_betas_kernel[self.minibatch_, self.maxU_ + 2, self.stream_, 0](
                 acts,
                 duration_acts,
-                denom,
                 betas,
                 llBackward,
                 input_lengths,
@@ -161,7 +159,6 @@ class GPURNNT:
             gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
                 grads,
                 acts,
-                denom,
                 alphas,
                 betas,
                 llForward,
@@ -236,16 +233,12 @@ class GPURNNT:
         """
         used_offset = 0
 
-        # // denom
-        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2) ]
-        used_offset += self.maxT_ * self.minibatch_
-
         # // alphas & betas
         alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2) ]
 
-        used_offset += self.maxT_ * self.minibatch_
+        used_offset += self.maxT_ * self.minibatch_ * (self.maxU_ + 2)
         betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_  * (self.maxU_ + 2) ]
-        used_offset += self.maxT_ * self.minibatch_
+        used_offset += self.maxT_ * self.minibatch_ * (self.maxU_ + 2)
 
         # // logllh
         llForward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
@@ -253,7 +246,7 @@ class GPURNNT:
         llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
         used_offset += self.minibatch_
 
-        return used_offset, (denom, alphas, betas, llForward, llBackward)
+        return used_offset, (alphas, betas, llForward, llBackward)
 
 
 class MultiblankGPURNNT(GPURNNT):
@@ -419,7 +412,7 @@ class MultiblankGPURNNT(GPURNNT):
         threadsperblock = min(costs.shape[0], 32)
         blockspergrid = (costs.shape[0] + (threadsperblock - 1)) // threadsperblock
         rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](
-            llForward, costs, self.fastemit_lambda_
+            llForward, costs, 0.0
         )
         self.stream_.synchronize()
 
