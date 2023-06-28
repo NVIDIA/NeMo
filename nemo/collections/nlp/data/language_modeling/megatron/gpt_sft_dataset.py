@@ -221,14 +221,17 @@ class GPTSFTDataset(Dataset):
         answer_start_idx = len(input_ids)
         # Adds sep token between text/prompt and answer
         if self.add_sep:
+            context_ids = context_ids + [self.sep_id]
             input_ids = input_ids + [self.sep_id]
             answer_start_idx += 1
 
         input_ids = input_ids + answer_ids
 
         if self.add_bos:
+            context_ids = [self.tokenizer.bos_id] + context_ids
             input_ids = [self.tokenizer.bos_id] + input_ids
             answer_start_idx += 1
+            
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
@@ -242,7 +245,7 @@ class GPTSFTDataset(Dataset):
         }
         if self.reference_key is not None:
             processed_example['references'] = example[self.reference_key]
-
+            
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -290,12 +293,13 @@ class GPTSFTDataset(Dataset):
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
 
-        max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
+        max_length = max(max([len(x) for x in input_ids]),  max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
+
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]

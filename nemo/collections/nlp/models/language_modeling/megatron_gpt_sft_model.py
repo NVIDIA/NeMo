@@ -374,17 +374,21 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         bos = 1 if data_cfg.add_bos else 0
         sep = 1 if data_cfg.add_sep else 0
         eos = 1 if data_cfg.add_eos else 0
-
+        
+        # tokens: [BOS, contexts, SEP, answers, EOS]
+        # contexts: [BOS, contexts, SEP]
         inputs_text = [
-            self.tokenizer.ids_to_text(c[bos : l.item()].tolist())
-            for c, l in zip(batch['contexts'], batch['context_lengths'])
+            self.tokenizer.ids_to_text(t[bos : l.item() - sep].tolist())
+            for t, l in zip(batch['contexts'], batch['context_lengths'])
         ]
         labels_text = [
-            self.tokenizer.ids_to_text(c[bos + l.item() + sep : -eos].tolist())
-            for c, l in zip(batch['tokens'], batch['context_lengths'])
+            self.tokenizer.ids_to_text(t[l.item() : -eos].tolist())
+            for t, l in zip(batch['tokens'], batch['context_lengths'])
         ]
-        preds_text = [s[len(i) :] for i, s in zip(inputs_text, output['sentences'])]
-
+        preds_text = [
+            self.tokenizer.ids_to_text(t[l.item() :])
+            for t, l in zip(output['token_ids'], batch['context_lengths'])
+        ]
         return {
             'loss': loss,
             'preds': preds_text,  # [str]
