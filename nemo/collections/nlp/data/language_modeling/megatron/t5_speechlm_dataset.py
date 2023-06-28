@@ -597,12 +597,26 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             virtual_tokens_list.append(general_padding(virtual_token, virtual_token_len.item(), max_virtual_tokens_len, pad_value=self.tokenizer.pad_id))
 
-            context_tokens_list.append(general_padding(context_token, context_token_len.item(), max_context_tokens_len, pad_value=self.tokenizer.pad_id))
+            def pad_text_to_speech_dims(text_tensor, pad_id):
+                token_len = text_tensor.shape[0]
+                empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+                return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
-            question_tokens_list.append(general_padding(question_token, question_token_len.item(), max_question_tokens_len, pad_value=self.tokenizer.pad_id))
+            context_tokens_padded = general_padding(context_token, context_token_len.item(), max_context_tokens_len, pad_value=self.tokenizer.pad_id)
+            if len(context_tokens_padded.shape) < 2:
+                context_tokens_padded = pad_text_to_speech_dims(context_tokens_padded, self.tokenizer.pad_id)
+            context_tokens_list.append(context_tokens_padded)
+
+            question_tokens_padded = general_padding(question_token, question_token_len.item(), max_question_tokens_len, pad_value=self.tokenizer.pad_id)
+            if len(question_tokens_padded.shape) < 2:
+                question_tokens_padded = pad_text_to_speech_dims(question_tokens_padded, self.tokenizer.pad_id)
+            question_tokens_list.append(question_tokens_padded)
 
             if max_dec_input_len > 0:
-                dec_input_list.append(general_padding(dec_input, dec_input_len.item(), max_dec_input_len, pad_value=self.tokenizer.pad_id))
+                dec_input_padded = general_padding(dec_input, dec_input_len.item(), max_dec_input_len, pad_value=self.tokenizer.pad_id)
+                if len(dec_input_padded.shape) < 2:
+                    dec_input_padded = pad_text_to_speech_dims(dec_input_padded, self.tokenizer.pad_id)
+                dec_input_list.append(dec_input_padded)
                 dec_mask = torch.as_tensor(([1] * dec_input_len) + ([0] * (max_dec_input_len - dec_input_len))).long().contiguous()
                 dec_input_mask_list.append(dec_mask)
                 speech_mask = dec_mask if is_speech else torch.zeros(dec_mask.shape)
@@ -610,7 +624,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             if max_dec_labels_len > 0:
                 loss_mask = torch.as_tensor(([1] * dec_label_len) + ([0] * (max_dec_labels_len - dec_label_len))).long().contiguous()
-                dec_labels_list.append(general_padding(dec_label, dec_label_len.item(), max_dec_labels_len, pad_value=self.tokenizer.pad_id))
+                dec_label_padded = general_padding(dec_label, dec_label_len.item(), max_dec_labels_len, pad_value=self.tokenizer.pad_id)
+                if len(dec_label_padded.shape) < 2:
+                    dec_label_padded = pad_text_to_speech_dims(dec_label_padded, self.tokenizer.pad_id)
+                dec_labels_list.append(dec_label_padded)
                 dec_labels_mask_list.append(loss_mask)
 
         data_dict = {

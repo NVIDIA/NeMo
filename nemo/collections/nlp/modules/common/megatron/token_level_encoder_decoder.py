@@ -623,7 +623,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     speech_layers = 7
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
-                    speech_logits = torch.zeros([*token_logits.shape[:-1], 1024, speech_layers])
+                    speech_logits = torch.zeros([*token_logits.shape[:-1], 1024, speech_layers],device=token_logits.device)
                     # import ipdb; ipdb.set_trace()
                     for i in range(speech_layers):
                         last_layer_output = self.speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
@@ -649,10 +649,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         assert token_logits.dtype == torch.half
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
+                        # import ipdb; ipdb.set_trace()
+                        # TODO: Need to handle all text batches, which should have lablels in only 2 dims
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
                         for i in range(speech_layers):
                             # What is labels[:7, :, :] if this is text?
-                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float() * speech_mask, labels[i, :, :], label_smoothing)
+                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float() * speech_mask.T.unsqueeze(-1), labels[i, :, :], label_smoothing)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
