@@ -669,13 +669,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         # import ipdb; ipdb.set_trace()
                         # TODO: Need to handle all text batches, which should have lablels in only 2 dims
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
-                        logging.error(f"token_loss: {tokens_loss}")
-                        logging.error(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
+                        logging.debug(f"token_loss: {tokens_loss}")
+                        logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
                         for i in range(speech_layers):
                             # What is labels[:7, :, :] if this is text?
                             tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i, :, :], label_smoothing) * speech_mask.T
-                            logging.error(f"token_loss_{i}: {tokens_loss}")
-                            logging.error(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
+                            logging.debug(f"token_loss_{i}: {tokens_loss}")
+                            logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()

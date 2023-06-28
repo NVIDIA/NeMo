@@ -99,12 +99,12 @@ model:
     sup_data_path: ???
 
   optim:
-    name: sgd
+    name: fused_adam
     lr: 1e-4
     weight_decay: 0.01
-    # betas:
-    # - 0.9
-    # - 0.98
+    betas:
+    - 0.9
+    - 0.98
     sched:
       name: CosineAnnealing
       warmup_steps: 1000
