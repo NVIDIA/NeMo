@@ -133,13 +133,11 @@ class MegatronBertModel(MegatronBaseModel):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                        Float16Module(config=self.transformer_config, module=module, precision=cfg.precision)
                     )
                 self.model = converted_model
             else:
-                self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
-                )
+                self.model = Float16Module(config=self.transformer_config, module=self.model, precision=cfg.precision)
 
         if hasattr(self, '_nsys_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)

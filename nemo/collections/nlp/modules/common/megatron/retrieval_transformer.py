@@ -34,7 +34,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig
+    from megatron.core.transformer import TransformerConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -51,7 +51,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -332,7 +332,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
