@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 r"""
 Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
-    python megatron_lm_ckpt_to_nemo.py \
+    python convert_hf_llama_to_nemo.py \
      --in-file <path_to_hf_checkpoints_folder> \
      --out-file <path_to_output_nemo_file>
 """
