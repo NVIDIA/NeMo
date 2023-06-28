@@ -526,6 +526,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.cfg.get('hidden_size'),
             ]
             ub_cfg_file_name = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+            ub_cfgs = None
             if ub_cfg_file_name is not None:
                 try:
                     import yaml
@@ -534,8 +535,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         ub_cfgs = yaml.safe_load(ub_cfg_file)
                 except (ImportError, TypeError):
                     print("Fail to read ub_tp_comm_overlap config file.")
-            else:
-                ub_cfgs = None
 
             te_module.initialize_ub(
                 shape=input_shape,
