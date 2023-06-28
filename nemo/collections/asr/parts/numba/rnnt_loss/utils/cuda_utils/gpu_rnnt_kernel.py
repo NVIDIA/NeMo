@@ -43,7 +43,8 @@ def logp(
     acts: torch.Tensor, maxT: int, alphabet_size: int, mb: int, t: int, v: int
 ):
     col = mb * maxT + t
-    return acts[col * alphabet_size + v]
+    print('HERE col is', col, 'idx is', col * (1 + alphabet_size) + v, 'from', alphabet_size, mb, t, v)
+    return acts[col * (1 + alphabet_size) + v]
 
 
 @cuda.jit(device=True, inline=True)
@@ -77,7 +78,9 @@ def compute_alphas_kernel(
     U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
 
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
-    offset = b * maxT * ( maxU + 2 ) # pointer indexing offset
+
+    maxU = maxU + 2
+    offset = b * maxT * maxU # pointer indexing offset
 
     # alphas += offset # pointer offset, ignored since we explicitly add offset
 
@@ -90,28 +93,34 @@ def compute_alphas_kernel(
 
     # Ordinary alpha calculations, broadcast across B=b and U=u
     # Look up forward variable calculation from rnnt_numpy.forward_pass()
-    for n in range(1, T + U + 1):
+    for n in range(0, T + U):
         t = n - u
-
 
         label = labels[u - 2] if u >= 2 else alphabet_size
 
-        if u - 1 >= 0:
+        if t == 0 and u == 0:
+            alphas[offset + t * maxU + u] = 0.0
+
+        elif u - 1 >= 0 and t >= 0:
+#            print('kernel alpha begin', t, u, alphas[offset + t * maxU + u])
             for tt in range(t):
-                toadd = logp_jump(duration_acts, maxT, b, t, tt)
+#                toadd = logp_jump(duration_acts, maxT, b, t, tt)
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                     alphas[offset + t * maxU + u],
-                    alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) )# + logp_duration(duration_acts, maxT, b, t, tt))
-
+                    alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) + logp_jump(duration_acts, maxT, b, t, tt))
+#                print('kernel alpha', t, u, 'adding', alphas[offset + tt * maxU + u - 1], logp(acts, maxT, alphabet_size, b, tt, label), logp_jump(duration_acts, maxT, b, t, tt))
+#                print('kernel alpha end', t, u, alphas[offset + t * maxU + u])
+        elif u >= 0 and t >= 0:
+            alphas[offset + t * maxU + u] = -9999.0
+        else:
+            continue
 
     cuda.syncthreads()
 
     if u == 0:
-        loglike = alphas[offset + (T - 1) * maxU + U + 1] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
-#        loglike = 0.0
-
-#        print("HERE", loglike)
-
+        loglike = alphas[offset + (T - 1) * maxU + U] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
+        print("getting final", T - 1, U, alphas[offset + (T - 1) * maxU + U], logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size) )
+        print("act blank final", T - 1, maxT, alphabet_size, b, logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size) )
         llForward[b] = loglike
 
 

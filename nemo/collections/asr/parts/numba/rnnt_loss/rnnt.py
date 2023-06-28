@@ -166,8 +166,10 @@ def rnnt_loss_gpu(
     """
     minibatch_size = acts.shape[0]
     maxT = acts.shape[1]
-    alphabet_size = acts.shape[2]
+    alphabet_size = acts.shape[2] - 1  # shape is the vocab size with blank so minus 1
     maxU = label_lengths.max().item()
+
+    print("HERE COMPARE", alphabet_size, vocab_size)
 
 
     if hasattr(cuda, 'external_stream'):
@@ -186,7 +188,7 @@ def rnnt_loss_gpu(
 
     # Select GPU index
     cuda.select_device(acts.device.index)
-    gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False)
+    gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False) - 9999.0
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)

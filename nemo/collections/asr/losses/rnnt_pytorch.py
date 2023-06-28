@@ -43,14 +43,14 @@ class RNNTLossPytorch(Loss):
 
     def __init__(self, vocab_size, reduction):
         super().__init__()
-        self.vocab_size = vocab_size # also used as BOS/EOS symbol
+        self.vocab_size = vocab_size # this is vocab-size of non-blank symbols. blank is appended as the last token and is used as BOS/EOS symbol. So total vocab-size is this plus 1.
         self.reduction = reduction
 
     def forward(self, acts, labels, act_lens, label_lens):
         shape_list = [int(x) for x in acts.shape]
         assert len(shape_list) == 3
 
-        normed_acts = torch.log_softmax(acts[:,:,:self.vocab_size + 1], -1)
+        normed_acts = torch.log_softmax(acts[:,:,:self.vocab_size + 1], -1)  # hense vocab_size + 1
         duration_acts = acts[:,:,self.vocab_size + 1:]
         forward_logprob = self.compute_forward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
         backward_logprob = self.compute_backward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
@@ -94,6 +94,7 @@ class RNNTLossPytorch(Loss):
                         label = labels[b, u - 2] if u >= 2 else -1
                         for tt in range(t):
                             if u - 1 >= 0:
+                                print('pytorch alpha', t, u, 'adding', log_alpha[b, tt, u - 1], acts[b, tt, label], jump_weight[b, tt, t])
                                 log_alpha[b, t, u] = torch.logsumexp(
                                     torch.stack(
                                         [
@@ -103,6 +104,7 @@ class RNNTLossPytorch(Loss):
                                     ),
                                     dim=0,
                                 )
+                                print('pytorch alpha end', t, u, log_alpha[b, t, u])
 
         log_probs = []
         for b in range(B):

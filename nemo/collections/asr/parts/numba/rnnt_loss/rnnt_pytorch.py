@@ -407,7 +407,7 @@ class RNNTLossNumba(Module):
 
     def __init__(self, vocab_size=0, reduction='mean', clamp: float = -1):
         super(RNNTLossNumba, self).__init__()
-        self.vocab_size = vocab_size
+        self.vocab_size = vocab_size  # this is the number of non-blanks
         assert vocab_size != 0
         self.clamp = float(clamp) if clamp > 0 else 0.0
         self.reduction = reduction
@@ -421,12 +421,25 @@ class RNNTLossNumba(Module):
         label_lens: Tensor of (batch) containing label length of each example
         """
 
-        vocab_acts = acts[:,:,:self.vocab_size].contiguous()
-        duration_acts = acts[:,:,self.vocab_size:].contiguous()
+        vocab_acts = acts[:,:,:self.vocab_size + 1].contiguous()
+
+        duration_acts = acts[:,:,self.vocab_size + 1:]
         vocab_acts = torch.nn.functional.log_softmax(vocab_acts, -1)
 
+        print('HERE vocab_acts', vocab_acts.shape)
+        print("HERE", vocab_acts)
+
+
+        B, T, D = duration_acts.shape
+
+        d1 = torch.reshape(duration_acts, [B, T, 1, D])
+        d2 = torch.reshape(duration_acts, [B, 1, T, D])
+        d1 = d1.repeat([1, 1, T, 1])
+        d2 = d2.repeat([1, T, 1, 1])
+        jump_weight = torch.sum(d1 * d2, dim=-1).contiguous()
+
         return self.loss(
-            vocab_acts, duration_acts, labels, act_lens, label_lens, self.vocab_size, self.reduction, self.clamp
+            vocab_acts, jump_weight, labels, act_lens, label_lens, self.vocab_size, self.reduction, self.clamp
         )
 
 

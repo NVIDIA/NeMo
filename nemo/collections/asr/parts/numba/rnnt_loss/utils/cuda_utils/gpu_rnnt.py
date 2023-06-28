@@ -70,6 +70,7 @@ class GPURNNT:
         self.maxT_ = maxT
         self.maxU_ = maxU
         self.alphabet_size_ = alphabet_size
+        print("HERE alphabet_size is", alphabet_size)
         self.gpu_workspace = cuda.as_cuda_array(
             workspace
         )  # a flat vector of floatX numbers that represents allocated memory slices
@@ -121,10 +122,6 @@ class GPURNNT:
             grads *= 0.0  # zero grads
 
         used_offset, (denom, alphas, betas, llForward, llBackward) = self._prepare_workspace()
-
-        
-#        print('HERE acts', acts.shape)
-#        print('HERE duration_acts', duration_acts.shape)
 
         # Compute alphas
         gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, self.maxU_ + 2, self.stream_, 0](
@@ -246,6 +243,7 @@ class GPURNNT:
 
         # // alphas & betas
         alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2) ]
+
         used_offset += self.maxT_ * self.minibatch_
         betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_  * (self.maxU_ + 2) ]
         used_offset += self.maxT_ * self.minibatch_
