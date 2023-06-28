@@ -26,8 +26,6 @@ IGNORE_INDEX = -100
 END_SIGNAL = "\n"
 END_NAME_SIGNAL = "\n"
 
-SCALE = 9
-
 SYSTEM_TOKEN = "<extra_id_0>System\n"
 TURN_TOKEN = "<extra_id_1>"
 
@@ -39,21 +37,23 @@ TYPE_INSTRUCTION = {
 }
 
 
-def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype):
+def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype, extra_id_2_id):
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. s_id has that extra token too
         skip_name_len = len(tokenizer.text_to_ids(TURN_TOKEN + speaker + END_NAME_SIGNAL))
-        if (s_id[1:] == 255002).any().item():
+        if extra_id_2_id is None:
+            raise ValueError("extra_id_2 is not in the vocabulary")
+        if (s_id[1:] == extra_id_2_id).any().item():
             if gtype == 'VALUE_TO_TEXT':
                 # if contains the token <extra_id_2>
-                assert skip_name_len - 1 == torch.where((s_id[1:] == 255002))[0].item()
+                assert skip_name_len - 1 == torch.where((s_id[1:] == extra_id_2_id))[0].item()
                 # find new line token id 14
                 more_skip_len = torch.where((s_id[skip_name_len:] == 14))[0][0].item()
                 skip_name_len += more_skip_len + 1
             elif gtype == 'TEXT_TO_VALUE':
-                skip_name_len = torch.where((s_id[1:] == 255002))[0].item() + 2
+                skip_name_len = torch.where((s_id[1:] == extra_id_2_id))[0].item() + 2
         if cur_idx >= tgt_len:
             break
         elif cur_idx + tokenized_len < tgt_len:
@@ -81,13 +81,8 @@ def cannonical_form_formater(cannoical_form):
 def response_value_formater(label):
     if isinstance(label, str):
         return '<extra_id_2>' + label + '\n'
-    keys = ['quality', 'toxicity', 'humor', 'creativity', 'violence', 'helpfulness', 'not_appropriate']
-    output_str = '<extra_id_2>'
-    elements = []
-    for key in keys:
-        if key in label:
-            elements.append(f'{key}:{int(label[key]*SCALE)}')
-    return output_str + ','.join(elements) + '\n'
+    else:
+        raise ValueError(f'Unknown label type {type(label)}')
 
 
 def _add_speaker_and_signal(header, source, mask_role, gtype):
@@ -150,9 +145,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
     return conversation
 
 
-def preprocess(
-    source: dict, tokenizer: TokenizerSpec,
-):
+def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_id: int):
     """
     Given a conversation list. This transform:
     1. Add signal '### ' at the beginning each sentence, with end signal '\n';
@@ -191,7 +184,7 @@ def preprocess(
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
 
-    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type)
+    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type, extra_id_2_id)
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
@@ -203,6 +196,13 @@ class GPTSFTChatDataset(GPTSFTDataset):
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
         assert '<extra_id_0>' in self.tokenizer.vocab, "<extra_id_0> not in the tokenizer vocab. not supported"
         assert '<extra_id_1>' in self.tokenizer.vocab, "<extra_id_1> not in the tokenizer vocab. not supported"
+        # calcuilate <extra_id_2> id value
+        if '<extra_id_2>' in self.tokenizer.vocab:
+            ids_1 = self.tokenizer.text_to_ids('<extra_id_1><extra_id_2>')
+            ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
+            self.extra_id_2_id = ids_1[len(ids_2) :][0]
+        else:
+            self.extra_id_2_id = None
 
     def _process_example(self, example):
         """
@@ -210,7 +210,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = preprocess(example, self.tokenizer)
+        result = preprocess(example, self.tokenizer, self.extra_id_2_id)
 
         return result
 
