@@ -255,13 +255,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                        Float16Module(config=self.transformer_config, module=module, precision=cfg.precision)
                     )
                 self.model = converted_model
             else:
-                self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
-                )
+                self.model = Float16Module(config=self.transformer_config, module=self.model, precision=cfg.precision)
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
@@ -312,7 +310,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             logging.info('done')
         else:
             model = GPTModel(
-                config=self.model_parallel_config,
+                config=self.transformer_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 hidden_size=self.cfg.hidden_size,
                 max_position_embeddings=self.cfg.max_position_embeddings,
@@ -1308,49 +1306,49 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
 
-    def build_transformer_config(self):
-        """ Builds the megatron core gpt transformer config for the model."""
-        if self.cfg.get('kv_channels', None) is None:
-            assert (
-                self.cfg.hidden_size % self.cfg.num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-            kv_channels = self.cfg.hidden_size // self.cfg.num_attention_heads
+    # def build_transformer_config(self):
+    #     """ Builds the megatron core gpt transformer config for the model."""
+    #     if self.cfg.get('kv_channels', None) is None:
+    #         assert (
+    #             self.cfg.hidden_size % self.cfg.num_attention_heads == 0
+    #         ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+    #         kv_channels = self.cfg.hidden_size // self.cfg.num_attention_heads
 
-        # nemo megatron only suppots amp o2 for bfloat16 currently
-        if self.megatron_amp_o2:
-            params_dtype = torch.bfloat16
-            bf16 = True
-        else:
-            params_dtype = torch.float32
-            bf16 = False
+    #     # nemo megatron only suppots amp o2 for bfloat16 currently
+    #     if self.megatron_amp_o2:
+    #         params_dtype = torch.bfloat16
+    #         bf16 = True
+    #     else:
+    #         params_dtype = torch.float32
+    #         bf16 = False
 
-        transformer_config = TransformerConfig(
-            num_layers=self.cfg.num_layers,
-            hidden_size=self.cfg.hidden_size,
-            num_attention_heads=self.cfg.num_attention_heads,
-            ffn_hidden_size=self.cfg.ffn_hidden_size,
-            kv_channels=kv_channels,
-            hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
-            attention_dropout=self.cfg.get('attention_dropout', 0.1),
-            fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
-            layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
-            tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
-            pipeline_model_parallel_size=self.cfg.get('pipeline_model_parallel_size', 1),
-            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-            sequence_parallel_enabled=self.cfg.get('sequence_parallel'),
-            init_method_std=self.cfg.get('init_method_std', 0.02),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
-            params_dtype=params_dtype,
-            bf16=bf16,
-            apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
-            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
-            bias_gelu_fusion=self.cfg.get('bias_activation_fusion', False),
-            masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', False),
-            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_dropout_fusion=self.cfg.get('bias_dropout_add_fusion', True),
-            recompute_granularity=self.cfg.get('activations_checkpoint_granularity', None),
-            recompute_method=self.cfg.get('activations_checkpoint_method', None),
-            recompute_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
-        )
+    #     transformer_config = TransformerConfig(
+    #         num_layers=self.cfg.num_layers,
+    #         hidden_size=self.cfg.hidden_size,
+    #         num_attention_heads=self.cfg.num_attention_heads,
+    #         ffn_hidden_size=self.cfg.ffn_hidden_size,
+    #         kv_channels=kv_channels,
+    #         hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
+    #         attention_dropout=self.cfg.get('attention_dropout', 0.1),
+    #         fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
+    #         layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
+    #         tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
+    #         pipeline_model_parallel_size=self.cfg.get('pipeline_model_parallel_size', 1),
+    #         virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+    #         sequence_parallel_enabled=self.cfg.get('sequence_parallel'),
+    #         init_method_std=self.cfg.get('init_method_std', 0.02),
+    #         use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
+    #         params_dtype=params_dtype,
+    #         bf16=bf16,
+    #         apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
+    #         gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
+    #         bias_gelu_fusion=self.cfg.get('bias_activation_fusion', False),
+    #         masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', False),
+    #         persist_layer_norm=self.cfg.get('persist_layer_norm', False),
+    #         bias_dropout_fusion=self.cfg.get('bias_dropout_add_fusion', True),
+    #         recompute_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+    #         recompute_method=self.cfg.get('activations_checkpoint_method', None),
+    #         recompute_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
+    #     )
 
-        return transformer_config
+    #     return transformer_config

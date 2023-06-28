@@ -44,7 +44,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
     from megatron.core.parallel_state import get_tensor_model_parallel_world_size
 
     HAVE_MEGATRON_CORE = True
@@ -64,7 +64,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         init_method,
         output_layer_init_method,
         hidden_size,
@@ -265,7 +265,7 @@ class SwitchMLP(MegatronModule):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         num_experts,
         init_method,
         output_layer_init_method,

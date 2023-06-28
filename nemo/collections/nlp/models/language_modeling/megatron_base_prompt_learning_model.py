@@ -209,7 +209,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
         self.prompt_encoder = PromptEncoder(
-            config=self.model_parallel_config,
+            config=self.transformer_config,
             encoder_type=encoder_type,
             total_virtual_tokens=total_virtual_tokens,
             token_dim=self.hidden_size,

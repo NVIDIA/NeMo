@@ -21,7 +21,7 @@ from torch.nn.parameter import Parameter
 from nemo.utils import logging
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -43,7 +43,7 @@ class MegatronModule(torch.nn.Module):
     """Megatron specific extensions of torch Module with support
     for pipelining."""
 
-    def __init__(self, config: ModelParallelConfig, share_token_embeddings=True):
+    def __init__(self, config: TransformerConfig, share_token_embeddings=True):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
@@ -255,7 +255,7 @@ def float16_to_fp32(val):
 
 
 class Float16Module(MegatronModule):
-    def __init__(self, config: ModelParallelConfig, module, precision):
+    def __init__(self, config: TransformerConfig, module, precision):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."

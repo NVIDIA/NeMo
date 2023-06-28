@@ -53,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
     LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -63,7 +63,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def get_language_model(
-    config: ModelParallelConfig,
+    config: TransformerConfig,
     hidden_size,
     ffn_hidden_size,
     num_layers,
@@ -259,7 +259,7 @@ class Embedding(MegatronModule):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         hidden_size,
         vocab_size,
         max_sequence_length,
@@ -445,7 +445,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         init_method,
         output_layer_init_method,
         encoder_attn_mask_type,

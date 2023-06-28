@@ -26,7 +26,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
 
 try:
-    from megatron.core import ModelParallelConfig, tensor_parallel
+    from megatron.core.transformer import TransformerConfig, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -138,7 +138,7 @@ class TPMLP(NeuralModule, Exportable):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         total_virtual_tokens: int,
         hidden_size: int,
         output_size: int,
@@ -196,7 +196,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         encoder_type: enum,
         total_virtual_tokens: int,
         token_dim: int,

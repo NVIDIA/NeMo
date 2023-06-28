@@ -92,9 +92,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(
-                config=self.model_parallel_config, module=self.model, precision=self.cfg.precision
-            )
+            self.model = Float16Module(config=self.transformer_config, module=self.model, precision=self.cfg.precision)
 
         # self.setup_optimizer_param_groups()
         if self.cfg.precision == 'bf16':
