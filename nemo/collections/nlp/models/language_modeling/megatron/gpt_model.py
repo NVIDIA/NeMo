@@ -116,7 +116,7 @@ class GPTModel(MegatronModule):
         num_layers,
         num_attention_heads,
         ffn_hidden_size,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         num_tokentypes=0,
         parallel_output=True,
