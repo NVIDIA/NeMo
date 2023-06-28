@@ -82,6 +82,7 @@ class TextTokenizer:
     add_blank_at: bool = True
     g2p: G2PConfig = G2PConfig()
 
+
 @dataclass
 class VocoderModel:
     generator = None
@@ -92,6 +93,7 @@ class VocoderModel:
 @dataclass
 class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
+
 
 @experimental
 class FastPitchE2EModel(TextToWaveform):
@@ -164,11 +166,10 @@ class FastPitchE2EModel(TextToWaveform):
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
-
         if cfg.use_pretrain:
             if cfg.fastpitch_model is None or cfg.hifigan_model is None:
                 raise ValueError(f'Should provide model paths if using pretrain')
-            
+
             self.register_nemo_submodule(
                 "hfg_model",
                 config_field="hfg_model",
@@ -203,7 +204,7 @@ class FastPitchE2EModel(TextToWaveform):
             speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
             energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
             energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
-            
+
             n_speakers = cfg.get("n_speakers", 0)
             speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
             speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
@@ -237,7 +238,7 @@ class FastPitchE2EModel(TextToWaveform):
                 cfg.max_token_duration,
                 use_log_energy,
             )
-            
+
             # [TODO] PTL fails to move it ro cerrect device himself, don't know if there is good way to do it
             generator = instantiate(cfg.generator).cuda()
             mpd = MultiPeriodDiscriminator(debug=False).cuda()
@@ -678,9 +679,7 @@ class FastPitchE2EModel(TextToWaveform):
         )
 
         audio_pred = self.hfg_model.generator(x=mels_pred)
-        audio_mel_pred, audio_mel_pred_len = self.preprocessor(
-            input_signal=audio_pred.squeeze(1), length=audio_lens
-        )
+        audio_mel_pred, audio_mel_pred_len = self.preprocessor(input_signal=audio_pred.squeeze(1), length=audio_lens)
 
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
