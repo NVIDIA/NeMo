@@ -44,7 +44,7 @@ def get_decoder_model(
     ffn_hidden_size,
     num_layers,
     num_attention_heads,
-    apply_query_key_layer_scaling=True,
+    apply_query_key_layer_scaling=False,
     kv_channels=None,
     init_method=None,
     scaled_init_method=None,
@@ -88,6 +88,8 @@ def get_decoder_model(
     moe_dropout=0.0,
     turn_off_rop=False,  # turn off the RoP positional embedding
     version=1,
+    position_embedding_type='learned_absolute',
+    use_flash_attention=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -145,6 +147,8 @@ def get_decoder_model(
             num_moe_experts=num_moe_experts,
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
+            position_embedding_type=position_embedding_type,
+            use_flash_attention=use_flash_attention,
         )
     elif arch == "retro":
         decoder = MegatronRetrievalTransformerDecoderModule(
