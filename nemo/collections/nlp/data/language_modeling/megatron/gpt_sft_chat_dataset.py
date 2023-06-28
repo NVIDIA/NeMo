@@ -52,16 +52,16 @@ def _mask_targets(
     For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
 
     Args:
-        target (_type_): input ids
-        tokenized_lens (_type_): array of lengths of each turns
-        speakers (_type_): array of speakers of each turns
-        header_len (_type_): the system prompt length
-        s_ids (_type_): array of tokenized ids of each turns
-        tokenizer (_type_): tokenizer object
-        mask_role (_type_): the speaker id to be masked from loss computation
-        gtype (_type_): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
-        extra_id_2_token_id (_type_): <extra_id_2> token id
-        new_line_token_id (_type_): new line token id
+        target (Tensor): input ids
+        tokenized_lens (List[int]): array of lengths of each turns
+        speakers (List[str]): array of speakers of each turns
+        header_len (int): the system prompt length
+        s_ids (List[Tensor]): array of tokenized ids of each turns
+        tokenizer (TokenizerSpec): tokenizer object
+        mask_role (str): the speaker id to be masked from loss computation
+        gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
+        extra_id_2_token_id (int): <extra_id_2> token id
+        new_line_token_id (int): new line token id
 
     """
     cur_idx = header_len
