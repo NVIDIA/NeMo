@@ -102,6 +102,8 @@ def get_filtered_logprobs(hypothesis: Hypothesis, exclude_blank: bool) -> torch.
         if exclude_blank:  # filtering blanks
             labels = logprobs.argmax(dim=-1)
             filtered_logprobs = logprobs[labels != logprobs.shape[1] - 1]
+            if filtered_logprobs.shape[0] == 0:  # for the edge-case of all blanks
+                filtered_logprobs = logprobs[:1]
         else:
             filtered_logprobs = logprobs
     return filtered_logprobs
@@ -136,10 +138,8 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
         alpha = confidence_cfg.method_cfg.temperature
     conf_func = get_confidence_measure_bank()[conf_type]
 
-    if filtered_logprobs.shape[0] == 0:  # for the edge-case of all blanks, no frames
-        conf_value = 0.0
-    else:
-        conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
+    conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
+
     return conf_value
 
 
