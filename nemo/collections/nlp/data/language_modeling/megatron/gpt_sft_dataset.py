@@ -82,7 +82,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.context_key = context_key
         self.label_key = label_key
-        self.reference_key = reference_key or label_key
+        self.reference_key = reference_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
@@ -139,7 +139,29 @@ class GPTSFTDataset(Dataset):
         assert idx < len(self.indexed_dataset)
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-
+    
+    def _calculate_total_ids(self, example):
+        context = example[self.context_key]
+        output = example[self.label_key]
+        if self.prompt_template is not None:
+            assert '{input}' in self.prompt_template
+            assert '{output}' in self.prompt_template
+            assert self.prompt_template.index('{output}') == len(self.prompt_template) - len('{output}')
+            original_context = context
+            context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
+            text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
+        elif self.separate_prompt_and_response_with_newline:
+            text = context + '\n' + output
+        else:
+            text = context + ' ' + output
+            
+        tokenized_text = self.tokenizer.text_to_ids(text)
+        context_ids = self.tokenizer.text_to_ids(context)
+        answer_ids = tokenized_text[len(context_ids) :]        
+        total_ids = self.virtual_tokens + len(context_ids) + max(len(answer_ids), self.tokens_to_generate) + self.add_bos + self.add_sep + self.add_eos
+            
+        return total_ids
+        
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
@@ -148,7 +170,20 @@ class GPTSFTDataset(Dataset):
         """
         context = example[self.context_key]
         output = example[self.label_key]
-        reference = example[self.reference_key]
+        
+        total_ids = self._calculate_total_ids(example)
+        
+        if total_ids > self.max_seq_length:
+            truncation_length = total_ids - self.max_seq_length
+            if self.truncation_field == "answer":
+                answer_ids = self.tokenizer.text_to_ids(output)
+                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+                output = self.tokenizer.ids_to_text(answer_ids)
+            elif self.truncation_field == "context":
+                context_ids = self.tokenizer.text_to_ids(context)
+                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+                context = self.tokenizer.ids_to_text(context_ids)
+        
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
             assert '{output}' in self.prompt_template
@@ -159,10 +194,9 @@ class GPTSFTDataset(Dataset):
             context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
             # Replace the input and output placeholders with the actual input and output
             text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
-
-        if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+        elif self.separate_prompt_and_response_with_newline:
             text = context + '\n' + output
-        elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+        else:
             text = context + ' ' + output
 
         if self.virtual_tokens:
@@ -175,28 +209,6 @@ class GPTSFTDataset(Dataset):
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
         context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
-
-        # for the long context cases, collate_fn includes self.tokens_to_generate for padding
-        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
-        if self.add_bos:
-            total_ids += 1
-        if self.add_sep:
-            total_ids += 1
-        if self.add_eos:
-            total_ids += 1
-
-        # If the total number of token is greater than the max, we will try to truncate the answer
-        if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            elif self.truncation_field == "context":
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-
-        if len(context_ids) > self.max_seq_length:
-            context_ids = context_ids[: self.max_seq_length]
-
-        assert len(context_ids) <= self.max_seq_length
         input_ids = context_ids
 
         answer_start_idx = len(input_ids)
@@ -212,17 +224,18 @@ class GPTSFTDataset(Dataset):
             answer_start_idx += 1
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-
-        if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
-            input_ids = input_ids[: self.max_seq_length]
+        
+        assert len(input_ids) <= self.max_seq_length
 
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
-            'reference_texts': [reference] if isinstance(reference, str) else reference,
         }
+        if self.reference_key is not None:
+            processed_example['references'] = example[self.reference_key]
+            
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -269,7 +282,6 @@ class GPTSFTDataset(Dataset):
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
-        reference_texts = [item['reference_texts'] for item in batch]
 
         max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
         # increase max length to nearest multiple of 4 or 8
@@ -298,7 +310,9 @@ class GPTSFTDataset(Dataset):
             'position_ids': position_ids,
             'contexts': contexts,
             'context_lengths': context_lengths,
-            'reference_texts': reference_texts,
         }
-
+        
+        if 'references' in batch[0]:
+            processed_batch['references'] = [item['references'] for item in batch]
+        
         return processed_batch
