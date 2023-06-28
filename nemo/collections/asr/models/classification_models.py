@@ -577,12 +577,14 @@ class EncDecClassificationModel(_EncDecBaseModel):
         loss_value = self.loss(logits=logits, labels=labels)
         acc = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {
+        loss = {
             'val_loss': loss_value,
             'val_correct_counts': correct_counts,
             'val_total_counts': total_counts,
             'val_acc': acc,
         }
+        self.validation_step_outputs.append(loss)
+        return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
