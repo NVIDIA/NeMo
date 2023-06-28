@@ -16,10 +16,10 @@ import copy
 
 import torch
 
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.utils import logging
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 __all__ = ['GPTSFTChatDataset']
 
@@ -31,14 +31,39 @@ SYSTEM_TOKEN = "<extra_id_0>System\n"
 TURN_TOKEN = "<extra_id_1>"
 
 TYPE_INSTRUCTION = {
-    "TEXT_TO_CANONICAL_FORM": "Given a dialogue, for each turn you need to generate a short summary called a canonical form. Generate the canonical form for the last turn in the dialogue.",
-    "CANONICAL_FORM_TO_TEXT": "Given a dialogue, for each turn we also have a short summary called a canonical form. Generate the canonical form given the last turn message and canonical form. Then generate the message.",
     'TEXT_TO_VALUE': "",
     'VALUE_TO_TEXT': '',
 }
 
 
-def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype, extra_id_2_token_id, new_line_token_id):
+def _mask_targets(
+    target,
+    tokenized_lens,
+    speakers,
+    header_len,
+    s_ids,
+    tokenizer,
+    mask_role,
+    gtype,
+    extra_id_2_token_id,
+    new_line_token_id,
+):
+    """ This function masks the tokens so the loss is computed only on the non-masked role's responses.
+    For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
+
+    Args:
+        target (_type_): input ids
+        tokenized_lens (_type_): array of lengths of each turns
+        speakers (_type_): array of speakers of each turns
+        header_len (_type_): the system prompt length
+        s_ids (_type_): array of tokenized ids of each turns
+        tokenizer (_type_): tokenizer object
+        mask_role (_type_): the speaker id to be masked from loss computation
+        gtype (_type_): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
+        extra_id_2_token_id (_type_): <extra_id_2> token id
+        new_line_token_id (_type_): new line token id
+
+    """
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
@@ -85,7 +110,7 @@ def response_value_formater(label):
     if isinstance(label, str):
         return '<extra_id_2>' + label + '\n'
     else:
-        raise ValueError(f'Unknown label type {type(label)}')
+        raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
 
 
 def _add_speaker_and_signal(header, source, mask_role, gtype):
@@ -98,26 +123,6 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
         if gtype is None:
             sentence["value"] = (
                 BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
-            )
-        elif gtype == "TEXT_TO_CANONICAL_FORM":
-            sentence["value"] = (
-                BEGIN_SIGNAL
-                + role_token
-                + sentence_from
-                + END_NAME_SIGNAL
-                + sentence["value"]
-                + END_SIGNAL
-                + cannonical_form_formater(sentence['canonical_form'])
-            )
-        elif gtype == "CANONICAL_FORM_TO_TEXT":
-            sentence["value"] = (
-                BEGIN_SIGNAL
-                + role_token
-                + sentence_from
-                + END_NAME_SIGNAL
-                + cannonical_form_formater(sentence['canonical_form'])
-                + sentence["value"]
-                + END_SIGNAL
             )
         elif gtype == "VALUE_TO_TEXT":
             sentence["value"] = (
@@ -140,7 +145,9 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
                 + (response_value_formater(sentence['label']) if 'label' in sentence else '')
             )
         else:
-            raise ValueError(f"source type {gtype} not supported")
+            raise ValueError(
+                f"source type {gtype} not supported, only 'VALUE_TO_TEXT' and 'TEXT_TO_VALUE' are supported"
+            )
         conversation += sentence["value"]
         # if the last turn is not masked, add next token start token to the end, which will be included for loss calculation
         if sentence_from != mask_role and i == len(source) - 1:
@@ -193,7 +200,18 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
 
-    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type, extra_id_2_token_id, new_line_token_id)
+    _mask_targets(
+        target,
+        tokenized_lens,
+        speakers,
+        header_len,
+        ids,
+        tokenizer,
+        mask_role,
+        data_type,
+        extra_id_2_token_id,
+        new_line_token_id,
+    )
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
