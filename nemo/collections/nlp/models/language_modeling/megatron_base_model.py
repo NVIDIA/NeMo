@@ -50,7 +50,8 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core import parallel_state
+    from megatron.core.transformer import TransformerConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -100,7 +101,7 @@ class MegatronBaseModel(NLPModel):
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         # set the megatron core model parallel config
-        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
+        self.transformer_config: TransformerConfig = self.build_transformer_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
@@ -709,35 +710,35 @@ class MegatronBaseModel(NLPModel):
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
 
-    def build_model_parallel_config(self):
+    def build_transformer_config(self):
         """ Sets the model parallel config for megatron core based on the model config"""
         cfg = OmegaConf.to_container(self.cfg, resolve=True)
-        model_parallel_config = ModelParallelConfig()
+        transformer_parallel_config = TransformerConfig()
 
         # TODO: this is not in ModelParallelConfig but the pipeline schedule needs it
-        setattr(model_parallel_config, 'hidden_size', self.cfg.get('hidden_size', 1))
+        setattr(transformer_parallel_config, 'hidden_size', self.cfg.get('hidden_size', 1))
 
         # For attributes in the nemo model config that are the same as the
         # megatron model parallel config, we will use the value from the nemo config.
         # For attributes that are not in the nemo model config, we add custom logic.
-        for field in fields(ModelParallelConfig):
+        for field in fields(TransformerConfig):
             if field.name in cfg:
-                setattr(model_parallel_config, field.name, cfg[field.name])
+                setattr(transformer_parallel_config, field.name, cfg[field.name])
             elif field.name == "perform_initialization":
                 # TODO: we can set this to False if we know we are restoring the weights
-                setattr(model_parallel_config, field.name, True)
+                setattr(transformer_parallel_config, field.name, True)
             elif field.name == "fp16":
                 # train in fp16 with megatron amp O2
                 # NeMo dues not currently support fp16 training with megatron amp O2
                 fp16 = False
                 setattr(
-                    model_parallel_config, field.name, fp16,
+                    transformer_parallel_config, field.name, fp16,
                 )
             elif field.name == "bf16":
                 # train in bf16 with megatron amp O2
                 bf16 = cfg.get('precision', 'fp32') == 'bf16' and cfg.get('megatron_amp_O2', False)
                 setattr(
-                    model_parallel_config, field.name, bf16,
+                    transformer_parallel_config, field.name, bf16,
                 )
             elif field.name == "params_dtype":
                 # instantiate weights in bfloat16 if using megatron amp O2 and bf16
@@ -748,26 +749,26 @@ class MegatronBaseModel(NLPModel):
                     if cfg.get('precision', 'fp32') == 'bf16' and cfg.get('megatron_amp_O2', False)
                     else torch.float32
                 )
-                setattr(model_parallel_config, field.name, params_dtype)
+                setattr(transformer_parallel_config, field.name, params_dtype)
             elif field.name == "timers":
                 # currently nemo does not support megatron core timers
                 timers = None
-                setattr(model_parallel_config, field.name, timers)
+                setattr(transformer_parallel_config, field.name, timers)
             elif field.name == "async_tensor_model_parallel_allreduce":
                 # if using tensor model parallel and not sequence parallel, we can use async allreduce
                 async_tensor_model_parallel_allreduce = self.cfg.get(
                     'tensor_model_parallel_world_size', 1
                 ) > 1 and not self.cfg.get('sequence_parallel', False)
-                setattr(model_parallel_config, field.name, async_tensor_model_parallel_allreduce)
+                setattr(transformer_parallel_config, field.name, async_tensor_model_parallel_allreduce)
             elif field.name == "pipeline_dtype":
                 # dtype used in p2p communication, usually params_dtype
                 # TODO: does this work with autocasting + pipeline ?
-                pipeline_dtype = model_parallel_config.params_dtype
-                setattr(model_parallel_config, field.name, pipeline_dtype)
+                pipeline_dtype = transformer_parallel_config.params_dtype
+                setattr(transformer_parallel_config, field.name, pipeline_dtype)
             elif field.name == "grad_scale_func":
                 # used to scale gradients when training with fp16
                 grad_scale_func = self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None
-                setattr(model_parallel_config, field.name, grad_scale_func)
+                setattr(transformer_parallel_config, field.name, grad_scale_func)
             elif field.name == "enable_autocast":
                 # used to enable autocasting in the fwd/bwd functions from megatron core
                 enable_autocast = not self.cfg.get('megatron_amp_O2', False) and self.cfg.get('precision', 'fp32') in [
@@ -775,7 +776,7 @@ class MegatronBaseModel(NLPModel):
                     '16',
                     'bf16',
                 ]
-                setattr(model_parallel_config, field.name, enable_autocast)
+                setattr(transformer_parallel_config, field.name, enable_autocast)
             elif field.name == "autocast_dtype":
                 # used to set the autocast dtype
                 # TODO: megatron core defaults to pipeline_dtype, but pipeline_dtype defaults to params_dtype
@@ -787,42 +788,43 @@ class MegatronBaseModel(NLPModel):
                     if self.cfg.get('precision', 'fp32') in [16, '16']
                     else torch.float32
                 )
-                setattr(model_parallel_config, field.name, autocast_dtype)
+                setattr(transformer_parallel_config, field.name, autocast_dtype)
             elif field.name == "variable_seq_lengths":
                 # defaults to False but can be modified to True if using variable sequence lengths
                 variable_seq_lengths = False
-                setattr(model_parallel_config, field.name, variable_seq_lengths)
+                setattr(transformer_parallel_config, field.name, variable_seq_lengths)
             elif field.name == "num_microbatches_with_partial_activation_checkpoints":
                 setattr(
-                    model_parallel_config,
+                    transformer_parallel_config,
                     field.name,
                     self.cfg.get('num_micro_batches_with_partial_activation_checkpoints', None),
                 )
             elif field.name == "batch_p2p_sync":
                 # call torch.cuda.synchronize() after batch isend/rcv to protect against race condition
                 batch_p2p_sync = True
-                setattr(model_parallel_config, field.name, batch_p2p_sync)
+                setattr(transformer_parallel_config, field.name, batch_p2p_sync)
             elif field.name == "use_ring_exchange_p2p":
                 # we don't support this in Nemo
                 use_ring_exchange_p2p = False
-                setattr(model_parallel_config, field.name, use_ring_exchange_p2p)
+                setattr(transformer_parallel_config, field.name, use_ring_exchange_p2p)
             elif field.name == "deallocate_pipeline_outputs":
                 # not supported in Nemo
                 deallocate_pipeline_outputs = False
-                setattr(model_parallel_config, field.name, deallocate_pipeline_outputs)
+                setattr(transformer_parallel_config, field.name, deallocate_pipeline_outputs)
             elif field.name == "no_sync_func":
                 # we set this during training
                 no_sync_func = None
-                setattr(model_parallel_config, field.name, no_sync_func)
+                setattr(transformer_parallel_config, field.name, no_sync_func)
             elif field.name == "grad_sync_func":
                 # we set this during training
                 grad_sync_func = None
-                setattr(model_parallel_config, field.name, grad_sync_func)
+                setattr(transformer_parallel_config, field.name, grad_sync_func)
             elif field.name == "param_sync_func":
                 # we set this during training
                 param_sync_func = None
-                setattr(model_parallel_config, field.name, param_sync_func)
+                setattr(transformer_parallel_config, field.name, param_sync_func)
             else:
                 raise ValueError(f"cfg does not have field.name: {field.name} from model_parallel_config.")
 
-        return model_parallel_config
+        return transformer_parallel_config
+
