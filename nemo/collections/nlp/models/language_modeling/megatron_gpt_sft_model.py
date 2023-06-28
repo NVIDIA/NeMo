@@ -356,12 +356,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         batch = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-        
+
         # Meta data from dataset
         references = [""] * len(batch['tokens'])
         if "references" in batch:
             references = batch.pop('references')
-            
+
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
@@ -369,27 +369,27 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self._inference_config = {}
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
-        
+
         output = self.predict_step(batch, batch_idx, dataloader_idx)
         bos = 1 if data_cfg.add_bos else 0
         sep = 1 if data_cfg.add_sep else 0
         eos = 1 if data_cfg.add_eos else 0
-        
+
         inputs_text = [
-            self.tokenizer.ids_to_text(c[bos:l.item()].tolist())
+            self.tokenizer.ids_to_text(c[bos : l.item()].tolist())
             for c, l in zip(batch['contexts'], batch['context_lengths'])
         ]
         labels_text = [
-            self.tokenizer.ids_to_text(c[bos+l.item()+sep:-eos].tolist())
+            self.tokenizer.ids_to_text(c[bos + l.item() + sep : -eos].tolist())
             for c, l in zip(batch['tokens'], batch['context_lengths'])
         ]
         preds_text = [s[len(i) :] for i, s in zip(inputs_text, output['sentences'])]
 
         return {
             'loss': loss,
-            'preds': preds_text, # [str]
-            'labels': labels_text, # [str]
-            'inputs': inputs_text, # [str]
+            'preds': preds_text,  # [str]
+            'labels': labels_text,  # [str]
+            'inputs': inputs_text,  # [str]
             'references': references,
         }
 
@@ -413,7 +413,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather_object(
                 gathered_outputs,
-                [{'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'references': x['references']} for x in output],
+                [
+                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'references': x['references']}
+                    for x in output
+                ],
                 group=parallel_state.get_data_parallel_group(),
             )
 
@@ -427,7 +430,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             }
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, label, input, reference in zip(batch['preds'], batch['labels'], batch['inputs'], batch['references']):
+                    for pred, label, input, reference in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['references']
+                    ):
                         key = input + ' '.join(label)
                         if key not in inp_label_set:
                             inp_label_set.add(key)
@@ -520,7 +525,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
-            assert len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['references'])
+            assert (
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['references'])
+            )
             for i, p, l, r in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['references']):
                 f_json.write(json.dumps({'input': i, 'pred': p, 'label': l, 'reference': r}) + '\n')
 

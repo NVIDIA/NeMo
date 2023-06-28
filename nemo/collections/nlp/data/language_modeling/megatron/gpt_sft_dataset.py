@@ -139,7 +139,7 @@ class GPTSFTDataset(Dataset):
         assert idx < len(self.indexed_dataset)
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-    
+
     def _calculate_total_ids(self, example):
         context = example[self.context_key]
         output = example[self.label_key]
@@ -154,14 +154,21 @@ class GPTSFTDataset(Dataset):
             text = context + '\n' + output
         else:
             text = context + ' ' + output
-            
+
         tokenized_text = self.tokenizer.text_to_ids(text)
         context_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context_ids) :]        
-        total_ids = self.virtual_tokens + len(context_ids) + max(len(answer_ids), self.tokens_to_generate) + self.add_bos + self.add_sep + self.add_eos
-            
+        answer_ids = tokenized_text[len(context_ids) :]
+        total_ids = (
+            self.virtual_tokens
+            + len(context_ids)
+            + max(len(answer_ids), self.tokens_to_generate)
+            + self.add_bos
+            + self.add_sep
+            + self.add_eos
+        )
+
         return total_ids
-        
+
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
@@ -170,9 +177,9 @@ class GPTSFTDataset(Dataset):
         """
         context = example[self.context_key]
         output = example[self.label_key]
-        
+
         total_ids = self._calculate_total_ids(example)
-        
+
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
             if self.truncation_field == "answer":
@@ -183,7 +190,7 @@ class GPTSFTDataset(Dataset):
                 context_ids = self.tokenizer.text_to_ids(context)
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
                 context = self.tokenizer.ids_to_text(context_ids)
-        
+
         if self.prompt_template is not None:
             assert '{input}' in self.prompt_template
             assert '{output}' in self.prompt_template
@@ -224,7 +231,7 @@ class GPTSFTDataset(Dataset):
             answer_start_idx += 1
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-        
+
         assert len(input_ids) <= self.max_seq_length
 
         processed_example = {
@@ -235,7 +242,7 @@ class GPTSFTDataset(Dataset):
         }
         if self.reference_key is not None:
             processed_example['references'] = example[self.reference_key]
-            
+
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -311,8 +318,8 @@ class GPTSFTDataset(Dataset):
             'contexts': contexts,
             'context_lengths': context_lengths,
         }
-        
+
         if 'references' in batch[0]:
             processed_batch['references'] = [item['references'] for item in batch]
-        
+
         return processed_batch
