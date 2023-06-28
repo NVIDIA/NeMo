@@ -231,7 +231,7 @@ class GPTSFTDataset(Dataset):
             context_ids = [self.tokenizer.bos_id] + context_ids
             input_ids = [self.tokenizer.bos_id] + input_ids
             answer_start_idx += 1
-            
+
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
         
@@ -249,7 +249,6 @@ class GPTSFTDataset(Dataset):
             'context_length': len(context_ids),
             'metadata': metadata,
         }
-   
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -298,7 +297,7 @@ class GPTSFTDataset(Dataset):
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         metadata = [item['metadata'] for item in batch]
 
-        max_length = max(max([len(x) for x in input_ids]),  max([len(x) for x in contexts]) + self.tokens_to_generate)
+        max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
