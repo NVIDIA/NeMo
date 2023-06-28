@@ -253,7 +253,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 seed=data_cfg.get('seed', 1234),
                 context_key=data_cfg.get('context_key', 'text'),
                 label_key=data_cfg.get('label_key', 'answer'),
-                reference_key=data_cfg.get('reference_key', None),
                 separate_prompt_and_response_with_newline=data_cfg.get(
                     'separate_prompt_and_response_with_newline', True
                 ),
@@ -293,6 +292,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
+        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
@@ -358,9 +358,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
         # Meta data from dataset
-        references = [""] * len(batch['tokens'])
-        if "references" in batch:
-            references = batch.pop('references')
+        metadata = batch.pop('metadata')
 
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
         # We need _inference_config to get generation params
@@ -394,7 +392,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'preds': preds_text,  # [str]
             'labels': labels_text,  # [str]
             'inputs': inputs_text,  # [str]
-            'references': references,
+            'metadata': metadata, # [dict]
         }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
@@ -418,7 +416,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             torch.distributed.all_gather_object(
                 gathered_outputs,
                 [
-                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'references': x['references']}
+                    {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
                     for x in output
                 ],
                 group=parallel_state.get_data_parallel_group(),
@@ -430,12 +428,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 'preds': [],
                 'labels': [],
                 'inputs': [],
-                'references': [],
+                'metadata': [],
             }
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, label, input, reference in zip(
-                        batch['preds'], batch['labels'], batch['inputs'], batch['references']
+                    for pred, label, input, metadata in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
                         key = input + ' '.join(label)
                         if key not in inp_label_set:
@@ -443,7 +441,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                             deduplicated_outputs['preds'].append(pred)
                             deduplicated_outputs['labels'].append(label)
                             deduplicated_outputs['inputs'].append(input)
-                            deduplicated_outputs['references'].append(reference)
+                            deduplicated_outputs['metadata'].append(metadata)
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
@@ -530,10 +528,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
             assert (
-                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['references'])
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
             )
-            for i, p, l, r in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['references']):
-                f_json.write(json.dumps({'input': i, 'pred': p, 'label': l, 'reference': r}) + '\n')
+            for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
+                json_string = {'input': i, 'pred': p, 'label': l}
+                json_string.update(m)
+                f_json.write(json.dumps(json_string) + '\n')
 
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
         if metric_name == 'exact_string_match' or 'rouge' in metric_name:

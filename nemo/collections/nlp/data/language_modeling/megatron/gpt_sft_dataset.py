@@ -38,7 +38,6 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: str = "text",
         label_key: str = "answer",
-        reference_key: str = None,
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
@@ -62,7 +61,6 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
-        reference_key: Key to use for the reference answers in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
@@ -82,7 +80,6 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.context_key = context_key
         self.label_key = label_key
-        self.reference_key = reference_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
@@ -102,6 +99,7 @@ class GPTSFTDataset(Dataset):
 
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
+        assert self.tokens_to_generate < self.max_seq_length
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
@@ -184,10 +182,12 @@ class GPTSFTDataset(Dataset):
             truncation_length = total_ids - self.max_seq_length
             if self.truncation_field == "answer":
                 answer_ids = self.tokenizer.text_to_ids(output)
+                assert len(answer_ids) >= truncation_length, 'answer is not long enough to truncate.'
                 answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
                 output = self.tokenizer.ids_to_text(answer_ids)
             elif self.truncation_field == "context":
                 context_ids = self.tokenizer.text_to_ids(context)
+                assert len(context_ids) >= truncation_length, 'context is not long enough to truncate.'
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
                 context = self.tokenizer.ids_to_text(context_ids)
 
@@ -234,18 +234,22 @@ class GPTSFTDataset(Dataset):
             
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-
+        
         assert len(input_ids) <= self.max_seq_length
-
+        
+        # store metadata in dataset
+        metadata = { 
+            k: v
+            for k,v in example.items() if k not in [self.context_key, self.label_key]
+        }     
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
+            'metadata': metadata,
         }
-        if self.reference_key is not None:
-            processed_example['references'] = example[self.reference_key]
-            
+   
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -292,6 +296,7 @@ class GPTSFTDataset(Dataset):
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
+        metadata = [item['metadata'] for item in batch]
 
         max_length = max(max([len(x) for x in input_ids]),  max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
@@ -321,9 +326,7 @@ class GPTSFTDataset(Dataset):
             'position_ids': position_ids,
             'contexts': contexts,
             'context_lengths': context_lengths,
+            'metadata': metadata,
         }
-
-        if 'references' in batch[0]:
-            processed_batch['references'] = [item['references'] for item in batch]
 
         return processed_batch
