@@ -43,7 +43,7 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -111,7 +111,7 @@ class BertLMHead(MegatronModule):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.gelu(hidden_states)
         hidden_states = self.layernorm(hidden_states)
-        async_tensor_model_parallel_allreduce = self.model_parallel_config.async_tensor_model_parallel_allreduce
+        async_tensor_model_parallel_allreduce = self.transformer_config.async_tensor_model_parallel_allreduce
         output = parallel_lm_logits(
             hidden_states,
             word_embeddings_weight,
@@ -157,7 +157,7 @@ class BertModel(MegatronModule):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         vocab_size,
         hidden_size,
         max_position_embeddings,

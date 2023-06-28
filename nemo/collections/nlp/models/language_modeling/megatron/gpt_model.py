@@ -40,7 +40,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -109,7 +109,7 @@ class GPTModel(MegatronModule):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         vocab_size,
         hidden_size,
         max_position_embeddings,

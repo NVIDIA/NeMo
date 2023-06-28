@@ -41,7 +41,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig
+    from megatron.core.transformer import TransformerConfig
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 
     HAVE_MEGATRON_CORE = True
@@ -102,7 +102,7 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         in_features: int,
         out_features: int,
         dim: int,
@@ -260,7 +260,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        config: TransformerConfig,
         virtual_tokens: int,
         bottleneck_dim: int,
         embedding_dim: int,
