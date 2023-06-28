@@ -457,7 +457,6 @@ class FastPitchE2EModel(TextToWaveform):
             assert self.ds_class_name == "TTSDataset", f"Unknown dataset class: {self.ds_class_name}"
 
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
-            # print(batch_dict)
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
             text = batch_dict.get("text")
