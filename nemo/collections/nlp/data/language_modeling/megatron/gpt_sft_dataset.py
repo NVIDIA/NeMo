@@ -93,7 +93,9 @@ class GPTSFTSpeechDataset(Dataset):
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
-        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
+        self.indexed_dataset = JSONLMemMapDataset(
+            dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
+        )
 
         # Will be None after this call if `max_num_samples` is None
         # Should be None, disabling
@@ -164,16 +166,18 @@ class GPTSFTSpeechDataset(Dataset):
             # else:
             #     pre_pad = []
             pre_pad = []
-            tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-            context_ids = pre_pad + self.tokenizer.text_to_ids(context)
-            answer_ids = tokenized_text[len(context_ids) :]
-            total_ids = len(context_ids) + len(answer_ids)
-            if self.add_bos:
-                total_ids += 1
-            if self.add_sep:
-                total_ids += 1
-            if self.add_eos:
-                total_ids += 1
+        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
+        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+        answer_ids = tokenized_text[len(context_ids) :]
+
+        # for the long context cases, collate_fn includes self.tokens_to_generate for padding
+        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
+        if self.add_bos:
+            total_ids += 1
+        if self.add_sep:
+            total_ids += 1
+        if self.add_eos:
+            total_ids += 1
 
             # If the total number of token is greater than the max, we will try to truncate the answer
             if total_ids > self.max_seq_length:

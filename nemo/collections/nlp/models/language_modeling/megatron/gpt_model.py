@@ -133,7 +133,7 @@ class GPTModel(MegatronModule):
         num_layers,
         num_attention_heads,
         ffn_hidden_size,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         num_tokentypes=0,
         parallel_output=True,
@@ -170,6 +170,7 @@ class GPTModel(MegatronModule):
         gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
+        megatron_legacy=False,
         onnx_safe=False,
         sequence_parallel=False,
         transformer_engine=False,
@@ -182,6 +183,7 @@ class GPTModel(MegatronModule):
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        use_flash_attention=False,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -251,6 +253,7 @@ class GPTModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
             transformer_engine=transformer_engine,
             fp8=fp8,
@@ -262,6 +265,7 @@ class GPTModel(MegatronModule):
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
             use_emha=use_emha,
+            use_flash_attention=use_flash_attention,
         )
 
         if self.share_embeddings_and_output_weights:
