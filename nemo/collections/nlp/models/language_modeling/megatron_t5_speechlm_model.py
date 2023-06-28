@@ -85,6 +85,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        torch.autograd.set_detect_anomaly(True)
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
 
@@ -127,7 +128,9 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
             list_of_speech_heads.append(MegatronTokenLevelHead(1024, self.word_embeddings.embedding_dim))
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
 
-        self.frozen_model.enc_dec_model.speech_residual_model = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size)
+        # TODO: remove hardcoding
+        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 29184+1024)
+        self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 1024)
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -612,16 +615,16 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
 
 
 class SimplestModule(torch.nn.Module):
-    def __init__(self, dec_hid_size, kernel_size=15, dropout=0.5):
+    def __init__(self, dec_hid_size, token_input_size=1, kernel_size=15, dropout=0.5):
         super().__init__()
-        self.conv = torch.nn.Conv1d(dec_hid_size+2, dec_hid_size, kernel_size=kernel_size, padding=(kernel_size // 2))
+        self.conv = torch.nn.Conv1d(dec_hid_size+token_input_size+1, dec_hid_size, kernel_size=kernel_size, padding=(kernel_size // 2))
         self.norm = torch.nn.LayerNorm(dec_hid_size)
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, dec_hidden, dec_logits, layer_i, mask):
-        layer_index_tensor = torch.tile(torch.tensor([layer_i]).to(dec_hidden.device), [*dec_hidden.shape[:-1],1])
-        dec_prediction = torch.argmax(dec_logits, dim=-1, keepdim=True)
-        out = torch.cat([dec_hidden, dec_prediction, layer_index_tensor], dim=-1) * mask.T.unsqueeze(-1)
+        layer_index_tensor = torch.tile(torch.tensor([layer_i], requires_grad=True, dtype=dec_hidden.dtype, device=dec_hidden.device), [*dec_hidden.shape[:-1],1])
+        # dec_prediction = torch.argmax(dec_logits, dim=-1, keepdim=True)
+        out = torch.cat([dec_hidden, dec_logits, layer_index_tensor], dim=-1) * mask.T.unsqueeze(-1)
         # import ipdb; ipdb.set_trace()
         out = torch.nn.functional.relu(self.conv(out.transpose(1, 2)))
         out = self.norm(out.transpose(1, 2))

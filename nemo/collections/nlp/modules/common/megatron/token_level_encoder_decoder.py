@@ -39,6 +39,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -626,7 +627,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     speech_logits = torch.zeros([*token_logits.shape[:-1], 1024, speech_layers],device=token_logits.device)
                     # import ipdb; ipdb.set_trace()
                     for i in range(speech_layers):
-                        last_layer_output = self.speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
+                        speech_residual_model = self.speech_residual_model_2
+                        if i == 0:
+                            speech_residual_model = self.speech_residual_model_1
+                        last_layer_output = speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
                         # Need to check that the below line is correct
                         # import ipdb; ipdb.set_trace()
                         # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
@@ -652,9 +656,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         # import ipdb; ipdb.set_trace()
                         # TODO: Need to handle all text batches, which should have lablels in only 2 dims
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
+                        logging.error(f"token_loss: {tokens_loss}")
+                        logging.error(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
                         for i in range(speech_layers):
                             # What is labels[:7, :, :] if this is text?
-                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float() * speech_mask.T.unsqueeze(-1), labels[i, :, :], label_smoothing)
+                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i, :, :], label_smoothing) * speech_mask.T
+                            logging.error(f"token_loss_{i}: {tokens_loss}")
+                            logging.error(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
