@@ -217,14 +217,26 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     return dict(input_ids=input_ids, mask=mask)
 
 
+def _check_token_in_vocab(tokenizer, token):
+    ids = tokenizer.text_to_ids(token)
+    if isinstance(tokenizer, SentencePieceTokenizer):
+        return len(ids) == 2
+    else:
+        return len(ids) == 1
+
+
 class GPTSFTChatDataset(GPTSFTDataset):
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
         assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
-        assert '<extra_id_0>' in self.tokenizer.vocab, "<extra_id_0> not in the tokenizer vocab. not supported"
-        assert '<extra_id_1>' in self.tokenizer.vocab, "<extra_id_1> not in the tokenizer vocab. not supported"
+        assert _check_token_in_vocab(
+            self.tokenizer, '<extra_id_0>'
+        ), "<extra_id_0> not in the tokenizer vocab. not supported"
+        assert _check_token_in_vocab(
+            self.tokenizer, '<extra_id_1>'
+        ), "<extra_id_1> not in the tokenizer vocab. not supported"
         # calcuilate <extra_id_2> id value
-        if '<extra_id_2>' in self.tokenizer.vocab:
+        if _check_token_in_vocab(self.tokenizer, '<extra_id_2>'):
             ids_1 = self.tokenizer.text_to_ids('<extra_id_1><extra_id_2>')
             ids_2 = self.tokenizer.text_to_ids('<extra_id_1>')
             self.extra_id_2_token_id = ids_1[len(ids_2) :][0]
