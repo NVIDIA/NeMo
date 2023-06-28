@@ -17,6 +17,7 @@ import os
 import re
 from typing import Any, Dict, Optional, Union
 
+import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
@@ -36,7 +37,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLE
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-import omegaconf
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches

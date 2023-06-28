@@ -16,10 +16,10 @@ import copy
 
 import torch
 
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.utils import logging
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 __all__ = ['GPTSFTChatDataset']
 
@@ -38,7 +38,18 @@ TYPE_INSTRUCTION = {
 }
 
 
-def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids, tokenizer, mask_role, gtype, extra_id_2_token_id, new_line_token_id):
+def _mask_targets(
+    target,
+    tokenized_lens,
+    speakers,
+    header_len,
+    s_ids,
+    tokenizer,
+    mask_role,
+    gtype,
+    extra_id_2_token_id,
+    new_line_token_id,
+):
     cur_idx = header_len
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
@@ -193,7 +204,18 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     target[:header_len] = IGNORE_INDEX
     input_ids = torch.LongTensor(input_ids)
 
-    _mask_targets(target, tokenized_lens, speakers, header_len, ids, tokenizer, mask_role, data_type, extra_id_2_token_id, new_line_token_id)
+    _mask_targets(
+        target,
+        tokenized_lens,
+        speakers,
+        header_len,
+        ids,
+        tokenizer,
+        mask_role,
+        data_type,
+        extra_id_2_token_id,
+        new_line_token_id,
+    )
     mask = (target != IGNORE_INDEX).bool()
     assert mask.sum().item() != 0, "mask is empty"
     return dict(input_ids=input_ids, mask=mask)
