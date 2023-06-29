@@ -27,9 +27,9 @@ from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
+from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.models.fastpitch import FastPitchModel
 from nemo.collections.tts.models.hifigan import HifiGanModel
-from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.collections.tts.parts.utils.helpers import (
