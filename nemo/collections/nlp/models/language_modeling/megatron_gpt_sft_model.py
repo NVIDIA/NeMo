@@ -391,7 +391,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'preds': preds_text,  # [str]
             'labels': labels_text,  # [str]
             'inputs': inputs_text,  # [str]
-            'metadata': metadata, # [dict]
+            'metadata': metadata,  # [dict]
         }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):

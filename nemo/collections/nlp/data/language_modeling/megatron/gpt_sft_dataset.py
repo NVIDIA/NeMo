@@ -234,14 +234,11 @@ class GPTSFTDataset(Dataset):
 
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-        
+
         assert len(input_ids) <= self.max_seq_length
-        
+
         # store metadata in dataset
-        metadata = { 
-            k: v
-            for k,v in example.items() if k not in [self.context_key, self.label_key]
-        }     
+        metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
