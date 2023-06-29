@@ -641,7 +641,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=data_cfg.drop_last,
-            pad_samples_to_global_batch_size=False,
+            pad_samples_to_global_batch_size=not data_cfg.drop_last,
         )
         return torch.utils.data.DataLoader(
             dataset,

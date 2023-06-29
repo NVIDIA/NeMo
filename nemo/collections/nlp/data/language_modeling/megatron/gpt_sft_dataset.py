@@ -135,6 +135,8 @@ class GPTSFTDataset(Dataset):
                 idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
+        # idx may < 0 because we pad_samples_to_global_batch_size, e.g. id = -1
+        if idx < 0: idx = len(self) + idx
         example = self.indexed_dataset[idx]
         return self._process_example(example)
 
