@@ -128,14 +128,8 @@ def get_workspace_size(
     # alphas & betas
     per_minibatch_size += maxT * (2 + maxU ) * 2
 
-    if not gpu:
-        # // blank & label log probability cache
-        per_minibatch_size += maxT * maxU * 2
-    else:
-        # // softmax denominator
-        per_minibatch_size += maxT * maxU
-        # // forward - backward loglikelihood
-        per_minibatch_size += 2
+    # // forward - backward loglikelihood
+    per_minibatch_size += 2
 
     size = per_minibatch_size * minibatch
     return (size, global_constants.RNNTStatus.RNNT_STATUS_SUCCESS)

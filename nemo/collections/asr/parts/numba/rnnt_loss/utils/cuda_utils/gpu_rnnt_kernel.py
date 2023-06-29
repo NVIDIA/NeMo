@@ -77,10 +77,6 @@ def compute_alphas_kernel(
 
     maxU = maxU + 2
     offset = b * maxT * maxU # pointer indexing offset
-    if u == 0:
-        alphas[offset] = 0
-
-    cuda.syncthreads()
 
     for n in range(0, T + U + 1):
         t = n - u
@@ -88,23 +84,15 @@ def compute_alphas_kernel(
 
         if t == 0 and u == 0:
             alphas[offset + t * maxU + u] = 0.0
-        elif u - 1 >= 0 and t >= 0:
+        elif u - 1 >= 0 and t >= 0 and u < U + 2 and t < T:
             for tt in range(t):
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                     alphas[offset + t * maxU + u],
                     alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) + logp_jump(duration_acts, maxT, b, tt, t))
-        elif u >= 0 and t >= 0:
-            alphas[offset + t * maxU + u] = -9999.0
-        else:
-            continue
 
     cuda.syncthreads()
 
     if u == 0:
-        for t in range(T):
-            for u in range(U+2):
-                 print(t, u, math.exp(alphas[offset + t * maxU + u]))
-
         loglike = alphas[offset + (T - 1) * maxU + U + 1] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
         llForward[b] = loglike
 
@@ -164,10 +152,6 @@ def compute_betas_kernel(
         loglike = betas[offset]
         llBackward[b] = loglike
 
-        for t in range(T):
-            for u in range(U+2):
-                 print(t, u, math.exp(betas[offset + t * maxU + u]))
-
 
 @cuda.jit()
 def compute_grad_kernel(
@@ -212,19 +196,23 @@ def compute_grad_kernel(
         logpk = logp(acts, maxT, alphabet_size, mb, t, label)
         log_grad = -9999.9
 
-        if t != T - 1:
+        if t == 0 and u == 0:
             for tt in range(t + 1, T):
                 log_grad = rnnt_helper.log_sum_exp(
                     log_grad,
                     logp_jump(duration_acts, maxT, mb, t, tt) + betas[col + maxU * (tt - t) + 1]
                 )
+        elif t != T - 1 and u < U + 1:
+            for tt in range(t + 1, T):
+                log_grad = rnnt_helper.log_sum_exp(
+                    log_grad,
+                    logp_jump(duration_acts, maxT, mb, t, tt) + betas[col + maxU * (tt - t) + 1]
+                )
+
         elif t == T - 1 and u == U + 1:
             log_grad = 0
 
         log_grad += alphas[col] - logll[mb]
-
-#        if t == T -1 :
-#            print('log grad is', log_grad)
 
         grad = -math.exp(log_grad + logpk)
         grads[col * (1 + alphabet_size) + label] = grad
@@ -234,6 +222,7 @@ def compute_grad_kernel(
 #            g = min(g, clamp)
 #            g = max(g, -clamp)
 #            grads[col * (1 + alphabet_size) + label] = g
+
 
 
 

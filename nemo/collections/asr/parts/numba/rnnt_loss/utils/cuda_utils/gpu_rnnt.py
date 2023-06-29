@@ -117,9 +117,6 @@ class GPURNNT:
         """
         training = grads is not None
 
-        print("grads is", grads.shape)
-        print("duration grads is", duration_grads.shape)
-
         if training:
             grads *= 0.0  # zero grads
             duration_grads *= 0.0  # zero grads
