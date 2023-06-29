@@ -1257,9 +1257,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.last_activations_checkpoint_granularity = self.cfg.activations_checkpoint_granularity
         self.last_activations_checkpoint_method = self.cfg.activations_checkpoint_method
         self.last_activations_checkpoint_num_layers = self.cfg.activations_checkpoint_num_layers
-        self.last_activations_checkpoint_layers_per_pipeline = self.cfg.get(
-            'activations_checkpoint_layers_per_pipeline', None
-        )
+        self.last_activations_checkpoint_layers_per_pipeline = self.cfg.activations_checkpoint_layers_per_pipeline
 
         # Reset config values. Needed for calling generate.
         self.cfg.activations_checkpoint_granularity = None
