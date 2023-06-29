@@ -446,7 +446,15 @@ class RNNTLossNumba(Module):
         d2 = torch.reshape(duration_acts, [B, 1, T, D])
         d1 = d1.repeat([1, 1, T, 1])
         d2 = d2.repeat([1, T, 1, 1])
-        jump_weight = torch.sum(d1 * d2, dim=-1).contiguous()
+        jump_weight = torch.sum(d1 * d2, dim=-1).contiguous()  # of shape [B, T, T]
+
+        mask = torch.ones([T, T], dtype=torch.float, device=d1.device)
+        mask = mask - torch.triu(mask, diagonal=1)
+        mask = torch.reshape(mask, [1, T, T])
+        jump_weight = jump_weight - mask * 9999.9
+
+        jump_weight = torch.nn.functional.log_softmax(jump_weight, dim=-1)
+#        print("JUMP", jump_weight)
 
         return self.loss(
             vocab_acts, jump_weight, labels, act_lens, label_lens, self.vocab_size, self.reduction, self.clamp

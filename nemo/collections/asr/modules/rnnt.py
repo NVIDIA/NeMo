@@ -1318,7 +1318,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                         sub_dec = sub_dec.narrow(dim=1, start=0, length=int(max_sub_transcript_length + 1))
 
                     # Perform joint => [sub-batch, T', U', V + 1]
-                    sub_joint = self.joint(sub_enc, sub_dec)
+                    sub_joint = self.joint(sub_enc)
 
                     del sub_dec
 
@@ -1377,7 +1377,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
             return losses, wer, wer_num, wer_denom
 
-    def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+    def joint(self, f: torch.Tensor) -> torch.Tensor:
         """
         Compute the joint step of the network.
 
@@ -1409,23 +1409,21 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         """
         # f = [B, T, H1]
         f = self.enc(f)
-        f.unsqueeze_(dim=2)  # (B, T, 1, H)
+#        f.unsqueeze_(dim=2)  # (B, T, 1, H)
 
-        # g = [B, U, H2]
-        g = self.pred(g)
-        g.unsqueeze_(dim=1)  # (B, 1, U, H)
-
-        inp = f + g  # [B, T, U, H]
-
-        del f, g
+#        # g = [B, U, H2]
+#        g = self.pred(g)
+#        g.unsqueeze_(dim=1)  # (B, 1, U, H)
+#
+#        inp = f + g  # [B, T, U, H]
+#
+#        del f, g
 
         # Forward adapter modules on joint hidden
         if self.is_adapter_available():
             inp = self.forward_enabled_adapters(inp)
 
-        res = self.joint_net(inp)  # [B, T, U, V + 1]
-
-        del inp
+        res = self.joint_net(f)  # [B, T, U, V + 1]
 
         if self.preserve_memory:
             torch.cuda.empty_cache()

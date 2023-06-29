@@ -151,14 +151,14 @@ class TestRNNTLossPytorch:
         assert np.allclose(
             pt_grads[:, :, : V + 1], ag_grads[:, :, : V + 1]
         ), "small_random_test vocab gradient mismatch."
-
-        print("GRADS")
-        print((ag_grads[:, :, V + 1 :] - pt_grads[:, :, V + 1 :]).max())
-
-
         assert np.allclose(
             pt_grads[:, :, V + 1 :], ag_grads[:, :, V + 1 :], rtol=1e-04, atol=1e-04
         ), "small_random_test duration gradient mismatch."
+
+#        print("GRADS")
+#        print((ag_grads[:, :, V + 1 :] - pt_grads[:, :, V + 1 :]).max())
+
+
 
 
 #    @pytest.mark.unit

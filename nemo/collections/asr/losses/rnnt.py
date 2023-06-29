@@ -259,7 +259,7 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
     elif loss_name == 'warprnnt_numba':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
-        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
+        loss_func = RNNTLossNumba(vocab_size=blank_idx, reduction='none', clamp=clamp)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'pytorch':
@@ -332,7 +332,7 @@ class RNNTLoss(Loss):
         """Input types definitions for CTCLoss.
         """
         return {
-            "log_probs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "input_lengths": NeuralType(tuple('B'), LengthsType()),
             "target_lengths": NeuralType(tuple('B'), LengthsType()),

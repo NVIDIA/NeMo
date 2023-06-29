@@ -215,7 +215,6 @@ def compute_grad_kernel(
         grad = -math.exp(log_grad + logpk)
         grads[col * (1 + alphabet_size) + label] = grad
 
-
         if clamp > 0.0:
             g = grads[col * (1 + alphabet_size) + label]
             g = min(g, clamp)
@@ -270,6 +269,11 @@ def compute_duration_grad_kernel(
         bttu = mb * maxT * maxU + tt * maxU + u + 1
         log_grad = alphas[btu] + betas[bttu] + logpk - logll[mb]
         grad = -math.exp(log_grad + logp_j)
+
+        if clamp > 0.0:
+            grad = min(grad, clamp)
+            grad = max(grad, -clamp)
+
         duration_grads[col * maxU + u] = grad
 
 
