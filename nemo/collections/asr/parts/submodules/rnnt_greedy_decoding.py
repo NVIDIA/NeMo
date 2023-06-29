@@ -416,7 +416,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
                 # If preserving per-frame confidence, log_normalize must be true
                 logp = self._joint_step(f, log_normalize=True if self.preserve_frame_confidence else None)[
-                    0, 0, :self._blank_index
+                    0, 0, : self._blank_index
                 ]
 
                 del g

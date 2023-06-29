@@ -1409,15 +1409,15 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         """
         # f = [B, T, H1]
         f = self.enc(f)
-#        f.unsqueeze_(dim=2)  # (B, T, 1, H)
+        #        f.unsqueeze_(dim=2)  # (B, T, 1, H)
 
-#        # g = [B, U, H2]
-#        g = self.pred(g)
-#        g.unsqueeze_(dim=1)  # (B, 1, U, H)
-#
-#        inp = f + g  # [B, T, U, H]
-#
-#        del f, g
+        #        # g = [B, U, H2]
+        #        g = self.pred(g)
+        #        g.unsqueeze_(dim=1)  # (B, 1, U, H)
+        #
+        #        inp = f + g  # [B, T, U, H]
+        #
+        #        del f, g
 
         # Forward adapter modules on joint hidden
         if self.is_adapter_available():

@@ -135,10 +135,10 @@ class TestRNNTLossPytorch:
         acts = rng.randn(B, T, V + D)
         labels = [[1, 2, 2, 3, 2, 1], [1, 2, 4, 6, 2, 2]]
 
-#        B, T, U, V = 1, 5, 3, 2
-#        D = 3
-#        acts = rng.randn(B, T, V + D)
-#        labels = [[1,2,1]]
+        #        B, T, U, V = 1, 5, 3, 2
+        #        D = 3
+        #        acts = rng.randn(B, T, V + D)
+        #        labels = [[1,2,1]]
 
         fn_ag = RNNTLossPytorch(vocab_size=V, reduction='sum')  # ag for automatic gradient computation
         ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
@@ -155,10 +155,9 @@ class TestRNNTLossPytorch:
             pt_grads[:, :, V + 1 :], ag_grads[:, :, V + 1 :], rtol=1e-04, atol=1e-04
         ), "small_random_test duration gradient mismatch."
 
+
 #        print("GRADS")
 #        print((ag_grads[:, :, V + 1 :] - pt_grads[:, :, V + 1 :]).max())
-
-
 
 
 #    @pytest.mark.unit
