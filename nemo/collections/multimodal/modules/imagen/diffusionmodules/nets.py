@@ -326,6 +326,15 @@ class UNetModel(nn.Module):
                 x_low_res = F.interpolate(x_low_res, (new_height, new_width), mode="bicubic")
             x = torch.cat([x, x_low_res], dim=1)
         batch_size, device = x.shape[0], x.device
+
+        if x.dtype != time.dtype or time.dtype != text_embed.dtype:
+            dtype = text_embed.dtype
+            x = x.to(dtype=dtype)
+            time = time.to(dtype=dtype)
+            if x_low_res is not None:
+                x_low_res = x_low_res.to(dtype=dtype)
+            if time_low_res is not None:
+                time_low_res = time_low_res.to(dtype=dtype)
         # Time Conditioning
         t = self.time_embed(time)
         # Add lowres time conditioning
@@ -535,6 +544,15 @@ class EfficientUNetModel(nn.Module):
             assert time_low_res is not None, 'time_low_res cannot be None when training with noise conditioning aug'
         else:
             assert time_low_res is None, 'time_low_res cannot be presented'
+
+        if x.dtype != time.dtype or time.dtype != text_embed.dtype:
+            dtype = text_embed.dtype
+            x = x.to(dtype=dtype)
+            time = time.to(dtype=dtype)
+            if x_low_res is not None:
+                x_low_res = x_low_res.to(dtype=dtype)
+            if time_low_res is not None:
+                time_low_res = time_low_res.to(dtype=dtype)
 
         batch_size, device = x.shape[0], x.device
         # Time Conditioning

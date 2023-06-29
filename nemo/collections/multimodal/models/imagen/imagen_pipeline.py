@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 from torch.cuda.amp import autocast
 
 from nemo.collections.multimodal.models.imagen.imagen import Imagen, MegatronImagen
-from nemo.collections.multimodal.parts.utils import numpy_to_pil
+from nemo.collections.multimodal.parts.utils import numpy_to_pil, setup_trainer_and_models_for_inference
 
 
 @dataclass
@@ -92,10 +92,26 @@ class ImagenPipeline(Callable):
             model.unet.cuda().eval()
         return model
 
-    def _load_customized_model(cfg: ImagenPipelineConfig, trainer=None):
+    def _load_customized_model(cfg: ImagenPipelineConfig, trainer=None, megatron_loading=False, megatron_cfg=None):
+        if megatron_loading:
+            assert megatron_cfg
+
+            def model_cfg_modifier(model_cfg):
+                model_cfg.inductor = False
+                model_cfg.unet.flash_attention = False
+                model_cfg.micro_batch_size = megatron_cfg.fid.ncaptions_per_batch
+                model_cfg.global_batch_size = model_cfg.micro_batch_size * megatron_cfg.fid.ntasks_per_node
+
+            trainer, megatron_models = setup_trainer_and_models_for_inference(
+                MegatronImagen, cfg=megatron_cfg, model_cfg_modifier=model_cfg_modifier
+            )
+            models = [mm.model for mm in megatron_models]
+            for model in models:
+                model.cuda().eval()
+                model.model.set_inference_mode(True)
+            return models
         customized_models = cfg.customized_model
         models = []
-
         print('Load base model.')
         model = ImagenPipeline._load_model(
             model_ckpt=customized_models.base_ckpt, model_cfg=customized_models.base_cfg, trainer=trainer,
@@ -118,7 +134,9 @@ class ImagenPipeline(Callable):
         return models
 
     @classmethod
-    def from_pretrained(cls, cfg: ImagenPipelineConfig, trainer=None, device='cuda'):
+    def from_pretrained(
+        cls, cfg: ImagenPipelineConfig, trainer=None, device='cuda', megatron_loading=False, megatron_cfg=None
+    ):
         target_resolution = cfg.target_resolution
         assert target_resolution in [64, 256, 1024]
 
@@ -128,7 +146,7 @@ class ImagenPipeline(Callable):
 
         assert cfg.model_name is None, 'No predefined model for now'
         assert cfg.customized_model is not None, 'Need to provide customized models for inference'
-        models = ImagenPipeline._load_customized_model(cfg, trainer)
+        models = ImagenPipeline._load_customized_model(cfg, trainer, megatron_loading, megatron_cfg)
         assert len(models) >= 1, 'Need to load at least one model'
         if cfg.inference_precision == '16':
             print('Running Inference in FP16.')
@@ -151,7 +169,7 @@ class ImagenPipeline(Callable):
         else:
             inp_text_batch = input_text
         # Encode the text embeddings using text encoder.
-        text_encodings, text_mask = self.text_encoder.encode(inp_text_batch)
+        text_encodings, text_mask = self.text_encoder.encode(inp_text_batch, device=self.device)
         if repeat != 1:
             assert len(inp_text_batch) == 1, 'Repeat should only be applied if we feed single text to encoder.'
             text_encodings = text_encodings.repeat(repeat, 1, 1)
@@ -211,7 +229,7 @@ class ImagenPipeline(Callable):
             cfgs = cfgs[: len(models)]
         else:
             cfgs = classifier_free_guidance
-            if isinstance(cfgs, int):
+            if isinstance(cfgs, int) or isinstance(cfgs, float):
                 cfgs = [cfgs] * len(models)
 
         if inference_steps is None:
@@ -239,7 +257,7 @@ class ImagenPipeline(Callable):
                 text_input = prompt.strip('\n')
             print('Input caption: {}'.format(text_input))
             tic = time.perf_counter()
-            text_encondings, text_mask = self.get_text_encodings(
+            text_encodings, text_mask = self.get_text_encodings(
                 text_input, repeat=num_images_per_promt if not single_batch_mode else 1
             )
             throughputs['text-encoding'].append(time.perf_counter() - tic)
@@ -279,7 +297,7 @@ class ImagenPipeline(Callable):
                 with autocast(enabled=amp_enabled):
                     generated_images = model.sample_image(
                         noise_map=noise_map,
-                        text_encoding=text_encondings,
+                        text_encoding=text_encodings,
                         text_mask=text_mask,
                         x_low_res=x_low_res,
                         cond_scale=cfg,

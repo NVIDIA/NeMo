@@ -50,6 +50,97 @@ def randn_like(x, generator=None):
     return torch.randn(x.shape, dtype=x.dtype, device=x.device, generator=generator)
 
 
+def setup_trainer_and_models_for_inference(
+    model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
+):
+    """
+    Set up a trainer and NeMo model for inference.
+
+    Args:
+        model_provider (Any): An object that provides the NeMo model.
+        cfg (DictConfig): The configuration dictionary, containing the
+            necessary settings for the trainer and the models.
+        model_cfg_modifier (Callable): A function that modifies the model
+            configuration for inference.
+
+    Returns:
+        Tuple[Trainer, Any]: A tuple containing the trainer and the model.
+    """
+
+    # Check if we need to use the TorchElasticEnvironment plugin for the trainer.
+    plugins = []
+    if cfg.get('cluster_type', None) == 'BCP':
+        plugins.append(TorchElasticEnvironment())
+
+    # Use the NLPDDPStrategy for the distributed data parallel strategy.
+    # We don't use DDP for async grad allreduce and don't find unused parameters.
+    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+
+    # Set up the trainer with the specified plugins and strategy.
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+
+    # Create the NLPSaveRestoreConnector object for model saving and restoring.
+    save_restore_connector = NLPSaveRestoreConnector()
+
+    print(f'Loading {cfg.models} models')
+    models = []
+    for single_model_cfg in cfg.models:
+        if not single_model_cfg.restore_from_path:
+            continue
+        if single_model_cfg.restore_from_path.endswith(".nemo"):
+            # Set the model_extracted_dir attribute if the restore path is a directory.
+            if os.path.isdir(single_model_cfg.restore_from_path):
+                save_restore_connector.model_extracted_dir = single_model_cfg.restore_from_path
+
+            # Restore the model configuration from the specified path and modify it for inference.
+            model_cfg = model_provider.restore_from(
+                restore_path=single_model_cfg.restore_from_path,
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                return_config=True,
+            )
+            with open_dict(model_cfg):
+                model_cfg_modifier(model_cfg)  # modify the configuration for inference
+
+            # Restore the model from the specified path and configuration, and set it up for inference.
+            model = model_provider.restore_from(
+                restore_path=single_model_cfg.restore_from_path,
+                trainer=trainer,
+                override_config_path=model_cfg,
+                save_restore_connector=save_restore_connector,
+                strict=True,
+            )
+            models.append(model)
+
+        elif single_model_cfg.restore_from_path.endswith(".ckpt"):
+            logging.warning(
+                "Loading from .ckpt checkpoint for inference is experimental! It doesn't support models with model parallelism!"
+            )
+
+            model = model_provider.load_from_checkpoint(
+                single_model_cfg.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
+            )
+            models.append(model)
+
+        else:
+            raise ValueError(f"Unrecognized checkpoint type: {single_model_cfg.restore_from_path}")
+
+    # initialize apex DDP strategy
+    def dummy():
+        return
+
+    if trainer.strategy.launcher is not None:
+        trainer.strategy.launcher.launch(dummy, trainer=trainer)
+    trainer.strategy.setup_environment()
+
+    models = [model.cuda() for model in models]  # move the model to the GPU
+    for model in models:
+        model.eval().requires_grad_(False)  # set the model to evaluation mode and disable gradients
+
+    # Return the trainer and model objects.
+    return trainer, models
+
+
 def setup_trainer_and_model_for_inference(
     model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
 ) -> Tuple[Trainer, Any]:

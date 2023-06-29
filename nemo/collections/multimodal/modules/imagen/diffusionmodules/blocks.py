@@ -24,12 +24,22 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from einops import rearrange
 
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention import (
-    QKVAttention,
-    QKVMaskedAttention,
-    QKVStableAttention,
-    QKVStableMaskedAttention,
-)
+from nemo.collections.multimodal.modules.imagen.diffusionmodules import attention_alt
+
+if attention_alt.USE_ALT:
+    from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention_alt import (
+        QKVAttention,
+        QKVMaskedAttention,
+        QKVStableAttention,
+        QKVStableMaskedAttention,
+    )
+else:
+    from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention import (
+        QKVAttention,
+        QKVMaskedAttention,
+        QKVStableAttention,
+        QKVStableMaskedAttention,
+    )
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import (
     Downsample,
     Upsample,

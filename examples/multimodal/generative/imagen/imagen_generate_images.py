@@ -12,7 +12,7 @@ from nemo.core.config import hydra_runner
 @hydra_runner(config_path='conf', config_name='fid_inference.yaml')
 def main(inference_config):
     inference_config: ImagenPipelineConfig = OmegaConf.merge(ImagenPipelineConfig(), inference_config)
-    captions = pickle.load(open('coco_captions5k.pkl', 'rb'))
+    captions = pickle.load(open('coco_captions.pkl', 'rb'))
     ntasks = 8
     if os.environ.get('CUDA_VISIBLE_DEVICES'):
         # Multi-GPU

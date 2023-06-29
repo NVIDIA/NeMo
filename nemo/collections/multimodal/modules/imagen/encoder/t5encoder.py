@@ -31,22 +31,20 @@ class T5Encoder(torch.nn.Module):
         else:
             print(f'Load T5 encoder from {encoder_path}')
             hard_coded_encoder_weight_location = os.path.join(encoder_path, "t5xxl-encoder.bin")
-            hard_coded_encoder_config_location = os.path.join(
-                "nemo/collections/multimodal/modules/imagen/encoder/t5encoder.json"
-            )
+            hard_coded_encoder_config_location = os.path.join(os.path.dirname(__file__), "t5encoder.json")
             self.model = T5EncoderModel.from_pretrained(
                 hard_coded_encoder_weight_location,
                 config=T5Config.from_json_file(hard_coded_encoder_config_location),
                 low_cpu_mem_usage=True,
             )
 
-    def encode(self, text_batch):
+    def encode(self, text_batch, device='cuda'):
         encoded = self.tokenizer.batch_encode_plus(
             text_batch, return_tensors="pt", padding="max_length", max_length=self.model_seq_len, truncation=True
         )
         # We expect all the processing is done in GPU.
-        input_ids = encoded.input_ids.cuda()
-        attn_mask = encoded.attention_mask.cuda()
+        input_ids = encoded.input_ids.to(device=device)
+        attn_mask = encoded.attention_mask.to(device=device)
 
         with torch.no_grad():
             output = self.model(input_ids=input_ids, attention_mask=attn_mask)
