@@ -724,6 +724,7 @@ class MegatronBaseModel(NLPModel):
         if kv_channels is None:
             kv_channels = self.cfg.hidden_size // self.cfg.num_attention_heads
         num_layers = cfg.get('num_layers', 1)
+        # TODO: instantiate this later
         transformer_parallel_config = TransformerConfig(
             hidden_size=hidden_size,
             num_attention_heads=num_attention_heads,
@@ -768,6 +769,8 @@ class MegatronBaseModel(NLPModel):
             "param_sync_func": None,  # set dynamically during training
         }
 
+        # TODO: update this so we don't override the required configs like kv_channels
+        # TODO: loop over fields in TransformerConfig class before we instantiate it
         for field in fields(TransformerConfig):
             if field.name in cfg:
                 setattr(transformer_parallel_config, field.name, cfg[field.name])
