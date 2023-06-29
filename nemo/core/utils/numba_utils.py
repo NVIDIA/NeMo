@@ -29,7 +29,7 @@ __NUMBA_MINIMUM_VERSION__ = os.environ.get("NEMO_NUMBA_MINVER", __NUMBA_DEFAULT_
 __NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__ = "0.57.0"
 NUMBA_FP16_SUPPORTED = model_utils.check_lib_version(
     'numba', __NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__, operator=operator.ge
-)
+)[0]
 
 
 NUMBA_INSTALLATION_MESSAGE = (
