@@ -61,7 +61,8 @@ class _RNNTNumba(Function):
         loss_func = rnnt.rnnt_loss_gpu if is_cuda else rnnt.rnnt_loss_cpu
         vocab_grads = torch.zeros([B, T, U, V], dtype=torch.float, device=acts.device) if acts.requires_grad else None
         assert V == vocab_size + 1
-        duration_grads = torch.zeros_like(duration_acts) if acts.requires_grad else None
+#        duration_grads = torch.zeros_like(duration_acts) if acts.requires_grad else None
+        duration_grads = torch.zeros([B, T, T, U], dtype=torch.float, device=acts.device) if acts.requires_grad else None
         costs = torch.zeros(B, device=acts.device, dtype=acts.dtype)
 
         loss_func(
@@ -87,7 +88,7 @@ class _RNNTNumba(Function):
                     grads /= B
 
         ctx.grads = torch.sum(vocab_grads, dim=2)
-        ctx.duration_grads = duration_grads
+        ctx.duration_grads = torch.sum(duration_grads, dim = -1)
 
         return costs
 

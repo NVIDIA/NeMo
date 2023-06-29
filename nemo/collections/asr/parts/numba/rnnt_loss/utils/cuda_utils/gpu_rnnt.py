@@ -158,6 +158,25 @@ class GPURNNT:
             grad_threads_per_block = 1  # gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
             gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
                 grads,
+                acts,
+                duration_acts,
+                alphas,
+                betas,
+                llForward,
+                input_lengths,
+                label_lengths,
+                labels,
+                self.minibatch_,
+                self.maxT_,
+                self.maxU_,
+                self.alphabet_size_,
+                self.clamp_,
+            )
+
+            # Compute gradient
+            grad_blocks_per_grid = self.minibatch_ * self.maxT_ * self.maxT_
+            grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
+            gpu_rnnt_kernel.compute_duration_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
                 duration_grads,
                 acts,
                 duration_acts,

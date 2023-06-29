@@ -157,7 +157,6 @@ def compute_betas_kernel(
 @cuda.jit()
 def compute_grad_kernel(
     grads: torch.Tensor,
-    duration_grads: torch.Tensor,
     acts: torch.Tensor,
     duration_acts: torch.Tensor,
     alphas: torch.Tensor,
@@ -217,11 +216,61 @@ def compute_grad_kernel(
         grads[col * (1 + alphabet_size) + label] = grad
 
 
-#        if clamp > 0.0:
-#            g = grads[col * (1 + alphabet_size) + label]
-#            g = min(g, clamp)
-#            g = max(g, -clamp)
-#            grads[col * (1 + alphabet_size) + label] = g
+        if clamp > 0.0:
+            g = grads[col * (1 + alphabet_size) + label]
+            g = min(g, clamp)
+            g = max(g, -clamp)
+            grads[col * (1 + alphabet_size) + label] = g
+
+
+@cuda.jit()
+def compute_duration_grad_kernel(
+    duration_grads: torch.Tensor,
+    acts: torch.Tensor,
+    duration_acts: torch.Tensor,
+    alphas: torch.Tensor,
+    betas: torch.Tensor,
+    logll: torch.Tensor,
+    xlen: torch.Tensor,
+    ylen: torch.Tensor,
+    mlabels: torch.Tensor,  # [B, U]
+    minibatch: int,
+    maxT: int,
+    maxU: int,
+    alphabet_size: int,
+    clamp: float,
+):
+    # Kernel call:
+    # blocks_per_grid = minibatch (b) * maxT (t) * maxU (u)
+    # threads_per_block = constant buffer size of parallel threads (v :: Constant)
+    tid = cuda.threadIdx.x  # represents v, taking steps of some constant size
+    idx = tid  # index of v < V+1; in steps of constant buffer size
+    col = cuda.blockIdx.x  # represents a fused index of b * t * t
+
+    maxU = maxU + 2
+
+    # Decompose original indices from fused `col`
+    tt = col % maxT
+    bt = (col - tt) // maxT
+    t = bt % maxT  # (b * t) % t = t
+    mb = (bt - t) // maxT  # (b * t - t) // T = b
+
+    u = tid
+
+    # constants
+    T = xlen[mb]
+    U = ylen[mb]
+    labels: torch.Tensor = mlabels[mb]  # labels = mlabels + mb * (maxU - 1);
+
+    if t < T and tt < T and t < tt and u < U + 1:
+        label = labels[u - 1] if u >= 1 and u <= U else alphabet_size
+        logpk = logp(acts, maxT, alphabet_size, mb, t, label)
+        logp_j = logp_jump(duration_acts, maxT, mb, t, tt)
+        btu = mb * maxT * maxU + t * maxU + u
+        bttu = mb * maxT * maxU + tt * maxU + u + 1
+        log_grad = alphas[btu] + betas[bttu] + logpk - logll[mb]
+        grad = -math.exp(log_grad + logp_j)
+        duration_grads[col * maxU + u] = grad
 
 
 @cuda.jit()
