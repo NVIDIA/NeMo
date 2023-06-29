@@ -25,6 +25,13 @@ from omegaconf import DictConfig, OmegaConf
 
 # multiple interpolated values in the config
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y)
+OmegaConf.register_new_resolver("ceil_div", lambda x,y: (x + y - 1)//y)
+OmegaConf.register_new_resolver("floor_div", lambda x,y: x//y)
+OmegaConf.register_new_resolver("div", lambda x,y: x/y)
+OmegaConf.register_new_resolver("if", lambda x,y,z: y if x else z)
+OmegaConf.register_new_resolver("lt", lambda x,y: x < y)
+OmegaConf.register_new_resolver("eq", lambda x,y: x == y)
+OmegaConf.register_new_resolver("neq", lambda x,y: x != y)
 
 
 def hydra_runner(
