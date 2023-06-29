@@ -30,8 +30,7 @@ from nemo.collections.tts.models.waveglow import WaveGlowModel
 __all__ = [
     "AlignerModel",
     "FastPitchModel",
-    "FastPitchE2EModel"
-    "FastPitchModel_SSL",
+    "FastPitchE2EModel" "FastPitchModel_SSL",
     "SSLDisentangler",
     "GriffinLimModel",
     "HifiGanModel",
