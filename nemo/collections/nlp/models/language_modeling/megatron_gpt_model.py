@@ -22,7 +22,6 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -53,7 +52,6 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
@@ -518,6 +516,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('hidden_size'),
         ]
         ub_cfg_file_name = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        ub_cfgs = None
         if ub_cfg_file_name is not None:
             try:
                 import yaml
@@ -525,9 +524,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 with open(ub_cfg_file_name, 'r') as ub_cfg_file:
                     ub_cfgs = yaml.safe_load(ub_cfg_file)
             except (ImportError, TypeError):
-                print("Fail to read ub_tp_comm_overlap config file.")
-        else:
-            ub_cfgs = None
+                logging.error(f"Fail to read ub_tp_comm_overlap config file: {ub_cfg_file_name}.")
         te_module.initialize_ub(
             shape=input_shape,
             tp_size=self.cfg.get('tensor_model_parallel_size'),
