@@ -59,9 +59,10 @@ pipeline {
 
     stage('Megatron Core installation') {
       steps {
+        // commit points to core 23.05 ToT 
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout d2891b4ad3a00e3c4223f89491afd9e1b812f9b5 && \
+            git checkout 060415572f4365a2e895f8036c4e37dad0efbdf5 && \
             pip install -e .'
       }
     }
@@ -3804,7 +3805,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.names=[quarel]"
         sh "python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2megatron_gpt_peft_tuning/checkpoints/megatron_gpt_peft_tuning.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_tuning/checkpoints/megatron_gpt_peft_tuning.nemo \
         model.peft.restore_from_ckpt_name=null \
         model.peft.restore_from_hparams_path=null \
         trainer.devices=2 \
