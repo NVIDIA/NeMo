@@ -132,6 +132,10 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
+    ###### following is the workaround for num_workers=0 issue #####
+    import torch.multiprocessing as mp
+    mp.set_start_method("spawn", force=True)
+
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
     plugins = []
