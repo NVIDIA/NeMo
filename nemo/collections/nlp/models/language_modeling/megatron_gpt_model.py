@@ -950,7 +950,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
                     global_batch_size=self.cfg.global_batch_size,
-                    rampup_batch_size=self.cfg.rampup_batch_size,
+                    rampup_batch_size=self.cfg.get('rampup_batch_size', None),
                     pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
                 )
             elif self.cfg.data.dataloader_type == 'cyclic':

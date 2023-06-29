@@ -122,6 +122,7 @@ def get_language_model(
     reduce_amax=True,
     use_emha=False,
     use_flash_attention=False,
+    seq_len_interpolation_factor=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -198,6 +199,7 @@ def get_language_model(
         reduce_amax=reduce_amax,
         use_emha=use_emha,
         use_flash_attention=use_flash_attention,
+        seq_len_interpolation_factor=seq_len_interpolation_factor,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
