@@ -67,8 +67,6 @@ def wrap_and_call(fn, acts, labels, device):
     else:
         grad = None
 
-    print("COST IS", costs.data.cpu().numpy())
-
     return costs.data.cpu().numpy(), grad
 
 
@@ -132,11 +130,10 @@ class TestRNNTLossPytorch:
 #            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
-        B, T, U, V = 1, 4, 2, 4
+        B, T, U, V = 2, 9, 3, 3
         D = 4
         acts = rng.randn(B, T, V + D) # * 0.0
-        labels = [[1, 2]] #, [2, 1]]
-
+        labels = [[2, 2, 2], [2, 2, 2]]
 
         fn_ag = RNNTLossPytorch(vocab_size=V, reduction='sum')  # ag for automatic gradient computation
         ag_cost, ag_grads = wrap_and_call(fn_ag, acts, labels, device)
@@ -144,8 +141,11 @@ class TestRNNTLossPytorch:
         fn_pt = RNNTLossNumba(vocab_size=V, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
 
+        print("HERE2", ag_grads[:,:,:V+1])
+        print("HERE1", pt_grads[:,:,:V+1])
+
         assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "small_random_test costs mismatch."
-#        assert np.allclose(pt_grads, ag_grads), "small_random_test gradient mismatch."
+        assert np.allclose(pt_grads, ag_grads), "small_random_test gradient mismatch."
 
 #    @pytest.mark.unit
 #    @pytest.mark.parametrize('device', DEVICES)

@@ -68,8 +68,6 @@ def compute_alphas_kernel(
     maxU: int,
     alphabet_size: int,
 ):
-
-    # // launch B blocks, each block has U threads
     b = cuda.blockIdx.x  # // batch id
     u = cuda.threadIdx.x  # label id, u
     T = xlen[b]  # select AM length of current sample
@@ -79,26 +77,17 @@ def compute_alphas_kernel(
 
     maxU = maxU + 2
     offset = b * maxT * maxU # pointer indexing offset
-
-    # alphas += offset # pointer offset, ignored since we explicitly add offset
-
-    # Initilize alpha[b, t=0, u=0] for all b in B
     if u == 0:
         alphas[offset] = 0
 
-    # sync until all alphas are initialized
     cuda.syncthreads()
 
-    # Ordinary alpha calculations, broadcast across B=b and U=u
-    # Look up forward variable calculation from rnnt_numpy.forward_pass()
     for n in range(0, T + U + 1):
         t = n - u
-
         label = labels[u - 2] if u >= 2 else alphabet_size
 
         if t == 0 and u == 0:
             alphas[offset + t * maxU + u] = 0.0
-
         elif u - 1 >= 0 and t >= 0:
             for tt in range(t):
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
@@ -112,9 +101,12 @@ def compute_alphas_kernel(
     cuda.syncthreads()
 
     if u == 0:
+        for t in range(T):
+            for u in range(U+2):
+                 print(t, u, math.exp(alphas[offset + t * maxU + u]))
+
         loglike = alphas[offset + (T - 1) * maxU + U + 1] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
         llForward[b] = loglike
-        print("HERE forward", loglike)
 
 
 @cuda.jit()
@@ -171,13 +163,18 @@ def compute_betas_kernel(
     if u == 0:
         loglike = betas[offset]
         llBackward[b] = loglike
-        print("HERE backward", loglike)
+
+        for t in range(T):
+            for u in range(U+2):
+                 print(t, u, math.exp(betas[offset + t * maxU + u]))
 
 
 @cuda.jit()
 def compute_grad_kernel(
     grads: torch.Tensor,
+    duration_grads: torch.Tensor,
     acts: torch.Tensor,
+    duration_acts: torch.Tensor,
     alphas: torch.Tensor,
     betas: torch.Tensor,
     logll: torch.Tensor,
@@ -190,44 +187,14 @@ def compute_grad_kernel(
     alphabet_size: int,
     clamp: float,
 ):
-    """
-    Compute gradients over the transduction step.
-
-    Args:
-        grads: Zero Tensor of shape [B, T, U, V+1]. Is updated by this kernel to contain the gradients
-            of this batch of samples.
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
-        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
-            across entire vocabulary.
-        alphas: Alpha variable, contains forward probabilities. A tensor of shape [B, T, U].
-        betas: Beta varoable, contains backward probabilities. A tensor of shape [B, T, U].
-        logll: Log-likelihood of the forward variable, represented as a vector of shape [B].
-            Represents the log-likelihood of the forward pass.
-        xlen: Vector of length B which contains the actual acoustic sequence lengths in the padded
-            activation tensor.
-        ylen: Vector of length B which contains the actual target sequence lengths in the padded
-            activation tensor.
-        mlabels: Matrix of shape [B, U+1] (+1 here is due to <SOS> token - usually the RNNT blank).
-            The matrix contains the padded target transcription that must be predicted.
-        minibatch: Int representing the batch size.
-        maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
-        maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
-        alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
-        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
-            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
-        clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
-
-    Updates:
-        Kernel inplace updates the following inputs:
-        -   grads: Gradients with respect to the log likelihood (logll).
-    """
     # Kernel call:
     # blocks_per_grid = minibatch (b) * maxT (t) * maxU (u)
     # threads_per_block = constant buffer size of parallel threads (v :: Constant)
     tid = cuda.threadIdx.x  # represents v, taking steps of some constant size
     idx = tid  # index of v < V+1; in steps of constant buffer size
     col = cuda.blockIdx.x  # represents a fused index of b * t * u
+
+    maxU = maxU + 2
 
     # Decompose original indices from fused `col`
     u = col % maxU  # (b * t * u) % u = u
@@ -236,61 +203,39 @@ def compute_grad_kernel(
     mb = (bt - t) // maxT  # (b * t - t) // T = b
 
     # constants
-    T = xlen[mb]  # select AM length of current sample
-    U = ylen[mb] + 1  # select target length of current sample, +1 for the blank token
+    T = xlen[mb]
+    U = ylen[mb]
     labels: torch.Tensor = mlabels[mb]  # labels = mlabels + mb * (maxU - 1);
 
-#    # Buffered gradient calculations, broadcast across B=b, T=t and U=u, looped over V with some constant stride.
-#    # Look up gradient calculation from rnnt_numpy.compute_gradient()
-#    if t < T and u < U:
-#        # For cuda kernels, maximum number of threads per block is limited to some value.
-#        # However, it may be the case that vocabulary size is larger than this limit
-#        # To work around this, an arbitrary thread buffer size is chosen such that,
-#        # 1) each element within the thread pool operates independently of the other
-#        # 2) An inner while loop moves the index of each buffer element by the size of the buffer itself,
-#        #    such that all elements of the vocabulary size are covered in (V + 1 // thread_buffer) number of steps.
-#        # As such, each thread will perform the while loop at least (V + 1 // thread_buffer) number of times
-#        while idx < alphabet_size:
-#            # remember, `col` represents the tri-index [b, t, u]
-#            # therefore; logpk = denom[b, t, u] + acts[b, t, u, v]
-#            logpk = denom[col] + acts[col * alphabet_size + idx]
-#            # initialize the grad of the sample acts[b, t, u, v]
-#            grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
-#
-#            # Update the gradient of act[b, t, u, v] with the gradient from FastEmit regularization
-#            grad = grad
-#
-#            # // grad to last blank transition
-#            # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
-#            if (idx == blank_) and (t == T - 1) and (u == U - 1):
-#                grad -= math.exp(alphas[col] + logpk - logll[mb])
-#
-#            # grad of blank across t < T;
-#            # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
-#            if (idx == blank_) and (t < T - 1):
-#                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
-#
-#            # grad of correct token across u < U;
-#            # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
-#            # Scale the gradient by (1.0 + FastEmit_lambda) in log space, then exponentiate
-#            if (u < U - 1) and (idx == labels[u]):
-#                # exp(log(1 + fastemit_lambda) + ...) is numerically more stable than
-#                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 1])
-#
-#            # update grads[b, t, u, v] = grad
-#            grads[col * alphabet_size + idx] = grad
-#
-#            # clamp gradient (if needed)
-#            if clamp > 0.0:
-#                g = grads[col * alphabet_size + idx]
-#                g = min(g, clamp)
-#                g = max(g, -clamp)
-#                grads[col * alphabet_size + idx] = g
-#
-#            # update internal index through the thread_buffer;
-#            # until idx < V + 1, such that entire vocabulary has been updated.
-#            idx += GPU_RNNT_THREAD_SIZE
-#
+    if t < T and u < U + 2:
+        label = labels[u - 1] if u >= 1 and u <= U else alphabet_size
+        logpk = logp(acts, maxT, alphabet_size, mb, t, label)
+        log_grad = -9999.9
+
+        if t != T - 1:
+            for tt in range(t + 1, T):
+                log_grad = rnnt_helper.log_sum_exp(
+                    log_grad,
+                    logp_jump(duration_acts, maxT, mb, t, tt) + betas[col + maxU * (tt - t) + 1]
+                )
+        elif t == T - 1 and u == U + 1:
+            log_grad = 0
+
+        log_grad += alphas[col] - logll[mb]
+
+#        if t == T -1 :
+#            print('log grad is', log_grad)
+
+        grad = -math.exp(log_grad + logpk)
+        grads[col * (1 + alphabet_size) + label] = grad
+
+#        if clamp > 0.0:
+#            g = grads[col * (1 + alphabet_size) + label]
+#            g = min(g, clamp)
+#            g = max(g, -clamp)
+#            grads[col * (1 + alphabet_size) + label] = g
+
+
 
 @cuda.jit()
 def compute_multiblank_alphas_kernel(

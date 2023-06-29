@@ -117,8 +117,12 @@ class GPURNNT:
         """
         training = grads is not None
 
+        print("grads is", grads.shape)
+        print("duration grads is", duration_grads.shape)
+
         if training:
             grads *= 0.0  # zero grads
+            duration_grads *= 0.0  # zero grads
 
         used_offset, (alphas, betas, llForward, llBackward) = self._prepare_workspace()
 
@@ -155,10 +159,12 @@ class GPURNNT:
 
             # Compute gradient
             grad_blocks_per_grid = self.minibatch_ * self.maxT_ * ( self.maxU_ + 2)
-            grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
+            grad_threads_per_block = 1 # gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
             gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
                 grads,
+                duration_grads,
                 acts,
+                duration_acts,
                 alphas,
                 betas,
                 llForward,

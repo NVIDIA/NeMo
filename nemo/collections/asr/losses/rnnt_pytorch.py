@@ -92,6 +92,7 @@ class RNNTLossPytorch(Loss):
                         log_alpha[b, t, u] = 0.0
                     else:
                         label = labels[b, u - 2] if u >= 2 else -1
+                        log_alpha[b, t, u] = -9999
                         for tt in range(t):
                             if u - 1 >= 0:
                                 log_alpha[b, t, u] = torch.logsumexp(
@@ -103,6 +104,8 @@ class RNNTLossPytorch(Loss):
                                     ),
                                     dim=0,
                                 )
+#        print("ALPHA")
+#        print(torch.exp(log_alpha))                     
 
         log_probs = []
         for b in range(B):
@@ -113,8 +116,6 @@ class RNNTLossPytorch(Loss):
             log_probs.append(to_append)
 
         log_prob = torch.stack(log_probs)
-        print('log_prob', log_prob)
-#        print()
         return log_prob
 
     def compute_backward_prob(self, acts, duration_acts, labels, act_lens, label_lens):
@@ -148,8 +149,8 @@ class RNNTLossPytorch(Loss):
                                     ),
                                     dim=0,
                                 )
-
-#                    print('beta', b, t, u, log_beta[b, t, u])
+#        print("BETA")
+#        print(torch.exp(log_beta))                     
 
         log_probs = []
         for b in range(B):

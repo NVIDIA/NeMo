@@ -55,11 +55,14 @@ class _RNNTNumba(Function):
         if clamp < 0:
             raise ValueError("`clamp` must be 0.0 or positive float value.")
 
+        [B, T, V] = acts.shape
+        U = label_lens.max().item() + 2
+
         loss_func = rnnt.rnnt_loss_gpu if is_cuda else rnnt.rnnt_loss_cpu
-        vocab_grads = torch.zeros_like(acts) if acts.requires_grad else None
+        vocab_grads = torch.zeros([B, T, U, V], dtype=torch.float, device=acts.device) if acts.requires_grad else None
+        assert(V == vocab_size + 1)
         duration_grads = torch.zeros_like(duration_acts) if acts.requires_grad else None
-        minibatch_size = acts.size(0)
-        costs = torch.zeros(minibatch_size, device=acts.device, dtype=acts.dtype)
+        costs = torch.zeros(B, device=acts.device, dtype=acts.dtype)
 
         loss_func(
             acts,
@@ -78,12 +81,12 @@ class _RNNTNumba(Function):
         if reduction in ['sum', 'mean']:
             costs = costs.sum().unsqueeze_(-1)
             if reduction == 'mean':
-                costs /= minibatch_size
+                costs /= B
 
                 if grads is not None:
-                    grads /= minibatch_size
+                    grads /= B
 
-        ctx.grads = vocab_grads
+        ctx.grads = torch.sum(vocab_grads, dim=2)
         ctx.duration_grads = duration_grads
 
         return costs
