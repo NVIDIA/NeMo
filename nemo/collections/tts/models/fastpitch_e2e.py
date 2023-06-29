@@ -173,13 +173,13 @@ class FastPitchE2EModel(TextToWaveform):
             self.register_nemo_submodule(
                 "hfg_model",
                 config_field="hfg_model",
-                model=HifiGanModel.from_pretrained(cfg.fastpitch_model, map_location=torch.device("cpu")),
+                model=HifiGanModel.from_pretrained(cfg.hifigan_model, map_location=torch.device("cpu")),
             )
 
             self.register_nemo_submodule(
                 "fp_model",
                 config_field="fp_model",
-                model=FastPitchModel.from_pretrained(cfg.hifigan_mode, map_location=torch.device("cpu")),
+                model=FastPitchModel.from_pretrained(cfg.fastpitch_model, map_location=torch.device("cpu")),
             )
 
             self.tokenizer = self.fp_model.vocab
@@ -530,16 +530,18 @@ class FastPitchE2EModel(TextToWaveform):
 
         # Skip batch if it is too short
         if self.cfg.use_patches:
-            ids_str_max = dec_lens - self._cfg.segment_size // self._cfg.n_window_stride + 1
+            spec_segment_size = self._cfg.segment_size // self._cfg.n_window_stride
+            ids_str_max = dec_lens - spec_segment_size + 1
             if len(ids_str_max[ids_str_max < 0]) > 0:
-                print('Encountered short batch')
-                return
+                raise ValueError(f'Encountered too short batch. Consider increasing dataset min_duration value')
 
-            mels_pred, ids_slice = rand_slice_segments(
-                mels_pred, dec_lens, self._cfg.segment_size // self._cfg.n_window_stride
+
+            mels_pred, slice_indexes = rand_slice_segments(
+                mels_pred, dec_lens, spec_segment_size
             )
-            audio = slice_segments(audio, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-            mels = slice_segments(mels, ids_slice, self._cfg.segment_size // self._cfg.n_window_stride)
+            audio_slice_indexes = slice_indexes * self.cfg.n_window_stride
+            audio = slice_segments(audio, audio_slice_indexes, self._cfg.segment_size)
+            mels = slice_segments(mels, slice_indexes, spec_segment_size)
 
         audio_pred = self.hfg_model.generator(x=mels_pred)
 
