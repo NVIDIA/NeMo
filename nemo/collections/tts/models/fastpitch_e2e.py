@@ -535,10 +535,7 @@ class FastPitchE2EModel(TextToWaveform):
             if len(ids_str_max[ids_str_max < 0]) > 0:
                 raise ValueError(f'Encountered too short batch. Consider increasing dataset min_duration value')
 
-
-            mels_pred, slice_indexes = rand_slice_segments(
-                mels_pred, dec_lens, spec_segment_size
-            )
+            mels_pred, slice_indexes = rand_slice_segments(mels_pred, dec_lens, spec_segment_size)
             audio_slice_indexes = slice_indexes * self.cfg.n_window_stride
             audio = slice_segments(audio, audio_slice_indexes, self._cfg.segment_size)
             mels = slice_segments(mels, slice_indexes, spec_segment_size)
