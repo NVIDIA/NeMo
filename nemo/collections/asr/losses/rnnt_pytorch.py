@@ -43,15 +43,15 @@ class RNNTLossPytorch(Loss):
 
     def __init__(self, vocab_size, reduction):
         super().__init__()
-        self.vocab_size = vocab_size # this is vocab-size of non-blank symbols. blank is appended as the last token and is used as BOS/EOS symbol. So total vocab-size is this plus 1.
+        self.vocab_size = vocab_size  # this is vocab-size of non-blank symbols. blank is appended as the last token and is used as BOS/EOS symbol. So total vocab-size is this plus 1.
         self.reduction = reduction
 
     def forward(self, acts, labels, act_lens, label_lens):
         shape_list = [int(x) for x in acts.shape]
         assert len(shape_list) == 3
 
-        normed_acts = torch.log_softmax(acts[:,:,:self.vocab_size + 1], -1)  # hense vocab_size + 1
-        duration_acts = acts[:,:,self.vocab_size + 1:]
+        normed_acts = torch.log_softmax(acts[:, :, : self.vocab_size + 1], -1)  # hense vocab_size + 1
+        duration_acts = acts[:, :, self.vocab_size + 1 :]
         forward_logprob = self.compute_forward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
         backward_logprob = self.compute_backward_prob(normed_acts, duration_acts, labels, act_lens, label_lens)
         losses = -forward_logprob
@@ -104,8 +104,8 @@ class RNNTLossPytorch(Loss):
                                     ),
                                     dim=0,
                                 )
-#        print("ALPHA")
-#        print(torch.exp(log_alpha))                     
+        #        print("ALPHA")
+        #        print(torch.exp(log_alpha))
 
         log_probs = []
         for b in range(B):
@@ -137,7 +137,7 @@ class RNNTLossPytorch(Loss):
                     if u == U + 1 and t == T - 1:
                         log_beta[b, t, u] = acts[b, t, -1]
                     else:
-                        label = labels[b, u - 1] if ( u - 1 < U and u - 1 >= 0) else -1
+                        label = labels[b, u - 1] if (u - 1 < U and u - 1 >= 0) else -1
                         for tt in range(t + 1, T):
                             if u <= U:
                                 log_beta[b, t, u] = torch.logsumexp(
@@ -149,31 +149,29 @@ class RNNTLossPytorch(Loss):
                                     ),
                                     dim=0,
                                 )
-#        print("BETA")
-#        print(torch.exp(log_beta))                     
+        #        print("BETA")
+        #        print(torch.exp(log_beta))
 
         log_probs = []
         for b in range(B):
-            to_append = log_beta[b, 0, 0] # + acts[b, 0, -1]
+            to_append = log_beta[b, 0, 0]  # + acts[b, 0, -1]
             log_probs.append(to_append)
         log_prob = torch.stack(log_probs)
         print('log_prob', log_prob)
         return log_prob
 
 
-
 if __name__ == "__main__":
     B, T, U, V, D = 1, 3, 1, 1, 2
-    B, T, U, V, D = 4, 150, 37, 24, 4 
+    B, T, U, V, D = 4, 150, 37, 24, 4
     loss = RNNTLossPytorch(V, 'sum')
     acts = torch.rand([B, T, V + D], dtype=torch.float)
 
     labels = torch.randint_like(input=torch.zeros([B, U], dtype=torch.long), high=V - 1)
-    act_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), low=T//2, high=T)
+    act_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), low=T // 2, high=T)
 
     label_lens = torch.randint_like(input=torch.ones([B], dtype=torch.long), high=U)
     l = loss(acts, labels, act_lens, label_lens)
-
 
 
 class TDTLossPytorch(Loss):
@@ -429,6 +427,3 @@ class MultiblankRNNTLossPytorch(Loss):
         log_prob = torch.stack(log_probs)
 
         return log_prob, log_alpha
-
-
-

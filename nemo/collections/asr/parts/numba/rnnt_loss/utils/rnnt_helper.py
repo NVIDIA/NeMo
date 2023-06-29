@@ -126,7 +126,7 @@ def get_workspace_size(
     per_minibatch_size = 0
 
     # alphas & betas
-    per_minibatch_size += maxT * (2 + maxU ) * 2
+    per_minibatch_size += maxT * (2 + maxU) * 2
 
     # // forward - backward loglikelihood
     per_minibatch_size += 2

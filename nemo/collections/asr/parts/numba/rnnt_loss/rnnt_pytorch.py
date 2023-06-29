@@ -60,7 +60,7 @@ class _RNNTNumba(Function):
 
         loss_func = rnnt.rnnt_loss_gpu if is_cuda else rnnt.rnnt_loss_cpu
         vocab_grads = torch.zeros([B, T, U, V], dtype=torch.float, device=acts.device) if acts.requires_grad else None
-        assert(V == vocab_size + 1)
+        assert V == vocab_size + 1
         duration_grads = torch.zeros_like(duration_acts) if acts.requires_grad else None
         costs = torch.zeros(B, device=acts.device, dtype=acts.dtype)
 
@@ -95,7 +95,17 @@ class _RNNTNumba(Function):
     def backward(ctx, grad_output):
         if grad_output is not None and ctx.grads is not None:
             grad_output = grad_output.view(-1, 1, 1).to(ctx.grads)
-            return ctx.grads.mul_(grad_output), ctx.duration_grads.mul_(grad_output), None, None, None, None, None, None, None
+            return (
+                ctx.grads.mul_(grad_output),
+                ctx.duration_grads.mul_(grad_output),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
 
 
 class _TDTNumba(Function):
@@ -424,9 +434,9 @@ class RNNTLossNumba(Module):
         label_lens: Tensor of (batch) containing label length of each example
         """
 
-        vocab_acts = acts[:,:,:self.vocab_size + 1].contiguous()
+        vocab_acts = acts[:, :, : self.vocab_size + 1].contiguous()
 
-        duration_acts = acts[:,:,self.vocab_size + 1:]
+        duration_acts = acts[:, :, self.vocab_size + 1 :]
         vocab_acts = torch.nn.functional.log_softmax(vocab_acts, -1)
 
         B, T, D = duration_acts.shape
