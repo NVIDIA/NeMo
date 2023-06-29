@@ -134,6 +134,7 @@ def main(cfg) -> None:
 
     ###### following is the workaround for num_workers=0 issue #####
     import torch.multiprocessing as mp
+
     mp.set_start_method("spawn", force=True)
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
