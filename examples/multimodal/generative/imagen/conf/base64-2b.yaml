@@ -63,7 +63,7 @@ model:
     channel_mult: [ 1, 2, 3, 4 ]
     num_attn_heads: 4
     per_head_channels: 64
-    cond_dim: 512
+    cond_dim: 2048
     attention_type: fused
     feature_pooling_type: attention
     learned_sinu_pos_emb_dim: 0

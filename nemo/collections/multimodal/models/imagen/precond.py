@@ -130,23 +130,6 @@ class EDMPrecond(PrecondModel):
         if c_noise.ndim < 1:
             c_noise = c_noise.repeat(bs,)
 
-        def save_image_tensor(tensor, dir=None):
-            if tensor.ndim == 4:
-                print(f'Saving {tensor.shape[0]} images')
-            elif tensor.ndim == 3:
-                print('Saving single image')
-                tensor = tensor.unsqueeze(0)
-            import os
-
-            import torchvision.transforms as T
-
-            os.makedirs(dir, exist_ok=True)
-            transform = T.ToPILImage()
-            for idx, image_tensor in enumerate(tensor):
-                image_tensor = ((image_tensor + 1) / 2).clamp_(0, 1)
-                img = transform(image_tensor)
-                img.save(f'{dir}/{idx}.png')
-
         if self.noise_cond_aug:
             # Applying noise conditioning augmentation
             assert 'x_low_res' in model_kwargs, 'x_low_res does not exist when attemping to apply noise augmentation'
