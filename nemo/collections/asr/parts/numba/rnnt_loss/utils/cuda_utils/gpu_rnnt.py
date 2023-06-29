@@ -84,7 +84,6 @@ class GPURNNT:
         else:
             self.num_threads_ = numba.get_num_threads()
 
-
     def compute_cost_and_score(
         self,
         acts: torch.Tensor,
@@ -158,8 +157,8 @@ class GPURNNT:
             )
 
             # Compute gradient
-            grad_blocks_per_grid = self.minibatch_ * self.maxT_ * ( self.maxU_ + 2)
-            grad_threads_per_block = 1 # gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
+            grad_blocks_per_grid = self.minibatch_ * self.maxT_ * (self.maxU_ + 2)
+            grad_threads_per_block = 1  # gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
             gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
                 grads,
                 duration_grads,
@@ -186,9 +185,7 @@ class GPURNNT:
         # Then negate to compute the loglikelihood.
         threadsperblock = min(costs.shape[0], 32)
         blockspergrid = (costs.shape[0] + (threadsperblock - 1)) // threadsperblock
-        rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](
-            llForward, costs, 0.0
-        )
+        rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](llForward, costs, 0.0)
         self.stream_.synchronize()
 
         return global_constants.RNNTStatus.RNNT_STATUS_SUCCESS
@@ -214,7 +211,9 @@ class GPURNNT:
         ):
             return global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE
 
-        return self.compute_cost_and_score(acts, duration_acts, grads, duration_grads, costs, pad_labels, label_lengths, input_lengths)
+        return self.compute_cost_and_score(
+            acts, duration_acts, grads, duration_grads, costs, pad_labels, label_lengths, input_lengths
+        )
 
     def score_forward(
         self,
@@ -240,10 +239,10 @@ class GPURNNT:
         used_offset = 0
 
         # // alphas & betas
-        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2) ]
+        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2)]
 
         used_offset += self.maxT_ * self.minibatch_ * (self.maxU_ + 2)
-        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_  * (self.maxU_ + 2) ]
+        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.minibatch_ * (self.maxU_ + 2)]
         used_offset += self.maxT_ * self.minibatch_ * (self.maxU_ + 2)
 
         # // logllh
@@ -417,9 +416,7 @@ class MultiblankGPURNNT(GPURNNT):
         # Then negate to compute the loglikelihood.
         threadsperblock = min(costs.shape[0], 32)
         blockspergrid = (costs.shape[0] + (threadsperblock - 1)) // threadsperblock
-        rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](
-            llForward, costs, 0.0
-        )
+        rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](llForward, costs, 0.0)
         self.stream_.synchronize()
 
         return global_constants.RNNTStatus.RNNT_STATUS_SUCCESS

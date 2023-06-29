@@ -39,17 +39,13 @@ INF = 10000.0
 
 
 @cuda.jit(device=True, inline=True)
-def logp(
-    acts: torch.Tensor, maxT: int, alphabet_size: int, mb: int, t: int, v: int
-):
+def logp(acts: torch.Tensor, maxT: int, alphabet_size: int, mb: int, t: int, v: int):
     col = mb * maxT + t
     return acts[col * (1 + alphabet_size) + v]
 
 
 @cuda.jit(device=True, inline=True)
-def logp_jump(
-    duration_acts: torch.Tensor, maxT: int, mb: int, t: int, t2: int
-):
+def logp_jump(duration_acts: torch.Tensor, maxT: int, mb: int, t: int, t2: int):
     col = mb * maxT * maxT + t * maxT + t2
     return duration_acts[col]
 
@@ -76,7 +72,7 @@ def compute_alphas_kernel(
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
 
     maxU = maxU + 2
-    offset = b * maxT * maxU # pointer indexing offset
+    offset = b * maxT * maxU  # pointer indexing offset
     if u == 0:
         alphas[offset] = 0
 
@@ -92,7 +88,10 @@ def compute_alphas_kernel(
             for tt in range(t):
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                     alphas[offset + t * maxU + u],
-                    alphas[offset + tt * maxU + u - 1] + logp(acts, maxT, alphabet_size, b, tt, label) + logp_jump(duration_acts, maxT, b, tt, t))
+                    alphas[offset + tt * maxU + u - 1]
+                    + logp(acts, maxT, alphabet_size, b, tt, label)
+                    + logp_jump(duration_acts, maxT, b, tt, t),
+                )
         elif u >= 0 and t >= 0:
             alphas[offset + t * maxU + u] = -9999.0
         else:
@@ -102,8 +101,8 @@ def compute_alphas_kernel(
 
     if u == 0:
         for t in range(T):
-            for u in range(U+2):
-                 print(t, u, math.exp(alphas[offset + t * maxU + u]))
+            for u in range(U + 2):
+                print(t, u, math.exp(alphas[offset + t * maxU + u]))
 
         loglike = alphas[offset + (T - 1) * maxU + U + 1] + logp(acts, maxT, alphabet_size, b, T - 1, alphabet_size)
         llForward[b] = loglike
@@ -124,7 +123,6 @@ def compute_betas_kernel(
     alphabet_size: int,
 ):
 
-
     # // launch B blocks, each block has U threads
     b = cuda.blockIdx.x  # // batch id
     u = cuda.threadIdx.x  # label id, u
@@ -134,7 +132,7 @@ def compute_betas_kernel(
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
 
     maxU = maxU + 2
-    offset = b * maxT * maxU # pointer indexing offset
+    offset = b * maxT * maxU  # pointer indexing offset
 
     # Ordinary alpha calculations, broadcast across B=b and U=u
     # Look up forward variable calculation from rnnt_numpy.forward_pass()
@@ -151,7 +149,10 @@ def compute_betas_kernel(
             for tt in range(t + 1, T):
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                     betas[offset + t * maxU + u],
-                    betas[offset + tt * maxU + u + 1] + logp(acts, maxT, alphabet_size, b, t, label) + logp_jump(duration_acts, maxT, b, t, tt))
+                    betas[offset + tt * maxU + u + 1]
+                    + logp(acts, maxT, alphabet_size, b, t, label)
+                    + logp_jump(duration_acts, maxT, b, t, tt),
+                )
 
         elif u >= 0 and t >= 0 and t >= 0 and t < T:
             betas[offset + t * maxU + u] = -9999.0
@@ -165,8 +166,8 @@ def compute_betas_kernel(
         llBackward[b] = loglike
 
         for t in range(T):
-            for u in range(U+2):
-                 print(t, u, math.exp(betas[offset + t * maxU + u]))
+            for u in range(U + 2):
+                print(t, u, math.exp(betas[offset + t * maxU + u]))
 
 
 @cuda.jit()
@@ -215,26 +216,25 @@ def compute_grad_kernel(
         if t != T - 1:
             for tt in range(t + 1, T):
                 log_grad = rnnt_helper.log_sum_exp(
-                    log_grad,
-                    logp_jump(duration_acts, maxT, mb, t, tt) + betas[col + maxU * (tt - t) + 1]
+                    log_grad, logp_jump(duration_acts, maxT, mb, t, tt) + betas[col + maxU * (tt - t) + 1]
                 )
         elif t == T - 1 and u == U + 1:
             log_grad = 0
 
         log_grad += alphas[col] - logll[mb]
 
-#        if t == T -1 :
-#            print('log grad is', log_grad)
+        #        if t == T -1 :
+        #            print('log grad is', log_grad)
 
         grad = -math.exp(log_grad + logpk)
         grads[col * (1 + alphabet_size) + label] = grad
+
 
 #        if clamp > 0.0:
 #            g = grads[col * (1 + alphabet_size) + label]
 #            g = min(g, clamp)
 #            g = max(g, -clamp)
 #            grads[col * (1 + alphabet_size) + label] = g
-
 
 
 @cuda.jit()
