@@ -50,10 +50,6 @@ def randn_like(x, generator=None):
     return torch.randn(x.shape, dtype=x.dtype, device=x.device, generator=generator)
 
 
-def randn_like(x, generator=None):
-    return torch.randn(x.shape, dtype=x.dtype, device=x.device, generator=generator)
-
-
 def setup_trainer_and_model_for_inference(
     model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
 ) -> Tuple[Trainer, Any]:
