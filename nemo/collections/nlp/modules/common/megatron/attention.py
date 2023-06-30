@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -101,7 +101,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -531,7 +531,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -693,7 +693,7 @@ class CoreAttention(MegatronModule):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         layer_number,
         num_attention_heads,
         hidden_size,

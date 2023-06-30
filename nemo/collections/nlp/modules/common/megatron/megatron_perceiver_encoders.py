@@ -37,7 +37,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
 
 try:
-    from megatron.core.transformer import TransformerConfig
+    from megatron.core import ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 
@@ -55,7 +55,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         hidden_size,

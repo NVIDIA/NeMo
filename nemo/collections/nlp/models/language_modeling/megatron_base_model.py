@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
-from MeCab import Model
+from torch.functional import F
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
