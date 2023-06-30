@@ -144,14 +144,16 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key, cfg=peft_cfg,
-                        )
+        for layer in self.model.language_model.encoder.layers:
+            if layer.layer_number in self.layer_selection:
+                for _, module in layer.named_modules():
+                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                        for peft_key in self.peft_name_keys:
+                            peft_cfg = self.name_key_to_cfg[peft_key]
+                            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                                module.add_adapter(
+                                    name=peft_key, cfg=peft_cfg,
+                                )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
      
@@ -253,7 +255,7 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 pos_idx += 1
 
 
-class MegatronGPTIA3Model(MegatronGPTPEFTModel):
+class MegatronGPTIA3Model(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTInfusedAdapterModel is a model that combines a base model (GPTSFTModel) with a "Infused Adapter that can Inhibiting and Amplify Inner Activations", known as IA3.
     This class supports the addition of IA3 into a transformer based LM as described in Liu et al. (https://arxiv.org/pdf/2205.05638.pdf)
@@ -455,7 +457,9 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         self.name_key_to_cfg = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
-
+        self.layer_selection = lora_cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
 
 
