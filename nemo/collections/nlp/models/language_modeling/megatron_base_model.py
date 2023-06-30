@@ -765,13 +765,17 @@ class MegatronBaseModel(NLPModel):
             elif field.name in config_mapping:
                 mp_config_dict[field.name] = config_mapping[field.name]
             else:
-                raise ValueError(
-                    f"The model config does not have field.name: {field.name} from ModelParallelConfig. Add this key to cfg or config_mapping."
+                logging.warning(
+                    f"The model: {self} does not have field.name: {field.name} in its cfg. "
+                    f"Add this key to cfg or config_mapping to make to make it configurable."
                 )
 
         model_parallel_config = ModelParallelConfig(**mp_config_dict)
 
-        # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
-        setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
+        try:
+            # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
+            setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
+        except AttributeError:
+            logging.warning(f'hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.')
 
         return model_parallel_config
