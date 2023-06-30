@@ -166,6 +166,7 @@ class GPTModel(MegatronModule):
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        ub_tp_comm_overlap=False,
         use_flash_attention=False,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
@@ -249,6 +250,7 @@ class GPTModel(MegatronModule):
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
             use_emha=use_emha,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
             use_flash_attention=use_flash_attention,
         )
 

@@ -124,6 +124,7 @@ def get_language_model(
     fp8_amax_compute_algo='most_recent',
     reduce_amax=True,
     use_emha=False,
+    ub_tp_comm_overlap=False,
     use_flash_attention=False,
 ):
     """Build language model and return along with the key to save."""
@@ -201,6 +202,7 @@ def get_language_model(
         fp8_amax_compute_algo=fp8_amax_compute_algo,
         reduce_amax=reduce_amax,
         use_emha=use_emha,
+        ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
     )
     # key used for checkpoints.
@@ -504,6 +506,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        ub_tp_comm_overlap=False,
         use_flash_attention=False,
     ):
         super(TransformerLanguageModel, self).__init__(
@@ -645,6 +648,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
             use_emha=use_emha,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
         )

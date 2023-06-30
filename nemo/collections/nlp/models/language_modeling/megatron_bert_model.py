@@ -186,6 +186,7 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
         )
 
         return model
