@@ -165,8 +165,10 @@ class GPTSFTDataset(Dataset):
             + max(len(answer_ids), self.tokens_to_generate)
             + self.add_bos
             + self.add_sep
-            + self.add_eos
         )
+        # Only training need to consider eos token
+        if self.tokens_to_generate == 0:
+            total_ids += self.add_eos
 
         return total_ids
 
