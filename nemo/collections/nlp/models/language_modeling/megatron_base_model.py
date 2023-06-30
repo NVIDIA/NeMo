@@ -718,15 +718,18 @@ class MegatronBaseModel(NLPModel):
 
         # map precision related configs
         precision = cfg.get('precision', 32)  # PTL trainer precision
+        megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+
         # instantiate weights in bfloat16 if using megatron amp O2 and bf16
-        params_dtype = torch.bfloat16 if precision == 'bf16' and cfg.get('megatron_amp_O2', False) else torch.float32
+        params_dtype = torch.bfloat16 if precision == 'bf16' and megatron_amp_O2 else torch.float32
 
         # dtype used in p2p communication
         pipeline_dtype = (
             torch.bfloat16 if precision == 'bf16' else torch.half if precision in [16, '16'] else torch.float32
         )
 
-        autocast_dtype = pipeline_dtype if cfg.get('megatron_amp_O2', False) else None
+        # same as pipeline_dtype when not using megatron amp O2
+        autocast_dtype = pipeline_dtype if not megatron_amp_O2 else None
 
         # maps NeMo model configs to ModelParallelConfig from megatron core
         config_mapping = {
@@ -766,7 +769,7 @@ class MegatronBaseModel(NLPModel):
                 mp_config_dict[field.name] = config_mapping[field.name]
             else:
                 raise ValueError(
-                    f"cfg does not have field.name: {field.name} from ModelParallelConfig. Either add to model config or config_mapping."
+                    f"The model config does not have field.name: {field.name} from ModelParallelConfig. Add this key to cfg or config_mapping."
                 )
 
         model_parallel_config = ModelParallelConfig(**mp_config_dict)
