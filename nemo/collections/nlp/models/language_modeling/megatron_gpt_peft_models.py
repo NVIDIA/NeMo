@@ -131,12 +131,13 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
+
 class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer,
     ):
         super().__init__(cfg, trainer)
-    
+
     def init_peft_modules(self):
         """ 
         Randomly initialize the peft params and add them to the appropriate modules.
@@ -150,13 +151,17 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                     if isinstance(module, adapter_mixins.AdapterModuleMixin):
                         for peft_key in self.peft_name_keys:
                             peft_cfg = self.name_key_to_cfg[peft_key]
-                            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                            if (
+                                model_utils.import_class_by_path(peft_cfg._target_)
+                                in module.get_accepted_adapter_types()
+                            ):
                                 module.add_adapter(
                                     name=peft_key, cfg=peft_cfg,
                                 )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
-     
+
+
 class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTAdapterLearningModel is a model that combines a base model (GPTSFTModel) with a adapters.

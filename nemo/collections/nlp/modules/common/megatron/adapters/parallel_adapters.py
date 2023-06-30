@@ -366,7 +366,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         dropout: float = 0.0,
         num_position_embeddings: int = 1,
         dim_position_embeddings: int = 1024,
-        position_embedding_strategy: Optional[str] = "add"
+        position_embedding_strategy: Optional[str] = "add",
     ):
         self.position_embedding_strategy = position_embedding_strategy
         assert self.position_embedding_strategy in ["add", "concat", None]
@@ -386,7 +386,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         )
         self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
         self.register_buffer("position_id", torch.LongTensor([1]), persistent=False)
-    
+
     def set_position(self, position_id):
         self.position_id *= position_id
 
@@ -399,9 +399,9 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         if layer_norm is not None:
             self.layer_norm.weight = layer_norm.weight
         return True
-    
+
     def forward(self, x):
-        
+
         if self.position_embedding_strategy:
             pos = self.position_embeddings(self.position_id).unsqueeze(0)
             if self.position_embedding_strategy == "add":
@@ -410,11 +410,10 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             else:
                 pos = pos.expand(x.shape[0], x.shape[1], pos.shape[2])
                 x = torch.cat((x, pos), dim=2)
-                
-                
+
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
-        
+
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x)
@@ -454,6 +453,7 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
     """
 
     pass
+
 
 @dataclass
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
