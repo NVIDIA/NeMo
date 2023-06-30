@@ -17,6 +17,7 @@ import os
 import re
 from dataclasses import fields
 from typing import Any, Dict, Optional, Union
+from xml.parsers.expat import model
 
 import omegaconf
 import torch
@@ -771,6 +772,9 @@ class MegatronBaseModel(NLPModel):
                 )
 
         model_parallel_config = ModelParallelConfig(**mp_config_dict)
+
+        # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
+        setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
 
         return model_parallel_config
 
