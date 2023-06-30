@@ -18,7 +18,6 @@ import os
 import re
 from dataclasses import fields
 from typing import Any, Dict, Optional, Union
-from xml.parsers.expat import model
 
 import omegaconf
 import torch
