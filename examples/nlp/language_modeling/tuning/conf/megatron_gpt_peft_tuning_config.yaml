@@ -88,13 +88,16 @@ model:
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-      weight_tying: False
+      weight_tying: True
+      position_embedding_strategy: null
     
     lora_tuning:
       adapter_dim: 32
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+      weight_tying: True
+      position_embedding_strategy: null
     
     # Used for p-tuning peft training
     p_tuning:
