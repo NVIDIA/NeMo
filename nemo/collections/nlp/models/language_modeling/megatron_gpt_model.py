@@ -255,11 +255,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.transformer_config, module=module, precision=cfg.precision)
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
                     )
                 self.model = converted_model
             else:
-                self.model = Float16Module(config=self.transformer_config, module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                )
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
@@ -306,11 +308,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if self.cfg.get('megatron_core_gpt', False):
-            self.transformer_config = self.build_transformer_config()
+            self.model_parallel_config = self.build_model_parallel_config()
             logging.info('done')
         else:
             model = GPTModel(
-                config=self.transformer_config,
+                config=self.model_parallel_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 hidden_size=self.cfg.hidden_size,
                 max_position_embeddings=self.cfg.max_position_embeddings,

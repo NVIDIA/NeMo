@@ -59,7 +59,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -125,7 +125,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(
-                config=self.transformer_config, module=self.enc_dec_model, precision=cfg.precision
+                config=self.model_parallel_config, module=self.enc_dec_model, precision=cfg.precision
             )
 
         if self.cfg.precision == 'bf16':
@@ -264,7 +264,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             embedding_dropout = self.cfg.embedding_dropout
 
         model = MegatronTokenLevelEncoderDecoderModule(
-            config=self.transformer_config,
+            config=self.model_parallel_config,
             encoder_cfg=self.cfg.encoder,
             decoder_cfg=self.cfg.decoder,
             vocab_size=self.padded_vocab_size,

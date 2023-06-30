@@ -19,9 +19,8 @@ from dataclasses import fields
 from math import e
 from typing import Any, Dict, Optional, Union
 
-import pip
 import torch
-from MeCab import Model
+from torch.functional import F
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -52,8 +51,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import parallel_state
-    from megatron.core.transformer import TransformerConfig
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 
@@ -103,7 +101,7 @@ class MegatronBaseModel(NLPModel):
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         # set the megatron core model parallel config
-        self.transformer_config: TransformerConfig = self.build_transformer_config()
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
@@ -669,27 +667,12 @@ class MegatronBaseModel(NLPModel):
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
 
-    def build_transformer_config(self):
+    def build_model_parallel_config(self):
         """ For attributes in the nemo model config that are the same as the
-            megatron core TransformerConfig we will use the value from the nemo config.
-            For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+            megatron core ModelParallelConfig we will use the value from the nemo config.
+            For attributes in ModelParallelConfig that are not in the nemo model config, we add custom logic.
         """
         cfg = OmegaConf.to_container(self.cfg, resolve=True)
-
-        # required configs to instantiate TransformerConfig
-        hidden_size = cfg.get('hidden_size', 1)
-        num_attention_heads = cfg.get('num_attention_heads', 1)
-        kv_channels = cfg.get('kv_channels', None)
-        if kv_channels is None:
-            kv_channels = self.cfg.hidden_size // self.cfg.num_attention_heads
-        num_layers = cfg.get('num_layers', 1)
-        # TODO: instantiate this later
-        transformer_parallel_config = TransformerConfig(
-            hidden_size=hidden_size,
-            num_attention_heads=num_attention_heads,
-            kv_channels=kv_channels,
-            num_layers=num_layers,
-        )
 
         # map precision related configs
         precision = cfg.get('precision', 32)  # PTL trainer precision
@@ -703,6 +686,7 @@ class MegatronBaseModel(NLPModel):
 
         autocast_dtype = pipeline_dtype if cfg.get('megatron_amp_O2', False) else None
 
+        # maps NeMo model configs to ModelParallelConfig from megatron core
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
             "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
@@ -728,15 +712,22 @@ class MegatronBaseModel(NLPModel):
             "param_sync_func": None,  # set dynamically during training
         }
 
-        # TODO: update this so we don't override the required configs like kv_channels
-        # TODO: loop over fields in TransformerConfig class before we instantiate it
-        for field in fields(TransformerConfig):
-            if field.name in cfg:
-                setattr(transformer_parallel_config, field.name, cfg[field.name])
-            elif field.name in config_mapping:
-                setattr(transformer_parallel_config, field.name, config_mapping[field.name])
-            else:
-                raise ValueError(f"cfg does not have field.name: {field.name} from transformer_config.")
+        # instantitate ModelParallelConfig from this dict
+        mp_config_dict = {}
 
-        return transformer_parallel_config
+        for field in fields(ModelParallelConfig):
+            # model config has priority
+            if field.name in cfg:
+                mp_config_dict[field.name] = cfg[field.name]
+            # then config_mapping
+            elif field.name in config_mapping:
+                mp_config_dict[field.name] = config_mapping[field.name]
+            else:
+                raise ValueError(
+                    f"cfg does not have field.name: {field.name} from ModelParallelConfig. Either add to model config or config_mapping."
+                )
+
+        model_parallel_config = ModelParallelConfig(**mp_config_dict)
+
+        return model_parallel_config
 

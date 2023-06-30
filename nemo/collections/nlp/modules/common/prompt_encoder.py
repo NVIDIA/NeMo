@@ -20,13 +20,12 @@ import torch.nn.init as init
 from torch import nn
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types import ChannelType, NeuralType
 
 try:
-    from megatron.core.transformer import TransformerConfig, tensor_parallel
+    from megatron.core import ModelParallelConfig, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -138,7 +137,7 @@ class TPMLP(NeuralModule, Exportable):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         total_virtual_tokens: int,
         hidden_size: int,
         output_size: int,
@@ -196,7 +195,7 @@ class PromptEncoder(NeuralModule, Exportable):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         encoder_type: enum,
         total_virtual_tokens: int,
         token_dim: int,

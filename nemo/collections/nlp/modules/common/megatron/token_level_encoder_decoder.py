@@ -52,7 +52,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -104,7 +104,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         encoder_cfg: DictConfig,
         decoder_cfg: DictConfig,
         vocab_size: int,  # TODO: This should eventually go inside encoder_cfg and decoder_cfg when separate enc/dec tokenizers are supported.
