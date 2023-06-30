@@ -159,6 +159,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             elif validation_metric == 'rouge':
                 self.validation_metric = ROUGEScores()
 
+        # set hidden_size in ModelParallelConfig this is needed for PipelineParallelism
+        self.model_parallel_config.hidden_size = self.frozen_model.cfg.hidden_size
+
     def load_task_templates(self, task_templates):
         """
         Takes in the task template portion of the config and turns  
