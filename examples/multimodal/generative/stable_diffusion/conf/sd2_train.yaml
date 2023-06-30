@@ -84,8 +84,10 @@ model:
   cond_stage_forward:
   text_embedding_dropout_rate: 0.1
   fused_opt: True
-  inductor: False
+  inductor: True
   inductor_cudagraphs: False
+  capture_cudagraph_iters: -1 # -1 to disable
+  channels_last: True
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel

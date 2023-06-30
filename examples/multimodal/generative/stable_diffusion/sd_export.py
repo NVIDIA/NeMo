@@ -193,7 +193,7 @@ def main(cfg):
         )
     else:
         clip_model = OpenCLIPWrapper(model.cond_stage_model)
-        clip_model.export("stable-diffusion/onnx/clip/clip.onnx")
+        clip_model.export(f"{output_dir}/onnx/clip/clip.onnx")
 
     input_profile_clip = {}
     input_profile_clip["tokens"] = [(batch_size, *(tokens.shape[1:]))] * 3

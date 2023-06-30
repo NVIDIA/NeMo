@@ -48,7 +48,7 @@ class PLMSSampler(AbstractBaseSampler):
         t_next=None,
     ):
         b, *_, device = *x.shape, x.device
-        e_t = self._get_model_output(
+        e_t, model_output = self._get_model_output(
             x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
         )
         if len(old_eps) == 0:
@@ -59,13 +59,15 @@ class PLMSSampler(AbstractBaseSampler):
                 index,
                 device,
                 x,
+                t,
+                model_output,
                 e_t,
                 quantize_denoised,
                 repeat_noise,
                 temperature,
                 noise_dropout,
             )
-            e_t_next = self._get_model_output(
+            e_t_next, model_output = self._get_model_output(
                 x_prev,
                 t_next,
                 unconditional_conditioning,
@@ -91,6 +93,8 @@ class PLMSSampler(AbstractBaseSampler):
             index,
             device,
             x,
+            t,
+            model_output,
             e_t_prime,
             quantize_denoised,
             repeat_noise,

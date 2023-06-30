@@ -276,6 +276,18 @@ class DDPM(torch.nn.Module):
             - extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
         )
 
+    def predict_start_from_z_and_v(self, x_t, t, v):
+        return (
+            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t
+            - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v
+        )
+
+    def predict_eps_from_z_and_v(self, x_t, t, v):
+        return (
+            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v
+            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
+        )
+
     def q_posterior(self, x_start, x_t, t):
         posterior_mean = (
             extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start
