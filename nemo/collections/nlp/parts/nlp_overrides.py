@@ -19,7 +19,7 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
+from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union, Literal
 
 import pytorch_lightning as pl
 import torch
@@ -127,7 +127,9 @@ class NLPDDPStrategy(DDPStrategy):
                 # this means that data parallel groups span multiple GPUs
                 # and are non-trivial
                 # TODO: for megatron-lm self.model is a list
-                self.pre_configure_ddp()
+                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults 
+                # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
+                # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
                     _LightningModuleWrapperBase(self.model),
@@ -513,13 +515,14 @@ class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
     """
 
     def __init__(
-        self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+        self, precision: Literal["16-mixed", "bf16-mixed"], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
         dtype = None
-        if precision == 16:
+        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
+        if precision == '16-mixed':
             dtype = torch.float16
-        elif precision == 'bf16':
+        elif precision == 'bf16-mixed':
             dtype = torch.bfloat16
 
         torch.set_autocast_gpu_dtype(dtype)

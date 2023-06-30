@@ -133,14 +133,16 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
-        if self.trainer.precision == 'bf16':
+        # Check for first few chars to be '16', '32' or 'bf16' as Precision can also be '16-mixed', '32-true' or 'bf16-mixed' 
+        # along with 16, 32 or bf16 in case of PTL >= 2.0 
+        if self.trainer.precision[0:4] == 'bf16':
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision[0:2] == '32':
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision[0:2] == '16':
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in [32, "32-true", 16, "16-mixed", "bf16", "bf16-mixed"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None

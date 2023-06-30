@@ -583,7 +583,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
             'val_total_counts': total_counts,
             'val_acc': acc,
         }
-        self.validation_step_outputs.append(loss)
+        self.validation_step_outputs[dataloader_idx].append(loss)
         return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):

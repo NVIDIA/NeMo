@@ -4,7 +4,7 @@ trainer:
   devices: 1
   accelerator: gpu
   num_nodes: 1
-  precision: 16
+  precision: 16-mixed  # PipelineMixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
   logger: False 
   enable_checkpointing: False
   use_distributed_sampler: False

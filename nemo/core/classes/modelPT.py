@@ -122,10 +122,6 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
-        #TODO: Add a list for validation_step_outputs and test_step_outputs to support multiple dataloaders 
-        # by retrieving if there are more than 1 dataloaders from trainer ??
-        self.validation_step_outputs = []
-        self.test_step_outputs = []
         self.set_trainer(trainer)
 
         self._save_restore_connector = SaveRestoreConnector()
@@ -181,6 +177,16 @@ class ModelPT(LightningModule, Model):
                     f"Test config : \n{OmegaConf.to_yaml(self._cfg.test_ds)}"
                 )
 
+        # Create list of lists for val and test outputs to support multiple dataloaders
+        self.validation_step_outputs = [] # Initialize an empty list as sometimes self._validation_dl can be None at this stage
+        if self._validation_dl:
+            for _ in range(len(self._validation_dl)):
+                self.validation_step_outputs.append([])
+
+        self.test_step_outputs = [] # Initialize an empty list as sometimes self._test_dl can be None at this stage
+        if self._test_dl:
+            for _ in range(len(self._test_dl)):
+                self.test_step_outputs.append([])
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
@@ -941,10 +947,11 @@ class ModelPT(LightningModule, Model):
                         new_k = dataloader_prefix + k
                         output_dict[new_k] = v
 
+                self.validation_step_outputs[dataloader_idx].clear() # free memory
+
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
-
-            self.validation_step_outputs.clear() # free memory
+            
             # return everything else
             return output_dict
 
@@ -1033,11 +1040,11 @@ class ModelPT(LightningModule, Model):
                         # If any values are stored outside 'log', simply prefix name and store
                         new_k = dataloader_prefix + k
                         output_dict[new_k] = v
+                self.test_step_outputs[dataloader_idx].clear() # free memory
 
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
-            self.test_step_outputs.clear() # free memory
             # return everything else
             return output_dict
 

@@ -126,14 +126,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
 
-        if self.cfg.precision == 'bf16':
+        # Check for first few chars to be '16', '32' or 'bf16' as Precision can also be '16-mixed', '32-true' or 'bf16-mixed' 
+        # along with 16, 32 or bf16 in case of PTL >= 2.0 
+        if self.cfg.precision[0:4] == 'bf16':
             self.autocast_dtype = torch.bfloat16
-        elif int(self.cfg.precision) == 32:
+        elif self.cfg.precision[0:2] == '32':
             self.autocast_dtype = torch.float
-        elif int(self.cfg.precision) == 16:
+        elif self.cfg.precision[0:2] == '16':
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in [32, "32-true", 16, "16-mixed", "bf16", "bf16-mixed"]')
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False

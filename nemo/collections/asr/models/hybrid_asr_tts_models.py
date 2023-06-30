@@ -372,7 +372,7 @@ class ASRWithTTSModel(ASRModel):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """Validation step, forward to ASR model"""
         loss = self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
-        self.validation_step_outputs.append(loss)
+        self.validation_step_outputs[dataloader_idx].append(loss)
         return loss
 
     def on_validation_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
