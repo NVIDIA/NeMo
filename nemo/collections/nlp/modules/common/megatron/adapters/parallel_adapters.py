@@ -104,8 +104,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         out_features: int,
         dim: int,
         activation: str = 'swish',
-        norm_position: str = 'post',
-        norm_type: str = 'mixedfusedlayernorm',
+        norm_position: Optional[str] = 'post',
+        norm_type: Optional[str] = 'mixedfusedlayernorm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
@@ -187,8 +187,8 @@ class ParallelLinearAdapterConfig:
     out_features: int
     dim: int
     activation: str = 'swish'
-    norm_position: str = 'post'
-    norm_type: str = 'mixedfusedlayernorm'
+    norm_position: Optional[str] = 'post'
+    norm_type: Optional[str] = 'mixedfusedlayernorm'
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True
@@ -358,8 +358,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         out_features: int,
         dim: int,
         activation: str = 'swish',
-        norm_position: str = 'post',
-        norm_type: str = 'mixedfusedlayernorm',
+        norm_position: Optional[str] = 'post',
+        norm_type: Optional[str] = 'mixedfusedlayernorm',
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
@@ -434,8 +434,8 @@ class ParallelLinearAdapterWeightTyingConfig:
     out_features: int
     dim: int
     activation: str = 'swish'
-    norm_position: str = 'post'
-    norm_type: str = 'mixedfusedlayernorm'
+    norm_position: Optional[str] = 'post'
+    norm_type: Optional[str] = 'mixedfusedlayernorm'
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True
