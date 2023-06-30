@@ -22,12 +22,12 @@ from xml.parsers.expat import model
 
 import omegaconf
 import torch
-from torch.functional import F
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.functional import F
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -774,4 +774,3 @@ class MegatronBaseModel(NLPModel):
         setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
 
         return model_parallel_config
-
