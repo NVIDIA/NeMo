@@ -124,7 +124,7 @@ def _get_peft_scheme(cfg):
     elif cfg.peft.peft_scheme == "adapter_and_ptuning":
         peft_cls = MegatronGPTAdapterPTuningModel
     elif cfg.peft.peft_scheme == "lora":
-        if cfg.peft.lora_tuning.weight_tying: 
+        if cfg.peft.lora_tuning.weight_tying:
             peft_cls = MegatronGPTLoRAModelWeightTying
         else:
             peft_cls = MegatronGPTLoRAModel

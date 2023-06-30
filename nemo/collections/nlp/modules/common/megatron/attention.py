@@ -145,7 +145,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 LoraKQVAdapterConfig._target_,
                 LoraQAdapterConfig._target_,
                 LoraKVAdapterConfig._target_,
-                LoraKQVAdapterWeightTyingConfig._target_
+                LoraKQVAdapterWeightTyingConfig._target_,
             ]
         )
 

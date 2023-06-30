@@ -196,7 +196,7 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTPEFTModel):
             dropout=adapter_tuning_cfg.adapter_dropout,
             num_position_embeddings=cfg.num_layers * 2,
             dim_position_embeddings=cfg.hidden_size,
-            position_embedding_strategy=adapter_tuning_cfg.get("position_embedding_strategy", None)
+            position_embedding_strategy=adapter_tuning_cfg.get("position_embedding_strategy", None),
         )
 
         self.name_key_to_cfg = {}
@@ -470,7 +470,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTPEFTModel):
             dropout=lora_cfg.adapter_dropout,
             num_position_embeddings=cfg.num_layers,
             dim_position_embeddings=cfg.hidden_size,
-            position_embedding_strategy=lora_cfg.get("position_embedding_strategy", None)
+            position_embedding_strategy=lora_cfg.get("position_embedding_strategy", None),
         )
 
         self.name_key_to_cfg = {}
@@ -495,10 +495,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTPEFTModel):
                 adapter_l = layer.self_attention.get_adapter_module(adapter_name)
                 adapter_0 = layer0.self_attention.get_adapter_module(adapter_name)
                 adapter_l.tie_weights(
-                    pos_idx,
-                    adapter_0.linear_in,
-                    adapter_0.linear_out,
-                    adapter_0.position_embeddings,
+                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, adapter_0.position_embeddings,
                 )
                 pos_idx += 1
         print("ok")
