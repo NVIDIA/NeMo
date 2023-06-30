@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
     MegatronGPTLoRAModel,
+    MegatronGPTLoRAModelWeightTying,
     MegatronGPTPTuningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
@@ -123,7 +124,10 @@ def _get_peft_scheme(cfg):
     elif cfg.peft.peft_scheme == "adapter_and_ptuning":
         peft_cls = MegatronGPTAdapterPTuningModel
     elif cfg.peft.peft_scheme == "lora":
-        peft_cls = MegatronGPTLoRAModel
+        if cfg.peft.lora_tuning.weight_tying:
+            peft_cls = MegatronGPTLoRAModelWeightTying
+        else:
+            peft_cls = MegatronGPTLoRAModel
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls

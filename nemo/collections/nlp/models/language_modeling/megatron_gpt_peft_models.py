@@ -21,6 +21,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
@@ -194,7 +195,8 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTPEFTModel):
             row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
             dropout=adapter_tuning_cfg.adapter_dropout,
             num_position_embeddings=cfg.num_layers * 2,
-            dim_position_embeddings=1024,
+            dim_position_embeddings=cfg.hidden_size,
+            position_embedding_strategy=adapter_tuning_cfg.get("position_embedding_strategy", None),
         )
 
         self.name_key_to_cfg = {}
@@ -205,18 +207,27 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTPEFTModel):
         self.tie_weights()
 
     def tie_weights(self,):
+        pos_idx = 0
         layer0 = self.model.language_model.encoder.layers[0]
+        for adapter_name in layer0.adapter_layer:
+            adapter = layer0.get_adapter_module(adapter_name)
+            print(adapter_name, pos_idx)
+            adapter.set_position(pos_idx)
+            pos_idx += 1
+
         for layer in self.model.language_model.encoder.layers[1:]:
-            for adapter_l in layer.adapter_layer:
-                print(adapter_l)
-                adapter_model_l = layer.get_adapter_module(adapter_l)
-                adapter_model_0 = layer0.get_adapter_module(adapter_l)
-                adapter_model_l.tie_weights(
-                    adapter_model_0.linear_in,
-                    adapter_model_0.linear_out,
-                    adapter_model_0.position_embeddings,
-                    adapter_model_0.layer_norm,
+            for adapter_name in layer.adapter_layer:
+                print(adapter_name, pos_idx)
+                adapter_l = layer.get_adapter_module(adapter_name)
+                adapter_0 = layer0.get_adapter_module(adapter_name)
+                adapter_l.tie_weights(
+                    pos_idx,
+                    adapter_0.linear_in,
+                    adapter_0.linear_out,
+                    adapter_0.position_embeddings,
+                    adapter_0.layer_norm,
                 )
+                pos_idx += 1
 
 
 class MegatronGPTIA3Model(MegatronGPTPEFTModel):
@@ -423,3 +434,68 @@ class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
             self.name_key_to_cfg[k] = adapter_cfg
 
         super().__init__(cfg, trainer)
+
+
+class MegatronGPTLoRAModelWeightTying(MegatronGPTPEFTModel):
+    """
+    TODO 
+    """
+
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        self.peft_name_keys = [
+            AdapterName.LORA_KQV_ADAPTER,
+        ]
+        lora_cfg = cfg.peft.lora_tuning
+        if cfg.get("kv_channels", None) is None:
+            assert (
+                cfg.hidden_size % cfg.num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = cfg.hidden_size // cfg.num_attention_heads
+        else:
+            kv_channels = cfg.kv_channels
+        projection_size = kv_channels * cfg.num_attention_heads
+
+        adapter_cfg = LoraKQVAdapterWeightTyingConfig(
+            in_features=cfg.hidden_size,
+            out_features=3 * projection_size,
+            dim=lora_cfg.adapter_dim,
+            norm_position="none",
+            norm_type="none",
+            activation="identity",
+            column_init_method=lora_cfg.get("column_init_method", "normal"),
+            row_init_method=lora_cfg.get("row_init_method", "zero"),
+            gather_output=False,
+            dropout=lora_cfg.adapter_dropout,
+            num_position_embeddings=cfg.num_layers,
+            dim_position_embeddings=cfg.hidden_size,
+            position_embedding_strategy=lora_cfg.get("position_embedding_strategy", None),
+        )
+
+        self.name_key_to_cfg = {}
+        for k in self.peft_name_keys:
+            self.name_key_to_cfg[k] = adapter_cfg
+
+        super().__init__(cfg, trainer)
+        self.tie_weights()
+
+    def tie_weights(self,):
+        pos_idx = 0
+        layer0 = self.model.language_model.encoder.layers[0]
+        for adapter_name in layer0.self_attention.adapter_layer:
+            adapter = layer0.self_attention.get_adapter_module(adapter_name)
+            print(adapter_name, pos_idx)
+            adapter.set_position(pos_idx)
+            pos_idx += 1
+
+        for layer in self.model.language_model.encoder.layers[1:]:
+            for adapter_name in layer.self_attention.adapter_layer:
+                print(adapter_name, pos_idx)
+                adapter_l = layer.self_attention.get_adapter_module(adapter_name)
+                adapter_0 = layer0.self_attention.get_adapter_module(adapter_name)
+                adapter_l.tie_weights(
+                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, adapter_0.position_embeddings,
+                )
+                pos_idx += 1
+        print("ok")
