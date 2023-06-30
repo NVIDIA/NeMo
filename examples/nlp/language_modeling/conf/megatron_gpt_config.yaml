@@ -174,9 +174,6 @@ model:
   # `cga_size`, `num_splits`, `set_sm_margin`, and `aggregate` for the communicators to use custom settings.
   # If the configuration file is not provided a default setting is used for all communicators.
 
-  ## Megatron Core
-  megatron_core_gpt: False # Use Megatron Core GPT implementation
-
   ## Flash Attention
   use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
   
