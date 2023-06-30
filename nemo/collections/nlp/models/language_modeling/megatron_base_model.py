@@ -20,7 +20,6 @@ from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
-import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
@@ -776,4 +775,3 @@ class MegatronBaseModel(NLPModel):
         setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
 
         return model_parallel_config
-
