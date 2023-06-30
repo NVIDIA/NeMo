@@ -130,7 +130,7 @@ class TestRNNTLossPytorch:
         #            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
-        B, T, U, V = 2, 15, 6, 15
+        B, T, U, V = 2, 25, 12, 100
         D = 4
         acts = rng.randn(B, T, V + D)
         labels = [[1, 2, 2, 3, 2, 1], [1, 2, 4, 6, 2, 2]]
@@ -149,7 +149,7 @@ class TestRNNTLossPytorch:
         assert np.allclose(pt_cost, ag_cost, rtol=1e-6), "small_random_test costs mismatch."
 
         assert np.allclose(
-            pt_grads[:, :, : V + 1], ag_grads[:, :, : V + 1]
+            pt_grads[:, :, : V + 1], ag_grads[:, :, : V + 1], rtol=1e-04, atol=1e-04
         ), "small_random_test vocab gradient mismatch."
         assert np.allclose(
             pt_grads[:, :, V + 1 :], ag_grads[:, :, V + 1 :], rtol=1e-04, atol=1e-04

@@ -78,11 +78,13 @@ class RNNTLossPytorch(Loss):
         U = torch.max(label_lens).item()
         log_alpha = torch.zeros(B, T, U + 2) - 9999
         log_alpha = log_alpha.to(acts.device)
-        d1 = torch.reshape(duration_acts, [B, T, 1, D])
-        d2 = torch.reshape(duration_acts, [B, 1, T, D])
+
+        d1 = torch.reshape(duration_acts[:, :, : D // 2], [B, T, 1, -1])
+        d2 = torch.reshape(duration_acts[:, :, D // 2 :], [B, 1, T, -1])
         d1 = d1.repeat([1, 1, T, 1])
         d2 = d2.repeat([1, T, 1, 1])
-        jump_weight = torch.sum(d1 * d2, dim=-1)
+        jump_weight = torch.sum(d1 * d2, dim=-1).contiguous()  # of shape [B, T, T]
+        jump_weight = torch.nn.functional.log_softmax(jump_weight, dim=-1)
 
         for b in range(B):
             T, U = act_lens[b], label_lens[b]
@@ -124,11 +126,13 @@ class RNNTLossPytorch(Loss):
         U = torch.max(label_lens).item()
         log_beta = torch.zeros(B, T, U + 2) - 9999
         log_beta = log_beta.to(acts.device)
-        d1 = torch.reshape(duration_acts, [B, T, 1, D])
-        d2 = torch.reshape(duration_acts, [B, 1, T, D])
+
+        d1 = torch.reshape(duration_acts[:, :, : D // 2], [B, T, 1, -1])
+        d2 = torch.reshape(duration_acts[:, :, D // 2 :], [B, 1, T, -1])
         d1 = d1.repeat([1, 1, T, 1])
         d2 = d2.repeat([1, T, 1, 1])
-        jump_weight = torch.sum(d1 * d2, dim=-1)
+        jump_weight = torch.sum(d1 * d2, dim=-1).contiguous()  # of shape [B, T, T]
+        jump_weight = torch.nn.functional.log_softmax(jump_weight, dim=-1)
 
         for b in range(B):
             T, U = act_lens[b], label_lens[b]
