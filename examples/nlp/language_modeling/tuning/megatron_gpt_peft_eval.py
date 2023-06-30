@@ -125,8 +125,15 @@ def main(cfg) -> None:
         # update the model config of the trained model with params we want to set at inference time.
         peft_model_cfg.precision = cfg.trainer.precision
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
+        max_seq_length = cfg.model.data.test_ds.max_seq_length
+        # Check dataset max_seq_legnth and max_position_embeddings size
+        if peft_model_cfg.get('position_embedding_type', None) in [None, 'learned_absolute'] and max_seq_length > peft_model_cfg.max_position_embeddings:
+            logging.warning(f"Set dataset max_seq_length to max_position_embeddings {peft_model_cfg.max_position_embeddings} if using learned_absolute position embedding")
+            peft_model_cfg.data.test_ds.max_seq_length = peft_model_cfg.max_position_embeddings
+        
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
+        peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
 
     with open_dict(cfg):
         # update the config with the trained model config
@@ -166,8 +173,7 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
 
-    if hasattr(cfg.model.data, 'test_ds'):
-        trainer.test(model)
+    trainer.test(model)
 
 
 if __name__ == "__main__":
