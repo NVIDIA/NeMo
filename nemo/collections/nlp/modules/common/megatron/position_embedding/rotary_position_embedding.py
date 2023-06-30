@@ -21,15 +21,21 @@ __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
 
 class RotaryEmbedding(nn.Module):
-    def __init__(self, dim, seq_len_interpolation_factor=None):
+    def __init__(self, dim, seq_len_interpolation_factor=None, nonlinear_interpolation=False):
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        self.nonlinear_interpolation = nonlinear_interpolation
+        if nonlinear_interpolation:
+            assert seq_len_interpolation_factor is not None
+            base = 10000 * seq_len_interpolation_factor ** (dim / (dim-2))
+        else:
+            base = 10000
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
 
     def forward(self, max_seq_len, offset=0):
         seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
-        if self.seq_len_interpolation_factor is not None:
+        if self.seq_len_interpolation_factor is not None and not self.nonlinear_interpolation:
             seq = seq.type_as(self.inv_freq)
             seq *= 1 / self.seq_len_interpolation_factor
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
