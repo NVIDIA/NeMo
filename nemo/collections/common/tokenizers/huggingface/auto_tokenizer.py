@@ -149,6 +149,7 @@ class AutoTokenizer(TokenizerSpec):
                 f'see NLP_Tokenizers.ipynb for more details.'
             )
         self.add_special_tokens(special_tokens_dict)
+        self.user_added_special_tokens = set()
 
     @property
     def vocab_size(self):
@@ -166,6 +167,8 @@ class AutoTokenizer(TokenizerSpec):
         Returns:
             Number of tokens added to the vocabulary.
         """
+        if 'additional_special_tokens' in special_tokens_dict:
+            self.user_added_special_tokens.update(special_tokens_dict['additional_special_tokens'])
         num_tokens_added = self.tokenizer.add_special_tokens(special_tokens_dict)
 
         if num_tokens_added > 0:
@@ -205,7 +208,9 @@ class AutoTokenizer(TokenizerSpec):
 
     def ids_to_text(self, ids):
         tokens = self.ids_to_tokens(ids)
-        tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
+        all_special_tokens = set(self.tokenizer.all_special_tokens)
+        all_special_tokens = all_special_tokens - self.user_added_special_tokens
+        tokens_clean = [t for t in tokens if t not in all_special_tokens]
         text = self.tokens_to_text(tokens_clean)
         return text
 
