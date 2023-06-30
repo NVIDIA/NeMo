@@ -57,7 +57,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core.transformer import TransformerConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -131,7 +131,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -647,7 +647,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 class ParallelTransformerLayer(ParallelTransformerLayer_):
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -891,7 +891,7 @@ class ParallelTransformer(MegatronModule):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         num_layers,

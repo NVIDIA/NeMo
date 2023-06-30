@@ -254,11 +254,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.transformer_config, module=module, precision=cfg.precision, share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True)))
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision, share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True)))
                     
                 self.model = converted_model
             else:
-                self.model = Float16Module(config=self.transformer_config, module=self.model, precision=cfg.precision, share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True))
+                self.model = Float16Module(config=self.model_parallel_config, module=self.model, precision=cfg.precision, share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True))
 
         if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
@@ -306,7 +306,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         model = GPTModel(
-            config=self.transformer_config,
+            config=self.model_parallel_config,
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
