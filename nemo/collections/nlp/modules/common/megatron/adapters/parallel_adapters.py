@@ -366,7 +366,12 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         dropout: float = 0.0,
         num_position_embeddings: int = 1,
         dim_position_embeddings: int = 1024,
+        position_embedding_strategy: Optional[str] = "add"
     ):
+        self.position_embedding_strategy = position_embedding_strategy
+        assert self.position_embedding_strategy in ["add", "concat", None]
+        if self.position_embedding_strategy == "concat":
+            in_features += dim_position_embeddings
         super().__init__(
             in_features,
             out_features,
@@ -380,8 +385,13 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             dropout,
         )
         self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
+        self.register_buffer("position_id", torch.LongTensor([1]), persistent=False)
+    
+    def set_position(self, position_id):
+        self.position_id *= position_id
 
-    def tie_weights(self, linear_in, linear_out, position_embeddings=None, layer_norm=None):
+    def tie_weights(self, position_id, linear_in, linear_out, position_embeddings=None, layer_norm=None):
+        self.set_position(position_id)
         self.linear_in.weight = linear_in.weight
         self.linear_out.weight = linear_out.weight
         if position_embeddings is not None:
@@ -389,6 +399,33 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         if layer_norm is not None:
             self.layer_norm.weight = layer_norm.weight
         return True
+    
+    def forward(self, x):
+        
+        if self.position_embedding_strategy:
+            pos = self.position_embeddings(self.position_id).unsqueeze(0)
+            if self.position_embedding_strategy == "add":
+                pos = pos.expand_as(x)
+                x = x + pos
+            else:
+                pos = pos.expand(x.shape[0], x.shape[1], pos.shape[2])
+                x = torch.cat((x, pos), dim=2)
+                
+                
+        if self.norm_position == 'pre':
+            x = self.layer_norm(x)
+        
+        x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x = self.activation(x)
+        x, _ = self.linear_out(x)
+        if self.norm_position == 'post':
+            x = self.layer_norm(x)
+
+        # Add dropout if available
+        if self.dropout is not None:
+            x = self.dropout(x)
+
+        return x
 
 
 @dataclass
@@ -405,6 +442,19 @@ class ParallelLinearAdapterWeightTyingConfig:
     dropout: float = 0.0
     num_position_embeddings: int = 1
     dim_position_embeddings: int = 1024
+    position_embedding_strategy: Optional[str] = "add"
     _target_: str = "{0}.{1}".format(
         ParallelLinearAdapterWeightTying.__module__, ParallelLinearAdapterWeightTying.__name__
     )
+
+
+class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
+    """
+    TODO 
+    """
+
+    pass
+
+@dataclass
+class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
+    _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)

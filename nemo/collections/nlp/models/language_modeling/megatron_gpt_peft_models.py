@@ -131,8 +131,31 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
-
-class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
+class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        super().__init__(cfg, trainer)
+    
+    def init_peft_modules(self):
+        """ 
+        Randomly initialize the peft params and add them to the appropriate modules.
+        """
+        assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
+        assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
+        logging.info(f"Before adding PEFT params:\n{self.summarize()}")
+        for _, module in self.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for peft_key in self.peft_name_keys:
+                    peft_cfg = self.name_key_to_cfg[peft_key]
+                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                        module.add_adapter(
+                            name=peft_key, cfg=peft_cfg,
+                        )
+        logging.info(f"After adding PEFT params:\n{self.summarize()}")
+        return True
+     
+class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTAdapterLearningModel is a model that combines a base model (GPTSFTModel) with a adapters.
     This class only supports the canonical Adapter training described in Houlsby et al. (https://arxiv.org/pdf/1902.00751.pdf)
@@ -152,7 +175,6 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
             AdapterName.POST_ATTN_ADAPTER,
         ]
         adapter_tuning_cfg = cfg.peft.adapter_tuning
-
         adapter_cfg = ParallelLinearAdapterConfig(
             in_features=cfg.hidden_size,
             out_features=cfg.hidden_size,
@@ -168,10 +190,11 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
 
+        self.layer_selection = cfg.peft.adapter_tuning.get("layer_selection", [])
         super().__init__(cfg, trainer)
 
 
-class MegatronGPTAdapterModelWeightTying(MegatronGPTPEFTModel):
+class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
     """
@@ -390,7 +413,7 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
 
-class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
+class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTLoRAModel is a model that combines a base model (GPTSFTModel) with a low-rank adapters.
     The lora adapters will be added in `nemo/collections/nlp/modules/common/megatron/attention.py`
@@ -436,7 +459,7 @@ class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
         super().__init__(cfg, trainer)
 
 
-class MegatronGPTLoRAModelWeightTying(MegatronGPTPEFTModel):
+class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
     """
