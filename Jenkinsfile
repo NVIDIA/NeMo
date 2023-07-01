@@ -3803,7 +3803,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.names=[quarel]"
         sh "python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_tuning/checkpoints/megatron_gpt_peft_tuning.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_lora_tuning/checkpoints/megatron_gpt_lora_tuning.nemo \
         model.peft.restore_from_ckpt_name=null \
         model.peft.restore_from_hparams_path=null \
         trainer.devices=2 \
