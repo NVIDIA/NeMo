@@ -197,7 +197,9 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
 
-        self.layer_selection = cfg.peft.adapter_tuning.get("layer_selection", [])
+        self.layer_selection = adapter_tuning_cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
 
 
@@ -233,6 +235,9 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
 
+        self.layer_selection = adapter_tuning_cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.tie_weights()
 
@@ -508,7 +513,9 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         self.name_key_to_cfg = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
-
+        self.layer_selection = lora_cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
         self.tie_weights()
 
