@@ -43,7 +43,7 @@ class MegatronModule(torch.nn.Module):
     """Megatron specific extensions of torch Module with support
     for pipelining."""
 
-    def __init__(self, config: ModelParallelConfig, share_token_embeddings=True):
+    def __init__(self, config: ModelParallelConfig = None, share_token_embeddings=True):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."

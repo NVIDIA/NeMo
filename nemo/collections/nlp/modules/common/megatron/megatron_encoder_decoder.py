@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Transformer based language model."""
+from ast import Mod
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
@@ -28,6 +29,14 @@ except (ImportError, ModuleNotFoundError):
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronTransformerEncoderDecoderModule"]
 
@@ -38,6 +47,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         encoder,
         decoder,
         # AttnMaskType enum mask type (e.g., padding, casual)
@@ -45,7 +55,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         decoder_attn_mask_type: AttnMaskType = None,
         hidden_steps: int = None,
     ):
-        super(MegatronTransformerEncoderDecoderModule, self).__init__()
+        super(MegatronTransformerEncoderDecoderModule, self).__init__(config=config)
 
         self.encoder = encoder
         self.decoder = decoder

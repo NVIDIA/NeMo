@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Transformer based language model."""
+from ast import Mod
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerDecoderModule,
@@ -33,12 +34,22 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 __all__ = []
 
 AVAILABLE_DECODERS = ["transformer"]
 
 
 def get_decoder_model(
+    config: ModelParallelConfig,
     arch,
     hidden_size,
     ffn_hidden_size,
@@ -108,6 +119,7 @@ def get_decoder_model(
     if arch == "transformer":
         # Language model.
         decoder = MegatronTransformerDecoderModule(
+            config=config,
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
             hidden_size=hidden_size,
@@ -152,6 +164,7 @@ def get_decoder_model(
         )
     elif arch == "retro":
         decoder = MegatronRetrievalTransformerDecoderModule(
+            config=config,
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
             hidden_size=hidden_size,
