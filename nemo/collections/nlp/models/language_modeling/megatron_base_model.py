@@ -391,7 +391,7 @@ class MegatronBaseModel(NLPModel):
         if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
             gc.collect()
 
-    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
         if self.gc_interval > 0:
