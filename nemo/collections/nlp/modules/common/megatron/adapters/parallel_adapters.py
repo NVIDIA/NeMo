@@ -372,6 +372,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         assert self.position_embedding_strategy in ["add", "concat", None]
         if self.position_embedding_strategy == "concat":
             in_features += dim_position_embeddings
+        if self.position_embedding_strategy == "add":
+            assert in_features == dim_position_embeddings, "adapter input feature size should match position emb size to add"
         super().__init__(
             in_features,
             out_features,

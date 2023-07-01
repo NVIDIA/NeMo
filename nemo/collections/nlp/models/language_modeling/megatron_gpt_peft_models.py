@@ -506,7 +506,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
             gather_output=False,
             dropout=lora_cfg.adapter_dropout,
             num_position_embeddings=cfg.num_layers,
-            dim_position_embeddings=cfg.hidden_size,
+            dim_position_embeddings=lora_cfg.adapter_dim,
             position_embedding_strategy=lora_cfg.get("position_embedding_strategy", None),
         )
 
