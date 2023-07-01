@@ -39,7 +39,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
 
 try:
-    from megatron.core import tensor_parallel
+    from megatron.core import ModelParallelConfig, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
@@ -55,6 +55,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         vocab_size,
         hidden_size,
         max_position_embeddings,
@@ -133,12 +134,12 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
         if pre_process:
             self.encoder_embedding = Embedding(
+                config=self.config,
                 hidden_size=hidden_size,
                 vocab_size=vocab_size,
                 max_sequence_length=max_position_embeddings,
                 init_method=init_method_normal(init_method_std),
                 num_tokentypes=num_tokentypes,
-                use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=hidden_dropout,
                 position_embedding_type='learned_absolute' if add_position_embedding else '',
                 transpose_batch_sequence=False,
@@ -229,6 +230,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
             # it is used to process the inputs for encoder to use as context (H in the paper)
             self.pre_decoder = get_decoder_model(
+                config=config,
                 arch="retro",
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
@@ -274,6 +276,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
             # it is where the chunked cross attention happens
             self.post_decoder = get_decoder_model(
+                config=config,
                 arch="retro",
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
