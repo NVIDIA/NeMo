@@ -776,6 +776,8 @@ class MegatronBaseModel(NLPModel):
             # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
             setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
         except AttributeError:
-            logging.warning(f'hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.')
+            logging.warning(
+                f'hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.'
+            )
 
         return model_parallel_config
