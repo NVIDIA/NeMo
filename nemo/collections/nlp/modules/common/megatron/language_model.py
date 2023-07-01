@@ -122,6 +122,7 @@ def get_language_model(
     reduce_amax=True,
     use_emha=False,
     use_flash_attention=False,
+    seq_len_interpolation_factor=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -198,6 +199,7 @@ def get_language_model(
         reduce_amax=reduce_amax,
         use_emha=use_emha,
         use_flash_attention=use_flash_attention,
+        seq_len_interpolation_factor=seq_len_interpolation_factor,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -508,6 +510,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         reduce_amax=True,
         use_emha=False,
         use_flash_attention=False,
+        seq_len_interpolation_factor=None
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -559,7 +562,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             assert 0 < rotary_percentage <= 1
             if rotary_percentage < 1:
                 rotary_dim = int(rotary_dim * rotary_percentage)
-            self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
+            self.rotary_pos_emb = RotaryEmbedding(
+                rotary_dim,
+                seq_len_interpolation_factor=seq_len_interpolation_factor
+            )
 
         elif position_embedding_type == 'alibi':
             # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following

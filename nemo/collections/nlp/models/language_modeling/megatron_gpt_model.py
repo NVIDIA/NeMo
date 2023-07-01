@@ -359,6 +359,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_emha=self.cfg.get('use_emha', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None)
         )
 
         return model
@@ -949,7 +950,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
                     global_batch_size=self.cfg.global_batch_size,
-                    rampup_batch_size=self.cfg.rampup_batch_size,
+                    rampup_batch_size=self.cfg.get('rampup_batch_size', None),
                     pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
                 )
             elif self.cfg.data.dataloader_type == 'cyclic':
@@ -1001,6 +1002,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
+            optimizer = self.cfg.optim.get('name', None)
+            assert (
+                optimizer == 'fused_adam'
+            ), f'{optimizer} optimizer is not supported yet with rampup batch size. Please, use fused_adam optimizer instead.'
+
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
