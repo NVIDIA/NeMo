@@ -597,7 +597,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             # rnnt + ctc loss is available in metrics as "val_final_loss" now
             tensorboard_logs['val_loss'] = loss_value
         tensorboard_logs.update(additional_logs)
-        self.validation_step_outputs[dataloader_idx].append(tensorboard_logs)
+        if len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(tensorboard_logs)
+        else:
+            self.validation_step_outputs.append(tensorboard_logs)
         # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)

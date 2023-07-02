@@ -651,7 +651,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
         metrics.update({'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer})
-        self.validation_step_outputs[dataloader_idx].append(metrics)
+        if len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 

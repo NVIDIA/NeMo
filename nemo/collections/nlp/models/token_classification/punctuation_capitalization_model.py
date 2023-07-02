@@ -272,7 +272,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ``torchmetrics``.
         """
         loss = self.eval_step(batch, 'val', dataloader_idx)
-        self.validation_step_outputs[dataloader_idx].append(loss)
+        if len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(loss)
+        else:
+            self.validation_step_outputs.append(loss)
         return loss
 
     def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> Dict[str, None]:

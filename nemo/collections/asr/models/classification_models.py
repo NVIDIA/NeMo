@@ -583,7 +583,10 @@ class EncDecClassificationModel(_EncDecBaseModel):
             'val_total_counts': total_counts,
             'val_acc': acc,
         }
-        self.validation_step_outputs[dataloader_idx].append(loss)
+        if len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(loss)
+        else:
+            self.validation_step_outputs.append(loss)
         return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
