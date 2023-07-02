@@ -55,8 +55,13 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         )
         gpt_cfg.data = cfg.model.data
         # Check dataset max_seq_legnth and max_position_embeddings size
-        if gpt_cfg.get('position_embedding_type', None) in [None, 'learned_absolute'] and max_seq_length > gpt_cfg.max_position_embeddings:
-            logging.warning(f"Set dataset max_seq_length to max_position_embeddings {gpt_cfg.max_position_embeddings} if using learned_absolute position embedding")
+        if (
+            gpt_cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
+            and max_seq_length > gpt_cfg.max_position_embeddings
+        ):
+            logging.warning(
+                f"Set dataset max_seq_length to max_position_embeddings {gpt_cfg.max_position_embeddings} if using learned_absolute position embedding"
+            )
             gpt_cfg.data.train_ds.max_seq_length = gpt_cfg.max_position_embeddings
             gpt_cfg.data.validation_ds.max_seq_length = gpt_cfg.max_position_embeddings
         gpt_cfg.optim = cfg.model.optim
