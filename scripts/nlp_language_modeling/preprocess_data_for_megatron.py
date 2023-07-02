@@ -320,6 +320,9 @@ def main():
     total_bytes_processed = 0
     print("Time to startup:", startup_end - startup_start)
 
+    MIN_LEN = 64000
+    skipped = 0
+    added = 0
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
 
     for idx, json_file in enumerate(json_files):
@@ -336,18 +339,28 @@ def main():
             for key, sentences in doc.items():
                 if len(sentences) == 0:
                     continue
+                doc_added = False
                 for sentence in sentences:
-                    builders[key].add_item(torch.IntTensor(sentence))
-                builders[key].end_document()
+                    if len(sentence) >= MIN_LEN:
+                        builders[key].add_item(torch.IntTensor(sentence))
+                        doc_added = True
+                        added += 1
+                    else:
+                        skipped += 1
+
+                if doc_added:
+                    builders[key].end_document()
             if i % args.log_interval == 0:
                 current = time.time()
                 elapsed = current - proc_start
                 mbs = total_bytes_processed / elapsed / 1024 / 1024
                 print(f"Processed {i} documents", f"({i/elapsed} docs/s, {mbs} MB/s).", file=sys.stderr)
+                print(f"Skipped: {skipped} -- added: {added}")
 
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
 
+    print(f"MIN_LEN: {MIN_LEN} -- added: {added} ({round(skipped/(added+skipped))}%) -- skipped - {skipped}({round(skipped/(added+skipped))}%)")
 
 if __name__ == '__main__':
     main()

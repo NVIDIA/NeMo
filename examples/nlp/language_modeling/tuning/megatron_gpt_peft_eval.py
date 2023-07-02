@@ -139,6 +139,10 @@ def main(cfg) -> None:
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
         peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
+        if peft_model_cfg.get("use_flash_attention", False):
+            peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
+        if peft_model_cfg.get("apply_query_key_layer_scaling", False):
+            peft_model_cfg.apply_query_key_layer_scaling = cfg.model.get('apply_query_key_layer_scaling', True)
 
     with open_dict(cfg):
         # update the config with the trained model config

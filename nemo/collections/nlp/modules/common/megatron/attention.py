@@ -741,6 +741,8 @@ class CoreAttention(MegatronModule):
 
         super(CoreAttention, self).__init__()
 
+        print("flash attention", use_flash_attention)
+
         self.precision = precision
         self.fp16 = False
         self.bf16 = False

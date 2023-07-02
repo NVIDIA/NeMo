@@ -123,6 +123,7 @@ def get_language_model(
     use_emha=False,
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
+    seq_len_interpolation_factor=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -200,6 +201,7 @@ def get_language_model(
         use_emha=use_emha,
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
+        seq_len_interpolation_factor=seq_len_interpolation_factor,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -295,6 +297,9 @@ class Embedding(MegatronModule):
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
+        elif self.position_embedding_type == 'nope':
+            self.position_embeddings = None
+            self._position_embeddings_key = None
 
         # Token type embedding.
         # Add this as an optional field that can be added through
@@ -508,6 +513,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_emha=False,
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
+        seq_len_interpolation_factor=None
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -559,7 +565,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             assert 0 < rotary_percentage <= 1
             if rotary_percentage < 1:
                 rotary_dim = int(rotary_dim * rotary_percentage)
-            self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
+            self.rotary_pos_emb = RotaryEmbedding(
+                rotary_dim,
+                seq_len_interpolation_factor=seq_len_interpolation_factor
+            )
 
         elif position_embedding_type == 'alibi':
             # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
