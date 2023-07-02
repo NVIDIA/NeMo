@@ -236,7 +236,7 @@ class GPTSFTDataset(Dataset):
             context_ids = [self.tokenizer.bos_id] + context_ids
             input_ids = [self.tokenizer.bos_id] + input_ids
             answer_start_idx += 1
-        
+
         # Only training need to consider eos token
         if self.add_eos and self.tokens_to_generate == 0:
             input_ids = input_ids + [self.tokenizer.eos_id]
