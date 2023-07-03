@@ -124,6 +124,8 @@ def main(cfg) -> None:
     with open_dict(peft_model_cfg):
         # update the model config of the trained model with params we want to set at inference time.
         peft_model_cfg.precision = cfg.trainer.precision
+        peft_model_cfg.global_batch_size = cfg.model.global_batch_size
+        peft_model_cfg.micro_batch_size = cfg.model.micro_batch_size
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
         max_seq_length = cfg.model.data.test_ds.max_seq_length
         # Check dataset max_seq_legnth and max_position_embeddings size
