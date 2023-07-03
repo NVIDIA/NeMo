@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-from contextlib import contextmanager
-from functools import partial
-from typing import Any, Dict, Optional, Union
-
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from contextlib import contextmanager
 from einops import rearrange, repeat
+from functools import partial
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -30,6 +28,7 @@ from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
+from typing import Any, Dict, Optional, Union
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_train_valid_datasets,
@@ -126,10 +125,14 @@ class DDPM(torch.nn.Module):
         self.first_stage_key = cfg.first_stage_key
         self.image_size = cfg.image_size  # try conv?
         self.channels = cfg.channels
-        self.channels_last = cfg.channels_last
+        self.channels_last = cfg.get("channels_last", False)
         self.use_positional_encodings = cfg.use_positional_encodings
         self.model = DiffusionWrapper(
-            cfg.unet_config, cfg.conditioning_key, cfg.inductor, cfg.inductor_cudagraphs, cfg.capture_cudagraph_iters
+            cfg.unet_config,
+            cfg.conditioning_key,
+            cfg.inductor,
+            cfg.inductor_cudagraphs,
+            cfg.get("capture_cudagraph_iters", -1),
         )
         self.model_type = None
         count_params(self.model, verbose=True)
@@ -154,16 +157,16 @@ class DDPM(torch.nn.Module):
         if self.learn_logvar:
             self.logvar = nn.Parameter(self.logvar, requires_grad=True)
 
-        self.rng = torch.Generator(device=torch.cuda.current_device(),)
+        self.rng = torch.Generator(device=torch.cuda.current_device(), )
 
     def register_schedule(
-        self,
-        given_betas=None,
-        beta_schedule="linear",
-        timesteps=1000,
-        linear_start=1e-4,
-        linear_end=2e-2,
-        cosine_s=8e-3,
+            self,
+            given_betas=None,
+            beta_schedule="linear",
+            timesteps=1000,
+            linear_start=1e-4,
+            linear_end=2e-2,
+            cosine_s=8e-3,
     ):
         if exists(given_betas):
             betas = given_betas
@@ -196,7 +199,7 @@ class DDPM(torch.nn.Module):
 
         # calculations for posterior q(x_{t-1} | x_t, x_0)
         posterior_variance = (1 - self.v_posterior) * betas * (1.0 - alphas_cumprod_prev) / (
-            1.0 - alphas_cumprod
+                1.0 - alphas_cumprod
         ) + self.v_posterior * betas
         # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
         self.register_buffer('posterior_variance', to_torch(posterior_variance))
@@ -211,7 +214,7 @@ class DDPM(torch.nn.Module):
 
         if self.parameterization == "eps":
             lvlb_weights = self.betas ** 2 / (
-                2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod)
+                    2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod)
             )
         elif self.parameterization == "x0":
             lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2.0 * 1 - torch.Tensor(alphas_cumprod))
@@ -272,26 +275,26 @@ class DDPM(torch.nn.Module):
 
     def predict_start_from_noise(self, x_t, t, noise):
         return (
-            extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
-            - extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+                extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
+                - extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
         )
 
     def predict_start_from_z_and_v(self, x_t, t, v):
         return (
-            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t
-            - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t
+                - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v
         )
 
     def predict_eps_from_z_and_v(self, x_t, t, v):
         return (
-            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v
-            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v
+                + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
         )
 
     def q_posterior(self, x_start, x_t, t):
         posterior_mean = (
-            extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start
-            + extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape) * x_t
+                extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start
+                + extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape) * x_t
         )
         posterior_variance = extract_into_tensor(self.posterior_variance, t, x_t.shape)
         posterior_log_variance_clipped = extract_into_tensor(self.posterior_log_variance_clipped, t, x_t.shape)
@@ -345,14 +348,14 @@ class DDPM(torch.nn.Module):
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: randn_like(x_start, generator=self.rng))
         return (
-            extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
+                + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
     def get_v(self, x, noise, t):
         return (
-            extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * noise
-            - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * noise
+                - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
         )
 
     def get_loss(self, pred, target, mean=True):
@@ -515,7 +518,7 @@ class LatentDiffusion(DDPM, Serialization):
             self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
             self.model = self.model.to(memory_format=torch.channels_last)
 
-    def make_cond_schedule(self,):
+    def make_cond_schedule(self, ):
         self.cond_ids = torch.full(size=(self.num_timesteps,), fill_value=self.num_timesteps - 1, dtype=torch.long)
         ids = torch.round(torch.linspace(0, self.num_timesteps - 1, self.num_timesteps_cond)).long()
         self.cond_ids[: self.num_timesteps_cond] = ids
@@ -533,13 +536,13 @@ class LatentDiffusion(DDPM, Serialization):
         logging.info("### USING STD-RESCALING ###")
 
     def register_schedule(
-        self,
-        given_betas=None,
-        beta_schedule="linear",
-        timesteps=1000,
-        linear_start=1e-4,
-        linear_end=2e-2,
-        cosine_s=8e-3,
+            self,
+            given_betas=None,
+            beta_schedule="linear",
+            timesteps=1000,
+            linear_start=1e-4,
+            linear_end=2e-2,
+            cosine_s=8e-3,
     ):
         super().register_schedule(given_betas, beta_schedule, timesteps, linear_start, linear_end, cosine_s)
 
@@ -708,14 +711,14 @@ class LatentDiffusion(DDPM, Serialization):
 
     @torch.no_grad()
     def get_input(
-        self,
-        batch,
-        k,
-        return_first_stage_outputs=False,
-        force_c_encode=False,
-        cond_key=None,
-        return_original_cond=False,
-        bs=None,
+            self,
+            batch,
+            k,
+            return_first_stage_outputs=False,
+            force_c_encode=False,
+            cond_key=None,
+            return_original_cond=False,
+            bs=None,
     ):
         if self.first_stage_key.endswith('encoded'):
             gaussian_parameters = batch[self.first_stage_key]
@@ -992,8 +995,8 @@ class LatentDiffusion(DDPM, Serialization):
             z_list = [z[:, :, :, :, i] for i in range(z.shape[-1])]
 
             if (
-                self.cond_stage_key in ["image", "LR_image", "segmentation", 'bbox_img']
-                and self.model.conditioning_key
+                    self.cond_stage_key in ["image", "LR_image", "segmentation", 'bbox_img']
+                    and self.model.conditioning_key
             ):  # todo check for completeness
                 c_key = next(iter(cond.keys()))  # get key
                 c = next(iter(cond.values()))  # get value
@@ -1007,7 +1010,7 @@ class LatentDiffusion(DDPM, Serialization):
 
             elif self.cond_stage_key == 'coordinates_bbox':
                 assert (
-                    'original_image_size' in self.split_input_params
+                        'original_image_size' in self.split_input_params
                 ), 'BoudingBoxRescaling is missing original_image_size'
 
                 # assuming padding of unfold is always 0 and its dilation is always 1
@@ -1081,7 +1084,7 @@ class LatentDiffusion(DDPM, Serialization):
 
     def _predict_eps_from_xstart(self, x_t, t, pred_xstart):
         return (
-            extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - pred_xstart
+                extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - pred_xstart
         ) / extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
 
     def _prior_bpd(self, x_start):
@@ -1136,16 +1139,16 @@ class LatentDiffusion(DDPM, Serialization):
         return loss, loss_dict
 
     def p_mean_variance(
-        self,
-        x,
-        c,
-        t,
-        clip_denoised: bool,
-        return_codebook_ids=False,
-        quantize_denoised=False,
-        return_x0=False,
-        score_corrector=None,
-        corrector_kwargs=None,
+            self,
+            x,
+            c,
+            t,
+            clip_denoised: bool,
+            return_codebook_ids=False,
+            quantize_denoised=False,
+            return_x0=False,
+            score_corrector=None,
+            corrector_kwargs=None,
     ):
         t_in = t
         model_out = self.apply_model(x, t_in, c, return_ids=return_codebook_ids)
@@ -1178,19 +1181,19 @@ class LatentDiffusion(DDPM, Serialization):
 
     @torch.no_grad()
     def p_sample(
-        self,
-        x,
-        c,
-        t,
-        clip_denoised=False,
-        repeat_noise=False,
-        return_codebook_ids=False,
-        quantize_denoised=False,
-        return_x0=False,
-        temperature=1.0,
-        noise_dropout=0.0,
-        score_corrector=None,
-        corrector_kwargs=None,
+            self,
+            x,
+            c,
+            t,
+            clip_denoised=False,
+            repeat_noise=False,
+            return_codebook_ids=False,
+            quantize_denoised=False,
+            return_x0=False,
+            temperature=1.0,
+            noise_dropout=0.0,
+            score_corrector=None,
+            corrector_kwargs=None,
     ):
         b, *_, device = *x.shape, x.device
         outputs = self.p_mean_variance(
@@ -1227,23 +1230,23 @@ class LatentDiffusion(DDPM, Serialization):
 
     @torch.no_grad()
     def progressive_denoising(
-        self,
-        cond,
-        shape,
-        verbose=True,
-        callback=None,
-        quantize_denoised=False,
-        img_callback=None,
-        mask=None,
-        x0=None,
-        temperature=1.0,
-        noise_dropout=0.0,
-        score_corrector=None,
-        corrector_kwargs=None,
-        batch_size=None,
-        x_T=None,
-        start_T=None,
-        log_every_t=None,
+            self,
+            cond,
+            shape,
+            verbose=True,
+            callback=None,
+            quantize_denoised=False,
+            img_callback=None,
+            mask=None,
+            x0=None,
+            temperature=1.0,
+            noise_dropout=0.0,
+            score_corrector=None,
+            corrector_kwargs=None,
+            batch_size=None,
+            x_T=None,
+            start_T=None,
+            log_every_t=None,
     ):
         if not log_every_t:
             log_every_t = self.log_every_t
@@ -1313,20 +1316,20 @@ class LatentDiffusion(DDPM, Serialization):
 
     @torch.no_grad()
     def p_sample_loop(
-        self,
-        cond,
-        shape,
-        return_intermediates=False,
-        x_T=None,
-        verbose=True,
-        callback=None,
-        timesteps=None,
-        quantize_denoised=False,
-        mask=None,
-        x0=None,
-        img_callback=None,
-        start_T=None,
-        log_every_t=None,
+            self,
+            cond,
+            shape,
+            return_intermediates=False,
+            x_T=None,
+            verbose=True,
+            callback=None,
+            timesteps=None,
+            quantize_denoised=False,
+            mask=None,
+            x0=None,
+            img_callback=None,
+            start_T=None,
+            log_every_t=None,
     ):
 
         if not log_every_t:
@@ -1379,18 +1382,18 @@ class LatentDiffusion(DDPM, Serialization):
 
     @torch.no_grad()
     def sample(
-        self,
-        cond,
-        batch_size=16,
-        return_intermediates=False,
-        x_T=None,
-        verbose=True,
-        timesteps=None,
-        quantize_denoised=False,
-        mask=None,
-        x0=None,
-        shape=None,
-        **kwargs,
+            self,
+            cond,
+            batch_size=16,
+            return_intermediates=False,
+            x_T=None,
+            verbose=True,
+            timesteps=None,
+            quantize_denoised=False,
+            mask=None,
+            x0=None,
+            shape=None,
+            **kwargs,
     ):
         if shape is None:
             shape = (batch_size, self.channels, self.image_size, self.image_size)
@@ -1431,20 +1434,20 @@ class LatentDiffusion(DDPM, Serialization):
 
     @torch.no_grad()
     def log_images(
-        self,
-        batch,
-        N=8,
-        n_row=4,
-        sample=True,
-        ddim_steps=200,
-        ddim_eta=1.0,
-        return_keys=None,
-        quantize_denoised=True,
-        inpaint=True,
-        plot_denoise_rows=False,
-        plot_progressive_rows=True,
-        plot_diffusion_rows=True,
-        **kwargs,
+            self,
+            batch,
+            N=8,
+            n_row=4,
+            sample=True,
+            ddim_steps=200,
+            ddim_eta=1.0,
+            return_keys=None,
+            quantize_denoised=True,
+            inpaint=True,
+            plot_denoise_rows=False,
+            plot_progressive_rows=True,
+            plot_diffusion_rows=True,
+            **kwargs,
     ):
 
         use_ddim = ddim_steps is not None
@@ -1509,9 +1512,9 @@ class LatentDiffusion(DDPM, Serialization):
                 log["denoise_row"] = denoise_grid
 
             if (
-                quantize_denoised
-                and not isinstance(self.first_stage_model, AutoencoderKL)
-                and not isinstance(self.first_stage_model, IdentityFirstStage)
+                    quantize_denoised
+                    and not isinstance(self.first_stage_model, AutoencoderKL)
+                    and not isinstance(self.first_stage_model, IdentityFirstStage)
             ):
                 # also display when quantizing x0 while sampling
                 with self.ema_scope("Plotting Quantized Denoised"):
@@ -1533,7 +1536,7 @@ class LatentDiffusion(DDPM, Serialization):
                 b, h, w = z.shape[0], z.shape[2], z.shape[3]
                 mask = torch.ones(N, h, w)
                 # zeros will be filled in
-                mask[:, h // 4 : 3 * h // 4, w // 4 : 3 * w // 4] = 0.0
+                mask[:, h // 4: 3 * h // 4, w // 4: 3 * w // 4] = 0.0
                 mask = mask[:, None, ...]
                 with self.ema_scope("Plotting Inpaint"):
                     samples, _ = self.sample_log(
@@ -1773,7 +1776,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
-                self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
+                    self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
                 x, c = self.model.get_input(batch, self.cfg.first_stage_key)
 
@@ -1981,12 +1984,12 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
     def __init__(
-        self,
-        diff_model_config,
-        conditioning_key,
-        inductor: bool = False,
-        inductor_cudagraphs: bool = False,
-        capture_cudagraph_iters: int = -1,
+            self,
+            diff_model_config,
+            conditioning_key,
+            inductor: bool = False,
+            inductor_cudagraphs: bool = False,
+            capture_cudagraph_iters: int = -1,
     ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
