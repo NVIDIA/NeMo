@@ -17,6 +17,7 @@ import os
 import re
 from typing import Any, Dict, Optional, Union
 
+import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
@@ -25,6 +26,7 @@ from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
     clip_grad_norm_fp32,
@@ -60,18 +62,19 @@ __all__ = ["MegatronBaseModel"]
 
 class MegatronBaseModel(NLPModel):
     """
-    Megatron base class
-    It does the following things:
-    1. Initialize the model parallel for nemo given the model parallel parameters.
-    2. Turn on all the nvidia optimizations.
-    3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. If using distributed optimizer, configure to be compatible with
-       O2-level optimizations and/or model parallelism.
-    5. Perform gradient clipping: `grad_clip_pl_default` triggers the
-       PyTorch Lightning default implementation, `with_distributed_adam`
-       triggers the distributed optimizer's implementation,
-       `megatron_amp_o2` triggers gradient clipping on the main grads,
-       and otherwise gradient clipping is performed on the model grads.
+    Megatron base class. All NeMo Megatron models inherit from this class.
+
+    - Initialize the model parallel world for nemo.
+    - Turn on all of the nvidia optimizations.
+    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the 
+      correct size for tensor model parallelism.
+    - If using distributed optimizer, configure to be compatible
+      with O2 level optimizations and/or model parallelism.
+    - Perform gradient clipping: `grad_clip_pl_default` triggers
+      the PyTorch Lightning default implementation, `with_distributed_adam` triggers
+      the distributed optimizer's implementation, `megatron_amp_o2` triggers gradient clipping on the main grads,
+      and otherwise gradient clipping is performed on the model grads.
+
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
@@ -83,6 +86,12 @@ class MegatronBaseModel(NLPModel):
 
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+
+        if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
+            raise ImportError(
+                "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
+                "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
+            )
 
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
@@ -123,6 +132,7 @@ class MegatronBaseModel(NLPModel):
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size'),
             use_fp8=cfg.get('fp8', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -155,6 +165,7 @@ class MegatronBaseModel(NLPModel):
         # The automatic garbage collector sould be disabled before training starts.
         if self.gc_interval > 0:
             gc.disable()
+            self.validation_global_step = 1
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -205,16 +216,31 @@ class MegatronBaseModel(NLPModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
             model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
+            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
+            use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=legacy,
         )
 
+        if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
+            tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
+
     def on_train_start(self) -> None:
         super().on_train_start()
         self.init_global_step = self.trainer.global_step
+
+    def on_validation_start(self) -> None:
+        super().on_validation_start()
+        if self.gc_interval > 0:
+            gc.collect()
+
+    def on_validation_end(self) -> None:
+        super().on_validation_end()
+        if self.gc_interval > 0:
+            gc.collect()
 
     def _build_vocab(self):
         """
@@ -363,6 +389,14 @@ class MegatronBaseModel(NLPModel):
 
         if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
             gc.collect()
+
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+        super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
+
+        if self.gc_interval > 0:
+            if self.validation_global_step % self.gc_interval == 0:
+                gc.collect()
+            self.validation_global_step += 1
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
@@ -549,6 +583,14 @@ class MegatronBaseModel(NLPModel):
             ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
                 'Make sure the number of model chunks is the same across all pipeline stages.'
             )
+
+        if self.cfg.get('ub_tp_comm_overlap', False):
+            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
