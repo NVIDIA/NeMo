@@ -82,10 +82,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
-        
+
         # Setup audio preprocessor
         self.preprocessor = EncDecTransfModelBPE.from_config_dict(self._cfg.preprocessor)
-        
+
         # Setup audio encoder
         self.encoder = EncDecTransfModelBPE.from_config_dict(self._cfg.encoder)
 
