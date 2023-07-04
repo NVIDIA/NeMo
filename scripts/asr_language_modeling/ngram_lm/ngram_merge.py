@@ -51,8 +51,8 @@ import kenlm_utils
 import torch
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.collections.asr.modules.rnnt import RNNTDecoder
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
 
@@ -208,9 +208,7 @@ class NgramMerge:
             ]
             return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
-    def test_perplexity(
-        self, mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str
-    ) -> str:
+    def test_perplexity(self, mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str) -> str:
         """
         Tests the perplexity of a given ngram model on a test file.
 
@@ -266,9 +264,7 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
 
     tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(nemo_model_file)
 
-    ps = subprocess.Popen(
-        " ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,
-    )
+    ps = subprocess.Popen(" ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,)
 
     kenlm_utils.iter_files(
         source_path=[text_file],
@@ -283,9 +279,7 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
     exit_code = ps.returncode
 
     command = " ".join(sh_args)
-    assert (
-        exit_code == 0
-    ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
+    assert exit_code == 0, f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
     return test_far
 
 
@@ -307,7 +301,7 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool):
         logging.info("File " + ngram_kenlm + " exists. Skipping.")
         return None
     else:
-        sh_args = [os.path.join(kenlm_bin_path,"build_binary"), "trie", "-i", ngram_arpa, ngram_kenlm]
+        sh_args = [os.path.join(kenlm_bin_path, "build_binary"), "trie", "-i", ngram_arpa, ngram_kenlm]
         return subprocess.run(sh_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr,)
 
 
@@ -338,7 +332,7 @@ def make_symbol_list(nemo_model_file, symbols, force):
                 "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
             )
             asr_model = nemo_asr.models.ASRModel.from_pretrained(nemo_model_file, map_location=torch.device('cpu'))
-        
+
         if isinstance(asr_model.decoder, RNNTDecoder):
             vocab_size = asr_model.decoder.blank_idx
         else:
