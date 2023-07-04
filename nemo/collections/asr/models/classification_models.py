@@ -583,7 +583,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
             'val_total_counts': total_counts,
             'val_acc': acc,
         }
-        if len(self.trainer.val_dataloaders) > 1:
+        if type(self.trainer.val_dataloaders) == list:
             self.validation_step_outputs[dataloader_idx].append(loss)
         else:
             self.validation_step_outputs.append(loss)
@@ -595,12 +595,17 @@ class EncDecClassificationModel(_EncDecBaseModel):
         loss_value = self.loss(logits=logits, labels=labels)
         acc = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {
+        loss = {
             'test_loss': loss_value,
             'test_correct_counts': correct_counts,
             'test_total_counts': total_counts,
             'test_acc': acc,
         }
+        if type(self.trainer.test_dataloaders) == list:
+            self.test_step_outputs[dataloader_idx].append(loss)
+        else:
+            self.test_step_outputs.append(loss)
+        return loss
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()

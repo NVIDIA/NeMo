@@ -605,7 +605,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         tensorboard_logs = self.validation_pass(batch, batch_idx, dataloader_idx)
-        if len(self.trainer.val_dataloaders) > 1:
+        if type(self.trainer.val_dataloaders) == list:
             self.validation_step_outputs[dataloader_idx].append(tensorboard_logs)
         else:
             self.validation_step_outputs.append(tensorboard_logs)
@@ -615,7 +615,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        if len(self.trainer.test_dataloaders) > 1:
+        if type(self.trainer.test_dataloaders) == list:
             self.test_step_outputs[dataloader_idx].append(test_logs)
         else:
             self.test_step_outputs.append(test_logs)

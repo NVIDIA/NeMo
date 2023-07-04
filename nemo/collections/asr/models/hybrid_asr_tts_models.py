@@ -372,7 +372,7 @@ class ASRWithTTSModel(ASRModel):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """Validation step, forward to ASR model"""
         loss = self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
-        if len(self.trainer.val_dataloaders) > 1:
+        if type(self.trainer.val_dataloaders) == list:
             self.validation_step_outputs[dataloader_idx].append(loss)
         else:
             self.validation_step_outputs.append(loss)

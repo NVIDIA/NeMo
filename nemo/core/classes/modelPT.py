@@ -179,12 +179,12 @@ class ModelPT(LightningModule, Model):
 
         # Create list of lists for val and test outputs to support multiple dataloaders
         self.validation_step_outputs = [] # Initialize an empty list as sometimes self._validation_dl can be None at this stage
-        if self._validation_dl:
+        if self._validation_dl and type(self._validation_dl) == list:
             for _ in range(len(self._validation_dl)):
                 self.validation_step_outputs.append([])
 
         self.test_step_outputs = [] # Initialize an empty list as sometimes self._test_dl can be None at this stage
-        if self._test_dl:
+        if self._test_dl and type(self._test_dl) == list:
             for _ in range(len(self._test_dl)):
                 self.test_step_outputs.append([])
         # ModelPT wrappers over subclass implementations

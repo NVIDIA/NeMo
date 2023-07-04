@@ -272,7 +272,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ``torchmetrics``.
         """
         loss = self.eval_step(batch, 'val', dataloader_idx)
-        if len(self.trainer.val_dataloaders) > 1:
+        if type(self.trainer.val_dataloaders) == list:
             self.validation_step_outputs[dataloader_idx].append(loss)
         else:
             self.validation_step_outputs.append(loss)
@@ -294,7 +294,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ``torchmetrics``.
         """
         loss = self.eval_step(batch, 'test', dataloader_idx)
-        if len(self.trainer.test_dataloaders) > 1:
+        if type(self.trainer.test_dataloaders) == list:
             self.test_step_outputs[dataloader_idx].append(loss)
         else:
             self.test_step_outputs.append(loss)
@@ -614,6 +614,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, train=False)
+        # Check for multiple dataloaders here as it may not get called in ModelPT when models are being restored
+        if type(self._test_dl) == list:
+            for _ in range(len(self._test_dl)):
+                self.test_step_outputs.append([])
+
         loss_kw, punct_kw, capit_kw = self._get_eval_metrics_kwargs()
         self.metrics['test']['loss'].append(GlobalAverageLossMetric(**loss_kw))
         self.metrics['test']['punct_class_report'].append(ClassificationReport(**punct_kw))
