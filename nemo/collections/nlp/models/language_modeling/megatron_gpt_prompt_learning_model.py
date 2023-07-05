@@ -119,14 +119,14 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-        if self.trainer.precision == 'bf16':
+        if str(self.trainer.precision)[0:4] == 'bf16':
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif str(self.trainer.precision)[0:2] == '32':
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif str(self.trainer.precision)[0:2] == '16':
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in [32, "32-true", 16, "16-mixed", "bf16", "bf16-mixed"]')
 
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(

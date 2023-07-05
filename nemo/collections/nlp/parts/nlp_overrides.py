@@ -727,9 +727,10 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
     ) -> None:
         super().__init__(precision, device, scaler)
         dtype = None
-        if precision == 16:
+        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
+        if precision == "16-mixed":
             dtype = torch.float16
-        elif precision == 'bf16':
+        elif precision == "bf16-mixed":
             dtype = torch.bfloat16
 
         torch.set_autocast_gpu_dtype(dtype)
