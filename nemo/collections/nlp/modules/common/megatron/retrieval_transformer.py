@@ -63,7 +63,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         layer_type=[],
         pre_process=True,
         post_process=True,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
@@ -87,7 +86,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         megatron_legacy=False,
         turn_off_rop=False,
@@ -137,7 +135,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -153,7 +150,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
             megatron_legacy=megatron_legacy,
         )
@@ -350,7 +346,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         layer_type=[],
         pre_process=True,
         post_process=True,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
@@ -374,7 +369,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         megatron_legacy=False,
         turn_off_rop=False,
@@ -423,7 +417,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -439,7 +432,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
             megatron_legacy=megatron_legacy,
         )

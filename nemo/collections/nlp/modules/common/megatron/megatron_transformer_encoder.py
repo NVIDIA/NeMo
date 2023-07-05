@@ -63,7 +63,6 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         kv_channels=None,
         pre_process=True,
         post_process=True,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
@@ -141,7 +140,6 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -155,7 +153,6 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             transformer_block_type=transformer_block_type,
             headscale=headscale,
             model_type=parent_model_type,
-            gradient_accumulation_fusion=False,  # TODO: This has to be False for enc-dec models for now.
             megatron_legacy=megatron_legacy,
             normalize_attention_scores=normalize_attention_scores,
             num_moe_experts=num_moe_experts,

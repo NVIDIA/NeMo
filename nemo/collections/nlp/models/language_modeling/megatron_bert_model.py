@@ -154,6 +154,7 @@ class MegatronBertModel(MegatronBaseModel):
         num_tokentypes = 2 if cfg.bert_binary_head else 0
 
         model = BertModel(
+            config=self.model_parallel_config,
             vocab_size=self.padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -168,7 +169,6 @@ class MegatronBertModel(MegatronBaseModel):
             post_process=post_process,
             init_method_std=cfg.get('init_method_std', 0.02),
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             precision=cfg.get('precision', 16),

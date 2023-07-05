@@ -540,7 +540,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
@@ -548,7 +547,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
         chunk_size=64,  # each chunk, how many tokens
         bias=True,
         headscale=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
     ):
         super(ParallelChunkedCrossAttention, self).__init__(config=config)
@@ -564,14 +562,12 @@ class ParallelChunkedCrossAttention(MegatronModule):
             precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
             bias=bias,
             headscale=headscale,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
         )
         self.chunk_size = chunk_size

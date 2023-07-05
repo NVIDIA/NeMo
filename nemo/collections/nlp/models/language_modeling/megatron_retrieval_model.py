@@ -174,6 +174,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
 
         model = MegatronRetrievalTokenLevelEncoderDecoderModule(
+            config=self.model_parallel_config,
             vocab_size=self.padded_vocab_size,
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
@@ -187,7 +188,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             post_process=post_process,
             init_method_std=self.cfg.get('init_method_std', 0.02),
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
             precision=self.cfg.get('precision', 16),

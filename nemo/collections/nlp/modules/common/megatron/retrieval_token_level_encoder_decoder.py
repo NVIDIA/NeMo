@@ -69,7 +69,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         post_process=True,
         init_method_std=0.02,
         fp16_cross_entropy=False,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
@@ -134,7 +133,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
         if pre_process:
             self.encoder_embedding = Embedding(
-                config=self.config,
+                config=config,
                 hidden_size=hidden_size,
                 vocab_size=vocab_size,
                 max_sequence_length=max_position_embeddings,
@@ -163,6 +162,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                     enc_layer_types.append(LayerType.encoder)
 
             self.encoder = get_encoder_model(
+                config=config,
                 arch="retro",
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
@@ -177,7 +177,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 if megatron_lm_compatible
                 else post_process,  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
@@ -243,7 +242,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 pre_process=pre_process,
                 post_process=False,  # no need for post process
                 init_method_std=init_method_std,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
@@ -289,7 +287,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 pre_process=False,  # directly take the pre_decoder output, skip preprocess
                 post_process=post_process,
                 init_method_std=init_method_std,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,

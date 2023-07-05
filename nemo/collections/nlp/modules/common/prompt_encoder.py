@@ -158,8 +158,6 @@ class TPMLP(NeuralModule, Exportable):
         self.total_virtual_tokens = total_virtual_tokens
         self.activation = "gelu"
 
-        sequence_parallel = False
-        gradient_accumulation_fusion = False
         self.first = tensor_parallel.ColumnParallelLinear(
             self.output_size,
             self.hidden_size,
