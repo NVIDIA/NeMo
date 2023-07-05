@@ -271,7 +271,6 @@ class SwitchMLP(MegatronModule):
         output_layer_init_method,
         hidden_size,
         ffn_hidden_size,
-        use_cpu_initialization=False,
         dtype=torch.float32,
         bias_activation_fusion=True,
         openai_gelu=False,
@@ -283,7 +282,6 @@ class SwitchMLP(MegatronModule):
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
         sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         dropout=0.0,
     ):
         super(SwitchMLP, self).__init__(config=config)
@@ -306,7 +304,6 @@ class SwitchMLP(MegatronModule):
             'output_layer_init_method': output_layer_init_method,
             'hidden_size': hidden_size,
             'ffn_hidden_size': ffn_hidden_size,
-            'use_cpu_initialization': use_cpu_initialization,
             'dtype': dtype,
             'bias_activation_fusion': bias_activation_fusion,
             'openai_gelu': openai_gelu,
@@ -318,7 +315,6 @@ class SwitchMLP(MegatronModule):
             'layernorm_epsilon': layernorm_epsilon,
             'persist_layer_norm': persist_layer_norm,
             'sequence_parallel': sequence_parallel,
-            'gradient_accumulation_fusion': gradient_accumulation_fusion,
             'dropout': dropout,
         }
         self.experts = torch.nn.ModuleList([ParallelMLP(**mlp_args) for _ in range(num_experts)])

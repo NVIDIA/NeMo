@@ -82,7 +82,6 @@ def get_language_model(
     pre_process=True,
     post_process=True,
     init_method_std=0.02,
-    use_cpu_initialization=False,
     megatron_amp_O2=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
@@ -106,7 +105,6 @@ def get_language_model(
     multi_query_attention=False,
     bias_dropout_add_fusion=True,
     bias=True,
-    gradient_accumulation_fusion=False,
     persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
@@ -162,7 +160,6 @@ def get_language_model(
         add_pooler=add_pooler,
         pre_process=pre_process,
         post_process=post_process,
-        use_cpu_initialization=use_cpu_initialization,
         megatron_amp_O2=megatron_amp_O2,
         hidden_dropout=hidden_dropout,
         attention_dropout=attention_dropout,
@@ -179,7 +176,6 @@ def get_language_model(
         rotary_percentage=rotary_percentage,
         share_embeddings_and_output_weights=share_embeddings_and_output_weights,
         masked_softmax_fusion=masked_softmax_fusion,
-        gradient_accumulation_fusion=gradient_accumulation_fusion,
         activation=activation,
         headscale=headscale,
         transformer_block_type=transformer_block_type,
@@ -257,7 +253,6 @@ class Embedding(MegatronModule):
         init_method: weight initialization method
         num_tokentypes: size of the token-type embeddings. 0 value
                         will ignore this embedding
-        use_cpu_initialization: whether to initialize the weights in CPU
         position_embedding_type: position embedding type determines whether we instantiate a learnable position embedding table.
     """
 
@@ -467,7 +462,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         add_pooler=False,
         pre_process=True,
         post_process=True,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
@@ -490,7 +484,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         rotary_percentage=1.0,
         multi_query_attention=False,
         share_embeddings_and_output_weights=True,
-        gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
@@ -624,7 +617,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
@@ -638,7 +630,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             transformer_block_type=transformer_block_type,
             normalize_attention_scores=normalize_attention_scores,
             multi_query_attention=multi_query_attention,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
             megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
@@ -683,12 +674,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
-                use_cpu_initialization=use_cpu_initialization,
                 megatron_amp_O2=megatron_amp_O2,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,

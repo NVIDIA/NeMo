@@ -66,7 +66,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         kv_channels=None,
         pre_process=True,
         post_process=True,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
@@ -130,7 +129,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.headscale = headscale
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
-        self.use_cpu_initialization = use_cpu_initialization
         self.normalization = normalization
         self.parent_model_type = parent_model_type
         self.transformer_block_type = transformer_block_type
@@ -179,7 +177,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             hidden_dropout=self.hidden_dropout,
             attention_dropout=self.attention_dropout,
             ffn_dropout=self.ffn_dropout,
-            use_cpu_initialization=self.use_cpu_initialization,
             megatron_amp_O2=self.megatron_amp_O2,
             bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_add_fusion=self.bias_dropout_add_fusion,
@@ -220,7 +217,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             hidden_dropout=self.hidden_dropout,
             attention_dropout=self.attention_dropout,
             ffn_dropout=self.ffn_dropout,
-            use_cpu_initialization=self.use_cpu_initialization,
             megatron_amp_O2=self.megatron_amp_O2,
             bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_add_fusion=self.bias_dropout_add_fusion,

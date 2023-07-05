@@ -274,7 +274,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             pre_process=pre_process,
             post_process=post_process,
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             precision=self.cfg.get('precision', 16),
             embedding_init_method_std=embedding_init_method_std,
