@@ -111,8 +111,9 @@ def main(cfg):
             self.model = model
 
         def forward(self, z):
-            outputs = self.model.decode(z=z)
-            return outputs
+            h = self.model.post_quant_conv(z)
+            dec = self.model.decoder(h)
+            return dec
 
     input_names = ["z"]
     output_names = ["logits"]
