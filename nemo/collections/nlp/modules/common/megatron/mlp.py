@@ -79,7 +79,6 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         normalization='layernorm',
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
-        sequence_parallel=False,
         dropout=0.0,
     ):
         super(ParallelMLP, self).__init__(config=config)
@@ -201,7 +200,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 self.normalization = LayerNorm1P(
                     ffn_hidden_size // get_tensor_model_parallel_world_size(),
                     layernorm_epsilon,
-                    sequence_parallel_enabled=sequence_parallel,
+                    sequence_parallel_enabled=config.sequence_parallel,
                 )
             else:
                 self.normalization = MixedFusedRMSNorm(
