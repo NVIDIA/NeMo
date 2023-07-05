@@ -302,3 +302,11 @@ class Exportable(ABC):
         First goes the one receiving input (input_example)
         """
         return ['self']
+
+    def get_export_config(self):
+        return getattr(self, 'export_config', {})
+
+    def set_export_config(self, **kwargs):
+        ex_config = self.get_export_config()
+        ex_config.update(kwargs)
+        self.export_config = ex_config
