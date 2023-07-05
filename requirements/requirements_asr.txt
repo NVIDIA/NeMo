@@ -13,7 +13,6 @@ pyannote.core
 pyannote.metrics
 pydub
 ruamel.yaml
-sacrebleu
 scipy>=0.14
 soundfile
 sox

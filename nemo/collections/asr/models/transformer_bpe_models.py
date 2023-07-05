@@ -24,7 +24,6 @@ import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from sacrebleu import corpus_bleu
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -34,9 +33,16 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+
+try:
+    from sacrebleu import corpus_bleu
+    from nemo.collections.nlp.modules.common import TokenClassifier
+    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
+    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+    ASR_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    ASR_AVAILABLE = False
+
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
