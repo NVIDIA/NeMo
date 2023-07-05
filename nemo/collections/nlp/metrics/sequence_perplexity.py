@@ -43,9 +43,7 @@ class SequencePerplexity(Metric):
 
     def __init__(self, dist_sync_on_step=False, process_group=None, dist_sync_fn=None):
         super().__init__(
-            dist_sync_on_step=dist_sync_on_step,
-            process_group=process_group,
-            dist_sync_fn=dist_sync_fn,
+            dist_sync_on_step=dist_sync_on_step, process_group=process_group, dist_sync_fn=dist_sync_fn,
         )
 
         # Total sum of exponentiated average negative log likelihoods
