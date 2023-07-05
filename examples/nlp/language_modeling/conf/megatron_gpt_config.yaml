@@ -49,6 +49,7 @@ model:
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
+  standalone_embedding_stage: False # If set, *input* embedding layer is placed on its own pipeline stage
 
   # model architecture
   encoder_seq_length: 512

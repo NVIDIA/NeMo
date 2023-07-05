@@ -123,6 +123,7 @@ def get_language_model(
     use_emha=False,
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
+    standalone_embedding_stage=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -200,6 +201,7 @@ def get_language_model(
         use_emha=use_emha,
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
+        standalone_embedding_stage=standalone_embedding_stage,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -508,6 +510,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_emha=False,
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
+        standalone_embedding_stage=False,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -649,6 +652,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
+            standalone_embedding_stage=standalone_embedding_stage,
         )
         self._encoder_key = 'encoder'
 
@@ -691,6 +695,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 transformer_engine=transformer_engine,
                 position_embedding_type=position_embedding_type,
                 use_flash_attention=use_flash_attention,
+                standalone_embedding_stage=standalone_embedding_stage
             )
             self._decoder_key = 'decoder'
 

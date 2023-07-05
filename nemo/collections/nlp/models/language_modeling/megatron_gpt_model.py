@@ -201,6 +201,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
+        # #TODO: This functionality should be moved somewhere else
+        # self.standalone_check(cfg,trainer)
         super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
@@ -282,6 +284,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
+    
+    #TODO: Move logic somewhere else
+    # def standalone_check(self,cfg,trainer):
+    #     if cfg.get("standalone_embedding_stage", False) is False:
+    #         return
+        
 
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
@@ -360,6 +368,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            standalone_embedding_stage=self.cfg.get('standalone_embedding_stage',False)
         )
 
         return model
