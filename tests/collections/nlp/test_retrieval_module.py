@@ -44,8 +44,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core.enums import ModelType
     from megatron.core import ModelParallelConfig
+    from megatron.core.enums import ModelType
 
     HAVE_MEGATRON_CORE = True
 
