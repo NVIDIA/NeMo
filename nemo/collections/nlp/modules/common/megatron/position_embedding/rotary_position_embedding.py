@@ -24,6 +24,7 @@ class RotaryEmbedding(nn.Module):
     def __init__(self, dim, seq_len_interpolation_factor=None):
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
+        print(f"In RotaryEmbedding, seq_len_interpolation_factor: {seq_len_interpolation_factor}")
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
 
