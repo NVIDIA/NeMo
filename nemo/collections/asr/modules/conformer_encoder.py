@@ -505,11 +505,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
             )
 
-        if cache_last_time is not None:
-            cache_last_time_next = torch.zeros_like(cache_last_time)
-        else:
-            cache_last_time_next = None
-
         # select a random att_context_size with the distribution specified by att_context_probs during training
         # for non-validation cases like test, validation or inference, it uses the first mode in self.att_context_size
         if self.training and len(self.att_context_size_all) > 1:
@@ -536,7 +531,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if cache_last_channel is not None:
             cache_len = self.streaming_cfg.last_channel_cache_size
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
-            cache_last_channel_next = torch.zeros_like(cache_last_channel)
+            # cache_last_channel_next = torch.zeros_like(cache_last_channel)
             max_audio_length = max_audio_length + cache_len
             padding_length = length + cache_len
             offset = torch.neg(cache_last_channel_len) + cache_len
@@ -561,19 +556,32 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             pad_mask = pad_mask[:, cache_len:]
             if att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
+            # Convert caches from the tensor to list
+            cache_last_time_next = [None] * self.streaming_cfg.last_time_num
+            cache_last_channel_next = [None] * self.streaming_cfg.last_channel_num
 
         for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
             original_signal = audio_signal
+            if cache_last_channel is not None:
+                cache_last_channel_cur = cache_last_channel[layer.self_attn._cache_id]
+                cache_last_time_cur = cache_last_time[layer.conv.depthwise_conv._cache_id]
+            else:
+                cache_last_channel_cur = None
+                cache_last_time_cur = None
             audio_signal = layer(
                 x=audio_signal,
                 att_mask=att_mask,
                 pos_emb=pos_emb,
                 pad_mask=pad_mask,
-                cache_last_channel=cache_last_channel,
-                cache_last_time=cache_last_time,
-                cache_last_channel_next=cache_last_channel_next,
-                cache_last_time_next=cache_last_time_next,
+                cache_last_channel=cache_last_channel_cur,
+                cache_last_time=cache_last_time_cur,
             )
+
+            if cache_last_channel_cur is not None:
+                (audio_signal, cache_last_channel_cur, cache_last_time_cur) = audio_signal
+                cache_last_channel_next[layer.self_attn._cache_id] = cache_last_channel_cur
+                cache_last_time_next[layer.conv.depthwise_conv._cache_id] = cache_last_time_cur
+
             # applying stochastic depth logic from https://arxiv.org/abs/2102.03216
             if self.training and drop_prob > 0.0:
                 should_drop = torch.rand(1) < drop_prob
@@ -626,6 +634,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         length = length.to(dtype=torch.int64)
 
         if cache_last_channel is not None:
+            cache_last_channel_next = torch.stack(cache_last_channel_next, dim=0)
+            cache_last_time_next = torch.stack(cache_last_time_next, dim=0)
             return (
                 audio_signal,
                 length,
