@@ -220,9 +220,9 @@ class ExportableEncDecModel(Exportable):
                 ret = self.output_module.forward_for_export(encoder_output=decoder_input)
         else:
             if cache_last_channel is None and cache_last_time is None:
-                ret = self.output_module(encoder_output=decoder_input)
+                ret = self.output_module(decoder_input)
             else:
-                ret = self.output_module(encoder_output=decoder_input)
+                ret = self.output_module(decoder_input)
         if cache_last_channel is None and cache_last_time is None:
             pass
         else:
@@ -246,4 +246,9 @@ class ExportableEncDecModel(Exportable):
             self.encoder.export_cache_support = enable
             logging.info(f"Caching support enabled: {enable}")
             self.encoder.setup_streaming_params()
+        if 'decoder_type' in kwargs:
+            if hasattr(self, 'change_decoding_strategy'):
+                self.change_decoding_strategy(decoder_type=kwargs['decoder_type'])
+            else:
+                raise Exception("Model does not have decoder type option")
         super().set_export_config(**kwargs)
