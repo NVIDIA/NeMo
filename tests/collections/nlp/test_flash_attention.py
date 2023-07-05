@@ -16,13 +16,13 @@ import random
 
 import pytest
 import torch
+from megatron.core import ModelParallelConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.attention import CoreAttention
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from megatron.core import ModelParallelConfig
 
 try:
     from apex.transformer.enums import AttnMaskType
