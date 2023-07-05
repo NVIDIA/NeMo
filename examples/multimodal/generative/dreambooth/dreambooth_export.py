@@ -14,14 +14,18 @@
 import gc
 import os
 import time
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import LatentDiffusion, MegatronLatentDiffusion
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import FrozenCLIPEmbedder
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
+from nemo.core.classes.exportable import Exportable
 from nemo.core.config import hydra_runner
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.trt_utils import build_engine
 
 
@@ -138,21 +142,60 @@ def main(cfg):
             outputs = self.model(input_ids=input_ids)
             return outputs.last_hidden_state
 
-    input_names = ["tokens"]
-    output_names = ["logits"]
+    class OpenCLIPWrapper(nn.Module, Exportable):
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+
+        def forward(self, input_ids):
+            outputs = self.model.encode_with_transformer(input_ids)
+            return outputs
+
+        def input_example(self, max_text=64):
+            sample = next(self.parameters())
+            tokens = torch.randint(high=10, size=(1, self.model.max_length)).to(sample.device)
+            return (tokens,)
+
+        @property
+        def input_types(self) -> Optional[Dict[str, NeuralType]]:
+            return {
+                "tokens": NeuralType(('H', 'D'), ChannelType()),
+            }
+
+        @property
+        def output_types(self) -> Optional[Dict[str, NeuralType]]:
+            return {"logits": NeuralType(('B', 'H'), ChannelType())}
+
+        @property
+        def input_names(self) -> List[str]:
+            return ['tokens']
+
+        @property
+        def output_names(self) -> List[str]:
+            return ['logits']
+
+    openai_clip = isinstance(model.cond_stage_model, FrozenCLIPEmbedder)
     tokens = torch.randint(high=10, size=(1, model.cond_stage_model.max_length), device="cuda")
-    torch.onnx.export(
-        CLIPWrapper(model.cond_stage_model.transformer),
-        (tokens,),
-        f"{output_dir}/onnx/clip/clip.onnx",
-        verbose=False,
-        input_names=input_names,
-        output_names=output_names,
-        dynamic_axes={"tokens": {0: 'B'}, "logits": {0: 'B'}},
-        opset_version=17,
-        do_constant_folding=True,
-        export_params=True,
-    )
+
+    if openai_clip:
+        input_names = ["tokens"]
+        output_names = ["logits"]
+        torch.onnx.export(
+            CLIPWrapper(model.cond_stage_model.transformer),
+            (tokens,),
+            f"{output_dir}/onnx/clip/clip.onnx",
+            verbose=False,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes={"tokens": {0: 'B'}, "logits": {0: 'B'}},
+            opset_version=17,
+            do_constant_folding=True,
+            export_params=True,
+        )
+    else:
+        clip_model = OpenCLIPWrapper(model.cond_stage_model)
+        clip_model.export(f"{output_dir}/onnx/clip/clip.onnx")
+
     input_profile_clip = {}
     input_profile_clip["tokens"] = [(batch_size, *(tokens.shape[1:]))] * 3
     deployment_conf.clip.tokens = input_profile_clip["tokens"][0]

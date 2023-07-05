@@ -46,6 +46,8 @@ def main(cfg):
         model_cfg.ckpt_path = None
         model_cfg.inductor = False
         model_cfg.unet_config.use_flash_attention = False
+        model_cfg.unet_config.from_pretrained = None
+        model_cfg.first_stage_config.from_pretrained = None
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
         model_provider=MegatronLatentDiffusion, cfg=cfg, model_cfg_modifier=model_cfg_modifier
