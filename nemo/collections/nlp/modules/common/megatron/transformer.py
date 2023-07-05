@@ -165,7 +165,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
-        sequence_parallel=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
         moe_frequency=1,
@@ -215,11 +214,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the input data.
             if normalization == 'layernorm':
                 self.input_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.input_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             elif normalization == 'low_precision_layernorm':
                 self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
@@ -270,11 +269,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 # don't need it for decoder_pre_mlp and post_ln
                 if normalization == 'layernorm':
                     self.post_attention_layernorm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
                     self.post_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 elif normalization == 'low_precision_layernorm':
                     self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
@@ -293,11 +292,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the attention output
             if normalization == 'layernorm':
                 self.post_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.post_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             elif normalization == 'low_precision_layernorm':
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
@@ -332,11 +331,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
                     self.post_inter_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
                     self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -344,11 +343,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the attention output.
             if normalization == 'layernorm':
                 self.post_inter_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -378,11 +377,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
                     self.post_inter_attention_normformer_norm = get_layer_norm(
-                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                        hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
                     self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -390,11 +389,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Layernorm on the attention output.
             if normalization == 'layernorm':
                 self.post_inter_attention_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -418,7 +417,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 normalization=normalization,
                 layernorm_epsilon=layernorm_epsilon,
                 persist_layer_norm=persist_layer_norm,
-                sequence_parallel=sequence_parallel,
                 dropout=moe_dropout,
             )
         else:
@@ -673,7 +671,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
-        sequence_parallel=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
         moe_frequency=1,
@@ -715,7 +712,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             headscale=headscale,
             multi_query_attention=multi_query_attention,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
-            sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
             num_moe_experts=num_moe_experts,
             moe_frequency=moe_frequency,
@@ -919,7 +915,6 @@ class ParallelTransformer(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
         activations_checkpoint_layers_per_pipeline=None,
-        sequence_parallel=False,
         transformer_engine=False,
         fp8=False,
         fp8_e4m3=False,
@@ -1001,7 +996,7 @@ class ParallelTransformer(MegatronModule):
             else:
                 raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
 
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
         self.transformer_engine = transformer_engine
         self.fp8 = fp8
         self.fp8_e4m3 = fp8_e4m3
@@ -1070,7 +1065,7 @@ class ParallelTransformer(MegatronModule):
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                     seq_length=None,  # used for jit warmup
                     micro_batch_size=None,  # used for jit warmup
-                    sequence_parallel=sequence_parallel,
+                    sequence_parallel=config.sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
                     use_emha=use_emha,
@@ -1112,7 +1107,6 @@ class ParallelTransformer(MegatronModule):
                     transformer_block_type=transformer_block_type,
                     headscale=headscale,
                     activations_checkpoint_granularity=activations_checkpoint_granularity,
-                    sequence_parallel=sequence_parallel,
                     normalize_attention_scores=normalize_attention_scores,
                     num_moe_experts=num_moe_experts,
                     moe_frequency=moe_frequency,
@@ -1162,11 +1156,11 @@ class ParallelTransformer(MegatronModule):
             # Final layer norm before output.
             if normalization == 'layernorm':
                 self.final_layernorm = get_layer_norm(
-                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=sequence_parallel
+                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=config.sequence_parallel
                 )
             elif normalization == 'layernorm1p':
                 self.final_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                 )
             elif normalization == 'low_precision_layernorm':
                 self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)

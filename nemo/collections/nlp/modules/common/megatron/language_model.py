@@ -111,7 +111,6 @@ def get_language_model(
     megatron_legacy=False,
     activations_checkpoint_granularity=None,
     activations_checkpoint_layers_per_pipeline=None,
-    sequence_parallel=False,
     transformer_engine=False,
     fp8=False,
     fp8_e4m3=False,
@@ -188,7 +187,6 @@ def get_language_model(
         megatron_legacy=megatron_legacy,
         activations_checkpoint_granularity=activations_checkpoint_granularity,
         activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
-        sequence_parallel=sequence_parallel,
         transformer_engine=transformer_engine,
         fp8=fp8,
         fp8_e4m3=fp8_e4m3,
@@ -267,7 +265,6 @@ class Embedding(MegatronModule):
         num_tokentypes=0,
         dtype=torch.float32,
         fp32_residual_connection=False,
-        sequence_parallel=False,
         position_embedding_type='learned_absolute',
         transpose_batch_sequence=True,
     ):
@@ -305,7 +302,7 @@ class Embedding(MegatronModule):
             self.tokentype_embeddings = None
 
         self.fp32_residual_connection = fp32_residual_connection
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
@@ -490,7 +487,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         megatron_legacy=False,
         activations_checkpoint_granularity=None,
         activations_checkpoint_layers_per_pipeline=None,
-        sequence_parallel=False,
         transformer_engine=False,
         fp8=False,
         fp8_e4m3=False,
@@ -525,7 +521,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.output_layer_init_method = output_layer_init_method
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
         if kv_channels is None:
 
@@ -544,7 +540,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 init_method=self.init_method,
                 num_tokentypes=self.num_tokentypes,
                 embedding_dropout_prob=self.hidden_dropout,
-                sequence_parallel=sequence_parallel,
                 position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
                 dtype=self.dtype,
@@ -631,7 +626,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             normalize_attention_scores=normalize_attention_scores,
             multi_query_attention=multi_query_attention,
             megatron_legacy=megatron_legacy,
-            sequence_parallel=sequence_parallel,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
             transformer_engine=transformer_engine,
@@ -682,7 +676,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 megatron_legacy=megatron_legacy,
-                sequence_parallel=sequence_parallel,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
                 transformer_engine=transformer_engine,
@@ -694,7 +687,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         if self.post_process:
             # Pooler.
             if self.add_pooler:
-                self.pooler = Pooler(self.hidden_size, self.init_method, sequence_parallel=sequence_parallel)
+                self.pooler = Pooler(self.hidden_size, self.init_method, sequence_parallel=self.sequence_parallel)
                 self._pooler_key = 'pooler'
 
             if not self.share_embeddings_and_output_weights:
