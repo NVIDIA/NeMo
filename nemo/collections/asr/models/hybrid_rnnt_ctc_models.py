@@ -650,7 +650,14 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         if self.cur_decoder == 'rnnt':
             return ['encoder', 'decoder_joint']
         else:
-            return ['encoder']
+            return ['self']
+
+    @property
+    def output_module(self):
+        if self.cur_decoder == 'rnnt':
+            return self.decoder
+        else:
+            return self.ctc_decoder
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
