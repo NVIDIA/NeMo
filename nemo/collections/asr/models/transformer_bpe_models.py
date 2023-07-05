@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import itertools
 import json
 import os
-import random
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -24,31 +22,22 @@ from typing import Dict, List, Optional, Union
 import editdistance
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from sacrebleu import corpus_bleu
-from torch.utils.data import ChainDataset, DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.features import clean_spectrogram_batch, normalize_batch
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.data import ConcatDataset
-from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
+from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
-from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
     ChannelType,
