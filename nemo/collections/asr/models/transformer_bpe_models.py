@@ -39,9 +39,9 @@ try:
     from nemo.collections.nlp.modules.common import TokenClassifier
     from nemo.collections.nlp.modules.common.lm_utils import get_transformer
     from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
-    ASR_AVAILABLE = True
+    NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
-    ASR_AVAILABLE = False
+    NLP_AVAILABLE = False
 
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -120,7 +120,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         library = transf_decoder_cfg_dict.pop('library', 'nemo')
         model_name = transf_decoder_cfg_dict.pop('model_name', None)
         pretrained = transf_decoder_cfg_dict.pop('pretrained', False)
-        checkpoint_file = transf_decoder_cfg_dict.pop('checkpoint_file', None)
         self.transf_decoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -455,7 +454,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
-        batch_size = signal.shape[0]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=signal,
@@ -477,11 +475,6 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'train_loss': audio_loss,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
-
-        if hasattr(self, '_trainer') and self._trainer is not None:
-            log_every_n_steps = self._trainer.log_every_n_steps
-        else:
-            log_every_n_steps = 1
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
