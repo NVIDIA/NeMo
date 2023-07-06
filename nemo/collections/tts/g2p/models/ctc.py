@@ -222,7 +222,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
         self._per.reset()
 
         self.log(f"{split}_loss", val_loss)
-        return {
+        loss = {
             f"{split}_loss": val_loss,
             f"{split}_wer_num": wer_num,
             f"{split}_wer_denom": wer_denom,
@@ -231,6 +231,19 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
             f"{split}_per_denom": per_denom,
             f"{split}_per": per,
         }
+
+        if split == 'val':
+            if type(self.trainer.val_dataloaders) == list:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        elif split == 'test':
+            if type(self.trainer.test_dataloaders) == list:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)            
+                
+        return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         """
