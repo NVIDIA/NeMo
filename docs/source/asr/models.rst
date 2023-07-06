@@ -297,9 +297,9 @@ Similar example configs for FastConformer variants of Hybrid models can be found
 ``<NeMo_git_root>/examples/asr/conf/fastconformer/hybrid_cache_aware_streaming/``
 
 Note Hybrid models are being exported as RNNT (encoder and decoder+joint parts) by default.
-To export as CTC (single encoder+decoder graph), `model.set_export_config({'decoder_type' : 'CTC'})` should be called before export.
+To export as CTC (single encoder+decoder graph), `model.set_export_config({'decoder_type' : 'ctc'})` should be called before export.
 Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
-`python export.py hybrid_transducer.nemo hybrid_transducer.onnx --config decoder_type=CTC`
+`python export.py hybrid_transducer.nemo hybrid_transducer.onnx --config decoder_type=ctc`
 
 .. _Conformer-HAT_model:
 
