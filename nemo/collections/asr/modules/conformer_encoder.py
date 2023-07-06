@@ -531,7 +531,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if cache_last_channel is not None:
             cache_len = self.streaming_cfg.last_channel_cache_size
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
-            # cache_last_channel_next = torch.zeros_like(cache_last_channel)
             max_audio_length = max_audio_length + cache_len
             padding_length = length + cache_len
             offset = torch.neg(cache_last_channel_len) + cache_len
