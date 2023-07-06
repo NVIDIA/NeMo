@@ -17,6 +17,7 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import librosa
+import soundfile as sf
 import numpy as np
 import torch
 from hydra.utils import instantiate
@@ -433,7 +434,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             emb: speaker embeddings (Audio representations)
             logits: logits corresponding of final layer
         """
-        audio, sr = librosa.load(path2audio_file, sr=None)
+        audio, sr = sf.read(path2audio_file)
+        # audio, sr = librosa.load(path2audio_file, sr=None)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if max_duration:
             audio = audio[:sr*max_duration]
