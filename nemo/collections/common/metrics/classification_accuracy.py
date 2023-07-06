@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import logging
+import re
+import string
+from collections import Counter
 from typing import List
 
-from collections import Counter
-import string
-import re
 import torch
 from torchmetrics import Metric
 
@@ -208,8 +208,8 @@ class ExactStringMatchMetric(Metric):
 
     def compute(self):
         return self.correct.float() / self.total
-    
-    
+
+
 class TokenF1Score(Metric):
     def __init__(self, dist_sync_on_step=False, *args, **kwargs):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
@@ -226,7 +226,7 @@ class TokenF1Score(Metric):
 
     def compute(self):
         return self.correct.float() / self.total
-    
+
     def f1_score(self, prediction, ground_truth):
         prediction_tokens = self.normalize(prediction).split()
         ground_truth_tokens = self.normalize(ground_truth).split()
@@ -238,7 +238,7 @@ class TokenF1Score(Metric):
         recall = 1.0 * num_same / len(ground_truth_tokens)
         f1 = (2 * precision * recall) / (precision + recall)
         return f1
-    
+
     def normalize(self, s):
         """Lower text and remove punctuation, articles and extra whitespace."""
 

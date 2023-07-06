@@ -81,7 +81,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
         if hasattr(self.cfg.data.validation_ds, "metric"):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
-            
+
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
@@ -459,10 +459,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
                 else:
                     labels = deduplicated_outputs['labels']
-                
-                for pred, label in zip(deduplicated_outputs['preds'],  labels):
+
+                for pred, label in zip(deduplicated_outputs['preds'], labels):
                     _ = metric_fn(pred, label)
-                
+
                 metric_result = metric_fn.compute()
 
                 if metric_name == 'rouge':
