@@ -107,7 +107,7 @@ model:
     - 2
     - 4
     - 4
-    num_heads: 8
+    num_head_channels: 64
     use_spatial_transformer: true
     use_linear_in_transformer: true
     transformer_depth: 1
