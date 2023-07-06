@@ -304,9 +304,15 @@ class Exportable(ABC):
         return ['self']
 
     def get_export_config(self):
+        """
+        Returns export_config dictionary
+        """
         return getattr(self, 'export_config', {})
 
-    def set_export_config(self, **kwargs):
+    def set_export_config(self, kwargs):
+        """
+        Sets/updates export_config dictionary
+        """
         ex_config = self.get_export_config()
         ex_config.update(kwargs)
         self.export_config = ex_config

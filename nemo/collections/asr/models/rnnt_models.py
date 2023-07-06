@@ -960,6 +960,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
     def decoder_joint(self):
         return RNNTDecoderJoint(self.decoder, self.joint)
 
+    def set_export_config(self, args):
+        if 'decoder_type' in args:
+            if hasattr(self, 'change_decoding_strategy'):
+                self.change_decoding_strategy(decoder_type=args['decoder_type'])
+            else:
+                raise Exception("Model does not have decoder type option")
+        super().set_export_config(args)
+
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         """

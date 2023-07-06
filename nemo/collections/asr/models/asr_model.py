@@ -240,15 +240,10 @@ class ExportableEncDecModel(Exportable):
     def disabled_deployment_output_names(self):
         return self.encoder.disabled_deployment_output_names
 
-    def set_export_config(self, **kwargs):
-        if 'cache_support' in kwargs:
-            enable = bool(kwargs['cache_support'])
+    def set_export_config(self, args):
+        if 'cache_support' in args:
+            enable = bool(args['cache_support'])
             self.encoder.export_cache_support = enable
             logging.info(f"Caching support enabled: {enable}")
             self.encoder.setup_streaming_params()
-        if 'decoder_type' in kwargs:
-            if hasattr(self, 'change_decoding_strategy'):
-                self.change_decoding_strategy(decoder_type=kwargs['decoder_type'])
-            else:
-                raise Exception("Model does not have decoder type option")
-        super().set_export_config(**kwargs)
+        super().set_export_config(args)
