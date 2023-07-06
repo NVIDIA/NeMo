@@ -39,6 +39,7 @@ try:
     from nemo.collections.nlp.modules.common import TokenClassifier
     from nemo.collections.nlp.modules.common.lm_utils import get_transformer
     from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+
     NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     NLP_AVAILABLE = False
