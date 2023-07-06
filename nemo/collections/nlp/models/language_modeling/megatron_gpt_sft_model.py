@@ -79,9 +79,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.sep_id = cfg.get('sep_id', 49704)
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
         self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
+        if hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+            
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
+            if hasattr(self.cfg.data.test_ds, "metric"):
+                self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
 
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -444,12 +449,21 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
             if metric_name != 'loss':
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
                 metric_fn = (
                     self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
                 )
-                metric_result = metric_fn(deduplicated_outputs['preds'], deduplicated_outputs['labels'])
+                if metric_label_key in deduplicated_outputs['metadata'][0]:
+                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+                else:
+                    labels = deduplicated_outputs['labels']
+                
+                for pred, label in zip(deduplicated_outputs['preds'],  labels):
+                    _ = metric_fn(pred, label)
+                
+                metric_result = metric_fn.compute()
 
                 if metric_name == 'rouge':
                     for k, v in metric_result.items():
