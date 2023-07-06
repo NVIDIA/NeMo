@@ -369,7 +369,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
         if self.get_inference_config() is None:
-            self._inference_config = {}
+            self.set_inference_config(inference_config={})
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 

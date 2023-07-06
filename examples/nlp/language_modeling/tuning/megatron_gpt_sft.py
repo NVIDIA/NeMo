@@ -203,6 +203,10 @@ def main(cfg) -> None:
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
+    
+    if 'inference' in cfg:
+        config = OmegaConf.to_container(cfg.inference, resolve=True)
+        model.set_inference_config(config)
 
     trainer.fit(model)
 
