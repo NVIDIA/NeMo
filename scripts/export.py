@@ -140,11 +140,11 @@ def nemo_export(argv):
         max_dim = args.max_dim
 
     if args.cache_support:
-        model.set_export_config(cache_support=True)
+        model.set_export_config({cache_support: True})
 
     if args.config:
         kv = dict(map(lambda s: s.split('='), args.config))
-        model.set_export_config(**kv)
+        model.set_export_config(kv)
 
     autocast = nullcontext
     if args.autocast:
