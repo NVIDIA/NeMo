@@ -666,9 +666,19 @@ class NoopTransformerLayer(MegatronModule):
         super().__init__()
         self.layer_number = layer_number
 
-    def forward(self, hidden_states, attention_mask,
-                encoder_output=None, enc_dec_attn_mask=None,
-                inference_params=None):
+    def forward(  self,
+        hidden_states,
+        attention_mask,
+        encoder_output=None,
+        enc_dec_attn_mask=None,
+        layer_past=None,
+        get_key_value=False,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,
+        self_attention_relative_position_bias=None,
+        cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False,):
         return hidden_states.clone()
 
 class ParallelTransformerLayer(ParallelTransformerLayer_):
@@ -1261,11 +1271,14 @@ class ParallelTransformer(MegatronModule):
                 assert (
                     num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
                 ), 'num_layers must be divisible by pipeline_model_parallel_size'
-                num_layers = (0 
-                if self.standalone_embedding_stage 
-                and parallel_state.get_pipeline_model_parallel_rank() == 0 
-                else num_layers // parallel_state.get_pipeline_model_parallel_world_size())
-
+                if self.standalone_embedding_stage:
+                    if parallel_state.get_pipeline_model_parallel_rank() == 0:
+                        num_layers = 0
+                    else:
+                        # If we have standalone_embedding_stage then PP size is actually - 1
+                        num_layers = num_layers // (parallel_state.get_pipeline_model_parallel_world_size() - 1)
+                else:
+                    num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
         return num_layers
 
     def _checkpointed_forward(

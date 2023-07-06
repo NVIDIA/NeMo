@@ -470,7 +470,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
-
+        print("starting forward function")
         # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(forward_only),
@@ -489,7 +489,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
             batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
-
+        print("finished forward function")
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
@@ -561,6 +561,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
+        print("Starting training step")
 
         if self.with_distributed_adam:
             # hack to enable overlapping param sync and forward compute
@@ -581,6 +582,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         param.data_ptr()
 
         loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        print(f"got past loss mean")
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -606,6 +608,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         ):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
+        print("got pass all reduce first and lass embeddings")
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
