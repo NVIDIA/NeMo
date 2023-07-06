@@ -431,10 +431,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         """
         audio, sr = librosa.load(path2audio_file, sr=None)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        if max_duration:
+            audio = audio[:sr*max_duration]
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
-        if max_duration:
-            audio = audio[: target_sr * max_duration]
         audio_length = audio.shape[0]
         device = self.device
         audio = np.array([audio])
