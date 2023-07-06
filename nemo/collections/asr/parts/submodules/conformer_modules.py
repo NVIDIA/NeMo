@@ -348,7 +348,9 @@ class ConformerConvolution(nn.Module):
         if pad_mask is not None:
             x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
 
-        x, cache = self.depthwise_conv(x, cache=cache)
+        x = self.depthwise_conv(x, cache=cache)
+        if cache is not None:
+            x, cache = x
 
         if self.norm_type == "layer_norm":
             x = x.transpose(1, 2)
