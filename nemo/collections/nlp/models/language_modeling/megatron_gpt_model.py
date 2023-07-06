@@ -250,10 +250,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    converted_model.append(Float16Module(
+                        module=module,
+                        precision=cfg.precision,
+                        share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True)
+                    ))
                 self.model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    module=self.model,
+                    precision=cfg.precision,
+                    share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True)
+                )
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
