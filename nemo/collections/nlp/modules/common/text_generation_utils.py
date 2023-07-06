@@ -69,7 +69,7 @@ def get_default_sampling_params():
         "add_BOS": True,
         "all_probs": False,
         "compute_logprob": False,
-        "end_strings": ["<|endoftext|>", "<extra_id_1>"]
+        "end_strings": ["<|endoftext|>", "<extra_id_1>"],
     }
 
     return sampling_params
