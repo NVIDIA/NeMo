@@ -375,6 +375,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             "add_BOS": False,
             "all_probs": False,
             "compute_logprob": False,
+            "end_strings": ["<|endoftext|>", "<extra_id_1>"],
         }
         result = megatron_gpt_generate(
             model=self,
