@@ -557,14 +557,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             if att_mask is not None:
                 att_mask = att_mask[:, cache_len:]
             # Convert caches from the tensor to list
-            cache_last_time_next = [None] * self.streaming_cfg.last_time_num
-            cache_last_channel_next = [None] * self.streaming_cfg.last_channel_num
+            cache_last_time_next = []
+            cache_last_channel_next = []
 
         for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
             original_signal = audio_signal
             if cache_last_channel is not None:
-                cache_last_channel_cur = cache_last_channel[layer.self_attn._cache_id]
-                cache_last_time_cur = cache_last_time[layer.conv.depthwise_conv._cache_id]
+                cache_last_channel_cur = cache_last_channel[lth]
+                cache_last_time_cur = cache_last_time[lth]
             else:
                 cache_last_channel_cur = None
                 cache_last_time_cur = None
@@ -579,8 +579,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
             if cache_last_channel_cur is not None:
                 (audio_signal, cache_last_channel_cur, cache_last_time_cur) = audio_signal
-                cache_last_channel_next[layer.self_attn._cache_id] = cache_last_channel_cur
-                cache_last_time_next[layer.conv.depthwise_conv._cache_id] = cache_last_time_cur
+                cache_last_channel_next.append(cache_last_channel_cur)
+                cache_last_time_next.append(cache_last_time_cur)
 
             # applying stochastic depth logic from https://arxiv.org/abs/2102.03216
             if self.training and drop_prob > 0.0:
@@ -870,20 +870,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         else:
             streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
 
-        # counting the number of the layers need caching
-        streaming_cfg.last_channel_num = 0
-        streaming_cfg.last_time_num = 0
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):
                 if isinstance(m, MultiHeadAttention):
-                    m._cache_id = streaming_cfg.last_channel_num
                     m.cache_drop_size = streaming_cfg.cache_drop_size
-                    streaming_cfg.last_channel_num += 1
-
                 if isinstance(m, CausalConv1D):
-                    m._cache_id = streaming_cfg.last_time_num
                     m.cache_drop_size = streaming_cfg.cache_drop_size
-                    streaming_cfg.last_time_num += 1
 
         self.streaming_cfg = streaming_cfg
 
@@ -896,19 +888,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             create_tensor = torch.zeros
         last_time_cache_size = self.conv_context_size[0]
         cache_last_channel = create_tensor(
-            (
-                self.streaming_cfg.last_channel_num,
-                batch_size,
-                self.streaming_cfg.last_channel_cache_size,
-                self.d_model,
-            ),
+            (len(self.layers), batch_size, self.streaming_cfg.last_channel_cache_size, self.d_model,),
             device=device,
             dtype=dtype,
         )
         cache_last_time = create_tensor(
-            (self.streaming_cfg.last_time_num, batch_size, self.d_model, last_time_cache_size),
-            device=device,
-            dtype=dtype,
+            (len(self.layers), batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype,
         )
         if max_dim > 0:
             cache_last_channel_len = torch.randint(

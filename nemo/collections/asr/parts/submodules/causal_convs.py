@@ -45,7 +45,6 @@ class CausalConv2D(nn.Conv2d):
             raise ValueError("Argument padding should be set to None for CausalConv2D.")
         self._left_padding = kernel_size - 1
         self._right_padding = stride - 1
-        self._cache_id = None
 
         padding = 0
         super(CausalConv2D, self).__init__(
@@ -113,7 +112,6 @@ class CausalConv1D(nn.Conv1d):
                 raise ValueError(f"Invalid padding param: {padding}!")
 
         self._max_cache_len = self._left_padding
-        self._cache_id = None
 
         super(CausalConv1D, self).__init__(
             in_channels=in_channels,
@@ -134,18 +132,16 @@ class CausalConv1D(nn.Conv1d):
             new_x = F.pad(x, pad=(self._left_padding, self._right_padding))
         else:
             new_x = F.pad(x, pad=(0, self._right_padding))
-
-            # todo: we should know input_x.size(-1) at config time
-            # cache_keep_size = x.size(-1) - self.cache_drop_size, dtype=torch.int64, device=x.device)
-            # print("cache:", cache.size(), "x:", x.size(), "new_x:", new_x.size())
             new_x = torch.cat([cache, new_x], dim=-1)
             if self.cache_drop_size > 0:
                 x = x[:, :, : -self.cache_drop_size]
             cache = torch.cat([cache[:, :, x.size(-1) :], x], dim=-1)
-            # print("cache size: ", cache.size())
         return new_x, cache
 
     def forward(self, x, cache=None):
         x, cache = self.update_cache(x, cache=cache)
         x = super().forward(x)
-        return x, cache
+        if cache is None:
+            return x
+        else:
+            return x, cache

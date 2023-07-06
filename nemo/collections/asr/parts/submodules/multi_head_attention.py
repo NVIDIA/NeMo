@@ -73,7 +73,6 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
-        self._cache_id = None
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
