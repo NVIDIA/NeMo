@@ -152,7 +152,6 @@ class GPTModel(MegatronModule):
         openai_gelu=False,
         megatron_legacy=False,
         onnx_safe=False,
-        sequence_parallel=False,
         transformer_engine=False,
         fp8=False,
         fp8_e4m3=False,
@@ -172,7 +171,7 @@ class GPTModel(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = self.config.sequence_parallel
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
@@ -233,7 +232,6 @@ class GPTModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
-            sequence_parallel=sequence_parallel,
             transformer_engine=transformer_engine,
             fp8=fp8,
             fp8_e4m3=fp8_e4m3,
@@ -304,7 +302,7 @@ class GPTModel(MegatronModule):
                 self.fp16_lm_cross_entropy,
                 return_logits=encoder_input is not None,
                 sequence_parallel=self.sequence_parallel,
-                gradient_accumulation_fusion=self.gradient_accumulation_fusion,
+                gradient_accumulation_fusion=self.config.gradient_accumulation_fusion,
             )
         else:
             return lm_output
