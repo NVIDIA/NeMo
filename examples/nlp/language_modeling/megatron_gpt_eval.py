@@ -15,6 +15,7 @@
 import asyncio
 import os
 import threading
+from functools import partial
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -173,8 +174,14 @@ def main(cfg) -> None:
         or cfg.pipeline_model_parallel_size < 0
         or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
     ):
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.gpt_model_file):
+            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
         model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
         )
 
         with open_dict(cfg):
@@ -201,11 +208,7 @@ def main(cfg) -> None:
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.sequence_parallel = False
-            pretrained_cfg.encoder_seq_length = cfg.model.encoder_seq_length
-            print(pretrained_cfg.encoder_seq_length)
             pretrained_cfg.activations_checkpoint_granularity = None
-            pretrained_cfg.encoder_seq_length = cfg.model.encoder_seq_length
-            pretrained_cfg.use_flash_attention = cfg.model.use_flash_attention
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
             if trainer.precision == "16":
@@ -274,22 +277,19 @@ def main(cfg) -> None:
             nb_paddings += 1
 
     # First method of running text generation, call model.generate method
-    # response = model.generate(
-    #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    # )
+    response = model.generate(
+        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    )
 
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
-
     print("***************************")
     print(response)
     print("***************************")
 
-
     # Second method of running text generation, call trainer.predict [recommended]
     bs = 8 if fp8_enabled else 2
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
@@ -308,7 +308,12 @@ def main(cfg) -> None:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
                 if cfg.chat:
-                    web_ui = get_chatbot_demo
+                    defaults = {
+                        'user': cfg.chatbot_config.user,
+                        'assistant': cfg.chatbot_config.assistant,
+                        'system': cfg.chatbot_config.system,
+                    }
+                    web_ui = partial(get_chatbot_demo, defaults=defaults, value=cfg.chatbot_config.value)
                 else:
                     web_ui = get_demo
                 loop = asyncio.new_event_loop()
