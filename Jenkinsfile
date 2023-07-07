@@ -6,7 +6,8 @@ pipeline {
         }
   }
   options {
-    timeout(time: 2, unit: 'HOURS')
+    // timeout after 10 minutes of no activity
+    timeout(time: 10, activity: false, unit: 'MINUTES')
     disableConcurrentBuilds(abortPrevious: true)
   }
 
