@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.collections.tts.losses.encodec_loss import MaskedMAELoss, MaskedMSELoss
+from nemo.collections.tts.losses.audio_codec_loss import MaskedMAELoss, MaskedMSELoss
 
 
 class TestEnCodecLoss:

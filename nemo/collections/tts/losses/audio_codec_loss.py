@@ -164,7 +164,7 @@ class MultiResolutionMelLoss(Loss):
 
 
 class RelativeFeatureMatchingLoss(Loss):
-    def __init__(self, div_guard=1e-2):
+    def __init__(self, div_guard=1e-6):
         super(RelativeFeatureMatchingLoss, self).__init__()
         self.div_guard = div_guard
 
@@ -200,11 +200,11 @@ class RelativeFeatureMatchingLoss(Loss):
         return loss
 
 
-class GeneratorLoss(Loss):
+class GeneratorHingedLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_scores": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
         }
 
     @property
@@ -212,17 +212,39 @@ class GeneratorLoss(Loss):
         return {"loss": NeuralType(elements_type=LossType())}
 
     @typecheck()
-    def forward(self, disc_scores):
+    def forward(self, disc_scores_gen):
         loss = 0.0
-        for disc_score in disc_scores:
-            loss += torch.mean(F.relu(1 - disc_score))
+        for disc_score_gen in disc_scores_gen:
+            loss += torch.mean(F.relu(1 - disc_score_gen))
 
-        loss /= len(disc_scores)
+        loss /= len(disc_scores_gen)
 
         return loss
 
 
-class DiscriminatorLoss(Loss):
+class GeneratorSquaredLoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
+        }
+
+    @property
+    def output_types(self):
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    @typecheck()
+    def forward(self, disc_scores_gen):
+        loss = 0.0
+        for disc_score_gen in disc_scores_gen:
+            loss += torch.mean((1 - disc_score_gen) ** 2)
+
+        loss /= len(disc_scores_gen)
+
+        return loss
+
+
+class DiscriminatorHingedLoss(Loss):
     @property
     def input_types(self):
         return {
@@ -240,6 +262,31 @@ class DiscriminatorLoss(Loss):
         for disc_score_real, disc_score_gen in zip(disc_scores_real, disc_scores_gen):
             loss_real = torch.mean(F.relu(1 - disc_score_real))
             loss_gen = torch.mean(F.relu(1 + disc_score_gen))
+            loss += (loss_real + loss_gen) / 2
+
+        loss /= len(disc_scores_real)
+
+        return loss
+
+
+class DiscriminatorSquaredLoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "disc_scores_real": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
+        }
+
+    @property
+    def output_types(self):
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    @typecheck()
+    def forward(self, disc_scores_real, disc_scores_gen):
+        loss = 0.0
+        for disc_score_real, disc_score_gen in zip(disc_scores_real, disc_scores_gen):
+            loss_real = torch.mean((1 - disc_score_real) ** 2)
+            loss_gen = torch.mean(disc_score_gen ** 2)
             loss += (loss_real + loss_gen) / 2
 
         loss /= len(disc_scores_real)

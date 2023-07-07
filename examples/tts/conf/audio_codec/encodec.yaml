@@ -1,8 +1,8 @@
-# This config contains the default values for training 24khz EnCodec
+# This config contains the default values for training 24khz EnCodec model
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-name: EnCodec
+name: AudioCodec
 
 max_epochs: ???
 # Adjust batch size based on GPU memory
@@ -35,6 +35,8 @@ model:
 
   sample_rate: ${sample_rate}
   samples_per_frame: ${samples_per_frame}
+  gen_loss_scale: 3.0
+  feature_loss_scale: 3.0
   # Probability of updating the discriminator during each training step
   disc_update_prob: 0.67
 
@@ -82,7 +84,7 @@ model:
     log_wandb: false
 
     generators:
-      - _target_: nemo.collections.tts.parts.utils.callbacks.EnCodecArtifactGenerator
+      - _target_: nemo.collections.tts.parts.utils.callbacks.AudioCodecArtifactGenerator
         log_audio: true
         log_encoding: true
         log_quantized: true
@@ -101,11 +103,11 @@ model:
       num_workers: 2
 
   audio_encoder:
-    _target_: nemo.collections.tts.modules.encodec_modules.SEANetEncoder
+    _target_: nemo.collections.tts.modules.audio_codec_modules.SEANetEncoder
     down_sample_rates: ${down_sample_rates}
 
   audio_decoder:
-    _target_: nemo.collections.tts.modules.encodec_modules.SEANetDecoder
+    _target_: nemo.collections.tts.modules.audio_codec_modules.SEANetDecoder
     up_sample_rates: ${up_sample_rates}
 
   vector_quantizer:
@@ -113,8 +115,14 @@ model:
     num_codebooks: 8
 
   discriminator:
-    _target_: nemo.collections.tts.modules.encodec_modules.MultiResolutionDiscriminatorSTFT
+    _target_: nemo.collections.tts.modules.audio_codec_modules.MultiResolutionDiscriminatorSTFT
     resolutions: [[128, 32, 128], [256, 64, 256], [512, 128, 512], [1024, 256, 1024], [2048, 512, 2048]]
+
+  generator_loss:
+    _target_: nemo.collections.tts.losses.audio_codec_loss.GeneratorHingedLoss
+
+  discriminator_loss:
+    _target_: nemo.collections.tts.losses.audio_codec_loss.DiscriminatorHingedLoss
 
   optim:
     _target_: torch.optim.Adam

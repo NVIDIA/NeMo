@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-import math
 import random
 from pathlib import Path
 from typing import List, Tuple
@@ -24,13 +23,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.tts.losses.encodec_loss import (
-    AudioLoss,
-    DiscriminatorLoss,
-    GeneratorLoss,
-    MultiResolutionMelLoss,
-    RelativeFeatureMatchingLoss,
-)
+from nemo.collections.tts.losses.audio_codec_loss import AudioLoss, MultiResolutionMelLoss, RelativeFeatureMatchingLoss
 from nemo.collections.tts.modules.common import GaussianDropout
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
@@ -44,9 +37,7 @@ from nemo.utils.decorators import experimental
 
 
 @experimental
-class EnCodecModel(ModelPT):
-    """EnCodec model (https://github.com/facebookresearch/encodec) that encodes and decodes audio."""
-
+class AudioCodecModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -80,8 +71,8 @@ class EnCodecModel(ModelPT):
         self.audio_loss_scale = cfg.get("audio_loss_scale", 0.1)
         self.mel_loss_scale = cfg.get("mel_loss_scale", 1.0)
         mel_loss_l1_scale = cfg.get("mel_loss_l1_scale", 1.0)
-        self.gen_loss_scale = cfg.get("gen_loss_scale", 3.0)
-        self.feature_loss_scale = cfg.get("feature_loss_scale", 3.0)
+        self.gen_loss_scale = cfg.get("gen_loss_scale", 1.0)
+        self.feature_loss_scale = cfg.get("feature_loss_scale", 1.0)
 
         self.audio_loss_fn = AudioLoss()
         self.mel_loss_fn = MultiResolutionMelLoss(
@@ -90,9 +81,9 @@ class EnCodecModel(ModelPT):
             resolutions=mel_loss_resolutions,
             l1_scale=mel_loss_l1_scale,
         )
-        self.gen_loss_fn = GeneratorLoss()
+        self.gen_loss_fn = instantiate(cfg.generator_loss)
+        self.disc_loss_fn = instantiate(cfg.discriminator_loss)
         self.feature_loss_fn = RelativeFeatureMatchingLoss()
-        self.disc_loss_fn = DiscriminatorLoss()
 
         self.log_config = cfg.get("log_config", None)
         self.lr_schedule_interval = None
@@ -225,8 +216,9 @@ class EnCodecModel(ModelPT):
                 audio_real=audio, audio_gen=audio_gen.detach()
             )
             loss_disc = self.disc_loss_fn(disc_scores_real=disc_scores_real, disc_scores_gen=disc_scores_gen)
+            train_disc_loss = loss_disc
 
-            self.manual_backward(loss_disc)
+            self.manual_backward(train_disc_loss)
             optim_disc.step()
 
         loss_audio = self.audio_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
@@ -237,7 +229,7 @@ class EnCodecModel(ModelPT):
 
         _, disc_scores_gen, fmaps_real, fmaps_gen = self.discriminator(audio_real=audio, audio_gen=audio_gen)
 
-        loss_gen = self.gen_loss_fn(disc_scores=disc_scores_gen)
+        loss_gen = self.gen_loss_fn(disc_scores_gen=disc_scores_gen)
         train_loss_gen = self.gen_loss_scale * loss_gen
 
         loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)

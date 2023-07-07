@@ -265,9 +265,9 @@ class VocoderArtifactGenerator(ArtifactGenerator):
         return audio_artifacts, []
 
 
-class EnCodecArtifactGenerator(ArtifactGenerator):
+class AudioCodecArtifactGenerator(ArtifactGenerator):
     """
-    Generator for logging EnCodec model outputs.
+    Generator for logging Audio Codec model outputs.
     """
 
     def __init__(self, log_audio: bool = True, log_encoding: bool = False, log_quantized: bool = False):

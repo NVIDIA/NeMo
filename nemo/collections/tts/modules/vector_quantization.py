@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 
-from nemo.collections.tts.losses.encodec_loss import MaskedMSELoss
+from nemo.collections.tts.losses.audio_codec_loss import MaskedMSELoss
 from nemo.collections.tts.parts.utils.distributed import broadcast_tensors
 from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 from nemo.core.classes.common import typecheck
