@@ -52,7 +52,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import parallel_state, tensor_parallel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
@@ -92,6 +92,22 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
         self.virtual_tokens = 0
+
+        # Update embedding tables
+        word_embedding = base_module.language_model.embedding.word_embeddings
+        old_token_size = word_embedding.num_embeddings
+        new_embeddings = tensor_parallel.VocabParallelEmbedding(
+            num_embeddings=old_token_size + 8*1024,  #TODO
+            embedding_dim=word_embedding.embedding_dim
+        )
+        new_weight = new_embeddings.weight.clone()
+        new_weight[:old_token_size, :] = word_embedding.weight.clone()
+        new_weight = torch.nn.Parameter(new_weight)
+        new_embeddings.weight = new_weight
+        self.word_embedding = new_embeddings
+        del new_embeddings
+        del new_weight
+        base_module.language_model.embedding.word_embeddings = self.word_embedding
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -239,7 +255,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             if self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset
             else:
-                dataset_cls = GPTSFTDataset
+                dataset_cls = GPTSFTSpeechDataset
             dataset = dataset_cls(
                 file_path=file_path,
                 tokenizer=self.tokenizer,
@@ -292,7 +308,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
-        _, seq_length = batch['tokens'].shape
+        _, _, seq_length = batch['tokens'].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 

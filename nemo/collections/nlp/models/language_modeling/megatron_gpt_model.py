@@ -752,6 +752,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Get data batch
             batch = next(dataloader_iter)
+            # TODO: handle speech_mask
 
             # Transfer needed data to GPU
             required_keys = set()
@@ -773,6 +774,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 batch['attention_mask'],
                 batch['labels'],
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                speech_mask=batch['speech_mask'],
             )
 
             def loss_func(output_tensor):

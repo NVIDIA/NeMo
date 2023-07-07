@@ -35,7 +35,7 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 This is an example of how to ptune/prompt-tune a pretrained T5 model.
-Be sure to use a .nemo T5 model with this code. If you've downloaded 
+Be sure to use a .nemo T5 model with this code. If you've downloaded
 a model from NGC or are otherwise using a MegatronLM model, please use
 either megatron_ckpt_to_nemo.py or megatron_lm_ckpt_to_nemo.py found
 within this examples directory to convert your model to .nemo format.
@@ -47,18 +47,27 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
+    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
+
     plugins = []
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
-    if cfg.trainer.precision == 16:
-        scaler = GradScaler(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-            growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-            hysteresis=cfg.model.get('hysteresis', 2),
-            enabled=False
-            if cfg.model.pipeline_model_parallel_size > 1
-            else True,  # turn off the grad scale for pipeline parallel LM model
-        )
-        plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
+        gradient_as_bucket_view=False,
+        find_unused_parameters=False,
+    )
+    if cfg.trainer.precision in [16, 'bf16']:
+        scaler = None
+        if cfg.trainer.precision == 16:
+            scaler = GradScaler(
+                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 8),
+                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+                hysteresis=cfg.model.get('hysteresis', 2),
+            )
+        if megatron_amp_o2 and not with_distributed_adam:
+            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())

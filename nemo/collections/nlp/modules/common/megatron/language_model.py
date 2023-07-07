@@ -739,8 +739,17 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
-
-            encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+            encoder_input = None
+            if enc_input_ids.dim() > 2:
+                for i in range(enc_input_ids.size()[1]):
+                    cur = self.embedding(enc_input_ids[:, i, :], enc_position_ids, token_type_ids=token_type_ids)
+                    if encoder_input is None:
+                        encoder_input = cur
+                    else:
+                        encoder_input = encoder_input + cur
+            else:
+                # Should be text tokens
+                encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
             if self.is_adapter_available():
                 _sq, _bs, _hs = encoder_input.size()
                 ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)

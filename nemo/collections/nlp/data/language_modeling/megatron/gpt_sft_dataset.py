@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Union
+
 import numpy as np
 import torch
 
@@ -19,11 +22,15 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
+from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+    get_base_dir,
+    general_padding
+)
 
 __all__ = ['GPTSFTDataset']
 
 
-class GPTSFTSpeechDataset(Dataset):
+class GPTSFTDataset(Dataset):
     def __init__(
         self,
         file_path: str,
@@ -46,8 +53,12 @@ class GPTSFTSpeechDataset(Dataset):
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
+        sup_data_path: Optional[Union[Path, str]] = None,
     ):
         """
+        DOES NOT SUPPORT ON THE FLY GENERATION OF SPEECH CODES
+        Speech codes are load from pytorch file on each call of __getitem__, could be inefficient
+
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
@@ -92,6 +103,15 @@ class GPTSFTSpeechDataset(Dataset):
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+        self.speech_offset = 256000 #TODO: Fix hardcode
+        # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
+        if sup_data_path is not None:
+            Path(sup_data_path).mkdir(parents=True, exist_ok=True)
+            self.sup_data_path = sup_data_path
+
+        self.codec_folder = Path(self.sup_data_path) / "codec"
+        self.codec_folder.mkdir(exist_ok=True, parents=True)
 
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
@@ -141,15 +161,38 @@ class GPTSFTSpeechDataset(Dataset):
 
     def _process_example(self, example):
         """
+        TODO: Need to concatenate question as well if going to use SQUAD
         Create an example by concatenating text and answer.
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        is_speech = False
-        if example.get("data_type") =="SPEECH":
-            is_speech = True
-            codec_file = example.get("file_path")
-            #TODO: load file, and tokenize
+        is_speech = example.get("answer_type", False)  # TODO: answer_type hardcode needs to be updated
+        if is_speech:
+            # TODO: Enable context in speech?
+
+            dur = example.get("answer_duration", -1)
+            audio_filepath = example["answer"]
+            # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
+            # TODO: fix hardcode
+            rel_audio_path = Path(audio_filepath).relative_to("/data/speech/LibriTTS2/LibriTTS/train-clean-100/").with_suffix("")
+            rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+
+            # Convert to codes
+            codec_codes, codec_codes_length = None, None # Codes
+            codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
+
+            if codec_path.exists():
+                codec_codes = torch.load(codec_path).long()
+            else:
+                raise NotImplementedError("No audio loading option yet")
+                codec_codes = self.get_codec(audio).long()
+                torch.save(codec_codes, codec_path)
+
+            for i in range(codec_codes.shape[0]):
+                codec_codes[i] = (codec_codes[i] + self.speech_offset+i*1024).long()
+
+            context_ids = []
+            answer_ids = codec_codes  # 8 x speech_length
         else:
             context = example[self.context_key]
             output = example[self.label_key]
@@ -159,65 +202,82 @@ class GPTSFTSpeechDataset(Dataset):
             elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
                 text = context + ' ' + output
 
-            # if self.virtual_tokens:
-            #     # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
-            #     # these pad/eos tokens are placeholders for virtual tokens
-            #     pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
-            # else:
-            #     pre_pad = []
+            # TODO: Need to add virtual tokens for different speech tasks
             pre_pad = []
-        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context_ids) :]
+            tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
+            context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+            answer_ids = tokenized_text[len(context_ids) :]
 
         # for the long context cases, collate_fn includes self.tokens_to_generate for padding
-        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
+        answer_length = len(answer_ids[0]) if is_speech else len(answer_ids)
+        total_ids = len(context_ids) + max(answer_length, self.tokens_to_generate)
+
+        # TODO: Not supported for speech codes
         if self.add_bos:
+            raise NotImplementedError("BOS not implemented speech codes")
             total_ids += 1
         if self.add_sep:
+            raise NotImplementedError("SEP not implemented speech codes")
             total_ids += 1
         if self.add_eos:
+            raise NotImplementedError("EOS not implemented speech codes")
             total_ids += 1
 
-            # If the total number of token is greater than the max, we will try to truncate the answer
-            if total_ids > self.max_seq_length:
-                truncation_length = total_ids - self.max_seq_length
-                if self.truncation_field == "answer":
+        # If the total number of token is greater than the max, we will try to truncate the answer
+        if total_ids > self.max_seq_length:
+            truncation_length = total_ids - self.max_seq_length
+            if self.truncation_field == "answer":
+                if is_speech:
+                    for i in range(codec_codes.shape[0]):
+                        answer_ids[i] = answer_ids[i, : -min(truncation_length, len(answer_ids))]
+                else:
                     answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-                elif self.truncation_field == "context":
-                    context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+            elif self.truncation_field == "context":
+                # TODO: Not implemented for speech codes
+                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
-            if len(context_ids) > self.max_seq_length:
-                context_ids = context_ids[: self.max_seq_length]
+        if len(context_ids) > self.max_seq_length:
+            context_ids = context_ids[: self.max_seq_length]
 
-            assert len(context_ids) <= self.max_seq_length
-            input_ids = context_ids
+        assert len(context_ids) <= self.max_seq_length
+        # input_ids = context_ids
 
-            answer_start_idx = len(input_ids)
-            # Adds sep token between text/prompt and answer
-            if self.add_sep:
-                input_ids = input_ids + [self.sep_id]
-                answer_start_idx += 1
+        answer_start_idx = 0
+        # # Adds sep token between text/prompt and answer
+        # if self.add_sep:
+        #     input_ids = input_ids + [self.sep_id]
+        #     answer_start_idx += 1
 
-            input_ids = input_ids + answer_ids
+        input_ids = answer_ids
 
-            if self.add_bos:
+        if self.add_bos:
+            if is_speech:
+                pass
+            else:
                 input_ids = [self.tokenizer.bos_id] + input_ids
                 answer_start_idx += 1
-            if self.add_eos:
+        if self.add_eos:
+            if is_speech:
+                pass
+            else:
                 input_ids = input_ids + [self.tokenizer.eos_id]
 
-            if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
-                input_ids = input_ids[: self.max_seq_length]
+        if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
+            raise NotImplementedError("Does not work for speech :(")
+            input_ids = input_ids[: self.max_seq_length]
 
-            processed_example = {
-                'input_ids': input_ids,
-                'answer_start_idx': answer_start_idx,
-                'context_ids': context_ids,
-                'context_length': len(context_ids),
-            }
+        context_ids = torch.LongTensor(context_ids)
+        if not is_speech:
+            input_ids = torch.LongTensor(input_ids)
 
-            return processed_example
+        processed_example = {
+            'input_ids': input_ids,
+            'answer_start_idx': answer_start_idx,
+            'context_ids': context_ids,
+            'context_length': len(context_ids),
+        }
+
+        return processed_example
 
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
@@ -245,6 +305,15 @@ class GPTSFTSpeechDataset(Dataset):
 
         return loss_mask
 
+    def _build_loss_mask_2(self, input_id_length, answer_start_idx):
+        """ Pad input_ids in batch to max batch length while building loss mask """
+        if self.answer_only_loss:
+            loss_mask = [float(idx >= answer_start_idx) for idx in range(input_id_length)]
+        else:
+            loss_mask = [1.0] * input_id_length
+
+        return loss_mask
+
     @torch.no_grad()
     def _create_attention_mask(self, max_length):
         """Create `attention_mask`.
@@ -258,13 +327,15 @@ class GPTSFTSpeechDataset(Dataset):
         return attention_mask
 
     def collate_fn(self, batch):
-        input_ids = [item['input_ids'][:-1] for item in batch]
-        labels = [item['input_ids'][1:] for item in batch]
-        contexts = [item['context_ids'] for item in batch]
-        context_lengths = torch.LongTensor([item['context_length'] for item in batch])
-        loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
+        # TODO: input_ids could be 2D array if speech
+        (input_ids, answer_start_idx, context_ids, context_length) = zip(*batch)
+        input_lengths = []
+        max_length = -1
+        for input_id in input_ids:
+            length_i = input_id.shape[0] if input_id.dim() < 2 else input_id.shape[1]
+            input_lengths.append(length_i)
+        max_length = max(input_lengths) - 1
 
-        max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
@@ -272,25 +343,50 @@ class GPTSFTSpeechDataset(Dataset):
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
         assert max_length <= self.max_seq_length
 
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-        attention_mask = torch.stack(attention_mask)
-        position_ids = [list(range(max_length)) for _ in batch]
-        position_ids = torch.LongTensor(position_ids)
-        input_ids = torch.LongTensor(
-            self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
-        )
-        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
-        loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        (tokens, labels, loss_mask, contexts, context_lengths, speech_mask_list) = ([],[],[],[],[],[])
+
+        def pad_text_to_speech_dims(text_tensor, pad_id):
+            token_len = text_tensor.shape[0]
+            empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+            return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
+
+        for i in range(len(batch)):
+            # Should pad_id be eos_id?
+            input_id_padded = general_padding(input_ids[i], input_lengths[i], max_length, pad_value=self.tokenizer.pad_id)
+            if len(input_id_padded.shape) < 2:
+                input_id_padded = pad_text_to_speech_dims(pad_text_to_speech_dims, self.tokenizer.pad_id)
+            tokens.append(input_id_padded[:, :-1])
+            labels.append(input_id_padded[:, 1:])
+
+            context_id_padded = general_padding(context_ids[i], context_length[i], max_length, pad_value=self.tokenizer.pad_id)
+            # if len(context_id_padded.shape) < 2:
+            #     context_id_padded = torch.LongTensor(pad_text_to_speech_dims(pad_text_to_speech_dims, self.tokenizer.pad_id))
+            contexts.append(context_id_padded)
+
+            context_lengths.append(torch.LongTensor(context_length[i]))
+
+            loss_mask_i = torch.LongTensor(self._build_loss_mask_2(input_lengths[i]-1, answer_start_idx[i]))
+            loss_mask_i_padded = general_padding(loss_mask_i, input_lengths[i]-1, max_length, pad_value=0)
+            loss_mask.append(loss_mask_i_padded)
+
+            speech_mask = loss_mask_i_padded if len(input_id_padded.shape) >= 2 else torch.zeros(loss_mask_i_padded.shape)
+            speech_mask_list.append(speech_mask)
+
+        attention_mask = self._create_attention_mask(max_length)
+        attention_mask = attention_mask.repeat(len(batch))
+
+        position_ids = torch.LongTensor(list(range(max_length)))
+        position_ids = position_ids.repeat(len(batch))
 
         processed_batch = {
-            'tokens': input_ids,
-            'labels': labels,
+            'tokens': torch.stack(tokens),
+            'labels': torch.stack(labels),
             'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
+            'loss_mask': torch.stack(loss_mask),
             'position_ids': position_ids,
-            'contexts': contexts,  #@jasoli: Seems to only be used in predict_step
-            'context_lengths': context_lengths,
+            'contexts': torch.stack(contexts),  #@jasoli: Seems to only be used in predict_step
+            'context_lengths': torch.stack(context_lengths),
+            "speech_mask": torch.stack(speech_mask_list),
         }
 
         return processed_batch
