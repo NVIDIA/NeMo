@@ -102,7 +102,6 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
-        config: ModelParallelConfig,
         in_features: int,
         out_features: int,
         dim: int,
