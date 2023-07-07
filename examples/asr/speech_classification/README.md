@@ -35,8 +35,8 @@ python frame_vad_infer.py \
 
 The manifest json file should have the following format (each line is a Python dictionary):
 ```
-{"audio_filepath": "/path/to/audio_file1.wav", "offset": 0, "duration": 10000}  
-{"audio_filepath": "/path/to/audio_file2.wav", "offset": 0, "duration": 10000}  
+{"audio_filepath": "/path/to/audio_file1.wav", "offset": 0, "duration": 10000}
+{"audio_filepath": "/path/to/audio_file2.wav", "offset": 0, "duration": 10000}
 ```
 
 #### Evaluation
@@ -83,8 +83,8 @@ python vad_infer.py \
 ```
 The manifest json file should have the following format (each line is a Python dictionary):
 ```
-{"audio_filepath": "/path/to/audio_file1.wav", "offset": 0, "duration": 10000}  
-{"audio_filepath": "/path/to/audio_file2.wav", "offset": 0, "duration": 10000}  
+{"audio_filepath": "/path/to/audio_file1.wav", "offset": 0, "duration": 10000}
+{"audio_filepath": "/path/to/audio_file2.wav", "offset": 0, "duration": 10000}
 ```
 
 

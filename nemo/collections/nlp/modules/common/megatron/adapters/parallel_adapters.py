@@ -317,7 +317,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         return output_embeds
 
     def forward(self, batch_size: int, use_cached_reps: bool = False) -> torch.Tensor:
-        """ 
+        """
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:

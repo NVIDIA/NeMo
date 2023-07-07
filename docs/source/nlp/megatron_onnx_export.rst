@@ -11,7 +11,7 @@ Set up the development environment by launching the latest `NeMo container <http
 
 The minimum version requirements for NeMo and TransformerEngine are below
 
-.. code-block:: bash 
+.. code-block:: bash
 
     nemo > 1.19
     transformer_engine > 0.10
@@ -26,7 +26,7 @@ Export using .nemo file
 ^^^^^^^^^^^^^^^^^^^^^^^^
 A model with .nemo file extension can be exported using the command below
 
-.. code-block:: bash 
+.. code-block:: bash
 
     python3 examples/nlp/language_modeling/megatron_export.py \
         model_type=gpt \
@@ -37,7 +37,7 @@ Export using .ckpt file
 ^^^^^^^^^^^^^^^^^^^^^^^^
 A model with .ckpt file extension can be exported using the command below
 
-.. code-block:: bash 
+.. code-block:: bash
 
     python3 examples/nlp/language_modeling/megatron_export.py \
         model_type=gpt \

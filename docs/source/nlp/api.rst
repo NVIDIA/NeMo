@@ -144,7 +144,7 @@ Exportable Model Classes
 -------------------------
 
 .. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTExportableModel
-    :show-inheritance: 
+    :show-inheritance:
 
 .. toctree::
    :maxdepth: 1

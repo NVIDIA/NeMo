@@ -292,7 +292,7 @@ Transformer Engine already supports Flash Attention for GPT models. If you want 
 
 NLP inference UI
 ~~~~~~~~~~~~~~~~~~~~
-To launch the inference web UI server, please install the gradio `gradio <https://gradio.app/>`_. 
+To launch the inference web UI server, please install the gradio `gradio <https://gradio.app/>`_.
 
 .. code-block:: bash
 

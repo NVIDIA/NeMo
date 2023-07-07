@@ -24,8 +24,8 @@ python frame_vad_infer.py \
     dataset=<Path of manifest file containing evaluation data. Audio files should have unique names>
 
 The manifest json file should have the following format (each line is a Python dictionary):
-{"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000}  
-{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": 10000}  
+{"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000}
+{"audio_filepath": "/path/to/audio_file2", "offset": 0, "duration": 10000}
 
 If you want to evaluate tne model's AUROC and DER performance, you need to set `evaluate=True` in config yaml,
 and also provide groundtruth in either RTTM files or label strings:

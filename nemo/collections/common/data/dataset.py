@@ -297,7 +297,7 @@ class CodeSwitchedDataset(IterableDataset):
     Args:
         datasets (list): A list of datasets
         lang_probs (list): A list of probabilities (which must sum to 1) corresponding to the sampling probability for each dataset
-        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
+        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets.
             Defaults to True.
         min_duration (int): the minimum duration (secs) of each synthetic code-switched sample. Will draw randomly until this is hit.
             Defaults to 4
