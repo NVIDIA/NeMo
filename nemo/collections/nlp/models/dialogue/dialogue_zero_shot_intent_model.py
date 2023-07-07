@@ -192,7 +192,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             collate_fn=dataset.collate_fn,
         )
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, split = 'val'):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -218,7 +218,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         self.validation_step_outputs.append(loss)
         return loss
 
-    def on_validation_epoch_end(self):
+    def on_validation_epoch_end(self, split="val"):
         """
         Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
         """
