@@ -995,11 +995,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_iterator=iter([batch_for_pipeline,]),
             model=[self.enc_dec_model],
             forward_only=True,
-            tensor_shape=tensor_shape,
             num_microbatches=1,
+            seq_length=encoder_seq_length,
             decoder_seq_length=encoder_seq_length,
-            dtype=self.autocast_dtype,
-            enable_autocast=self.enable_autocast,
+            micro_batch_size=get_micro_batch_size(),
         )
 
         if output_tensor:
@@ -1159,11 +1158,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 data_iterator=iter([batch_for_pipeline,]),
                 model=[self.enc_dec_model],
                 forward_only=True,
-                tensor_shape=tensor_shape,
                 num_microbatches=1,
+                seq_length=encoder_seq_length,
                 decoder_seq_length=encoder_seq_length,
-                dtype=self.autocast_dtype,
-                enable_autocast=self.enable_autocast,
+                micro_batch_size=get_micro_batch_size(),
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
