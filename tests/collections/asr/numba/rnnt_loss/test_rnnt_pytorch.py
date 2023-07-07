@@ -33,9 +33,6 @@ DEVICES = ['cpu']
 if torch.cuda.is_available():
     DEVICES.append('cuda')
 
-# TODO> Remove
-numba_utils.set_numba_compat_strictness(strict=False)
-
 
 DTYPES = [np.float32]
 if numba_utils.is_numba_cuda_fp16_supported():

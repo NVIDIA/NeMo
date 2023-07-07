@@ -446,7 +446,6 @@ class RNNTLoss(Loss):
         # Force cast joint to float32
         if not self._force_float32 and numba_utils.NUMBA_FP16_SUPPORTED:
             # Execute the kernel in fp16
-            logging.info(f"RNNT Loss will be calculated in fp16 on Numba CUDA.", mode=logging_mode.ONCE)
             pass
         elif self._force_float32 and log_probs.dtype != torch.float32:
             # Log just once if fp16 tensor was passed and fp16 Numba CUDA loss could not be used.
