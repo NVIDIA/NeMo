@@ -329,15 +329,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
-            no_sync_func=no_sync_func,
-            grad_sync_func=grad_sync_func,
-            param_sync_func=param_sync_func,
-            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
-            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses

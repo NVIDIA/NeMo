@@ -331,10 +331,6 @@ class MegatronBertModel(MegatronBaseModel):
             forward_only=False,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
@@ -445,9 +441,6 @@ class MegatronBertModel(MegatronBaseModel):
             forward_only=True,
             seq_length=seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
