@@ -255,12 +255,16 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 print(adapter_name, pos_idx)
                 adapter_l = layer.get_adapter_module(adapter_name)
                 adapter_0 = layer0.get_adapter_module(adapter_name)
+                if hasattr(adapter_0, "layer_norm"):
+                    lnorm = adapter_0.layer_norm
+                else:
+                    lnorm = None
                 adapter_l.tie_weights(
                     pos_idx,
                     adapter_0.linear_in,
                     adapter_0.linear_out,
                     adapter_0.position_embeddings,
-                    adapter_0.layer_norm,
+                    lnorm,
                 )
                 pos_idx += 1
 
