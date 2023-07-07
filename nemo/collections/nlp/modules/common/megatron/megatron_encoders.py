@@ -199,7 +199,6 @@ def get_encoder_model(
             layer_number_offset=layer_number_offset,
             megatron_legacy=megatron_legacy,
             normalize_attention_scores=normalize_attention_scores,
-            sequence_parallel=sequence_parallel,
             turn_off_rop=turn_off_rop,
             version=version,
         )
