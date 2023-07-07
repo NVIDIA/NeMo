@@ -91,6 +91,110 @@ class _RNNTNumba(Function):
             return ctx.grads.mul_(grad_output), None, None, None, None, None, None, None
 
 
+class _TDTNumba(Function):
+    """
+    Numba class for Token-and-Duration Transducer (TDT) loss (https://arxiv.org/abs/2304.06795)
+    """
+
+    @staticmethod
+    def forward(
+        ctx,
+        label_acts,
+        duration_acts,
+        labels,
+        act_lens,
+        label_lens,
+        blank,
+        durations,
+        reduction,
+        fastemit_lambda,
+        clamp,
+        sigma,
+        omega,
+    ):
+        """
+        log_probs: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
+        labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
+        act_lens: Tensor of size (batch) containing size of each output sequence from the network
+        label_lens: Tensor of (batch) containing label length of each example
+        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
+            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+        durations: list of durations for TDT model, must include 0 and 1, e.g.
+            [0, 1, 2, 3, 4].
+        sigma: hyper-parameter for logit under-normalization method for training
+            TDT models. Recommended value 0.05.
+        omega: probability for sampling the standard RNN-T loss.
+        Refer to https://arxiv.org/abs/2304.06795 for detailed explanations for
+            the above parameters;
+        """
+        is_cuda = label_acts.is_cuda
+
+        certify_inputs(label_acts, labels, act_lens, label_lens)
+        if clamp < 0:
+            raise ValueError("`clamp` must be 0.0 or positive float value.")
+
+        if is_cuda:
+            loss_func = rnnt.tdt_loss_gpu
+        else:
+            raise ValueError("TDT is not yet implemented for non CUDA computation.")
+
+        label_grads = torch.zeros_like(label_acts) if label_acts.requires_grad else None
+        duration_grads = torch.zeros_like(duration_acts) if duration_acts.requires_grad else None
+        minibatch_size = label_acts.size(0)
+        costs = torch.zeros(minibatch_size, device=label_acts.device, dtype=label_acts.dtype)
+
+        loss_func(
+            label_acts,
+            duration_acts,
+            labels=labels,
+            input_lengths=act_lens,
+            label_lengths=label_lens,
+            costs=costs,
+            label_grads=label_grads,
+            duration_grads=duration_grads,
+            blank_label=blank,
+            durations=durations,
+            fastemit_lambda=fastemit_lambda,
+            clamp=clamp,
+            sigma=sigma,
+            omega=omega,
+            num_threads=0,
+        )
+
+        if reduction in ['sum', 'mean']:
+            costs = costs.sum().unsqueeze_(-1)
+            if reduction == 'mean':
+                costs /= minibatch_size
+
+                if label_grads is not None:
+                    label_grads /= minibatch_size
+                    duration_grads /= minibatch_size
+
+        ctx.label_grads = label_grads
+        ctx.duration_grads = duration_grads
+
+        return costs
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        if grad_output is not None and ctx.label_grads is not None:
+            grad_output = grad_output.view(-1, 1, 1, 1).to(ctx.label_grads)
+            return (
+                ctx.label_grads.mul_(grad_output),
+                ctx.duration_grads.mul_(grad_output),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+
+
 class _MultiblankRNNTNumba(Function):
     """
     Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
