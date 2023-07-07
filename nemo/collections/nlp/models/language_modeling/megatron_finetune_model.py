@@ -314,10 +314,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
             decoder_seq_length=dec_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses

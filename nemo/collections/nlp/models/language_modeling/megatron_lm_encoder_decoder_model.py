@@ -332,9 +332,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             seq_length=self.max_encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
             decoder_seq_length=self.max_decoder_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
