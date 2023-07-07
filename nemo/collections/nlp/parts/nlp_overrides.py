@@ -168,6 +168,7 @@ class NLPDDPStrategy(DDPStrategy):
                     pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                     virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                     pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                    use_fp8=app_state.use_fp8,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
@@ -179,6 +180,10 @@ class NLPDDPStrategy(DDPStrategy):
                 app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
                 app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+
+                # create MPI process group for UCX-based communication APIs
+                if app_state.init_mpi_proc_group:
+                    torch.distributed.new_group(backend='mpi')
 
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
@@ -404,14 +409,20 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
 
     Args:
         peft_model_nemo_path: Used to provide the .nemo file corresponding to a PEFT model (which will only contain a small set of params)
-        peft_model_ckpt_path: Used to provide the path to .ckpt files of a PEFt model. This is required when no .nemo is available (yet) such as during resumed training.
-    If both are provided the peft_model_ckpt_path takes precedence. 
+        peft_model_ckpt_path: Used to provide the path to .ckpt files of a PEFT model. This is required when no .nemo is available (yet) such as during resumed training.
+        peft_model_ckpt_name: The filename of the ckpt file inside the peft_model_ckpt_path folder
+    If both are provided the peft_model_ckpt_path takes precedence.
     If neither are provided, PEFT params are initialized at random (not loaded from any external source).
     """
 
-    def __init__(self, peft_model_nemo_path: Optional[str] = None, peft_model_ckpt_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        peft_model_nemo_path: Optional[str] = None,
+        peft_model_ckpt_path: Optional[str] = None,
+        peft_model_ckpt_name: Optional[str] = "model_weights.ckpt",
+    ) -> None:
         super().__init__()
-        self.peft_model_ckpt_name = "model_weights.ckpt"
+        self.peft_model_ckpt_name = peft_model_ckpt_name
         if peft_model_ckpt_path:
             # First we will try to load a adapter ckpt path
             # this is given priority over loading from nemo path to make resumption of training possible

@@ -71,8 +71,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Setup RNNT Loss
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
+        num_classes = self.joint.num_classes_with_blank - 1  # for standard RNNT and multi-blank
+
+        if loss_name == 'tdt':
+            num_classes = num_classes - self.joint.num_extra_outputs
+
         self.loss = RNNTLoss(
-            num_classes=self.joint.num_classes_with_blank - 1,
+            num_classes=num_classes,
             loss_name=loss_name,
             loss_kwargs=loss_kwargs,
             reduction=self.cfg.get("rnnt_reduction", "mean_batch"),
@@ -470,7 +475,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             return dataset
 
         shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
         if hasattr(dataset, 'collate_fn'):
@@ -518,7 +523,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
