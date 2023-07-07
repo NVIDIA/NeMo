@@ -82,6 +82,7 @@ class BertLMHead(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         mpu_vocab_size,
         hidden_size,
         init_method,
@@ -89,15 +90,14 @@ class BertLMHead(MegatronModule):
         parallel_output,
         use_openai_gelu,
         onnx_safe,
-        sequence_parallel=False,
     ):
 
-        super(BertLMHead, self).__init__()
+        super(BertLMHead, self).__init__(config=config)
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
         set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
         self.parallel_output = parallel_output
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
 
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
         self.layernorm = get_layer_norm(hidden_size, eps=layernorm_epsilon)
@@ -191,7 +191,6 @@ class BertModel(MegatronModule):
         position_embedding_type='learned_absolute',
     ):
         super(BertModel, self).__init__(config=config)
-        # args = get_args()
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head
         self.parallel_output = parallel_output
@@ -234,7 +233,6 @@ class BertModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
-            sequence_parallel=sequence_parallel,
             position_embedding_type=position_embedding_type,
         )
 
@@ -244,6 +242,7 @@ class BertModel(MegatronModule):
 
         if self.post_process:
             self.lm_head = BertLMHead(
+                config,
                 self.word_embeddings_weight().size(0),
                 hidden_size,
                 init_method,
@@ -251,7 +250,6 @@ class BertModel(MegatronModule):
                 parallel_output,
                 openai_gelu,
                 onnx_safe,
-                sequence_parallel,
             )
             self._lm_head_key = 'lm_head'
             self.binary_head = None
