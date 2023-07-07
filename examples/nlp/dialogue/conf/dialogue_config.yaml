@@ -159,7 +159,7 @@ model:
 
   validation_ds:
     prefix: test
-    ds_item: ["dev"]
+    ds_item: "dev" # Use a list for more than 1 item and just string otherwise as it can get misinterpreted as multiple dataloader
     batch_size: 8
     shuffle: false
     num_workers: 3
@@ -168,7 +168,7 @@ model:
 
   test_ds:
     prefix: test
-    ds_item: ["test"]
+    ds_item: "test" # Use a list for more than 1 item and just string otherwise as it can get misinterpreted as multiple dataloader 
     batch_size: 8
     shuffle: false
     num_workers: 3
