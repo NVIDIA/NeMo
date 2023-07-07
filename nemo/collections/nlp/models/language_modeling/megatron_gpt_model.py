@@ -22,7 +22,6 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -53,7 +52,6 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
@@ -85,6 +83,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import transformer_engine
+    from transformer_engine.pytorch import module as te_module
 
     HAVE_TE = True
 
@@ -282,6 +281,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_end_step *= grad_accum_steps
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
+        self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
@@ -357,6 +357,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
             reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
+            ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
         )
@@ -509,16 +510,42 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return loss_mean
 
+    def initialize_ub_func(self):
+        input_shape = [
+            self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
+            self.cfg.get('hidden_size'),
+        ]
+        ub_cfg_file_name = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        ub_cfgs = None
+        if ub_cfg_file_name is not None:
+            try:
+                import yaml
+
+                with open(ub_cfg_file_name, 'r') as ub_cfg_file:
+                    ub_cfgs = yaml.safe_load(ub_cfg_file)
+            except (ImportError, TypeError):
+                logging.error(f"Fail to read ub_tp_comm_overlap config file: {ub_cfg_file_name}.")
+        te_module.initialize_ub(
+            shape=input_shape,
+            tp_size=self.cfg.get('tensor_model_parallel_size'),
+            use_fp8=self.cfg.get('fp8'),
+            ub_cfgs=ub_cfgs,
+        )
+        self.initialize_ub = False
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
             in the micro-batch fwd function.
         """
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
+
         if self.rampup_batch_size:
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
-            logging.info(current_global_batch_size)
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
                 self.trainer.should_stop = True
@@ -845,6 +872,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
+
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.eval()
@@ -1002,6 +1033,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
+            optimizer = self.cfg.optim.get('name', None)
+            assert (
+                optimizer == 'fused_adam'
+            ), f'{optimizer} optimizer is not supported yet with rampup batch size. Please, use fused_adam optimizer instead.'
+
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples

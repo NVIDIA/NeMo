@@ -5,10 +5,8 @@ fasttext
 flask_restful
 ftfy
 gdown
-gradio>=3.28.3
 h5py
 ijson
-inflect
 jieba
 markdown2
 matplotlib>=3.3.2
