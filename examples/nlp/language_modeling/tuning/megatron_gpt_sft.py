@@ -55,6 +55,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         )
         gpt_cfg.data = cfg.model.data
         # Check dataset max_seq_legnth and max_position_embeddings size
+        max_seq_length = max(cfg.model.data.train_ds.max_seq_length, cfg.model.data.validation_ds.max_seq_length)
         if (
             gpt_cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
             and max_seq_length > gpt_cfg.max_position_embeddings
