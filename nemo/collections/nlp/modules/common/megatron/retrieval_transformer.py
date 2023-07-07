@@ -85,7 +85,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
-        sequence_parallel=False,
         normalize_attention_scores=True,
         megatron_legacy=False,
         turn_off_rop=False,
@@ -149,7 +148,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             model_type=parent_model_type,
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
-            sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
             megatron_legacy=megatron_legacy,
         )
@@ -368,7 +366,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
-        sequence_parallel=False,
         normalize_attention_scores=True,
         megatron_legacy=False,
         turn_off_rop=False,
@@ -431,7 +428,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             model_type=parent_model_type,
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
-            sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
             megatron_legacy=megatron_legacy,
         )
