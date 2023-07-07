@@ -260,11 +260,7 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 else:
                     lnorm = None
                 adapter_l.tie_weights(
-                    pos_idx,
-                    adapter_0.linear_in,
-                    adapter_0.linear_out,
-                    adapter_0.position_embeddings,
-                    lnorm,
+                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, adapter_0.position_embeddings, lnorm,
                 )
                 pos_idx += 1
 
