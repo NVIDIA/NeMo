@@ -30,8 +30,8 @@
 import math
 from typing import Optional, Tuple
 
-import torch
 import numba
+import torch
 from numba import cuda
 
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
