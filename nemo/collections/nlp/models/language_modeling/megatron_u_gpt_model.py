@@ -42,50 +42,79 @@ class MegatronUGPTModel(MegatronGPTModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        self._add_special_tokens_to_tokenizer()
+        self.add_special_tokens_to_tokenizer()
         self._resize_model_embeddings()
         self._maybe_resize_output_layer()
 
-    def _add_special_tokens_to_tokenizer(self):
+    @classmethod
+    def _add_special_tokens_to_tokenizer(cls, tokenizer, tokenizer_cfg: DictConfig):
+        """
+        Utility method to add special tokens for UL2 to the tokenizer.
+
+        Args:
+            tokenizer:
+            tokenizer_cfg:
+
+        Returns:
+            A tokenizer with special tokens added.
+        """
         MegatronT5Model.add_special_tokens_to_tokenizer(
-            tokenizer=self.tokenizer,
-            tokenizer_cfg=self.cfg.tokenizer,
+            tokenizer=tokenizer,
+            tokenizer_cfg=tokenizer_cfg,
             dataset_type="ul2",
-            add_sentinel_tokens_in_reverse_order=self._cfg.tokenizer.get(
+            add_sentinel_tokens_in_reverse_order=tokenizer_cfg.get(
                 "add_sentinel_tokens_in_reverse_order", False
             ),
-            add_sentinel_tokens_first=self._cfg.tokenizer.get("add_sentinel_tokens_first", False),
+            add_sentinel_tokens_first=tokenizer_cfg.get("add_sentinel_tokens_first", False),
             add_base_tokens=True,
         )
         # NOTE: This should only happen for the GPT2 tokenizer.
-        if self.tokenizer.pad_id is None:
-            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        self.sentinel_tokens = self._get_sentinel_token_ids()
+        if tokenizer.pad_id is None:
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
-    def _get_sentinel_token_ids(self):
-        """Returns all the sentinel token ids in a list.
+        return tokenizer
+
+    def add_special_tokens_to_tokenizer(self):
+        self.tokenizer = self._add_special_tokens_to_tokenizer(self.tokenizer, self.cfg.tokenizer)
+        self.sentinel_tokens = self.get_sentinel_token_ids()
+
+
+    @classmethod
+    def _get_sentinal_token_ids(cls, tokenizer, tokenizer_cfg: DictConfig):
+        """
+        Utility function to calculate the sentinal token ids.
+
+        Returns all the sentinel token ids in a list.
         Sentinel tokens include tokenizer.additional_special_token_ids and IDs already present in the tokenizer like <extra_id_0>, ... ,<extra_id_999>
         Sentinel tokens also exclude UL2 tokens if they are present in the tokenizer.
         """
         sentinel_tokens = set()
         # The additional_special_token_ids already exclude bos, eos, pad etc.
-        for token_id in self.tokenizer.additional_special_tokens_ids:
+        for token_id in tokenizer.additional_special_tokens_ids:
             # Exclude UL2 tokens.
-            if self.tokenizer.ids_to_tokens([token_id])[0] in ['<extra_id_r>', '<extra_id_s>', '<extra_id_x>']:
+            if tokenizer.ids_to_tokens([token_id])[0] in ['<extra_id_r>', '<extra_id_s>', '<extra_id_x>']:
                 continue
             else:
                 sentinel_tokens.add(token_id)
 
         # Try and add <extra_id_xx> tokens that may already be in the tokenizer vocab.
-        for i in range(self.cfg.tokenizer.get('num_sentinel_tokens', 0)):
+        for i in range(tokenizer_cfg.get('num_sentinel_tokens', 0)):
             token = f"<extra_id_{i}>"
-            token_ids = self.tokenizer.tokens_to_ids(token)
+            token_ids = tokenizer.tokens_to_ids(token)
             if isinstance(token_ids, list) and len(token_ids) > 1:
                 continue
             token_id = token_ids if isinstance(token_ids, int) else token_ids[0]
             if token_id not in sentinel_tokens:
                 sentinel_tokens.add(token_id)
         return sorted(list(sentinel_tokens))
+
+    def get_sentinel_token_ids(self):
+        """Returns all the sentinel token ids in a list.
+        Sentinel tokens include tokenizer.additional_special_token_ids and IDs already present in the tokenizer like <extra_id_0>, ... ,<extra_id_999>
+        Sentinel tokens also exclude UL2 tokens if they are present in the tokenizer.
+        """
+        sentinal_tokens = self._get_sentinal_token_ids(self.tokenizer, self.cfg.tokenizer)
+        return sentinal_tokens
 
     def expand_module_embedding_dim(self, weight, num_tokens_added: int, new_size: list):
         if 'ul2_token_expansion_init' not in self.cfg:
