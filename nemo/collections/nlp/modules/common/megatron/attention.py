@@ -76,6 +76,8 @@ except (ImportError, ModuleNotFoundError):
     flash_attn_unpadded_func, flash_attn_func = None, None
     unpad_input, pad_input = None, None
 
+from ocean.nn.flash_attention import flash_attention
+
 """ We use the following notation throughout this file:
      h: hidden size
      n: number of attention heads
@@ -1006,17 +1008,23 @@ class CoreAttention(MegatronModule):
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-        
+            
+        q_len, kv_len = None, None
         if attention_mask is not None:
             if len(attention_mask.shape) == 4:
                 # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
                 attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
                 attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
+                q_len = attention_mask.sum(-1)
+                kv_len = attention_mask.sum(-1)
             else:
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 assert len(attention_mask.shape) == 2
                 attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
                 attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
+                
+            q_len = ~attention_mask_q.sum(2).squeeze() * -1
+            kv_len = ~attention_mask_kv.sum(3).squeeze() * -1
 
             if attention_bias.shape[2] == attention_mask_q.shape[2]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
@@ -1024,7 +1032,22 @@ class CoreAttention(MegatronModule):
                 attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-        context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
+        # context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
+        context_layer = flash_attention(
+            q=query_layer, 
+            k=key_layer, 
+            v=value_layer, 
+            q_len=q_len, 
+            kv_len=kv_len, 
+            softmax_scale=1.0,
+            causal=is_causal, 
+            bias=attention_bias,
+            bias_type='matrix',
+            dropout=self.attention_dropout_p,
+            seed=42,
+            layout='bsnd',
+            use_atomic_add=False,
+        )
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
