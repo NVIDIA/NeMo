@@ -132,6 +132,7 @@ class MegatronBaseModel(NLPModel):
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size'),
             use_fp8=cfg.get('fp8', False),
+            use_sharp=cfg.get('sharp', False),
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
