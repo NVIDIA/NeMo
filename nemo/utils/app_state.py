@@ -55,6 +55,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_group = None
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
+        self._use_sharp = False
         self._init_mpi_proc_gruop = False
 
         self._random_seed = None
@@ -363,6 +364,22 @@ class AppState(metaclass=Singleton):
                 use_fp8:  Use of FP8.
         """
         self._use_fp8 = use_fp8
+
+    @property
+    def use_sharp(self):
+        """ Property returns the use of sharp.
+            Returns:
+                Use of sharp.
+        """
+        return self._use_sharp
+
+    @use_sharp.setter
+    def use_sharp(self, use_sharp):
+        """ Property sets the use of sharp.
+            Args:
+                use_sharp:  Use of sharp.
+        """
+        self._use_sharp = use_sharp
 
     @property
     def init_mpi_proc_group(self):
