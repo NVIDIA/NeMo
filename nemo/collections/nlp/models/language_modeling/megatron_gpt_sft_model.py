@@ -361,19 +361,19 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         batch = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.pop('metadata')
-
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
+
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
         if self.get_inference_config() is None:
             self.set_inference_config(inference_config={})
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
-
         output = self.predict_step(batch, batch_idx, dataloader_idx)
+
         bos = 1 if data_cfg.add_bos else 0
         sep = 1 if data_cfg.add_sep else 0
         eos = 1 if data_cfg.add_eos else 0
@@ -604,19 +604,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return pred, label
 
     # Override the parent batch reconfiguring logic.
-    def _reconfigure_and_process_inference_batch(self, batch):
-        global_batch_per_gpu = batch['tokens'].size(0)
-        # This should happen only on the last batch of the validation/test dataset with drop_last=False.
-        if global_batch_per_gpu != self.cfg.data.validation_ds.global_batch_size:
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_per_gpu,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        return batch
+    def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=data_cfg.global_batch_size,
+            micro_batch_size=data_cfg.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
 
     def build_train_valid_test_datasets(self, stage):
         if stage != 'test':
