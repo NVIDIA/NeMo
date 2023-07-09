@@ -122,7 +122,12 @@ class TextClassificationModel(NLPModel, Exportable):
 
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        return {'f{split}_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        loss = {f'{split}_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        if split == 'val':
+            self.validation_step_outputs.append(loss)
+        elif split == 'test':
+            self.test_step_outputs.append(loss)
+        return loss
 
     def on_validation_epoch_end(self, split="val"):
         """
@@ -133,7 +138,7 @@ class TextClassificationModel(NLPModel, Exportable):
             avg_loss = torch.stack([x[f'val_loss'] for x in self.validation_step_outputs]).mean()
             self.validation_step_outputs.clear() #free memory
         elif split == 'test':
-            avg_loss = torch.stack([x[f'val_loss'] for x in self.test_step_outputs]).mean()
+            avg_loss = torch.stack([x[f'test_loss'] for x in self.test_step_outputs]).mean()
             self.test_step_outputs.clear() #free memory
 
         # calculate metrics and classification report
@@ -153,9 +158,7 @@ class TextClassificationModel(NLPModel, Exportable):
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        loss = self.validation_step(batch, batch_idx, 'test')
-        self.test_step_outputs.append(loss)
-        return loss
+        return self.validation_step(batch, batch_idx, 'test')
 
     def on_test_epoch_end(self):
         """
