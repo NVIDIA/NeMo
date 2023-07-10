@@ -238,9 +238,6 @@ class GPTSFTDataset(Dataset):
                 context = context + ' ' + query
             text = context + ' ' + label
             
-        import pdb
-        pdb.set_trace()
-
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
