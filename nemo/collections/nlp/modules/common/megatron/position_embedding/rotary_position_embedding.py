@@ -21,7 +21,21 @@ __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
 
 class RotaryEmbedding(nn.Module):
-    def __init__(self, dim, seq_len_interpolation_factor=None):
+    """
+    Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
+    """
+    def __init__(
+        self,
+        dim: int,
+        seq_len_interpolation_factor: int = None
+    ):
+        """
+        Args:
+
+            dim (int): rotary embedding dimension
+            seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
+            by this factor via the trick in https://arxiv.org/abs/2306.15595.
+        """
         super().__init__()
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
