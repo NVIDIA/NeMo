@@ -97,6 +97,7 @@ model:
     merge_file: null
     delimiter: null # only used for tabular tokenizer
     sentencepiece_legacy: True # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+    expand_tokens_dataset_type: "ul2"  # Expand tokenizer for certain dataset type. Can be ['ul2', null]
     num_sentinel_tokens: 2000
 
   # Mixed precision
