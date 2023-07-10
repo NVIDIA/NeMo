@@ -1011,6 +1011,10 @@ class CoreAttention(MegatronModule):
             
         q_len, kv_len = None, None
         if attention_mask is not None:
+            """
+            attention_mask: 0 is not masked; 1 is masked
+            attention_mask_q/kv: 1 is not masked; 0 is masked
+            """
             if len(attention_mask.shape) == 4:
                 # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
                 attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
@@ -1020,19 +1024,19 @@ class CoreAttention(MegatronModule):
             else:
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 assert len(attention_mask.shape) == 2
-                attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
-                attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
+                attention_mask_q = (~attention_mask).unsqueeze(1).unsqueeze(3)
+                attention_mask_kv = (~attention_mask).unsqueeze(1).unsqueeze(2)
                 
-            q_len = ~attention_mask_q.sum(2).squeeze() * -1
-            kv_len = ~attention_mask_kv.sum(3).squeeze() * -1
+            q_len = attention_mask_q.sum(2).squeeze().detach()
+            kv_len = attention_mask_kv.sum(3).squeeze().detach()
 
             if attention_bias.shape[2] == attention_mask_q.shape[2]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
             if attention_bias.shape[3] == attention_mask_kv.shape[3]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
-
+        
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-        # context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
+#         context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
         context_layer = flash_attention(
             q=query_layer, 
             k=key_layer, 
@@ -1041,18 +1045,22 @@ class CoreAttention(MegatronModule):
             kv_len=kv_len, 
             softmax_scale=1.0,
             causal=is_causal, 
-            bias=attention_bias,
-            bias_type='matrix',
+            bias=None,
+            bias_type=None,
             dropout=self.attention_dropout_p,
             seed=42,
             layout='bsnd',
             use_atomic_add=False,
         )
+        
+        import pdb
+        pdb.set_trace()
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
 
         if attention_mask is not None:
             context_layer = context_layer * attention_mask_q
+            
 
         return context_layer
