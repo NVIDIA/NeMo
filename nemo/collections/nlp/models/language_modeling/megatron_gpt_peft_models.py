@@ -541,7 +541,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 adapter_0 = layer0.self_attention.get_adapter_module(adapter_name)
                 position_embeddings_0 = None
                 if adapter_0.position_embedding_strategy:
-                    position_embeddings_0 = adapter_0.position_embeddings 
+                    position_embeddings_0 = adapter_0.position_embeddings
                 adapter_l.tie_weights(
                     pos_idx, adapter_0.linear_in, adapter_0.linear_out, position_embeddings_0,
                 )
