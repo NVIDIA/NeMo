@@ -267,6 +267,40 @@ def noise_like(shape, device, repeat=False):
     noise = lambda: torch.randn(shape, device=device)
     return repeat_noise() if repeat else noise()
 
+def log_prob_isotropic_gaussian(sample):
+    dtype = sample.dtype
+    device = sample.device
+    # assumes dim 0 is the batch dimension
+    D = torch.numel(sample) / sample.shape[0]  # Get the total number of elements in the tensor per instance
+    const_term = D * torch.log(torch.ones(1, dtype=dtype, device=device) * 2 * torch.pi)
+    squared_norm = torch.sum(sample**2, dim=tuple(range(1, sample.dim())))  # (x-0)ᵀI⁻¹(x-0) = xᵀx
+    return -0.5 * (const_term + squared_norm)
+
+def log_prob_gaussian(sample, mean=None, cov_diag=None):
+    # Assume sample, mean, and cov_diag are all 1D tensors of the same length (D)
+    D = torch.numel(sample) / sample.shape[0]  # Get the total number of elements in the tensor per instance
+    dtype = sample.dtype  # Get the data type of the sample tensor
+    device = sample.device  # Get the device of the sample tensor
+    non_batch_dims=tuple(range(1, sample.dim()))
+
+    if mean is None and cov_diag is None:
+        return log_prob_isotropic_gaussian(sample)
+    elif mean is None:
+        mean = torch.zeros_like(sample)
+    elif cov_diag is None:
+        cov_diag = torch.ones_like(sample)
+
+    # Calculate the constant term
+    const_term = D * torch.log(2 * torch.pi * torch.ones(1, dtype=dtype, device=device))
+    
+    # Calculate the log determinant of the covariance matrix
+    log_det_cov = torch.sum(torch.log(cov_diag), dim=non_batch_dims)
+
+    # Calculate the Mahalanobis distance (x-μ)ᵀΣ⁻¹(x-μ)
+    diff = sample - mean
+    mahalanobis_dist = torch.sum((diff**2) / cov_diag, dim=non_batch_dims)
+
+    return -0.5 * (const_term + log_det_cov + mahalanobis_dist)
 
 def interpolate_fn(x, xp, yp):
     """

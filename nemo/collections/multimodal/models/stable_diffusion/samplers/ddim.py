@@ -25,7 +25,7 @@ from nemo.collections.multimodal.parts.utils import randn_like
 
 class DDIMSampler(AbstractBaseSampler):
     def __init__(self, model, schedule="linear", **kwargs):
-        super().__init__(model, sampler=Sampler.DDIM, schedule="linear", **kwargs)
+        super().__init__(model, sampler=Sampler.DDIM, schedule="linear", supports_logprobs=True, **kwargs)
 
     @torch.no_grad()
     def p_sampling_fn(
@@ -45,15 +45,50 @@ class DDIMSampler(AbstractBaseSampler):
         unconditional_conditioning=None,
         old_eps=None,
         t_next=None,
+        return_logprobs=False,
     ):
         b, *_, device = *x.shape, x.device
         e_t = self._get_model_output(
             x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
         )
-        x_prev, pred_x0 = self._get_x_prev_and_pred_x0(
-            use_original_steps, b, index, device, x, e_t, quantize_denoised, repeat_noise, temperature, noise_dropout
+        # x_prev, pred_x0 = self._get_x_prev_and_pred_x0(
+        outs = self._get_x_prev_and_pred_x0(
+            use_original_steps, b, index, device, x, e_t, quantize_denoised, repeat_noise, temperature, noise_dropout, return_logprobs=return_logprobs,
         )
-        return x_prev, pred_x0
+        # return x_prev, pred_x0
+        # outs contains x_prev, pred_x0, and possibly log_probs (if return log_probs was set)
+        return outs
+    
+    def scoring_fn(
+        self,
+        x,
+        x_prev,
+        c,
+        index,
+        unconditional_guidance_scale=1.0,
+        unconditional_conditioning=None,
+        score_corrector=None,
+        corrector_kwargs=None,
+        use_original_steps=False,
+        quantize_denoised=False,
+        temperature=1.0,
+    ):
+        """
+        Scores a given set of images under the model. Ensure you wrap this with torch.no_grad when appropriate.
+        This isn't done by default since it can be used for training.
+        """
+        timesteps = self.ddim_timesteps
+        total_steps = timesteps.shape[0]
+
+        print(f"Scoring using {self.sampler.name} with {total_steps} timesteps")
+
+        b, *_, device = *x.shape, x.device
+        time_range = torch.tensor(timesteps, device=device)
+        cpu_idx = index.clone().cpu().numpy()
+        e_t = self._get_model_output(
+            x, time_range[cpu_idx], unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
+        )
+        return self._get_step_logprob(use_original_steps, b, cpu_idx, device, x, x_prev, e_t, quantize_denoised, temperature)
 
     @torch.no_grad()
     def stochastic_encode(self, x0, t, use_original_steps=False, noise=None):
