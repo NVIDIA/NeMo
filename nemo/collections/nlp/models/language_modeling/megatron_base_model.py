@@ -732,15 +732,14 @@ class MegatronBaseModel(NLPModel):
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
             "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
-            "bf16": cfg.get('precision', 'fp32') == 'bf16' and cfg.get('megatron_amp_O2', False),
+            "bf16": precision == 'bf16' and megatron_amp_O2,
             "params_dtype": params_dtype,
             "timers": None,  # NeMo dues not currently support megatron core timers
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
-            "grad_scale_func": self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            "enable_autocast": not self.cfg.get('megatron_amp_O2', False)
-            and self.cfg.get('precision', 'fp32') in [16, '16', 'bf16'],
+            "grad_scale_func": self.trainer.precision_plugin.scaler.scale if precision in [16, '16'] else None,
+            "enable_autocast": not megatron_amp_O2 and precision in [16, '16', 'bf16'],
             "autocast_dtype": autocast_dtype,
             "variable_seq_lengths": False,  # set dynamically during training
             "num_microbatches_with_partial_activation_checkpoints": self.cfg.get(
