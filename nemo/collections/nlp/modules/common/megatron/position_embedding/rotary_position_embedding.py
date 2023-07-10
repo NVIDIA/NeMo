@@ -24,11 +24,8 @@ class RotaryEmbedding(nn.Module):
     """
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
-    def __init__(
-        self,
-        dim: int,
-        seq_len_interpolation_factor: int = None
-    ):
+
+    def __init__(self, dim: int, seq_len_interpolation_factor: int = None):
         """
         Args:
 
