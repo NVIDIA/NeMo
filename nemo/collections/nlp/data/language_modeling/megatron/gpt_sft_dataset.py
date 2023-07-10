@@ -147,13 +147,15 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         label = example[self.label_key]
         query = example[self.query_key] if self.query_key is not None else ""
-        
+
         if self.prompt_template is not None:
             context_string = f'{{{self.context_key}}}'
             label_string = f'{{{self.label_key}}}'
-            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}' 
-            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}' 
-            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(label_string), f'{{self.label_key}} must be at the end of prompt_template.'
+            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
+            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
+            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
+                label_string
+            ), f'{{self.label_key}} must be at the end of prompt_template.'
             original_context = context
             context = self.prompt_template.replace(context_string, context).replace(label_string, '').strip(' ')
             text = self.prompt_template.replace(context_string, original_context).replace(label_string, label)
@@ -162,7 +164,7 @@ class GPTSFTDataset(Dataset):
                 assert query_string in self.prompt_template
                 context = context.replace(query_string, query)
                 text = text.replace(query_string, query)
-                
+
         elif self.separate_prompt_and_response_with_newline:
             if self.query_key is not None:
                 context = context + '\n' + query
@@ -216,10 +218,12 @@ class GPTSFTDataset(Dataset):
         if self.prompt_template is not None:
             context_string = f'{{{self.context_key}}}'
             label_string = f'{{{self.label_key}}}'
-            
-            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}' 
-            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}' 
-            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(label_string), f'{{self.label_key}} must be at the end of prompt_template.'
+
+            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
+            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
+            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
+                label_string
+            ), f'{{self.label_key}} must be at the end of prompt_template.'
             original_context = context
             context = self.prompt_template.replace(context_string, context).replace(label_string, '').strip(' ')
             text = self.prompt_template.replace(context_string, original_context).replace(label_string, label)
@@ -228,7 +232,7 @@ class GPTSFTDataset(Dataset):
                 assert query_string in self.prompt_template
                 context = context.replace(query_string, query)
                 text = text.replace(query_string, query)
-                
+
         elif self.separate_prompt_and_response_with_newline:
             if self.query_key is not None:
                 context = context + '\n' + query
@@ -237,7 +241,7 @@ class GPTSFTDataset(Dataset):
             if self.query_key is not None:
                 context = context + ' ' + query
             text = context + ' ' + label
-            
+
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
