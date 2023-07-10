@@ -1010,6 +1010,8 @@ class CoreAttention(MegatronModule):
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
             
         q_len, kv_len = None, None
+        import pdb
+        pdb.set_trace()
         if attention_mask is not None:
             """
             attention_mask: 0 is not masked; 1 is masked
@@ -1037,6 +1039,10 @@ class CoreAttention(MegatronModule):
         
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
 #         context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
+
+        import pdb
+        pdb.set_trace()
+
         context_layer = flash_attention(
             q=query_layer, 
             k=key_layer, 
@@ -1045,16 +1051,13 @@ class CoreAttention(MegatronModule):
             kv_len=kv_len, 
             softmax_scale=1.0,
             causal=is_causal, 
-            bias=None,
-            bias_type=None,
+            bias=attention_bias,
+            bias_type='matrix',
             dropout=self.attention_dropout_p,
             seed=42,
             layout='bsnd',
             use_atomic_add=False,
         )
-        
-        import pdb
-        pdb.set_trace()
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
