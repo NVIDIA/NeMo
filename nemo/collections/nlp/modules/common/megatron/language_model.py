@@ -748,7 +748,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
-
+            print(f"getting embeddings on {parallel_state.get_data_parallel_rank()}")
             encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
             if self.is_adapter_available():
                 _sq, _bs, _hs = encoder_input.size()

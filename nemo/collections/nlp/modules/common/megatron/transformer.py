@@ -490,6 +490,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
     ):
+        #print(f"transformer layer input {hidden_states} shape {hidden_states.shape}")
         # Self attention.
         if rotary_pos_emb is not None:
             # self attention pos_emb is (q, q)
@@ -507,9 +508,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
 
             residual = hidden_states
+            print(f"hidden states before{hidden_states} shape {hidden_states.shape}")
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
+            print(f"hidden states after{hidden_states} shape {hidden_states.shape}")
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -522,6 +525,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
             )
+            #print(f"hidden in {hidden_states} attention output {attention_output}")
 
             if get_key_value:
                 attention_output, presents = attention_output
@@ -642,7 +646,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         if get_key_value:
             output = [output, presents]
-
         return output
 
 
@@ -1268,16 +1271,20 @@ class ParallelTransformer(MegatronModule):
                 else:
                     num_layers = num_layers // num_ranks_in_decoder
             elif self.model_type == ModelType.encoder_or_decoder:
-                assert (
-                    num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
-                ), 'num_layers must be divisible by pipeline_model_parallel_size'
                 if self.standalone_embedding_stage:
+                    assert (
+                    num_layers % (parallel_state.get_pipeline_model_parallel_world_size() - 1) == 0
+                ), 'num_layers must be divisible by pipeline_model_parallel_size'
+
                     if parallel_state.get_pipeline_model_parallel_rank() == 0:
                         num_layers = 0
                     else:
                         # If we have standalone_embedding_stage then PP size is actually - 1
                         num_layers = num_layers // (parallel_state.get_pipeline_model_parallel_world_size() - 1)
                 else:
+                    assert (
+                        num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+                    ), 'num_layers must be divisible by pipeline_model_parallel_size'
                     num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
         return num_layers
 
