@@ -64,10 +64,11 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 
-        if 'use_flash_attention' in cfg.model:
+        if cfg.model.get('use_flash_attention', None) is not None:
             gpt_cfg.use_flash_attention = cfg.model.use_flash_attention
 
-        gpt_cfg.seq_len_interpolation_factor = cfg.model.get('seq_len_interpolation_factor', None)
+        if cfg.model.get('seq_len_interpolation_factor', None) is not None:
+            gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
 
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
