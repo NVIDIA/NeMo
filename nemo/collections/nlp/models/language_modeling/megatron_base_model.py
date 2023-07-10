@@ -218,7 +218,7 @@ class MegatronBaseModel(NLPModel):
 
             MegatronT5Model.add_special_tokens_to_tokenizer(
                 tokenizer=tokenizer,
-                tokenizer_cfg=tokenizer_cfg.tokenizer,
+                tokenizer_cfg=tokenizer_cfg,
                 dataset_type=dataset_type,
                 add_sentinel_tokens_in_reverse_order=tokenizer_cfg.get("add_sentinel_tokens_in_reverse_order", False),
                 add_sentinel_tokens_first=tokenizer_cfg.get("add_sentinel_tokens_first", False),
