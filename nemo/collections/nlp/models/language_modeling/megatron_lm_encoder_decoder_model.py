@@ -1429,3 +1429,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def list_available_models(self):
         pass
+
+    def build_model_parallel_config(self):
+        """ Hidden size needs to be set from the cfg.encoder for the pipeline schedule.
+        """
+
+        model_parallel_config = super().build_model_parallel_config()
+        setattr(model_parallel_config, 'hidden_size', self.cfg.encoder.hidden_size)
+        return model_parallel_config
