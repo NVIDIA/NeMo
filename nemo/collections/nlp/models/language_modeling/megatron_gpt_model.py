@@ -250,17 +250,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(
-                        module=module,
-                        precision=cfg.precision,
-                        share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True)
-                    ))
+                    converted_model.append(
+                        Float16Module(
+                            module=module,
+                            precision=cfg.precision,
+                            share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
+                        )
+                    )
                 self.model = converted_model
             else:
                 self.model = Float16Module(
                     module=self.model,
                     precision=cfg.precision,
-                    share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True)
+                    share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
                 )
 
         if self.trainer.precision == 'bf16':
@@ -367,7 +369,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_emha=self.cfg.get('use_emha', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
-            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None)
+            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
         )
 
         return model
