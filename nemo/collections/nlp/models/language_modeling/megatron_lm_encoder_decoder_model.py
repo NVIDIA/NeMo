@@ -1417,5 +1417,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
 
         model_parallel_config = super().build_model_parallel_config()
-        setattr(model_parallel_config, 'hidden_size', self.cfg.encoder.hidden_size)
+        try:
+            # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
+            setattr(model_parallel_config, 'hidden_size', self.cfg.encoder.hidden_size)
+        except AttributeError:
+            logging.warning(
+                f'encoder.hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.'
+            )
         return model_parallel_config
