@@ -64,6 +64,14 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 
+        if 'use_flash_attention' in cfg.model:
+            gpt_cfg.use_flash_attention = cfg.model.use_flash_attention
+
+        gpt_cfg.seq_len_interpolation_factor = cfg.model.get('seq_len_interpolation_factor', None)
+
+        sft_cls = MegatronGPTSFTModel
+        gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
+
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
