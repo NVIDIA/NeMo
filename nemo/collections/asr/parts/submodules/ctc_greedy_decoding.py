@@ -258,5 +258,10 @@ class GreedyCTCInferConfig:
     def __post_init__(self):
         if self.confidence_method_cfg != "DEPRECATED":
             logging.warning(
-                "`confidence_method_cfg` is deprecated and will be ignored. Please use `confidence_measure_cfg` instead."
+                "`confidence_method_cfg` is deprecated and will be removed in the future. "
+                "Please use `confidence_measure_cfg` instead."
             )
+
+            # TODO (alaptev): delete the following two lines sometime in the future
+            logging.warning("Re-writing `confidence_measure_cfg` with the value of `confidence_method_cfg`.")
+            self.confidence_measure_cfg = self.confidence_method_cfg
