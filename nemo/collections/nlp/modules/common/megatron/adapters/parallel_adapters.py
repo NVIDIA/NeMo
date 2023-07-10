@@ -388,7 +388,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             gather_output,
             dropout,
         )
-        self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
+        if self.position_embedding_strategy:
+            self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
         self.register_buffer("position_id", torch.LongTensor([1]), persistent=False)
 
     def set_position(self, position_id):
@@ -445,7 +446,7 @@ class ParallelLinearAdapterWeightTyingConfig:
     dropout: float = 0.0
     num_position_embeddings: int = 1
     dim_position_embeddings: int = 1024
-    position_embedding_strategy: Optional[str] = "add"
+    position_embedding_strategy: Optional[str] = "concat"
     _target_: str = "{0}.{1}".format(
         ParallelLinearAdapterWeightTying.__module__, ParallelLinearAdapterWeightTying.__name__
     )

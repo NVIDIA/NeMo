@@ -493,6 +493,12 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         else:
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
+        position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
+        dim_position_embeddings = 0
+        if position_embedding_strategy == "add":
+            dim_position_embeddings = cfg.hidden_size
+        elif position_embedding_strategy == "concat":
+            dim_position_embeddings = cfg.adapter_dim
 
         adapter_cfg = LoraKQVAdapterWeightTyingConfig(
             in_features=cfg.hidden_size,
@@ -506,8 +512,8 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
             gather_output=False,
             dropout=lora_cfg.adapter_dropout,
             num_position_embeddings=cfg.num_layers,
-            dim_position_embeddings=lora_cfg.adapter_dim,
-            position_embedding_strategy=lora_cfg.get("position_embedding_strategy", None),
+            dim_position_embeddings=dim_position_embeddings,
+            position_embedding_strategy=position_embedding_strategy,
         )
 
         self.name_key_to_cfg = {}
@@ -533,8 +539,10 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 print(adapter_name, pos_idx)
                 adapter_l = layer.self_attention.get_adapter_module(adapter_name)
                 adapter_0 = layer0.self_attention.get_adapter_module(adapter_name)
+                position_embeddings_0 = None
+                if adapter_0.position_embedding_strategy:
+                    position_embeddings_0 = adapter_0.position_embeddings 
                 adapter_l.tie_weights(
-                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, adapter_0.position_embeddings,
+                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, position_embeddings_0,
                 )
                 pos_idx += 1
-        print("ok")
