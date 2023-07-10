@@ -192,12 +192,18 @@ class MegatronBaseModel(NLPModel):
 
         # Expand tokenizer with special tokens *prior to embedding construction*
         if self.cfg.tokenizer.get("expand_tokens_dataset_type", None) is not None:
-            self._expand_tokenizer(self.cfg.tokenizer.get("expand_tokens_dataset_type", None))
+            expand_tokens_dataset_type = self.cfg.tokenizer.get("expand_tokens_dataset_type", None)
+            self.tokenizer = self._expand_tokenizer(
+                self.tokenizer, tokenizer_cfg=self.cfg.tokenizer, dataset_type=expand_tokens_dataset_type
+            )
 
-    def _expand_tokenizer(self, dataset_type: str):
+    @classmethod
+    def _expand_tokenizer(cls, tokenizer, tokenizer_cfg: DictConfig, dataset_type: str):
         """
 
         Args:
+            tokenizer:
+            tokenizer_cfg:
             dataset_type:
 
         Returns:
@@ -211,22 +217,23 @@ class MegatronBaseModel(NLPModel):
             from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 
             MegatronT5Model.add_special_tokens_to_tokenizer(
-                tokenizer=self.tokenizer,
-                tokenizer_cfg=self.cfg.tokenizer,
+                tokenizer=tokenizer,
+                tokenizer_cfg=tokenizer_cfg.tokenizer,
                 dataset_type=dataset_type,
-                add_sentinel_tokens_in_reverse_order=self.cfg.tokenizer.get(
-                    "add_sentinel_tokens_in_reverse_order", False
-                ),
-                add_sentinel_tokens_first=self.cfg.tokenizer.get("add_sentinel_tokens_first", False),
+                add_sentinel_tokens_in_reverse_order=tokenizer_cfg.get("add_sentinel_tokens_in_reverse_order", False),
+                add_sentinel_tokens_first=tokenizer_cfg.get("add_sentinel_tokens_first", False),
                 add_base_tokens=True,
             )
             # NOTE: This should only happen for the GPT2 tokenizer.
-            if self.tokenizer.pad_id is None:
-                self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            if tokenizer.pad_id is None:
+                tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
         else:
-            logging.warning(f"Unknown dataset type `{dataset_type}`. No special tokens will be added to the tokenizer!")
+            logging.warning(
+                f"Unknown dataset type `{dataset_type}`. No special tokens will be added to the tokenizer!"
+            )
 
+        return tokenizer
 
     def on_train_start(self) -> None:
         super().on_train_start()
