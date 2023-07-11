@@ -535,7 +535,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             return generate(self, **inference_config)
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
-        with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
+        output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
+        with open(output_file_path, "w") as f_json:
             assert (
                 len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
             )
@@ -545,6 +546,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     if k not in json_string:
                         json_string[k] = v
                 f_json.write(json.dumps(json_string) + '\n')
+
+        logging.info(f'Predictions saved to {output_file_path}')
 
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
         if metric_name == 'exact_string_match' or 'rouge' in metric_name:
