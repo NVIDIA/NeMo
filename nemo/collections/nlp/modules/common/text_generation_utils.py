@@ -599,9 +599,7 @@ def generate(
                         byte_decoder = lambda c: c
                         if hasattr(tokenizer, 'tokenizer') and hasattr(tokenizer.tokenizer, 'byte_decoder'):
                             byte_decoder = lambda c: tokenizer.tokenizer.byte_decoder[c]
-                        word = bytearray([byte_decoder(c) for c in word]).decode(
-                            'utf-8', errors='replace'
-                        )
+                        word = bytearray([byte_decoder(c) for c in word]).decode('utf-8', errors='replace')
                     words.append(word)
                 resp_sentences_seg.append(words)
             else:
