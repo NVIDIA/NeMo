@@ -140,7 +140,7 @@ class MegatronGenerate(Resource):
                 return "repetition_penalty must be a positive number no less than 1.0"
             if not (1.0 <= repetition_penalty):
                 return "repetition_penalty must be a positive number no less than 1.0"
-        
+
         end_strings = ['<|endoftext|>']
         if 'end_strings' in request.get_json():
             end_strings = request.get_json()['end_strings']
@@ -191,7 +191,7 @@ class MegatronGenerate(Resource):
                 greedy,
                 repetition_penalty,
                 end_strings=end_strings,
-                min_tokens_to_generate,
+                min_tokens_to_generate=min_tokens_to_generate,
                 **extra,
             )
             for k in output:
