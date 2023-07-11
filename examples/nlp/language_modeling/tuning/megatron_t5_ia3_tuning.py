@@ -79,7 +79,7 @@ def main(cfg) -> None:
             )
             # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
             plugin_precision = '16-mixed'
-        elif cfg.trainer.precision[0:4] == 'bf16':
+        else:
             plugin_precision = 'bf16-mixed'
 
         if megatron_amp_o2 and not with_distributed_adam:
