@@ -359,5 +359,5 @@ class GPTSFTDataset(Dataset):
             'context_lengths': context_lengths,
             'metadata': metadata,
         }
-        
+
         return processed_batch

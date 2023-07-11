@@ -386,7 +386,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             for t, l in zip(batch['contexts'], batch['context_lengths'])
         ]
         labels_text = [
-            self.tokenizer.ids_to_text(t[l.item() : ].tolist())
+            self.tokenizer.ids_to_text(t[l.item() :].tolist())
             for t, l in zip(batch['tokens'], batch['context_lengths'])
         ]
         preds_text = [
