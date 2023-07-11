@@ -1010,8 +1010,6 @@ class CoreAttention(MegatronModule):
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
             
         q_len, kv_len = None, None
-        import pdb
-        pdb.set_trace()
         if attention_mask is not None:
             """
             attention_mask: 0 is not masked; 1 is masked
@@ -1032,17 +1030,21 @@ class CoreAttention(MegatronModule):
             q_len = attention_mask_q.sum(2).squeeze().detach()
             kv_len = attention_mask_kv.sum(3).squeeze().detach()
 
-            if attention_bias.shape[2] == attention_mask_q.shape[2]:
-                attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
-            if attention_bias.shape[3] == attention_mask_kv.shape[3]:
-                attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
         
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-#         context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
-
-        import pdb
-        pdb.set_trace()
-
+        
+        if self.position_embedding_type == 'alibi':
+            if is_causal:
+                bias_type = 'vector'
+                assert len(attention_bias.size()) == 4
+            else:
+                bias_type = 'alibi'
+                attention_bias = attention_bias.squeeze()
+                assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales'
+        else:
+            bias_type = 'matrix'
+            assert len(attention_bias.size()) == 4
+        
         context_layer = flash_attention(
             q=query_layer, 
             k=key_layer, 
@@ -1052,7 +1054,7 @@ class CoreAttention(MegatronModule):
             softmax_scale=1.0,
             causal=is_causal, 
             bias=attention_bias,
-            bias_type='matrix',
+            bias_type=bias_type,
             dropout=self.attention_dropout_p,
             seed=42,
             layout='bsnd',
