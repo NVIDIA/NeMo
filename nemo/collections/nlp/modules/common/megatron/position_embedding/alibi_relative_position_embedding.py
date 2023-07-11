@@ -90,7 +90,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
             max_seq_len: Maximum sequence length for precomputed relative positions. Larger sizes will result in more memory usage by computing alibi mask on-the-fly.
         """
         super().__init__()
-
+        print("-----> ALiBiRelativePositionEmbedding")
         if (num_attention_heads_alibi is None) or (num_attention_heads_alibi <= 0):
             num_attention_heads_alibi = num_attention_heads
 
