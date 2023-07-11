@@ -489,8 +489,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
-    ):
-        #print(f"transformer layer input {hidden_states} shape {hidden_states.shape}")
+    ):  
         # Self attention.
         if rotary_pos_emb is not None:
             # self attention pos_emb is (q, q)
@@ -508,11 +507,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
 
             residual = hidden_states
-            print(f"hidden states before{hidden_states} shape {hidden_states.shape}")
+            #print(f"hidden states before{hidden_states} shape {hidden_states.shape}")
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
-            print(f"hidden states after{hidden_states} shape {hidden_states.shape}")
+            #print(f"hidden states after{hidden_states} shape {hidden_states.shape}")
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -1208,7 +1207,10 @@ class ParallelTransformer(MegatronModule):
                     num_ranks_in_enc = parallel_state.get_pipeline_model_parallel_split_rank()
                     offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
             else:
-                offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+                if self.standalone_embedding_stage:
+                    offset = (parallel_state.get_pipeline_model_parallel_rank() - 1) * self.num_layers
+                else:
+                    offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         if self.num_layers == 0:
             # When a standalone embedding stage is used (e.g.,
