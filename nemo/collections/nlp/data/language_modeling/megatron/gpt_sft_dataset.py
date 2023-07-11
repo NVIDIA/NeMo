@@ -341,5 +341,5 @@ class GPTSFTDataset(Dataset):
             'answers': answers,
             'metadata': metadata,
         }
-        
+
         return processed_batch
