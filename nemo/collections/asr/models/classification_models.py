@@ -583,7 +583,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
             'val_total_counts': total_counts,
             'val_acc': acc,
         }
-        if type(self.trainer.val_dataloaders) == list:
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             self.validation_step_outputs[dataloader_idx].append(loss)
         else:
             self.validation_step_outputs.append(loss)
@@ -601,7 +601,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
             'test_total_counts': total_counts,
             'test_acc': acc,
         }
-        if type(self.trainer.test_dataloaders) == list:
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
             self.test_step_outputs[dataloader_idx].append(loss)
         else:
             self.test_step_outputs.append(loss)
