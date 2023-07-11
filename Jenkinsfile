@@ -2237,7 +2237,10 @@ pipeline {
               trainer.devices=[1] \
               trainer.accelerator="gpu" \
               trainer.precision=16 \
-              +trainer.fast_dev_run=true \
+              +trainer.fast_dev_run=false \
+              +trainer.max_epochs=1 \
+              +trainer.limit_val_batches=0 \
+              +trainer.limit_train_batches=1 \
               model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
               model.train_ds.batch_size=8 \
               model.language_model.lm_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
