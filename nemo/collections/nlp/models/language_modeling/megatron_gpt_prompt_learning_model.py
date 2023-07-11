@@ -120,6 +120,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
+            # set hidden size in the model parallel config for pipeline parallel schedules
+            setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
+
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
         elif int(self.trainer.precision) == 32:
