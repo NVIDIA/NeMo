@@ -203,10 +203,10 @@ class TimingCallback(Callback):
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         self._on_batch_end("validation_step_timing", pl_module)
 
-    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
         self._on_batch_start("test_step_timing")
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         self._on_batch_end("test_step_timing", pl_module)
 
     def on_before_backward(self, trainer, pl_module, loss):
