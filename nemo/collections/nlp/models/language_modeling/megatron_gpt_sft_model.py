@@ -386,7 +386,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             for t, l in zip(batch['contexts'], batch['context_lengths'])
         ]
         labels_text = [
-            self.tokenizer.ids_to_text(t[l.item() : -eos].tolist())
+            self.tokenizer.ids_to_text(t[l.item() : ].tolist())
             for t, l in zip(batch['tokens'], batch['context_lengths'])
         ]
         preds_text = [
@@ -546,7 +546,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             )
             for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
                 json_string = {'input': i, 'pred': p, 'label': l}
-                json_string.update(m)
+                for k, v in m.items():
+                    if k not in json_string:
+                        json_string[k] = v
                 f_json.write(json.dumps(json_string) + '\n')
 
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):

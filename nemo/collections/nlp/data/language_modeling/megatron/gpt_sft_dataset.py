@@ -183,10 +183,8 @@ class GPTSFTDataset(Dataset):
             + max(len(answer_ids), self.tokens_to_generate)
             + self.add_bos
             + self.add_sep
+            + self.add_eos
         )
-        # Only training need to consider eos token
-        if self.tokens_to_generate == 0:
-            total_ids += self.add_eos
 
         return total_ids
 
@@ -269,7 +267,7 @@ class GPTSFTDataset(Dataset):
             answer_start_idx += 1
 
         # Only training need to consider eos token
-        if self.add_eos and self.tokens_to_generate == 0:
+        if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
         assert len(input_ids) <= self.max_seq_length
@@ -361,5 +359,5 @@ class GPTSFTDataset(Dataset):
             'context_lengths': context_lengths,
             'metadata': metadata,
         }
-
+        
         return processed_batch
