@@ -454,7 +454,8 @@ class RNNTLoss(Loss):
                 logging.warning(
                     f"Provided RNNT Joint tensor is of dtype {log_probs.dtype}, but RNNT loss could not be calculated "
                     f"in fp16 due to following reason stated below. Loss will be calculated in fp32. \n\n"
-                    f"{reason}"
+                    f"{reason}",
+                    mode=logging_mode.ONCE,
                 )
                 self._fp16_compat_checked = True
 

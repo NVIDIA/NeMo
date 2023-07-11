@@ -17,6 +17,8 @@ import logging as pylogger
 import operator
 import os
 
+from typing import Tuple, Union
+
 from nemo.utils import model_utils
 
 # Prevent Numba CUDA logs from showing at info level
@@ -153,7 +155,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
         return False
 
 
-def is_numba_cuda_fp16_supported(return_reason: bool = False) -> (bool, str):
+def is_numba_cuda_fp16_supported(return_reason: bool = False) -> Union[bool, Tuple[bool, str]]:
     """
     Utility method that returns a bool, stating if FP16 is supported for numba cuda kernels or not.
 
