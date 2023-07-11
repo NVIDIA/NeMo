@@ -595,8 +595,11 @@ def generate(
                     word = tokenizer.ids_to_tokens(token)
                     if isinstance(word, Iterable):
                         word = word[0]
-                    if hasattr(tokenizer.tokenizer, 'byte_decoder'):
-                        word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
+                    if isinstance(word, bytes):
+                        byte_decoder = lambda c: c
+                        if hasattr(tokenizer, 'tokenizer') and hasattr(tokenizer.tokenizer, 'byte_decoder'):
+                            byte_decoder = lambda c: tokenizer.tokenizer.byte_decoder[c]
+                        word = bytearray([byte_decoder(c) for c in word]).decode(
                             'utf-8', errors='replace'
                         )
                     words.append(word)
