@@ -60,6 +60,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from tests.collections.nlp.test_retrieval_module import model_parallel_config
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -254,12 +255,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                        Float16Module(
+                            config=self.model_parallel_config,
+                            module=module,
+                            precision=cfg.precision,
+                            share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
+                        )
                     )
                 self.model = converted_model
             else:
                 self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                    config=self.model_parallel_config,
+                    module=self.model,
+                    precision=cfg.precision,
+                    share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
                 )
 
         if self.trainer.precision == 'bf16':
@@ -366,6 +375,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
         )
         return model
 
@@ -983,7 +993,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
                     global_batch_size=self.cfg.global_batch_size,
-                    rampup_batch_size=self.cfg.rampup_batch_size,
+                    rampup_batch_size=self.cfg.get('rampup_batch_size', None),
                     pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
                 )
             elif self.cfg.data.dataloader_type == 'cyclic':
