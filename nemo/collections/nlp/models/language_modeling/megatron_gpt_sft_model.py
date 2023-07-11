@@ -93,9 +93,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             base_module = self.model
 
-        self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
-        self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
-        self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
+        self._reset_activation_checkpointing_args()
+        self._reset_sequence_parallelism_args()
         self.virtual_tokens = 0
 
     def setup_metric(self, data_cfg):
@@ -671,8 +670,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return dataloaders
 
     def on_validation_epoch_start(self):
-        super()._reset_activation_checkpointing_args()
-        super()._reset_sequence_parallelism_args()
+        self._reset_activation_checkpointing_args()
+        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -684,8 +683,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return super().on_validation_epoch_start()
 
     def on_test_epoch_start(self):
-        super()._reset_activation_checkpointing_args()
-        super()._reset_sequence_parallelism_args()
+        self._reset_activation_checkpointing_args()
+        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -706,8 +705,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_inference_epoch_end(self, ds):
         app_state = AppState()
-        super()._restore_activation_checkpointing_args()
-        super()._restore_sequence_parallelism_args()
+        self._restore_activation_checkpointing_args()
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
