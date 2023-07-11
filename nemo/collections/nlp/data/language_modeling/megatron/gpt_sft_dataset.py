@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import numpy as np
 import torch
-from typing import Optional
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
@@ -143,7 +144,7 @@ class GPTSFTDataset(Dataset):
             idx = len(self) + idx
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-    
+
     def _process_prompt(self, context, label, query):
         """
         Combine context, label, and query string into a unifed string.
@@ -172,19 +173,20 @@ class GPTSFTDataset(Dataset):
             if self.query_key is not None:
                 context = context + ' ' + query
             text = context + ' ' + label
-        
+
         context_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = self.tokenizer.text_to_ids(text)[len(context_ids):]
-        
+        answer_ids = self.tokenizer.text_to_ids(text)[len(context_ids) :]
+
         return context_ids, answer_ids
-    
+
     def _process_truncation(self, context, label, query):
         """
         Calculate total tokens and truncate context or label string.
         """
         origin_context, origin_label = context, label
         context_ids, answer_ids = self._process_prompt(context, label, query)
-        total_ids = (self.virtual_tokens
+        total_ids = (
+            self.virtual_tokens
             + len(context_ids)
             + max(len(answer_ids), self.tokens_to_generate)
             + self.add_bos
@@ -193,7 +195,7 @@ class GPTSFTDataset(Dataset):
         # Only training need to consider eos token
         if self.tokens_to_generate == 0:
             total_ids += self.add_eos
-            
+
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
             if self.truncation_field == "answer":
@@ -206,7 +208,7 @@ class GPTSFTDataset(Dataset):
                 assert len(context_ids) >= truncation_length, 'context is not long enough to truncate.'
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
                 context = self.tokenizer.ids_to_text(context_ids)
-        
+
         return context, label
 
     def _process_example(self, example):
@@ -218,7 +220,7 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         label = example[self.label_key]
         query = example[self.query_key] if self.query_key is not None else ""
-        
+
         context, label = self._process_truncation(context, label, query)
         context_ids, answer_ids = self._process_prompt(context, label, query)
 
@@ -229,13 +231,13 @@ class GPTSFTDataset(Dataset):
 
         input_ids = context_ids
         answer_start_idx = len(input_ids)
-        
+
         # Adds bos token in the start
         if self.add_bos:
             context_ids = [self.tokenizer.bos_id] + context_ids
             input_ids = [self.tokenizer.bos_id] + input_ids
             answer_start_idx += 1
-        
+
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             context_ids = context_ids + [self.sep_id]
@@ -247,7 +249,7 @@ class GPTSFTDataset(Dataset):
         # Only training need to consider eos token
         if self.add_eos and self.tokens_to_generate == 0:
             input_ids = input_ids + [self.tokenizer.eos_id]
-        
+
         assert len(input_ids) <= self.max_seq_length
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
