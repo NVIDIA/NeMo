@@ -615,7 +615,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, train=False)
         # Check for multiple dataloaders here as it may not get called in ModelPT when models are being restored
-        if type(self._test_dl) == list:
+        if type(self._test_dl) == list and len(self._test_dl) > 1:
             for _ in range(len(self._test_dl)):
                 self.test_step_outputs.append([])
 
