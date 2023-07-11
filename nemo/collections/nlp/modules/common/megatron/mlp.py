@@ -313,7 +313,6 @@ class SwitchMLP(MegatronModule):
             'normalization': normalization,
             'layernorm_epsilon': layernorm_epsilon,
             'persist_layer_norm': persist_layer_norm,
-            'sequence_parallel': sequence_parallel,
             'dropout': dropout,
         }
         self.experts = torch.nn.ModuleList([ParallelMLP(**mlp_args) for _ in range(num_experts)])
