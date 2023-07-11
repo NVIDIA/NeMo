@@ -150,12 +150,20 @@ class GPTSFTDataset(Dataset):
             assert f'{{{self.context_key}}}' in self.prompt_template
             assert f'{{{self.label_key}}}' in self.prompt_template
             # Make sure that '{output}' always occurs at the end of the prompt template string
-            assert self.prompt_template.index(f'{{{self.label_key}}}') == len(self.prompt_template) - len(f'{{{self.label_key}}}')
+            assert self.prompt_template.index(f'{{{self.label_key}}}') == len(self.prompt_template) - len(
+                f'{{{self.label_key}}}'
+            )
             # Get the context by replacing only the input
             original_context = context
-            context = self.prompt_template.replace(f'{{{self.context_key}}}', context).replace(f'{{{self.label_key}}}', '').strip(' ')
+            context = (
+                self.prompt_template.replace(f'{{{self.context_key}}}', context)
+                .replace(f'{{{self.label_key}}}', '')
+                .strip(' ')
+            )
             # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace(f'{{{self.context_key}}}', original_context).replace(f'{{{self.label_key}}}', output)
+            text = self.prompt_template.replace(f'{{{self.context_key}}}', original_context).replace(
+                f'{{{self.label_key}}}', output
+            )
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
             text = context + '\n' + output
