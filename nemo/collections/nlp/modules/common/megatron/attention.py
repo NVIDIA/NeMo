@@ -979,8 +979,8 @@ class CoreAttention(MegatronModule):
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
         else:
             assert len(attention_mask.shape) == 2
-            attention_mask_q = attention_mask
-            attention_mask_kv = attention_mask
+            attention_mask_q = ~attention_mask
+            attention_mask_kv = ~attention_mask
 
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
@@ -1056,7 +1056,7 @@ class CoreAttention(MegatronModule):
             bias=attention_bias,
             bias_type=bias_type,
             dropout=self.attention_dropout_p,
-            seed=42,
+            seed=torch.seed(),
             layout='bsnd',
             use_atomic_add=False,
         )

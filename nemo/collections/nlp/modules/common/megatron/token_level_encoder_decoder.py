@@ -181,6 +181,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     layer_type=LayerType.encoder,
                     num_attention_heads_alibi=None,
                     max_seq_len=max_position_embeddings,
+                    use_FA=self.encoder_cfg.get('use_flash_attention', False),
                 )
                 self._encoder_relative_position_embedding_key = "encoder_alibi_position_embedding"
             elif self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':
@@ -320,6 +321,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     layer_type=LayerType.decoder,
                     num_attention_heads_alibi=None,
                     max_seq_len=max_position_embeddings,
+                    use_FA=self.decoder_cfg.get('use_flash_attention', False),
                 )
                 self._decoder_relative_position_embedding_key = "decoder_alibi_position_embedding"
             elif self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'kerple':

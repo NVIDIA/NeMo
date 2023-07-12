@@ -79,7 +79,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512,
+        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512, use_FA=False
     ):
         """
         Args:
@@ -108,7 +108,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         self.num_attention_heads_alibi = num_attention_heads_alibi
         # Larger sizes will result in more memory usage by computing alibi mask on-the-fly.
         self.max_seq_len = max_seq_len
-
+        self.use_FA = use_FA
         # cache the slopes
         self.slopes = build_slopes(num_attention_heads, num_attention_heads_alibi)
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
@@ -119,7 +119,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
-        if self.bidirectional:
+        if self.bidirectional and self.use_FA:
             return self.slopes.unsqueeze(0)
         
         max_seq_len = max(query_seq_length, key_seq_length)
