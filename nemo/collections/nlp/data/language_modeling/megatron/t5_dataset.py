@@ -283,7 +283,7 @@ class T5Dataset(Dataset):
             skip_masking_id: An id that will not be masked. TODO: Add supported for a list of IDs.
         """
         assert target_seq_length <= max_seq_length
-        # import pdb; pdb.set_trace()
+
         # flatten sentences into one list
         tokens = [token for sentence in sample for token in sentence]
 
@@ -333,7 +333,7 @@ class T5Dataset(Dataset):
             max_seq_length=max_seq_length,
             max_seq_length_dec=max_seq_length_dec,
         )
-        # import pdb; pdb.set_trace()
+
         train_sample = {
             'text_enc': tokens_enc,
             'text_dec': tokens_dec_in,
@@ -389,7 +389,7 @@ class T5Dataset(Dataset):
         #        (len(t5_decoder_in) - (len(masked_spans) + 1)) == len(tokens)
 
         # Some checks.
-        # import pdb; pdb.set_trace()
+
         # Encoder-side padding mask.
         num_tokens = len(t5_input)
         padding_length = max_seq_length - num_tokens
@@ -404,11 +404,8 @@ class T5Dataset(Dataset):
         num_tokens_dec = len(t5_decoder_in)
         padding_length_dec = max_seq_length_dec - num_tokens_dec
         
-        # try:
         assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
-        # except AssertionError:
-            # import pdb; pdb.set_trace()
-            # print()
+
         filler_dec = [pad_id] * padding_length_dec
         tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 

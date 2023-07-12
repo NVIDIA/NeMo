@@ -278,7 +278,6 @@ def create_masked_lm_predictions(
 
     for cand_index_set in ngram_indexes:
         if _get_prediction_len() >= num_to_predict:
-            # import pdb; pdb.set_trace()
             break
         if not cand_index_set:
             continue
