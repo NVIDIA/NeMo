@@ -15,7 +15,7 @@
 import math
 import os
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -193,6 +193,8 @@ def save_confidence_hist(y_score: Union[List[float], np.ndarray], plot_dir: Unio
     os.makedirs(plot_dir, exist_ok=True)
     plt.hist(np.array(y_score), 50, range=(0, 1))
     plt.title(name)
+    plt.xlabel("Confidence score")
+    plt.ylabel("Count")
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()
 
@@ -247,6 +249,8 @@ def save_custom_confidence_curve(
     values: Union[List[float], np.ndarray],
     plot_dir: Union[str, Path],
     name: str = "my_awesome_curve",
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
 ):
     assert len(thresholds) == len(values)
     os.makedirs(plot_dir, exist_ok=True)
@@ -254,5 +258,9 @@ def save_custom_confidence_curve(
     plt.xlim([0, 1])
     plt.ylim([0, 1])
     plt.title(name)
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)
     plt.clf()

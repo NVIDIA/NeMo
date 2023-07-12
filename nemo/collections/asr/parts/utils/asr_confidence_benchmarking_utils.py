@@ -147,11 +147,20 @@ def run_confidence_benchmark(
             save_nt_curve(y_true, y_score, plot_dir, level + "_" + "nt")
             # AUC-YC curve
             yc_thresholds, yc_values = result_yc[-1]
-            save_custom_confidence_curve(yc_thresholds, yc_values, plot_dir, level + "_" + "yc")
+            save_custom_confidence_curve(
+                yc_thresholds,
+                yc_values,
+                plot_dir,
+                level + "_" + "yc",
+                "Threshold",
+                "True positive rate − False Positive Rate",
+            )
             # ECE curve
             ece_thresholds, ece_values = results_ece[-1]
             ece_values /= max(ece_values)
-            save_custom_confidence_curve(ece_thresholds, ece_values, plot_dir, level + "_" + "ece")
+            save_custom_confidence_curve(
+                ece_thresholds, ece_values, plot_dir, level + "_" + "ece", "Threshold", "|Accuracy − Confidence score|"
+            )
 
     return results
 
