@@ -15,7 +15,7 @@
 
 """Transformer."""
 from contextlib import nullcontext
-from typing import Any, Callable, Optional, Union, Tuple
+from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
