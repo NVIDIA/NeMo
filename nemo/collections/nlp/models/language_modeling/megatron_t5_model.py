@@ -196,11 +196,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                         tokenizer, tokenizer_cfg.num_sentinel_tokens, add_sentinel_tokens_in_reverse_order
                     )
 
-            # if tokenizer_cfg.get('num_sentinel_tokens', 0) > 0 and len(tokenizer.additional_special_tokens_ids) == 0:
-            #     for i in range(tokenizer_cfg.get('num_sentinel_tokens', 0)):
-            #         token = f'<extra_id_{i}>'
-            #         tokenizer.special_token_to_id[token] = tokenizer.text_to_ids(f'<extra_id_{i}>')[-1]
-
             if dataset_type in ["ul2", "ul2_colt5"]:
                 for mask_type in ['r', 's', 'x']:
                     if len(tokenizer.text_to_ids(f'▁<extra_id_{mask_type}>')) == 1:
