@@ -15,7 +15,7 @@
 
 """Transformer."""
 from contextlib import nullcontext
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union, Tuple
 
 import torch
 import torch.nn as nn
@@ -817,6 +817,8 @@ class AutocastTransformerLayer(TransformerLayer):
         ub_tp_comm_overlap: bool = False,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
+        bias: bool = True,
+        activation: str = 'gelu',
     ) -> None:
         super().__init__(
             hidden_size=hidden_size,
@@ -848,6 +850,8 @@ class AutocastTransformerLayer(TransformerLayer):
             fuse_qkv_params=True,
             zero_centered_gamma=zero_centered_gamma,
             ub_tp_comm_overlap=ub_tp_comm_overlap,
+            bias=bias,
+            activation=activation,
         )
         # use_emha=use_emha,
 
@@ -863,7 +867,16 @@ class AutocastTransformerLayer(TransformerLayer):
         inference_params: Optional[Any] = None,
         is_first_microbatch: Optional[bool] = None,
         checkpoint_core_attention: Optional[bool] = False,
+        rotary_pos_emb: Optional[Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]] = None,
+        core_attention_bias_type: str = "no_bias",
+        core_attention_bias: Optional[torch.Tensor] = None,
+        fast_zero_fill: bool = True,
     ) -> torch.Tensor:
+        if rotary_pos_emb is not None:
+            self_attention_pos_emb = (rotary_pos_emb[0], rotary_pos_emb[0])
+        else:
+            self_attention_pos_emb = None
+
         if self.dtype == torch.float32:
             return super().forward(
                 hidden_states,
@@ -873,6 +886,10 @@ class AutocastTransformerLayer(TransformerLayer):
                 inference_params=inference_params,
                 is_first_microbatch=is_first_microbatch,
                 checkpoint_core_attention=checkpoint_core_attention,
+                rotary_pos_emb=self_attention_pos_emb,
+                core_attention_bias_type=core_attention_bias_type,
+                core_attention_bias=core_attention_bias,
+                fast_zero_fill=fast_zero_fill,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -883,6 +900,10 @@ class AutocastTransformerLayer(TransformerLayer):
                 inference_params=inference_params,
                 is_first_microbatch=is_first_microbatch,
                 checkpoint_core_attention=checkpoint_core_attention,
+                rotary_pos_emb=self_attention_pos_emb,
+                core_attention_bias_type=core_attention_bias_type,
+                core_attention_bias=core_attention_bias,
+                fast_zero_fill=fast_zero_fill,
             )
 
 
@@ -1089,6 +1110,8 @@ class ParallelTransformer(MegatronModule):
                     use_emha=use_emha,
                     ub_tp_comm_overlap=ub_tp_comm_overlap,
                     zero_centered_gamma=normalization == 'layernorm1p',
+                    bias=bias,
+                    activation=activation,
                 )
             else:
                 return ParallelTransformerLayer(
@@ -1257,6 +1280,7 @@ class ParallelTransformer(MegatronModule):
                             inference_params=None,
                             is_first_microbatch=self.is_first_microbatch,
                             checkpoint_core_attention=False,
+                            rotary_pos_emb=rotary_pos_emb,
                         )
 
                     return hidden_states
@@ -1540,6 +1564,7 @@ class ParallelTransformer(MegatronModule):
                                 inference_params=self.inference_params,
                                 is_first_microbatch=self.is_first_microbatch,
                                 checkpoint_core_attention=checkpoint_core_attention,
+                                rotary_pos_emb=rotary_pos_emb,
                             )
                         else:
                             hidden_states = layer(
