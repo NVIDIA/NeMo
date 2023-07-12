@@ -881,7 +881,6 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-        print(context_layer[0, 0, :10, 0])
         
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
