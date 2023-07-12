@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
+from nemo.collections.nlp.modules.common.retro_inference_strategies import RetroQAModelNEIGHBORSREADYTextGenerationStrategy
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -509,7 +510,7 @@ def generate(
         inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == get_model_parallel_src_rank():
-        if isinstance(inputs, tuple):
+        if isinstance(inputs, tuple) and not isinstance(inference_strategy, RetroQAModelNEIGHBORSREADYTextGenerationStrategy):
             context_tokens_tensor, context_length_tensor = inputs
         else:
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(

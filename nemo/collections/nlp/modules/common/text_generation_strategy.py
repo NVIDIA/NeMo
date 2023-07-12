@@ -339,6 +339,7 @@ def model_inference_strategy_dispatcher(model, **args):
         RetroFileQAModelTextGenerationStrategy,
         RetroModelTextGenerationStrategy,
         RetroQAModelTextGenerationStrategy,
+        RetroQAModelNEIGHBORSREADYTextGenerationStrategy
     )
 
     if isinstance(model, MegatronGPTPromptLearningModel):
@@ -356,6 +357,8 @@ def model_inference_strategy_dispatcher(model, **args):
             return RetroQAModelTextGenerationStrategy(model, **args)
         elif strategy_name == 'RetroFileQAModelTextGenerationStrategy':
             return RetroFileQAModelTextGenerationStrategy(model, **args)
+        elif strategy_name == 'RetroQAModelNEIGHBORSREADYTextGenerationStrategy':
+            return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model, **args)
         else:
             raise ValueError(f'{strategy_name} is not supported for inference')
     else:

@@ -24,10 +24,16 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+)
+from functools import partial
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
     build_mock_train_valid_test_datasets,
     build_train_valid_test_datasets,
 )
+from nemo.collections.nlp.modules.common import VirtualPromptSource
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.mup.init import normal_
@@ -35,7 +41,9 @@ from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shap
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.retro_prompt_learning_dataset import RetroPromptLearningDataset
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     build_position_ids,
     get_params_for_weight_decay_optimization,
@@ -57,6 +65,12 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
+
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
+import os
+from omegaconf.omegaconf import OmegaConf, open_dict
+
 
 try:
     from megatron.core import parallel_state
@@ -80,76 +94,121 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
-        # TODO does not support PP yet
-        self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
+        if cfg.get('run_retrieval') is True:
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.get('restore_from_path')):
+                save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
 
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+            frozen_model_cfg = MegatronRetrievalModel.restore_from(
+                "/dataset/retro/checkpoints/megatron_retro.nemo", trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+            )
 
-        if self.megatron_amp_o2:
+            with open_dict(frozen_model_cfg):
+                # work around for the fused softmax bug
+                frozen_model_cfg.masked_softmax_fusion = False
+                frozen_model_cfg.precision = trainer.precision
 
-            if not self.with_distributed_adam:
-                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                self.model.cuda(torch.cuda.current_device())
+            with open_dict(frozen_model_cfg):
+                frozen_model_cfg.megatron_amp_O2 = False
+                frozen_model_cfg.optim.name = "fused_adam"
+                frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
+                # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+                frozen_model_cfg.precision = trainer.precision
+                frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+                frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+                    "activations_checkpoint_granularity", None
+                )
+                frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+                    "activations_checkpoint_num_layers", None
+                )
+                frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-            # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(module=self.model, precision=self.cfg.precision)
 
-        # self.setup_optimizer_param_groups()
-        if self.cfg.precision == 'bf16':
-            self.autocast_dtype = torch.bfloat16
-        elif int(self.cfg.precision) == 32:
-            self.autocast_dtype = torch.float
-        elif int(self.cfg.precision) == 16:
-            self.autocast_dtype = torch.half
+            if self._trainer.precision == 'bf16':
+                self.autocast_dtype = torch.bfloat16
+            elif int(self._trainer.precision) == 32:
+                self.autocast_dtype = torch.float
+            elif int(self._trainer.precision) == 16:
+                self.autocast_dtype = torch.half
+            else:
+                raise ValueError('precision must be in [32, 16, "bf16"]')
+
+            print("WE ARE HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1")
+            self.frozen_model = MegatronRetrievalModel.restore_from(
+                "/dataset/retro/checkpoints/megatron_retro.nemo",
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                override_config_path=frozen_model_cfg,
+            ).to(dtype=self.autocast_dtype)
+
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
-        self.model.model_type = ModelType.encoder_and_decoder
+                    
+            # TODO does not support PP yet
+            self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
 
-        self.enable_autocast = (
-            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
-        )
+            self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
-        if hasattr(self.cfg, "shape_file"):
-            set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
+            if self.megatron_amp_o2:
 
-            # here manually initialize all the named parameters with the muTranfer normal initializer
-            for name, tensor in self.named_parameters():
-                if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
-                    # initialize all the output dense matrix weight
-                    # match the megatron lm model
-                    std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
-                    normal_(tensor, 0, std)
-                elif name.endswith('layernorm.weight'):
-                    # initialize all the layer norm weight
-                    if tensor.std() != 0 and tensor.mean() != 1:
-                        raise ValueError(f'need to check {name} init')
-                    normal_(tensor, 1, 0)
-                elif name.endswith('.weight'):
-                    # initialize all the other dense matrix weight
-                    normal_(tensor, 0, self.cfg.init_method_std)
-                else:
-                    if tensor.std() != 0 and tensor.mean() != 0:
-                        raise ValueError(f'need to check {name} init')
+                if not self.with_distributed_adam:
+                    # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                    self.model.cuda(torch.cuda.current_device())
 
-            # here manually overwrite the norm factor
-            # note, has to turn off the model.apply_query_key_layer_scaling
-            assert not self.cfg.apply_query_key_layer_scaling
-            for name, layer in self.named_modules():
-                if (
-                    name.endswith('.self_attention')
-                    or name.endswith('.inter_attention')
-                    or name.endswith('.cross_attention')
-                    or name.endswith('.core_attention')
-                ):
-                    if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
-                        layer.norm_factor = (
-                            layer.hidden_size_per_attention_head / 8.0
-                        )  # divide 8 to make it consist with ADLR setting
-                else:
-                    if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
-                        logging.error(
-                            f'module {name} has norm factor but its name is not ending with attention, need to double check'
-                        )
+                # Model wrapper to convert both model and inputs to half precision
+                self.model = Float16Module(module=self.model, precision=self.cfg.precision)
+
+            # self.setup_optimizer_param_groups()
+            if self.cfg.precision == 'bf16':
+                self.autocast_dtype = torch.bfloat16
+            elif int(self.cfg.precision) == 32:
+                self.autocast_dtype = torch.float
+            elif int(self.cfg.precision) == 16:
+                self.autocast_dtype = torch.half
+            else:
+                raise ValueError('precision must be in [32, 16, "bf16"]')
+            self.model.model_type = ModelType.encoder_and_decoder
+
+            if hasattr(self.cfg, "shape_file"):
+                set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
+
+                # here manually initialize all the named parameters with the muTranfer normal initializer
+                for name, tensor in self.named_parameters():
+                    if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
+                        # initialize all the output dense matrix weight
+                        # match the megatron lm model
+                        std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
+                        normal_(tensor, 0, std)
+                    elif name.endswith('layernorm.weight'):
+                        # initialize all the layer norm weight
+                        if tensor.std() != 0 and tensor.mean() != 1:
+                            raise ValueError(f'need to check {name} init')
+                        normal_(tensor, 1, 0)
+                    elif name.endswith('.weight'):
+                        # initialize all the other dense matrix weight
+                        normal_(tensor, 0, self.cfg.init_method_std)
+                    else:
+                        if tensor.std() != 0 and tensor.mean() != 0:
+                            raise ValueError(f'need to check {name} init')
+
+                # here manually overwrite the norm factor
+                # note, has to turn off the model.apply_query_key_layer_scaling
+                assert not self.cfg.apply_query_key_layer_scaling
+                for name, layer in self.named_modules():
+                    if (
+                        name.endswith('.self_attention')
+                        or name.endswith('.inter_attention')
+                        or name.endswith('.cross_attention')
+                        or name.endswith('.core_attention')
+                    ):
+                        if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
+                            layer.norm_factor = (
+                                layer.hidden_size_per_attention_head / 8.0
+                            )  # divide 8 to make it consist with ADLR setting
+                    else:
+                        if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
+                            logging.error(
+                                f'module {name} has norm factor but its name is not ending with attention, need to double check'
+                            )
 
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(
@@ -222,6 +281,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         )
         return model
 
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+        self.input_tensor = input_tensor
+
     def forward(
         self,
         input_ids,
@@ -246,12 +315,14 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        input_tokens_id = batch['tokens']
-        input_attn_mask = batch['tokens_mask']
-        loss_mask = batch['loss_mask']
-        retrieved_ids = batch['retrieved_ids']
-        retrieved_attn_mask = batch['retrieved_emb_mask']
-        labels = batch['labels']
+        input_tokens_id, input_attn_mask, loss_mask, retrieved_ids, retrieved_attn_mask, labels = batch
+
+        # input_tokens_id = batch['tokens']
+        # input_attn_mask = batch['tokens_mask']
+        # loss_mask = batch['loss_mask']
+        # retrieved_ids = batch['retrieved_ids']
+        # retrieved_attn_mask = batch['retrieved_emb_mask']
+        # labels = batch['labels']
         if self.cfg.get('add_position_embedding', False):
             input_position_ids = build_position_ids(input_tokens_id)
         else:
@@ -272,7 +343,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log('loss_scale', loss_scale)
 
         if self.with_distributed_adam:
             # gradients are reduced internally in distributed optimizer
@@ -296,26 +367,64 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True, batch_size=1)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
             lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr, batch_size=1)
-            self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
+            self.log('lr', lr)
+            self.log('global_step', self.trainer.global_step, prog_bar=True)
             self.log(
                 'consumed_samples',
                 self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
                 prog_bar=True,
-                batch_size=1,
             )
             self._reduced_loss_buffer = []
         return lm_loss
 
+    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, batch, batch_idx)
+
+        # TODO: Replace with newer override for scheduler.step() instead of
+        # search for plugins for fp16 GradScalar
+        if self.trainer.precision_plugin is not None and isinstance(
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+        ):
+            precision_plugin = self.trainer.precision_plugin
+
+            if (
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
+            ):
+                grad_scaler = precision_plugin.scaler
+
+                # If the grad scaler skipped its optimizer step due to infs/nans,
+                # decrement the step of all schedulers.
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
+                    scheduler_cfgs = self.trainer.lr_scheduler_configs
+
+                    if not scheduler_cfgs or not self.trainer.lightning_module.automatic_optimization:
+                        return
+
+                    for scheduler_cfg in scheduler_cfgs:
+                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                        # as well as update the optimizer lr in all param groups
+                        scheduler_cfg.scheduler.last_epoch -= 2
+                        scheduler_cfg.scheduler.step()
+
+                    # Increase the max step count by 1
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None
+
     def validation_step(self, batch, batch_idx):
-        input_tokens_id = batch['tokens']
-        input_attn_mask = batch['tokens_mask']
-        loss_mask = batch['loss_mask']
-        retrieved_ids = batch['retrieved_ids']
-        retrieved_attn_mask = batch['retrieved_emb_mask']
-        labels = batch['labels']
+
+        input_tokens_id, input_attn_mask, loss_mask, retrieved_ids, retrieved_attn_mask, labels = batch
+        # input_tokens_id = batch['tokens']
+        # input_attn_mask = batch['tokens_mask']
+        # loss_mask = batch['loss_mask']
+        # retrieved_ids = batch['retrieved_ids']
+        # retrieved_attn_mask = batch['retrieved_emb_mask']
+        # labels = batch['labels']
         if self.cfg.get('add_position_embedding', False):
             input_position_ids = build_position_ids(input_tokens_id)
         else:
@@ -337,10 +446,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if len(outputs) == 0:
             return
         averaged_loss = torch.stack(outputs).mean()
-        self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
+        self.log('val_loss', averaged_loss, prog_bar=True)
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
@@ -348,10 +457,88 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def test_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
-        self.log('test_loss', averaged_loss, prog_bar=True, batch_size=1)
+        self.log('test_loss', averaged_loss, prog_bar=True)
         logging.info(f'test_loss: {averaged_loss} ')
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
         return averaged_loss
+
+    # def build_train_valid_test_datasets(self):
+    #     logging.info('Building RETRO datasets.')
+    #     global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+    #     # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+    #     max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+    #     eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+    #     test_iters = self.trainer.limit_test_batches
+
+    #     train_valid_test_num_samples = [
+    #         max_train_steps * global_batch_size,
+    #         eval_iters * global_batch_size,
+    #         test_iters * global_batch_size,
+    #     ]
+    #     if self.cfg.data.get('mock', False):
+    #         self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
+    #             cfg=self.cfg,
+    #             trainer=self.trainer,
+    #             splits_string=self.cfg.data.splits_string,
+    #             tokenizer=self.tokenizer,
+    #             mock_data_size=self.cfg.data.get('mock_data_size', 10000),
+    #         )
+    #     else:
+    #         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+    #             cfg=self.cfg,
+    #             trainer=self.trainer,
+    #             data_prefix=self.cfg.data.data_prefix,
+    #             data_impl=self.cfg.data.data_impl,
+    #             splits_string=self.cfg.data.splits_string,
+    #             train_valid_test_num_samples=train_valid_test_num_samples,
+    #             seq_length=self.cfg.data.seq_length,
+    #             seed=self.cfg.seed,
+    #             skip_warmup=self.cfg.data.get('skip_warmup', True),
+    #             tokenizer=self.tokenizer,
+    #             retrieval_prefix=self.cfg.data.retrieval_prefix,
+    #             knn_map_path=self.cfg.data.knn_index,
+    #         )
+    #     if self._train_ds is not None:
+    #         logging.info(f'Length of train dataset: {len(self._train_ds)}')
+    #     if self._validation_ds is not None:
+    #         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+    #     if self._test_ds is not None:
+    #         logging.info(f'Length of test dataset: {len(self._test_ds)}')
+    #     logging.info(f'Finished building RETRO datasets.')
+    #     return self._train_ds, self._validation_ds, self._test_ds
+
+    # def build_pretraining_data_loader(self, dataset, consumed_samples):
+    #     """Buld dataloader given an input dataset."""
+
+    #     if dataset is None:
+    #         return None
+
+    #     logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+    #     # Megatron sampler
+    #     if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+    #         if self.cfg.data.dataloader_type == 'single':
+    #             batch_sampler = MegatronPretrainingSampler(
+    #                 total_samples=len(dataset),
+    #                 consumed_samples=consumed_samples,
+    #                 micro_batch_size=self.cfg.micro_batch_size,
+    #                 data_parallel_rank=parallel_state.get_data_parallel_rank(),
+    #                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
+    #             )
+    #         elif self.cfg.data.dataloader_type == 'cyclic':
+    #             batch_sampler = MegatronPretrainingRandomSampler(
+    #                 total_samples=len(dataset),
+    #                 consumed_samples=consumed_samples,
+    #                 micro_batch_size=self.cfg.micro_batch_size,
+    #             data_parallel_rank=parallel_state.get_data_parallel_rank(),
+    #             data_parallel_size=parallel_state.get_data_parallel_world_size(),
+    #         )
+    #     else:
+    #         raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+
+    #     # Torch dataloader.
+    #     return torch.utils.data.DataLoader(
+    #         dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+    #     )
 
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')
@@ -359,36 +546,17 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
         max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
+        test_iters = int(self.trainer.limit_test_batches)
 
         train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
-        if self.cfg.data.get('mock', False):
-            self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
-                cfg=self.cfg,
-                trainer=self.trainer,
-                splits_string=self.cfg.data.splits_string,
-                tokenizer=self.tokenizer,
-                mock_data_size=self.cfg.data.get('mock_data_size', 10000),
-            )
-        else:
-            self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-                cfg=self.cfg,
-                trainer=self.trainer,
-                data_prefix=self.cfg.data.data_prefix,
-                data_impl=self.cfg.data.data_impl,
-                splits_string=self.cfg.data.splits_string,
-                train_valid_test_num_samples=train_valid_test_num_samples,
-                seq_length=self.cfg.data.seq_length,
-                seed=self.cfg.seed,
-                skip_warmup=self.cfg.data.get('skip_warmup', True),
-                tokenizer=self.tokenizer,
-                retrieval_prefix=self.cfg.data.retrieval_prefix,
-                knn_map_path=self.cfg.data.knn_index,
-            )
+
+        self._train_ds, self._validation_ds, self._test_ds = build_all_datasets(
+            cfg=self.cfg.data, tokenizer=self.tokenizer, train_valid_test_num_samples=train_valid_test_num_samples,
+        )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:
@@ -399,38 +567,72 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
-        """Buld dataloader given an input dataset."""
-
-        if dataset is None:
-            return None
-
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
-        # Megatron sampler
-        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
-            if self.cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingSampler(
-                    total_samples=len(dataset),
-                    consumed_samples=consumed_samples,
-                    micro_batch_size=self.cfg.micro_batch_size,
-                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                )
-            elif self.cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomSampler(
-                    total_samples=len(dataset),
-                    consumed_samples=consumed_samples,
-                    micro_batch_size=self.cfg.micro_batch_size,
-                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                )
-            else:
-                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+        if isinstance(dataset, BlendableDataset):
+            collate_fun = dataset.datasets[0].collate_fn
         else:
-            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+            collate_fun = dataset.collate_fn
 
-        # Torch dataloader.
+        collate_fn = partial(collate_fun, tp_workers=0)
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        batch_sampler = MegatronPretrainingBatchSampler(
+            total_samples=len(dataset),
+            consumed_samples=consumed_samples,
+            micro_batch_size=self.cfg.micro_batch_size,
+            global_batch_size=global_batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=True,
+        )
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=0, pin_memory=True,
+        )
+    
+    def build_prompt_data(self):
+        self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+            data=self.cfg.data.train_ds.file_name,
+            batch_size=self.cfg.micro_batch_size,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=1,
+            add_bos=self.cfg.data.train_ds.add_bos,
+            add_eos=True,
+            for_train=True,
+            drop_last=False,
+            shuffle=True,
+            num_workers=self.cfg.data.get("num_workers", 1),
+            pin_memory=True,
+            num_neighbors=self.cfg.data.train_ds.neighbors,
+            retrieved_doc_len=self.cfg.data.retrieved_doc_length,
+        )
+
+        self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+            data=self.cfg.data.val_ds.file_name,
+            batch_size=self.cfg.micro_batch_size,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=1,
+            add_bos=self.cfg.data.val_ds.add_bos,
+            add_eos=True,
+            for_train=True,
+            drop_last=False,
+            shuffle=True,
+            num_workers=self.cfg.data.get("num_workers", 1),
+            pin_memory=True,
+            num_neighbors=self.cfg.data.val_ds.neighbors,
+            retrieved_doc_len=self.cfg.data.retrieved_doc_length,
+        )
+        self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+            data=self.cfg.data.test_ds.file_name,
+            batch_size=self.cfg.micro_batch_size,
+            max_seq_length=self.cfg.data.max_seq_length,
+            min_seq_length=1,
+            add_bos=self.cfg.data.test_ds.add_bos,
+            add_eos=True,
+            for_train=False,
+            drop_last=False,
+            shuffle=True,
+            num_workers=self.cfg.data.get("num_workers", 1),
+            pin_memory=True,
+            num_neighbors=self.cfg.data.test_ds.neighbors,
+            retrieved_doc_len=self.cfg.data.retrieved_doc_length,
         )
 
     def setup(self, stage=None):
@@ -446,10 +648,12 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             return
         if self._train_dl is not None and self._validation_dl is not None:
             return
-        self.build_train_valid_test_datasets()
-        self.setup_training_data(self._cfg.data)
-        self.setup_validation_data(self._cfg.data)
-        self.setup_test_data(self._cfg.data)
+        
+        self.build_prompt_data()
+        # self.build_train_valid_test_datasets()
+        # self.setup_training_data(self._cfg.data)
+        # self.setup_validation_data(self._cfg.data)
+        # self.setup_test_data(self._cfg.data)
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config
@@ -464,6 +668,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
+                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
@@ -473,6 +678,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
+                del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
                 return generate(self, **inference_config, strategy=self.inference_strategy)
 
@@ -511,8 +717,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         Used for generate method only.
         """
 
-        def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+        def fwd_output_only_func(batch, model):
             extra_arg = {}
             (
                 tokens,
@@ -536,7 +741,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             extra_arg['neighbors'] = neighbors[0].item()
             extra_arg['position_ids'] = position_ids
-
             output_tensor = model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
 
             def id_func(output_tensor):
@@ -578,3 +782,142 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def list_available_models(self):
         pass
+
+    def build_virtual_prompt_dataset(
+        self,
+        data,
+        batch_size,
+        max_seq_length=2048,
+        min_seq_length=1,
+        add_bos=False,
+        add_eos=False,
+        for_train=True,
+        drop_last=False,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
+        tokens_to_generate=None,
+        get_dataset_only=False,
+        cache_data_path=None,
+        load_cache=False,
+        num_neighbors=2,
+        retrieved_doc_len = 128 
+    ):
+        task_template = {
+            "car": {
+                "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
+                "prompt_template_fields": ["question", "answer"],
+                "total_virtual_tokens": 0,
+                "virtual_token_splits": [],
+                "truncate_field": "question",
+                "answer_only_loss": True,
+                "answer_field": "answer"
+        }}
+       
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        dataset = RetroPromptLearningDataset(
+            data=data,
+            tokenizer=self.tokenizer,
+            virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
+            task_templates=task_template,
+            pseudo_tokens=[],
+            pad_token_id=self.tokenizer.eos_id if self.cfg.get('megatron_lm_compatible', False) else self.pad_token_id, # self.tokenizer.eos_id if self.cfg.get('megatron_lm_compatible', False) else self.pad_token_id
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            add_bos=add_bos,
+            add_eos=add_eos,
+            for_train=for_train,
+            tokens_to_generate=tokens_to_generate,
+            cache_data_path=cache_data_path,  # the cache file
+            load_cache=load_cache, # whether to load from the cache if it is available
+            seed=1234,
+            neighbors=num_neighbors,
+            megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
+            retrieved_doc_len = retrieved_doc_len
+        )
+
+        if get_dataset_only:
+            return dataset
+
+        # Make distributed dataloader
+        rank = parallel_state.get_data_parallel_rank()
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+        )
+
+        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
+
+        if for_train:
+            if self.cfg.get("sequence_parallel", False):
+                collate_fn = partial(
+                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+                )
+            else:
+                collate_fn = partial(dataset.collate_fn, tp_workers=0)
+        else:
+            collate_fn = dataset.inference_collate_fn
+
+        if num_workers == 0:
+            persistent_workers = False
+        else:
+            persistent_workers = True
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=collate_fn,
+            sampler=sampler,
+            batch_size=batch_size // data_parallel_size,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,  # (@adithyare and @eharper) We need this to make spawn=True to work.
+        )
+
+        return dataset, dataloader
+
+
+def build_all_datasets(
+    cfg, tokenizer, train_valid_test_num_samples,
+):
+    """Build train, valid, and test RETRO datasets.
+       There is one to one mapping between data_prefix and knn_map_path.
+       Currently only supports one retrieval dataset.
+    """
+    train_dataset = RetroQAFineTuneDataset(
+        cfg.train_ds.get('file_name'),
+        tokenizer,
+        cfg.train_ds.get('answer_only_loss'),
+        tokenizer.pad_id,
+        cfg.train_ds.get('seq_length'),
+        cfg.train_ds.get('add_bos'),
+        cfg.train_ds.get('add_eos'),
+        None, # train_valid_test_num_samples[0],
+        cfg.train_ds.get('seed'),
+        cfg.train_ds.get('neighbors'),
+    )
+    val_dataset = RetroQAFineTuneDataset(
+        cfg.val_ds.get('file_name'),
+        tokenizer,
+        cfg.val_ds.get('answer_only_loss'),
+        tokenizer.pad_id,
+        cfg.val_ds.get('seq_length'),
+        cfg.val_ds.get('add_bos'),
+        cfg.val_ds.get('add_eos'),
+        None, # train_valid_test_num_samples[1],
+        cfg.val_ds.get('seed'),
+        cfg.val_ds.get('neighbors'),
+    )
+    test_dataset = RetroQAFineTuneDataset(
+        cfg.test_ds.get('file_name'),
+        tokenizer,
+        cfg.test_ds.get('answer_only_loss'),
+        tokenizer.pad_id,
+        cfg.test_ds.get('seq_length'),
+        cfg.test_ds.get('add_bos'),
+        cfg.test_ds.get('add_eos'),
+        None, # train_valid_test_num_samples[2],
+        cfg.test_ds.get('seed'),
+        cfg.test_ds.get('neighbors'),
+    )
+
+    return train_dataset, val_dataset, test_dataset
