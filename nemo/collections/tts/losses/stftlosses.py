@@ -97,7 +97,9 @@ class SpectralConvergenceLoss(Loss):
             Tensor: Spectral convergence loss value.
         """
         # Mean across time and freq_bins first
-        loss = torch.linalg.norm(y_mag - x_mag, ord="fro", dim=(1, 2)) / torch.linalg.norm(y_mag, ord="fro", dim=(1, 2))
+        loss = torch.linalg.norm(y_mag - x_mag, ord="fro", dim=(1, 2)) / torch.linalg.norm(
+            y_mag, ord="fro", dim=(1, 2)
+        )
         # Mean across batches
         loss = torch.mean(loss)
         return loss
