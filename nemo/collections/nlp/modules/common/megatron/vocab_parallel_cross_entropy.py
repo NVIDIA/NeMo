@@ -36,7 +36,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
     def forward(ctx, vocab_parallel_logits, target, label_smoothing=0.0):
         if target.size()[0] != vocab_parallel_logits.size()[0]:
             target = target.permute(1, 0).contiguous()
-            logging.info(f"Permuting target because arrangement of dimensions were not correct.")
+            # logging.info(f"Permuting target because arrangement of dimensions were not correct.")
 
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
@@ -146,6 +146,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         return grad_input, None, None
 
 
-def vocab_parallel_cross_entropy(vocab_parallel_logits, target, label_smoothing):
+def vocab_parallel_cross_entropy(vocab_parallel_logits, target, label_smoothing=0.0):
     """Helper function for the cross entropy."""
     return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, label_smoothing)

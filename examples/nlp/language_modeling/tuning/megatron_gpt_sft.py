@@ -189,6 +189,8 @@ def main(cfg) -> None:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
+    model.update_for_speech()
+
     trainer.fit(model)
 
 

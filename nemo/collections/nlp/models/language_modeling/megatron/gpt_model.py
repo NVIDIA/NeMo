@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
+from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 
 
 try:
@@ -62,8 +62,7 @@ def post_language_model_processing(
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
     speech_mask=None,
-    speech_residual_model_1=None,
-    speech_residual_model_2=None
+    speech_residual_model=None
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -74,7 +73,7 @@ def post_language_model_processing(
     async_tensor_model_parallel_allreduce = (
         parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
     )
-    speech_tokens_start = 256000  # TODO: Fix hardcode, assumes that text tokens are first and speech tokens are last
+    num_speech_tokens = 8*1024  # TODO: Fix hardcode, assumes speech tokens are last
     token_head = lambda x, y: parallel_lm_logits(
         x,
         y,
@@ -85,24 +84,26 @@ def post_language_model_processing(
     )
     output = token_head(
         lm_output,
-        logit_weights[:-(speech_tokens_start-1024), :]
+        logit_weights[:-(num_speech_tokens-1024), :]
     )
 
     speech_layers = 7
     last_layer_output = lm_output
     last_layer_logits = output
     speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)
+    # import ipdb; ipdb.set_trace()
     for i in range(speech_layers):
-        speech_residual_model = speech_residual_model_2
         if i == 0:
-            speech_residual_model = speech_residual_model_1
-        last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
+            last_layer_output = speech_residual_model(last_layer_output, last_layer_output, i, speech_mask)
+        else:
+            last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
         # Need to check that the below line is correct
-        # import ipdb; ipdb.set_trace()
         # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
         # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
         # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
-        last_layer_logits = token_head(last_layer_output, logit_weights[-(speech_tokens_start-1024*(i+1)):-(speech_tokens_start-1024*(i+2)),:])
+        last_layer_logits = token_head(last_layer_output, logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None,:])  # or None for the last layer in which case it's 0 and everything breaks
+        # print(f"{i}: {last_layer_output.shape}, {last_layer_logits.shape} // {logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)),:].shape}")
+        # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
         speech_logits[:,:,:,i] = last_layer_logits
 
     if get_key_value:
@@ -119,11 +120,12 @@ def post_language_model_processing(
         if fp16_lm_cross_entropy:
             raise NotImplementedError("No speech :(")
             assert output.dtype == torch.half
-            loss += tensor_parallel.vocab_parallel_cross_entropy(output, labels)
+            loss += vocab_parallel_cross_entropy(output, labels)
         else:
-            loss += tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
+            # import ipdb; ipdb.set_trace()
+            loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
             for i in range(speech_layers):
-                loss += tensor_parallel.vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i, :, :]) * speech_mask.T
+                loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T
                 # logging.debug(f"token_loss_{i}: {tokens_loss}")
                 # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
@@ -289,10 +291,7 @@ class GPTModel(MegatronModule):
                 hidden_size=hidden_size,
                 param_dtype=self.dtype,
             )
-
-        # TODO: hardcodes
-        self.speech_residual_model_1 = SimplestModule(hidden_size, 256000+1024)
-        self.speech_residual_model_2 = SimplestModule(hidden_size, 1024)
+        self.hidden_size = hidden_size
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -335,7 +334,7 @@ class GPTModel(MegatronModule):
                 lm_output,
                 labels,
                 #jasoli: self.language_model.output_layer.weight needs to be words+1k
-                self.language_model.output_layer.weight
+                self.language_model.embedding.word_embeddings.weight
                 if not self.share_embeddings_and_output_weights
                 else self.word_embeddings_weight(),
                 get_key_value,
@@ -346,8 +345,7 @@ class GPTModel(MegatronModule):
                 sequence_parallel=self.sequence_parallel,
                 gradient_accumulation_fusion=self.gradient_accumulation_fusion,
                 speech_mask=speech_mask,
-                speech_residual_model_1=self.speech_residual_model_1,
-                speech_residual_model_2=self.speech_residual_model_2,
+                speech_residual_model=self.speech_residual_model,
             )
         else:
             return lm_output

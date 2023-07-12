@@ -43,7 +43,7 @@ class GPTSFTDataset(Dataset):
         sep_id: int = None,
         max_num_samples: int = None,
         seed: int = 1234,
-        context_key: str = "text",
+        context_key: str = "context",
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
@@ -117,6 +117,7 @@ class GPTSFTDataset(Dataset):
             dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
         )
 
+        self.samples_mapping = None
         # Will be None after this call if `max_num_samples` is None
         # Should be None, disabling
         # self._build_samples_mapping()
@@ -174,8 +175,9 @@ class GPTSFTDataset(Dataset):
             audio_filepath = example["answer"]
             # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
             # TODO: fix hardcode
-            rel_audio_path = Path(audio_filepath).relative_to("/data/speech/LibriTTS2/LibriTTS/train-clean-100/").with_suffix("")
-            rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+            rel_audio_path = Path(audio_filepath).relative_to("/home/datasets/jasoli/speech_t5/LibriTTS/").with_suffix("")
+            # TODO: fix hardcode with split and join
+            rel_audio_path_as_text_id = "_".join(str(rel_audio_path).replace("/", "_").split("_")[1:])
 
             # Convert to codes
             codec_codes, codec_codes_length = None, None # Codes
@@ -270,14 +272,20 @@ class GPTSFTDataset(Dataset):
         if not is_speech:
             input_ids = torch.LongTensor(input_ids)
 
-        processed_example = {
-            'input_ids': input_ids,
-            'answer_start_idx': answer_start_idx,
-            'context_ids': context_ids,
-            'context_length': len(context_ids),
-        }
+        # processed_example = {
+        #     'input_ids': input_ids,
+        #     'answer_start_idx': answer_start_idx,
+        #     'context_ids': context_ids,
+        #     'context_length': len(context_ids),
+        # }
 
-        return processed_example
+        # return processed_example
+        return [
+            input_ids,
+            answer_start_idx,
+            context_ids,
+            len(context_ids),
+        ]
 
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
@@ -332,16 +340,18 @@ class GPTSFTDataset(Dataset):
         input_lengths = []
         max_length = -1
         for input_id in input_ids:
+            # import ipdb;ipdb.set_trace()
             length_i = input_id.shape[0] if input_id.dim() < 2 else input_id.shape[1]
             input_lengths.append(length_i)
-        max_length = max(input_lengths) - 1
+        max_length = max(input_lengths)
 
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
-            max_length = self.max_seq_length
+            max_length = self.max_seq_length + 1
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
-        assert max_length <= self.max_seq_length
+        max_length += 1  # Since we remove 1 from tokens and labels, add 1 here
+        assert max_length <= self.max_seq_length + 1
 
         (tokens, labels, loss_mask, contexts, context_lengths, speech_mask_list) = ([],[],[],[],[],[])
 
@@ -354,7 +364,7 @@ class GPTSFTDataset(Dataset):
             # Should pad_id be eos_id?
             input_id_padded = general_padding(input_ids[i], input_lengths[i], max_length, pad_value=self.tokenizer.pad_id)
             if len(input_id_padded.shape) < 2:
-                input_id_padded = pad_text_to_speech_dims(pad_text_to_speech_dims, self.tokenizer.pad_id)
+                input_id_padded = pad_text_to_speech_dims(input_id_padded, self.tokenizer.pad_id)
             tokens.append(input_id_padded[:, :-1])
             labels.append(input_id_padded[:, 1:])
 
@@ -363,21 +373,26 @@ class GPTSFTDataset(Dataset):
             #     context_id_padded = torch.LongTensor(pad_text_to_speech_dims(pad_text_to_speech_dims, self.tokenizer.pad_id))
             contexts.append(context_id_padded)
 
-            context_lengths.append(torch.LongTensor(context_length[i]))
+            context_lengths.append(torch.LongTensor([context_length[i]]))
 
             loss_mask_i = torch.LongTensor(self._build_loss_mask_2(input_lengths[i]-1, answer_start_idx[i]))
-            loss_mask_i_padded = general_padding(loss_mask_i, input_lengths[i]-1, max_length, pad_value=0)
+            loss_mask_i_padded = general_padding(loss_mask_i, input_lengths[i]-1, max_length-1, pad_value=0)
             loss_mask.append(loss_mask_i_padded)
 
             speech_mask = loss_mask_i_padded if len(input_id_padded.shape) >= 2 else torch.zeros(loss_mask_i_padded.shape)
             speech_mask_list.append(speech_mask)
 
+        # attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+        # attention_mask = torch.stack(attention_mask)
         attention_mask = self._create_attention_mask(max_length)
-        attention_mask = attention_mask.repeat(len(batch))
+        new_shape = [1 for _ in range(attention_mask.dim())]
+        new_shape[0] = len(batch)
+        attention_mask = attention_mask.repeat(new_shape)
 
         position_ids = torch.LongTensor(list(range(max_length)))
         position_ids = position_ids.repeat(len(batch))
 
+        # import ipdb; ipdb.set_trace()
         processed_batch = {
             'tokens': torch.stack(tokens),
             'labels': torch.stack(labels),
@@ -388,5 +403,8 @@ class GPTSFTDataset(Dataset):
             'context_lengths': torch.stack(context_lengths),
             "speech_mask": torch.stack(speech_mask_list),
         }
+
+        # for key in processed_batch.keys():
+        #     print(key, processed_batch[key].shape)
 
         return processed_batch

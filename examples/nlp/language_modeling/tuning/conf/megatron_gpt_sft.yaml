@@ -90,9 +90,9 @@ model:
       #   - 0.25
       #   - 0.25
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
-      context_key: 'input'
-      label_key: 'output'
-      add_eos: True
+      context_key: 'context'
+      label_key: 'answer'
+      add_eos: False
       add_sep: False
       add_bos: False
       separate_prompt_and_response_with_newline: False
@@ -111,8 +111,8 @@ model:
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: True
-      context_key: 'input'
-      label_key: 'output'
+      context_key: 'context'
+      label_key: 'answer'
       add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
