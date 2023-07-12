@@ -881,7 +881,8 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-
+        print(context_layer[0, 0, :10, 0])
+        
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -1006,9 +1007,6 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
-        if self.attention_dropout_p > 0.0:
-            raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-            
         q_len, kv_len = None, None
         if attention_mask is not None:
             """
@@ -1030,7 +1028,6 @@ class CoreAttention(MegatronModule):
             q_len = attention_mask_q.sum(2).squeeze().detach()
             kv_len = attention_mask_kv.sum(3).squeeze().detach()
 
-        
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         
         if self.position_embedding_type == 'alibi':
@@ -1040,7 +1037,7 @@ class CoreAttention(MegatronModule):
             else:
                 bias_type = 'alibi'
                 attention_bias = attention_bias.squeeze()
-                assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales'
+                assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
         else:
             bias_type = 'matrix'
             assert len(attention_bias.size()) == 4
@@ -1066,6 +1063,5 @@ class CoreAttention(MegatronModule):
 
         if attention_mask is not None:
             context_layer = context_layer * attention_mask_q
-            
 
         return context_layer
