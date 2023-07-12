@@ -2915,9 +2915,9 @@ pipeline {
     //     model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
     //     model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings"
     //     sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
-        sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
-      }
-    }
+    //     sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
+    //   }
+    // }
     //TODO: @athitten Skipping temporarily for dataloader_iter related error
     // stage('L2: Megatron Bert Pretraining and Resume Training') {
     //   when {
@@ -3330,10 +3330,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         //model.activations_checkpoint_num_layers=1 \
         //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
-      }
-    }
+    //     sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+    //     sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+    //   }
+    // }
     // TODO: @athitten Skipping temporarily for dataloader_iter related error
     // stage('L2: Megatron GPT with Rope Pretraining using Flash Attention and Resume Training TP=2') {
     //   when {
@@ -3420,10 +3420,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
         //model.use_flash_attention=True"
-        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
-      }
-    }
+    //     sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+    //     sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+    //   }
+    // }
     // TODO: @athitten Skipping temporarily for dataloader_iter related error
     // stage('L2: Megatron GPT with ALiBi Pretraining and Resume Training TP=2') {
     //   when {
@@ -3506,10 +3506,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         //model.activations_checkpoint_num_layers=1 \
         //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
-      }
-    }
+    //     sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+    //     sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+    //   }
+    // }
     // TODO: @athitten Skipping temporarily for dataloader_iter related error
     // stage('L2: Megatron GPT with KERPLE Pretraining and Resume Training TP=2') {
     //   when {
