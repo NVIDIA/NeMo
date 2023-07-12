@@ -343,7 +343,7 @@ class UL2Dataset(T5Dataset):
             skip_masking_id: id of the token to that will never be masked.
         """
         assert target_seq_length <= max_seq_length
-        # import pdb; pdb.set_trace()
+
         # flatten sentences into one list
         tokens = [token for sentence in sample for token in sentence]
 
