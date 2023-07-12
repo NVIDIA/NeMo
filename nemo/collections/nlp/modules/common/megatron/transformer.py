@@ -927,6 +927,7 @@ class ParallelTransformer(MegatronModule):
         num_moe_experts=1,
         moe_frequency=1,
         moe_dropout=0.0,
+        parallelization_specs=None,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -936,6 +937,7 @@ class ParallelTransformer(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
+        self.parallelization_specs = parallelization_specs
         self.fp32_residual_connection = fp32_residual_connection
         self.pre_process = pre_process
         self.post_process = post_process
@@ -1025,14 +1027,23 @@ class ParallelTransformer(MegatronModule):
         )  # transformer engine forward allows for more granular selective checkpointing
 
         if self.model_type == ModelType.encoder_or_decoder:
-            assert (
-                num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
-            ), 'num_layers must be divisible by pipeline_model_parallel_size'
+            if parallelization_specs:
+                assert (num_layers == sum(len(parallelization_specs[k]['layers']) for k in parallelization_specs))
+                for k in parallelization_specs:
+                    assert (len(parallelization_specs[k]['layers']) % parallelization_specs[k]['pipeline_model_parallel_group_size'] == 0)
+            else:
+                assert (
+                    num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+                ), 'num_layers must be divisible by pipeline_model_parallel_size'
 
         assert moe_frequency <= num_layers, 'MoE frequency must be <= number of transformer layers'
         # TODO: Add similar assert for encoder-decoder.
 
-        self.num_layers = self.get_num_layers(num_layers)
+        if parallelization_specs:
+            self.num_layers = parallel_state.get_num_component_layers() // parallel_state.get_pipeline_component_parallel_world_size()
+        else:
+            self.num_layers = self.get_num_layers(num_layers)
+
         # Transformer layers.
         def build_layer(layer_number):
             if isinstance(layer_type, list):
@@ -1110,6 +1121,11 @@ class ParallelTransformer(MegatronModule):
                     moe_dropout=moe_dropout,
                 )
 
+        # TODO: implement offset calculation for virtual pipeline model parallelism
+        assert parallel_state.get_virtual_pipeline_model_parallel_world_size() is None, (
+            'offset calculation has not been implmented with virtual pipeline model parallelism'
+        )
+
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
                 'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
@@ -1128,9 +1144,14 @@ class ParallelTransformer(MegatronModule):
             # layers to stages like (each list is a model chunk):
             # Stage 0: [0, 1]  [4, 5]
             # Stage 1: [2, 3]  [6, 7]
+            if parallelization_specs:
+                pipeline_parallel_rank = parallel_state.get_pipeline_component_parallel_rank()
+            else:
+                pipeline_parallel_rank = parallel_state.get_pipeline_model_rank()
+
             offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
                 num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
-            ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
+            ) + (pipeline_parallel_rank * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
             if (
@@ -1142,11 +1163,19 @@ class ParallelTransformer(MegatronModule):
                     offset = pipeline_rank * self.num_layers
                 else:
                     num_ranks_in_enc = parallel_state.get_pipeline_model_parallel_split_rank()
-                    offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
+                    if parallelization_specs:
+                        offset = self.get_layer_unit_test_strategy_offset(parallel_state.get_pipeline_model_parallel_rank())
+                    else:
+                        offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
             else:
-                offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+                if parallelization_specs:
+                    offset = self.get_layer_unit_test_strategy_offset(parallel_state.get_pipeline_model_parallel_rank())
+                else:
+                    offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         # TODO TODO TODO(crankshaw): This is where the layers for a specific device get built
+        for i in range(self.num_layers):
+            print(f'built layers {i + 1 + offset}')
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
         if self.post_process and self.transformer_block_type != 'post_ln':
@@ -1194,6 +1223,64 @@ class ParallelTransformer(MegatronModule):
                 num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
 
         return num_layers
+
+    def get_layer_unit_test_strategy_offset(self, pipeline_model_rank):
+        """
+        Compute offset count when using the LayerUnitTestStrategy
+        for example:
+            parallelization_specs = {
+                "stimulus": {
+                    "layers": [0,1,2,3,4,5],
+                    "gpu_ranks": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+                    "gpus_per_node": 8,
+                    "data_parallel_group_size": 1,
+                    "tensor_model_parallel_group_size": 8,
+                    "pipeline_model_parallel_group_size": 2,
+                },
+                "test": {
+                    "layers": [6],
+                    "gpu_ranks": [16,17,18,19,20,21,22,23],
+                    "gpus_per_node": 8,
+                    "data_parallel_group_size": 1,
+                    "tensor_model_parallel_group_size": 8,
+                    "pipeline_model_parallel_group_size": 1,
+                },
+                "response": {
+                    "layers": [7,8,9,10,11,12],
+                    "gpu_ranks": [24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39],
+                    "gpus_per_node": 8,
+                    "data_parallel_group_size": 1,
+                    "tensor_model_parallel_group_size": 8,
+                    "pipeline_model_parallel_group_size": 2,
+                }
+            }
+
+            for gpu_ranks 0-7, the offset is 0
+            for gpu_ranks 8-15, the offset is 3
+            for gpu_ranks 16-23, the offset is 6
+            for gpu_ranks 24-31, the offset is 7
+            for gpu_ranks 32-39, the offset is 10
+
+        """
+        offset = 0
+        pipeline_model_rank_tracker = 0
+        component_tracker = 0
+
+        # iterate through ranks of pipeline and add to the offset value until reaching the pipeline_model_rank given to this function
+        while pipeline_model_rank > pipeline_model_rank_tracker:
+            component_name = list(self.parallelization_specs.keys())[component_tracker]
+            component_num_layers = len(self.parallelization_specs[component_name]['layers'])
+            pipeline_component_parallel_group_size = self.parallelization_specs[component_name]['pipeline_model_parallel_group_size']
+            assert (
+                        component_num_layers % pipeline_component_parallel_group_size == 0
+                    ), 'component_num_layers must be divisible by pipeline_component_parallel_group_size'
+            for pipeline_component_parallel_group_rank in range(pipeline_component_parallel_group_size):
+                if pipeline_model_rank_tracker < pipeline_model_rank:
+                    offset += component_num_layers // pipeline_component_parallel_group_size
+                pipeline_model_rank_tracker += 1
+            component_tracker += 1
+
+        return offset
 
     def _checkpointed_forward(
         self,

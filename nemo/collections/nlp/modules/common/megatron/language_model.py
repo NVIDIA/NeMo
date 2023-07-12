@@ -117,6 +117,7 @@ def get_language_model(
     reduce_amax=True,
     use_emha=False,
     ub_tp_comm_overlap=False,
+    parallelization_specs=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -193,6 +194,7 @@ def get_language_model(
         reduce_amax=reduce_amax,
         use_emha=use_emha,
         ub_tp_comm_overlap=ub_tp_comm_overlap,
+        parallelization_specs=parallelization_specs,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -500,6 +502,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         reduce_amax=True,
         use_emha=False,
         ub_tp_comm_overlap=False,
+        parallelization_specs=None,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -606,6 +609,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             reduce_amax=reduce_amax,
             use_emha=use_emha,
             ub_tp_comm_overlap=ub_tp_comm_overlap,
+            parallelization_specs=parallelization_specs,
         )
         self._encoder_key = 'encoder'
 
@@ -646,6 +650,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
                 transformer_engine=transformer_engine,
+                parallelization_specs=parallelization_specs,
             )
             self._decoder_key = 'decoder'
 

@@ -26,6 +26,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
+    LayerUnitTestStrategy,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
@@ -48,11 +49,23 @@ def main(cfg) -> None:
     with torch.autograd.profiler.emit_nvtx():
 
         plugins = []
-        strategy = NLPDDPStrategy(
-            no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
+        if cfg.model.get("parallelization_specs", None) is not None:
+            strategy = LayerUnitTestStrategy(
+                no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
+                gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=False,
+                parallelization_specs=cfg.model.parallelization_specs,
+                micro_batch_size=cfg.model.micro_batch_size,
+            )
+            logging.info("**Using LayerUnitTestStrategy**")
+        else:
+            strategy = NLPDDPStrategy(
+                no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
+                gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=False,
+            )
+            logging.info("**Using NLPDDPStrategy**")
+
         if cfg.trainer.precision in [16, 'bf16']:
             scaler = None
             if cfg.trainer.precision == 16:
@@ -99,9 +112,11 @@ def main(cfg) -> None:
         #     j += 1
         #     # i += 1
 
-
+        import time
+        s = time.time()
         trainer.fit(model)
-
+        e = time.time()
+        print(f'Train time: {(e-s):.2f}')
 
 if __name__ == '__main__':
     main()
