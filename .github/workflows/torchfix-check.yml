@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
     paths:
-      - "**"
+      - "**/*.py"
 
 jobs:
 
@@ -22,4 +22,4 @@ jobs:
     - name: Find torchfix issues
       continue-on-error: true  # Ignore if the linter fails
       run: |
-        flake8 **/*.py --isolated --select=TOR 
+        flake8 --isolated --select=TOR 
