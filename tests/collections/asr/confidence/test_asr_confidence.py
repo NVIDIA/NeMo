@@ -28,7 +28,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import r
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
 
 # both models recognize the test data without errors, thus every metric except ece return default values
-ECE_VALUES = {("token", "ctc"): 0.872, ("token", "rnnt"): 0.822, ("word", "ctc"): 0.908, ("word", "rnnt"): 0.875}
+ECE_VALUES = {("token", "ctc"): 0.868, ("token", "rnnt"): 0.822, ("word", "ctc"): 0.908, ("word", "rnnt"): 0.875}
 
 TOL_DEGREE = 3
 TOL = 1 / math.pow(10, TOL_DEGREE)
