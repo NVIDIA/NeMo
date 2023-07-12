@@ -1,0 +1,25 @@
+name: Linter-TorchFix
+
+on:
+  push:
+  pull_request:
+    paths:
+      - "**"
+
+jobs:
+
+  run-torchfix-linter:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Install torchfix dependencies
+      run:  |
+        pip install torchfix
+
+    - name: Find torchfix issues
+      continue-on-error: true  # Ignore if the linter fails
+      run: |
+        flake8 **/*.py --isolated --select=TOR 
