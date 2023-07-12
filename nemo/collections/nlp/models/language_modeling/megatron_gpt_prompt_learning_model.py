@@ -755,7 +755,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 "all_probs": inference_config["all_probs"],
                 "compute_logprob": inference_config["compute_logprob"],
                 "compute_attention_mask": inference_config.get("compute_attention_mask", True),
-                "end_strings": self.cfg.inference.get('end_strings', ["<|endoftext|>"]),
+                "end_strings": inference_config.get('end_strings', ["<|endoftext|>"]),
             }
 
             task_ids, processed_inputs = batch
