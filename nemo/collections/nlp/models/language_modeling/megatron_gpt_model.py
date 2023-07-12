@@ -357,6 +357,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             reduce_amax=self.cfg.get('reduce_amax', True),
             use_emha=self.cfg.get('use_emha', False),
             ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
+            parallelization_specs=self.cfg.get('parallelization_specs', None),
         )
 
         return model

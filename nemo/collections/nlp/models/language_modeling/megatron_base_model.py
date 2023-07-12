@@ -127,6 +127,7 @@ class MegatronBaseModel(NLPModel):
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
+            parallelization_specs=self.cfg.get('parallelization_specs', None),
         )
 
         # This must be called after initialize model parallel since it needs to know the data parallel size

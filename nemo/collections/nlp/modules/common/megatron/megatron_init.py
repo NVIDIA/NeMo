@@ -39,6 +39,9 @@ try:
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
         set_virtual_pipeline_model_parallel_rank,
+        set_pipeline_component_parallel_rank,
+        set_pipeline_component_parallel_world_size,
+        set_num_component_layers,
     )
 
 except (ImportError, ModuleNotFoundError):
@@ -70,6 +73,7 @@ def initialize_model_parallel_for_nemo(
     init_mpi_proc_group=False,
     seed=1234,
     apex_transformer_log_level=30,
+    parallelization_specs=None,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -113,6 +117,25 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
     _set_random_seed(seed)
+
+    # only run this if using LayerUnitTestStrategy
+    if parallelization_specs:
+        (
+            app_state.pipeline_component_parallel_rank
+        ) = fake_initialize_components_parallel(
+            rank=global_rank,
+            parallelization_specs=parallelization_specs,
+        )
+
+        # update apex.transformer globals for pipeline parallel components
+        component_name = None
+        for k in parallelization_specs:
+            if global_rank in parallelization_specs[k]["gpu_ranks"]:
+                component_name = k
+
+        set_pipeline_component_parallel_rank(app_state.pipeline_component_parallel_rank)
+        set_pipeline_component_parallel_world_size(parallelization_specs[component_name]["pipeline_model_parallel_group_size"])
+        set_num_component_layers(len(parallelization_specs[component_name]["layers"]))
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
@@ -304,3 +327,35 @@ def fake_initialize_model_parallel(
         pipeline_model_parallel_split_rank_,
         virtual_pipeline_model_parallel_rank,
     )
+
+
+def fake_initialize_components_parallel(
+    rank,
+    parallelization_specs,
+):
+    """
+    Fake initialize model data parallel groups for the rank's component.
+    """
+
+    component_name = None
+    for k in parallelization_specs:
+        if rank in parallelization_specs[k]["gpu_ranks"]:
+            component_name = k
+
+    # Get world size and rank. Ensure some consistencies.
+    component_world_size = len(parallelization_specs[component_name]["gpu_ranks"])
+    pipeline_model_parallel_group_size = min(parallelization_specs[component_name]["pipeline_model_parallel_group_size"], component_world_size)
+    num_pipeline_component_parallel_groups = component_world_size // pipeline_model_parallel_group_size
+    gpu_ranks = parallelization_specs[component_name]['gpu_ranks']
+
+    all_pipeline_component_parallel_group_ranks = []
+    pipeline_component_parallel_group = None
+    for i in range(num_pipeline_component_parallel_groups):
+        ranks = range(gpu_ranks[i], gpu_ranks[component_world_size-1]+1, num_pipeline_component_parallel_groups)
+        all_pipeline_component_parallel_group_ranks.append(list(ranks))
+        if rank in ranks:
+            pipeline_component_parallel_group = list(ranks)
+            logging.info(f'Rank {rank} has pipeline component parallel group: {pipeline_component_parallel_group}')
+
+    pipeline_component_parallel_rank = pipeline_component_parallel_group.index(rank)
+    return pipeline_component_parallel_rank
