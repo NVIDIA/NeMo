@@ -70,8 +70,9 @@ DSET_TYPE_T5 = 't5'
 DSET_TYPE_T5_LM = 't5_prefix_lm'
 DSET_TYPE_BART = 'bart'
 DSET_TYPE_UL2 = 'ul2'
+DSET_TYPE_UL2COLT5 = 'ul2_colt5'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2]
+DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2, DSET_TYPE_UL2COLT5]
 
 
 def compile_helper():
@@ -268,8 +269,16 @@ def create_masked_lm_predictions(
 
     (masked_lms, masked_spans) = ([], [])
     covered_indexes = set()
+
+    def _get_prediction_len():
+        if masking_style == "t5":
+            # decoder will included masked tokens + sentinal tokens for each span + bos/eos tokens
+            return len(masked_lms) + len(masked_spans) + 2
+        return len(masked_lms)
+
     for cand_index_set in ngram_indexes:
-        if len(masked_lms) >= num_to_predict:
+        if _get_prediction_len() >= num_to_predict:
+            # import pdb; pdb.set_trace()
             break
         if not cand_index_set:
             continue
@@ -311,7 +320,8 @@ def create_masked_lm_predictions(
             n -= 1
         # If adding a whole-word mask would exceed the maximum number of
         # predictions, then just skip this candidate.
-        if len(masked_lms) + len(index_set) > num_to_predict:
+        # 1 for sentinel token to t5 models
+        if _get_prediction_len() + len(index_set) + (1 if masking_style == "t5" else 0) > num_to_predict:
             continue
         is_any_index_covered = False
         for index in index_set:
@@ -458,6 +468,10 @@ def create_extreme_masked_lm_predictions(
     else:
         skip_mask_idx = None
 
+    def _get_prediction_len():
+        # decoder will included masked tokens + sentinal tokens for each span + bos/eos tokens
+        return len(masked_lms) + len(masked_spans) + 2
+    
     cand_indexes = [[i] for i in range(len(tokens))]
     for idx in range(len(cand_indexes)):
         ngram_index = {}
@@ -474,7 +488,7 @@ def create_extreme_masked_lm_predictions(
     (masked_lms, masked_spans) = ([], [])
     covered_indexes = set()
     for cand_index_set in ngram_indexes:
-        if len(masked_lms) >= num_to_predict:
+        if _get_prediction_len() >= num_to_predict:
             break
         if not cand_index_set:
             continue
@@ -515,7 +529,8 @@ def create_extreme_masked_lm_predictions(
         # Note(mingdachen):
         # Repeatedly looking for a candidate that does not exceed the
         # maximum number of predictions by trying shorter ngrams.
-        while len(masked_lms) + len(index_set) > num_to_predict:
+        # 1 for sentinal token
+        while _get_prediction_len() + len(index_set) + 1 > num_to_predict:
             if n < min_ngram_size:
                 break
             if n in cand_index_set:
@@ -524,7 +539,7 @@ def create_extreme_masked_lm_predictions(
 
         # If adding a whole-word mask would exceed the maximum number of
         # predictions, then just skip this candidate.
-        if len(masked_lms) + len(index_set) > num_to_predict:
+        if _get_prediction_len() + len(index_set) + 1 > num_to_predict:
             continue
         is_any_index_covered = False
         for index in index_set:
@@ -617,6 +632,7 @@ def get_dataset(
     from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
     from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
     from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+    from nemo.collections.nlp.data.language_modeling.megatron.ul2_colt5_dataset import UL2CoLT5Dataset
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")
@@ -699,7 +715,7 @@ def get_dataset(
             respect_document_boundaries=respect_document_boundaries,
             **kwargs,
         )
-    elif dataset_type == DSET_TYPE_UL2:
+    elif dataset_type in [DSET_TYPE_UL2, DSET_TYPE_UL2COLT5]:
         assert tokenizer is not None, "Tokenizer is required for UL2 dataset"
         documents = np.arange(start=start_index, stop=end_index, step=1, dtype=np.int32)
         logging.info("Instatiating UL2 Dataset ...")
@@ -721,7 +737,12 @@ def get_dataset(
         elif ngram_span_length_distribution == "geometric":
             ngram_span_length_distribution = LengthDistribution.geometric
 
-        dataset = UL2Dataset(
+        if dataset_type == DSET_TYPE_UL2:
+            class_name = UL2Dataset
+        else:
+            class_name = UL2CoLT5Dataset
+
+        dataset = class_name(
             cfg=cfg,
             trainer=trainer,
             tokenizer=tokenizer,
