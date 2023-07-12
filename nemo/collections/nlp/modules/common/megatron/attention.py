@@ -881,7 +881,7 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-        
+
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -1051,7 +1051,7 @@ class CoreAttention(MegatronModule):
             causal=is_causal, 
             bias=attention_bias,
             bias_type=bias_type,
-            dropout=self.attention_dropout_p,
+            dropout=self.attention_dropout_p if self.training else 0.0,
             seed=torch.seed(),
             layout='bsnd',
             use_atomic_add=False,
