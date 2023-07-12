@@ -90,14 +90,14 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._validate_trainer()
 
-        if self.trainer.precision == 'bf16':
+        if str(self.trainer.precision)[0:4] == 'bf16':
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif str(self.trainer.precision)[0:2] == '32':
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif str(self.trainer.precision)[0:2] == '16':
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in [32, "32-true", 16, "16-mixed", "bf16", "bf16-mixed"]')
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
