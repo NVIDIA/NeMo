@@ -1051,7 +1051,7 @@ class CoreAttention(MegatronModule):
             v=value_layer, 
             q_len=q_len, 
             kv_len=kv_len, 
-            softmax_scale=1.0,
+            softmax_scale=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
             causal=is_causal, 
             bias=attention_bias,
             bias_type=bias_type,
