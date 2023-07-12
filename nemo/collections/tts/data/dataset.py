@@ -687,7 +687,7 @@ class TTSDataset(Dataset):
                 energy = torch.load(energy_path).float()
             else:
                 spec = self.get_spec(audio)
-                energy = torch.linalg.norm(spec.squeeze(0), axis=0).float()
+                energy = torch.linalg.norm(spec.squeeze(0), dim=0).float()
                 torch.save(energy, energy_path)
 
             energy_length = torch.tensor(len(energy)).long()
@@ -1468,7 +1468,7 @@ class FastPitchSSLDataset(Dataset):
             e2 = speaker_embedding
             interpolate_factor = np.random.uniform(0, 1)
             speaker_embedding = e1 * (1 - interpolate_factor) + e2 * interpolate_factor
-            l2_norm = torch.norm(speaker_embedding, p=2)
+            l2_norm = torch.linalg.norm(speaker_embedding, ord=2)
             speaker_embedding = speaker_embedding / l2_norm
 
         mel_spectrogram = None

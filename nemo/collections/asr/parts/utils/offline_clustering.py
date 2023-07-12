@@ -55,8 +55,8 @@ def cos_similarity(emb_a: torch.Tensor, emb_b: torch.Tensor, eps=torch.tensor(3.
     # If number of embedding count is 1, it creates nan values
     if emb_a.shape[0] == 1 or emb_b.shape[0] == 1:
         raise ValueError(f"Number of feature vectors should be greater than 1 but got {emb_a.shape} and {emb_b.shape}")
-    a_norm = emb_a / (torch.norm(emb_a, dim=1).unsqueeze(1) + eps)
-    b_norm = emb_b / (torch.norm(emb_b, dim=1).unsqueeze(1) + eps)
+    a_norm = emb_a / (torch.linalg.norm(emb_a, dim=1).unsqueeze(1) + eps)
+    b_norm = emb_b / (torch.linalg.norm(emb_b, dim=1).unsqueeze(1) + eps)
     res = torch.mm(a_norm, b_norm.transpose(0, 1))
     res.fill_diagonal_(1)
     return res

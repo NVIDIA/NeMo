@@ -104,7 +104,7 @@ def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None,
     )
 
     speaker_embedding = torch.mean(speaker_embeddings, dim=0)
-    l2_norm = torch.norm(speaker_embedding, p=2)
+    l2_norm = torch.linalg.norm(speaker_embedding, ord=2)
     speaker_embedding = speaker_embedding / l2_norm
 
     return speaker_embedding[None]

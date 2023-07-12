@@ -597,8 +597,8 @@ class TestTDTCUDAKernels:
 
         # reshape alphas
         alphas = alphas.view([B, T, U])
-        diff = torch.norm(ground_alphas - alphas)
-        ll_diff = torch.norm(ground_log_likelihood - llForward)
+        diff = torch.linalg.norm(ground_alphas - alphas)
+        ll_diff = torch.linalg.norm(ground_log_likelihood - llForward)
 
         assert diff <= 1e-3
         assert ll_diff <= 1e-3
@@ -686,8 +686,8 @@ class TestMultiblankRNNTCUDAKernels:
 
         # reshape alphas
         alphas = alphas.view([B, T, U])
-        diff = torch.norm(ground_alphas - alphas)
-        ll_diff = torch.norm(ground_log_likelihood - llForward)
+        diff = torch.linalg.norm(ground_alphas - alphas)
+        ll_diff = torch.linalg.norm(ground_log_likelihood - llForward)
 
         assert diff <= 1e-3
         assert ll_diff <= 1e-3

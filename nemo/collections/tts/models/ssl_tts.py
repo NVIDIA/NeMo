@@ -262,7 +262,7 @@ class SSLDisentangler(ModelPT):
         for task in self._cfg.downstream_heads.task_names:
             if task == "speaker_verification":
                 speaker_embedding = self.downstream_nets['speaker_verification'](encoded[:, :, 0])
-                l2_norm = torch.norm(speaker_embedding, p=2, dim=-1, keepdim=True)
+                l2_norm = torch.linalg.norm(speaker_embedding, ord=2, dim=-1, keepdim=True)
                 speaker_embedding_normalized = speaker_embedding / l2_norm
                 speaker_logits = self.sv_linear(speaker_embedding_normalized)
 
@@ -270,7 +270,7 @@ class SSLDisentangler(ModelPT):
                 encoded_btc = encoded.permute(0, 2, 1)
                 content_embedding = self.downstream_nets['content'](encoded_btc)
                 if normalize_content:
-                    l2_norm_content = torch.norm(content_embedding, p=2, dim=-1, keepdim=True)
+                    l2_norm_content = torch.linalg.norm(content_embedding, ord=2, dim=-1, keepdim=True)
                     content_embedding = content_embedding / l2_norm_content
 
                 content_logits = self.content_linear(content_embedding)

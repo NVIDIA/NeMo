@@ -398,7 +398,7 @@ def main():
                 bsi_end = segment_indices[idx][1]
                 speaker_embedding = torch.mean(batch_speaker_embeddings[bsi_start : bsi_end + 1], dim=0)
 
-                l2_norm = torch.norm(speaker_embedding, p=2)
+                l2_norm = torch.linalg.norm(speaker_embedding, ord=2)
                 speaker_embedding = speaker_embedding / l2_norm
 
                 if args.ssl_content_emb_type == "probs":

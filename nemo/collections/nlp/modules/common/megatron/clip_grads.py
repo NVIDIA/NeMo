@@ -128,7 +128,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
         else:
             for grad in grads_for_norm:
-                grad_norm = torch.norm(grad, norm_type)
+                grad_norm = torch.linalg.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
 
         # Sum across all model-parallel GPUs.

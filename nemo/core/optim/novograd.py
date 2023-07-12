@@ -134,8 +134,8 @@ class Novograd(Optimizer):
 
                 if self.luc:
                     # Clip update so that updates are less than eta*weights
-                    data_norm = torch.norm(p.data)
-                    grad_norm = torch.norm(exp_avg.data)
+                    data_norm = torch.linalg.norm(p.data)
+                    grad_norm = torch.linalg.norm(exp_avg.data)
                     luc_factor = self.luc_trust * data_norm / (grad_norm + self.luc_eps)
                     luc_factor = min(luc_factor, group["lr"])
                     p.data.add_(exp_avg, alpha=-luc_factor)
