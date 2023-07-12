@@ -43,6 +43,7 @@ try:
     NLP_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     NLP_AVAILABLE = False
+    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
 
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -80,16 +81,16 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup audio preprocessor
-        self.preprocessor = EncDecTransfModelBPE.from_config_dict(self._cfg.preprocessor)
+        self.preprocessor = EncDecTransfModelBPE.from_config_dict(self.cfg.preprocessor)
 
         # Setup audio encoder
-        self.encoder = EncDecTransfModelBPE.from_config_dict(self._cfg.encoder)
+        self.encoder = EncDecTransfModelBPE.from_config_dict(self.cfg.encoder)
 
         # Add projection layer if encoder and decoder differ in hidden size
-        if self._cfg.encoder['d_model'] != self._cfg.transf_decoder['hidden_size']:
-            self.adapter = torch.nn.Linear(self._cfg.encoder['d_model'], self._cfg.transf_decoder['hidden_size'])
+        if self.cfg.encoder['d_model'] != self.cfg.transf_decoder['hidden_size']:
+            self.adapter = torch.nn.Linear(self.cfg.encoder['d_model'], self.cfg.transf_decoder['hidden_size'])
         else:
-            self.adapter = lambda x: x
+            self.adapter = torch.nn.Identity()
 
         transf_encoder_cfg_dict = OmegaConf.to_container(cfg.get('transf_encoder'))
 
@@ -133,10 +134,10 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.log_softmax = TokenClassifier(
             hidden_size=self.transf_decoder.hidden_size,
             num_classes=vocab_size,
-            activation=self._cfg.head.activation,
-            log_softmax=self._cfg.head.log_softmax,
-            dropout=self._cfg.head.dropout,
-            use_transformer_init=self._cfg.head.use_transformer_init,
+            activation=self.cfg.head.activation,
+            log_softmax=self.cfg.head.log_softmax,
+            dropout=self.cfg.head.dropout,
+            use_transformer_init=self.cfg.head.use_transformer_init,
         )
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
@@ -149,21 +150,21 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             decoder=self.transf_decoder.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=self.transf_decoder.max_sequence_length,
-            beam_size=self._cfg.beam_search.beam_size,
+            beam_size=self.cfg.beam_search.beam_size,
             bos=self.tokenizer.bos_id,
             pad=self.tokenizer.pad_id,
             eos=self.tokenizer.eos_id,
-            len_pen=self._cfg.beam_search.len_pen,
-            max_delta_length=self._cfg.beam_search.max_generation_delta,
+            len_pen=self.cfg.beam_search.len_pen,
+            max_delta_length=self.cfg.beam_search.max_generation_delta,
         )
 
         # Define autoregressive CE loss
         self.transf_loss = SmoothedCrossEntropyLoss(
-            pad_id=self.tokenizer.pad_id, label_smoothing=self._cfg.label_smoothing
+            pad_id=self.tokenizer.pad_id, label_smoothing=self.cfg.label_smoothing
         )
 
-        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = EncDecTransfModelBPE.from_config_dict(self._cfg.spec_augment)
+        if hasattr(self.cfg, 'spec_augment') and self.cfg.spec_augment is not None:
+            self.spec_augmentation = EncDecTransfModelBPE.from_config_dict(self.cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
@@ -230,7 +231,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-                    ctc_lp, _, encoded_len, predictions, enc_states, enc_mask = self.forward(
+                    log_probs, encoded_len, enc_states, enc_mask = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
 
@@ -251,7 +252,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
                     hypotheses += beam_hypotheses
 
-                    del test_batch
+                    del test_batch, log_probs, encoded_len, enc_states, enc_mask
         finally:
             # set mode back to its original value
             self.train(mode=mode)

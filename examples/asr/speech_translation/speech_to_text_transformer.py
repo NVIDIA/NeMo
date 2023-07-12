@@ -15,10 +15,8 @@
 """
 # Training the model
 ```sh
-python speech_to_text_transf.py \
+python speech_to_text_transformer.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
-    model.train_ds.text.tar_files=<path to tar files with text data> \
-    model.train_ds.text.metadata_file=<path to text metadata file> \
     model.train_ds.audio.tarred_audio_filepaths=<path to tar files with audio> \
     model.train_ds.audio_manifest_filepath=<path to audio data manifest> \
     model.validation_ds.manifest_filepath=<path to validation manifest> \
@@ -26,9 +24,6 @@ python speech_to_text_transf.py \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.model_path=<path to speech tokenizer model> \
     model.tokenizer.type=<either bpe, wpe, or yttm> \
-    model.encoder_tokenizer.tokenizer_model=<path to cmudict> \
-    model.encoder_tokenizer.vocab_file=<path to heteronyms> \
-    model.decoder_tokenizer.tokenizer_model=<path to decoder tokenizer model> \
     trainer.gpus=-1 \
     trainer.accelerator="ddp" \
     trainer.max_epochs=100 \
@@ -54,7 +49,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="../conf/transformer_dec/", config_name="speech_translation_transf_test")
+@hydra_runner(config_path="../conf/speech_translation/", config_name="fast-conformer_transformer")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
