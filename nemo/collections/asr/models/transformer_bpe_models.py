@@ -34,17 +34,6 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 
-try:
-    from sacrebleu import corpus_bleu
-    from nemo.collections.nlp.modules.common import TokenClassifier
-    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
-
-    NLP_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    NLP_AVAILABLE = False
-    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
-
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -57,6 +46,17 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
+
+try:
+    from sacrebleu import corpus_bleu
+    from nemo.collections.nlp.modules.common import TokenClassifier
+    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
+    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
+
+    NLP_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    NLP_AVAILABLE = False
+    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
 
 __all__ = ['EncDecTransfModelBPE']
 
