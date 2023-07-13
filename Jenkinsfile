@@ -5139,7 +5139,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh 'rm -f examples/asr/evaluation_transcripts.json'
       }
     }
-//  }
+  }
 
   post {
     always {
