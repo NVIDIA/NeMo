@@ -808,6 +808,9 @@ class CoreAttention(MegatronModule):
             self.attn_fn = self.flash_attention
         else:
             self.attn_fn = self.torch_attention
+            
+        print('*' * 10)
+        print(self.attn_fn)
 
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOSPositionEmbedding(kv_channels)
@@ -881,7 +884,9 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-
+        print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+        print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+        
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -1010,22 +1015,16 @@ class CoreAttention(MegatronModule):
         if attention_mask is not None:
             """
             attention_mask: 0 is not masked; 1 is masked
-            attention_mask_q/kv: 1 is not masked; 0 is masked
             """
             if len(attention_mask.shape) == 4:
-                # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
-                attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
-                attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
-                q_len = attention_mask.sum(-1)
-                kv_len = attention_mask.sum(-1)
+                # [b, 1, sq, sk]
+                q_len = torch.any(torch.eq(attention_mask, False), dim=3).sum(-1).squeeze()
+                kv_len = torch.any(torch.eq(attention_mask, False), dim=2).sum(-1).squeeze()
             else:
-                # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
-                assert len(attention_mask.shape) == 2
-                attention_mask_q = (~attention_mask).unsqueeze(1).unsqueeze(3)
-                attention_mask_kv = (~attention_mask).unsqueeze(1).unsqueeze(2)
-                
-            q_len = attention_mask_q.sum(2).squeeze().detach()
-            kv_len = attention_mask_kv.sum(3).squeeze().detach()
+                # [b, s]
+                assert len(attention_mask.shape) == 2                
+                q_len = (~attention_mask).sum(-1).squeeze()
+                kv_len = (~attention_mask).sum(-1).squeeze()
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         
@@ -1059,8 +1058,5 @@ class CoreAttention(MegatronModule):
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
-
-        if attention_mask is not None:
-            context_layer = context_layer * attention_mask_q
 
         return context_layer
