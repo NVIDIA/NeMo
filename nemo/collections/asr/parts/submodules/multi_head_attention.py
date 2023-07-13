@@ -358,7 +358,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             diagonal_matrix_ac[:, :, :, -(self.att_context_size[1] + 1) :] += diagonal_matrix_bd[
                 :, :, :, self.att_context_size[0] :
             ]
-            scores = diagonal_matrix_ac / self.s_d_k
+            scores = diagonal_matrix_ac
             # (batch, head, time, 2w + 1)
 
             # mask invalid positions
@@ -423,6 +423,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
                 # free memory
                 del global_key_attn_scores
+
+            scores = scores / self.s_d_k
 
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
             p_attn = self.dropout(attn)
