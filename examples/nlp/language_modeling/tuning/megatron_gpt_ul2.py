@@ -69,6 +69,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
 
         # Update UL2 Config
+        gpt_cfg.target = f"{MegatronUGPTModel.__module__}.{MegatronUGPTModel.__name__}"
         gpt_cfg.attn_mask_type = cfg.model.attn_mask_type
         # Update Tokenizer Config
         gpt_cfg.tokenizer.sentencepiece_legacy = True
