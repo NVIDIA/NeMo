@@ -719,12 +719,16 @@ class UNetModel(nn.Module):
         if from_pretrained is not None:
             if from_NeMo:
                 state_dict = torch.load(from_pretrained, map_location='cpu')
-                self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
+                missing_key, _, _, _ = self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
             else:
                 state_dict = load_state_dict(from_pretrained)
                 if 'state_dict' in state_dict.keys():
                     state_dict = state_dict['state_dict']
-                self._load_pretrained_model(state_dict)
+                missing_key, _, _, _ = self._load_pretrained_model(state_dict)
+            if len(missing_key) > 0:
+                print(
+                    'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                )
 
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
@@ -916,6 +920,8 @@ class UNetModel(nn.Module):
                 re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
             if key_.startswith('model.model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
+            if key_.startswith('model.model.diffusion_model._orig_mod.'):
+                re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
         return re_state_dict
 
     def _load_state_dict_into_model(self, state_dict):
