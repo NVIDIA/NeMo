@@ -63,7 +63,7 @@ model:
   attention_dropout: 0.1 # Dropout probability for attention
   ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
-  apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
   normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
@@ -77,12 +77,13 @@ model:
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
   openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
   normalize_attention_scores: True # Whether to scale the output Q * K^T by 1 / sqrt(hidden_size_per_head). This arg is provided as a configuration option mostly for compatibility with models that have been weight-converted from HF. You almost always want to se this to True.
-  position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope']
+  position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
   attention_type: 'multihead' # Attention type. Options ['multihead']
   share_embeddings_and_output_weights: True # Share embedding and output layer weights.
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
 
   tokenizer:
     library: 'megatron'
@@ -166,7 +167,17 @@ model:
   fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
   reduce_amax: True # Perform reduction to sync amax tensors across GPUs after every iteration
   use_emha: False # Use fused multi-head attention for large sequence-length. Note this is not yet supported. Please set to False.
+  ub_tp_comm_overlap: False
+  # Use userbuffer backend to overlap tensor-parallel communications with computes.
+  # This feature is only available with Transformer Engine and squence parallelism enabled and, currently, supports only GPT models.
+  ub_tp_comm_overlap_cfg: null
+  # A yaml file with userbuffer communicator configurations. This file should provide `method`, `dtype`, `num_sm`, `num_splits`,
+  # `cga_size`, `num_splits`, `set_sm_margin`, and `aggregate` for the communicators to use custom settings.
+  # If the configuration file is not provided a default setting is used for all communicators.
 
+  ## Flash Attention
+  use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
+  
   data:
    # Path to data must be specified by the user.
     # Supports List, String and Dictionary

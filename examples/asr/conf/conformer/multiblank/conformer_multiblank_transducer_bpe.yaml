@@ -179,6 +179,7 @@ model:
 
   decoding:
     strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
+    model_type: "multiblank"
 
     # this must not be None in order to use the multi-blank specific decoding method.
     # you could set this to [1, 1, 1] so that big blanks are treated the same

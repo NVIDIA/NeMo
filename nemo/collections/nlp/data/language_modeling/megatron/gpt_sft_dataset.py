@@ -51,7 +51,7 @@ class GPTSFTDataset(Dataset):
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
@@ -93,7 +93,9 @@ class GPTSFTDataset(Dataset):
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
-        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
+        self.indexed_dataset = JSONLMemMapDataset(
+            dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
+        )
 
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
@@ -145,15 +147,23 @@ class GPTSFTDataset(Dataset):
         output = example[self.label_key]
 
         if self.prompt_template is not None:
-            assert '{input}' in self.prompt_template
-            assert '{output}' in self.prompt_template
+            assert f'{{{self.context_key}}}' in self.prompt_template
+            assert f'{{{self.label_key}}}' in self.prompt_template
             # Make sure that '{output}' always occurs at the end of the prompt template string
-            assert self.prompt_template.index('{output}') == len(self.prompt_template) - len('{output}')
+            assert self.prompt_template.index(f'{{{self.label_key}}}') == len(self.prompt_template) - len(
+                f'{{{self.label_key}}}'
+            )
             # Get the context by replacing only the input
             original_context = context
-            context = self.prompt_template.replace('{input}', context).replace('{output}', '').strip(' ')
+            context = (
+                self.prompt_template.replace(f'{{{self.context_key}}}', context)
+                .replace(f'{{{self.label_key}}}', '')
+                .strip(' ')
+            )
             # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace('{input}', original_context).replace('{output}', output)
+            text = self.prompt_template.replace(f'{{{self.context_key}}}', original_context).replace(
+                f'{{{self.label_key}}}', output
+            )
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
             text = context + '\n' + output
@@ -169,7 +179,9 @@ class GPTSFTDataset(Dataset):
         tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
         context_ids = pre_pad + self.tokenizer.text_to_ids(context)
         answer_ids = tokenized_text[len(context_ids) :]
-        total_ids = len(context_ids) + len(answer_ids)
+
+        # for the long context cases, collate_fn includes self.tokens_to_generate for padding
+        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
         if self.add_bos:
             total_ids += 1
         if self.add_sep:

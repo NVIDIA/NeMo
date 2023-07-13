@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from functools import partial
 from typing import Any, Optional
 
 import torch
@@ -35,6 +36,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     LengthParam,
     SamplingParam,
     generate,
+    get_computeprob_response,
     megatron_gpt_generate,
 )
 from nemo.utils import AppState, logging
@@ -295,6 +297,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_o2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
@@ -308,6 +319,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
             enable_autocast=self.enable_autocast,
+            no_sync_func=no_sync_func,
+            grad_sync_func=grad_sync_func,
+            param_sync_func=param_sync_func,
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses
@@ -374,6 +390,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             "add_BOS": False,
             "all_probs": False,
             "compute_logprob": False,
+            "end_strings": ["<|endoftext|>"],
         }
         result = megatron_gpt_generate(
             model=self,
@@ -539,7 +556,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         inference_config = inference_config.copy()
         compute_logprob = inference_config['compute_logprob']
         if compute_logprob:
-            del inference_config['compute_logprob']
             inference_config['inputs'] = batch
             inference_config['tokens_to_generate'] = 1
             inference_config['all_probs'] = True
@@ -549,8 +565,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
             return compute_prob_response
         else:
-            del inference_config['compute_logprob']
-            inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
+            # for megatron_gpt_eval.py
+            if isinstance(batch, list):
+                inference_config['inputs'] = batch
+            else:
+                # peft_eval.py
+                inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
             return generate(self, **inference_config)
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):

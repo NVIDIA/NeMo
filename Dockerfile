@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.04-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.06-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -45,11 +45,11 @@ RUN apt-get update && \
 WORKDIR /workspace/
 
 WORKDIR /tmp/
-# TODO: Remove once this Apex commit (2/24/23) is included in PyTorch
+# TODO: Remove once this Apex commit (5/12/23) is included in PyTorch
 # container
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout 57057e2fcf1c084c0fcc818f55c0ff6ea1b24ae2 && \
+  git checkout 8b7a1ff183741dd8f9b87e7bafd04cfde99cea28 && \
   pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
@@ -72,6 +72,11 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
+# install flash attention dependencies
+RUN pip install flash-attn
+# pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
+RUN pip install triton==2.0.0.dev20221202
+
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
 RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh); INSTALL_CODE=$?; \
@@ -89,7 +94,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.19.0
+ARG NEMO_VERSION=1.20.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
