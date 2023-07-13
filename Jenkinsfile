@@ -3594,8 +3594,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
-      }
-    }
+      //}
+    //}
     //TODO: @athitten Skipping temporarily due to infinte hang
     // stage('L2: Megatron GPT Pretraining and Resume Training PP=2') {
     //   when {
