@@ -19,7 +19,7 @@ from omegaconf import DictConfig, ListConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMethodConfig
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMeasureConfig
 
 
 def get_model_config(model_class):
@@ -117,10 +117,10 @@ class TestConfidenceEnsembles:
             preserve_frame_confidence=True,
             exclude_blank=True,
             aggregation="mean",
-            method_cfg=ConfidenceMethodConfig(
+            measure_cfg=ConfidenceMeasureConfig(
                 name="entropy",
-                entropy_type="renui",
-                temperature=0.25,  # this is not really temperature, but alpha, see https://arxiv.org/abs/2212.08703
+                entropy_type="renyi",
+                alpha=0.25,
                 entropy_norm="lin",
             ),
         )
@@ -153,10 +153,10 @@ class TestConfidenceEnsembles:
             preserve_frame_confidence=True,
             exclude_blank=True,
             aggregation="mean",
-            method_cfg=ConfidenceMethodConfig(
+            measure_cfg=ConfidenceMeasureConfig(
                 name="entropy",
-                entropy_type="renui",
-                temperature=0.25,  # this is not really temperature, but alpha, see https://arxiv.org/abs/2212.08703
+                entropy_type="renyi",
+                alpha=0.25,
                 entropy_norm="lin",
             ),
         )
