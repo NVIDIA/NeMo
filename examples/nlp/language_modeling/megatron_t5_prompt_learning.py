@@ -49,7 +49,7 @@ def main(cfg) -> None:
 
     plugins = []
     strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
-    if cfg.trainer.precision == 16 or '16-mixed':
+    if cfg.trainer.precision == 16 or cfg.trainer.precision == '16-mixed':
         scaler = GradScaler(
             init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
             growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
