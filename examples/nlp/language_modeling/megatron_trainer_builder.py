@@ -31,18 +31,21 @@ class MegatronTrainerBuilder:
         with_distributed_adam = self.cfg.model.optim.get('name') == 'distributed_fused_adam'
 
         plugins = []
-        if self.cfg.trainer.precision in [16, 'bf16']:
+        if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
             scaler = None
-            if self.cfg.trainer.precision == 16:
+            if self.cfg.trainer.precision == [16, '16', '16-mixed']:
                 scaler = self.grad_scaler()
+                plugin_precision = '16-mixed'
+            else:
+                plugin_precision = 'bf16-mixed'
 
             if megatron_amp_o2 and not with_distributed_adam:
                 plugins.append(
-                    MegatronHalfPrecisionPlugin(precision=self.cfg.trainer.precision, device='cuda', scaler=scaler)
+                    MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
                 )
             else:
                 plugins.append(
-                    PipelineMixedPrecisionPlugin(precision=self.cfg.trainer.precision, device='cuda', scaler=scaler)
+                    PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
                 )
 
         if self.cfg.get('cluster_type', None) == 'BCP':
