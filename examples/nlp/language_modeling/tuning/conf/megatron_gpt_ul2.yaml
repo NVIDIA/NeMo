@@ -1,0 +1,146 @@
+name: megatron_gpt_ul2
+
+trainer:
+  devices: 1
+  accelerator: gpu
+  num_nodes: 1
+  precision: bf16
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  max_epochs: -1
+  max_steps: 10000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10 # frequency with which training steps are logged 
+  val_check_interval: 1000
+  limit_val_batches: 50
+  limit_test_batches: 500
+  accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
+  gradient_clip_val: 1.0
+  benchmark: False
+  enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: ${name}
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 2
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    save_nemo_on_train_end: True # not recommended when training large models on clusters with short time limits
+    filename: 'megatron_u_gpt-finetune--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    save_best_model: False
+
+model:
+  seed: 1234
+  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  pipeline_model_parallel_size: 1 # inter-layer model parallelism
+  global_batch_size: 8
+  micro_batch_size: 1
+  restore_from_path: ??? # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
+  sync_batch_comm: False
+
+  megatron_amp_O2: null  # If None, Set by the base model's config
+
+  ## Sequence Parallelism
+  # Makes tensor parallelism more memory efficient for LLMs (20B+) by parallelizing layer norms and dropout sequentially
+  # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
+  sequence_parallel: False
+
+  ## Activation Checkpoint 
+  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
+  # 'uniform' divides the total number of transformer layers and checkpoints the input activation
+  # of each chunk at the specified granularity
+  # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
+  activations_checkpoint_num_layers: null # not used with 'selective'
+  gradient_as_bucket_view: False
+
+  # UL2 model configuration
+  encoder_seq_length: 2048
+  attn_mask_type: "padding"  # Attention mask type. Options ['padding', 'causal']. If padding will use a bidirectional mask over the prefix.
+
+  # Model configuration overrides
+  # Set to None to use the default value inside the base model
+  hidden_dropout: null
+  attention_dropout: null
+  ffn_dropout: null
+
+  data:
+    # Path to data must be specified by the user.
+    # Supports List, String and Dictionary
+    # List : can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
+    # Or see example below:
+    # data_prefix:
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_00_text_document
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_01_text_document
+    # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
+    # Or see example below:
+    # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
+    data_prefix: ???
+    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+    data_impl: mmap
+    splits_string: 900,50,50
+    seq_length: ${model.encoder_seq_length}
+    skip_warmup: True
+    num_workers: 4
+    dataloader_type: single # cyclic
+    reset_position_ids: False # Reset position ids after end-of-document token
+    reset_attention_mask: False # Reset attention mask after end-of-document token
+    eod_mask_loss: False # Mask loss for the end of document tokens
+    validation_drop_last: True # Set to false if the last partial validation samples is to be consumed
+    no_seqlen_plus_one_input_tokens: False # Set to True to disable fetching (sequence length + 1) input tokens, instead get (sequence length) input tokens and mask the last token
+    pad_samples_to_global_batch_size: False # Set to True if you want to pad the last partial batch with -1's to equal global batch size
+
+    # UL2 related data configuration.
+    masked_lm_prob: 0.15
+    extreme_masked_lm_prob: 0.5
+    dataset_type: 'u_gpt'
+    short_seq_prob: 0.0
+    max_ngram_size: 10
+    extreme_max_ngram_size: 128
+    extreme_min_ngram_size: 32
+    extreme_mean_ngram_size: 64
+    ngram_span_length_distribution: 'geometric' # Options: ['geometric', 'uniform']
+    extreme_ngram_span_length_distribution: 'truncated_normal' # Options: ['geometric', 'uniform', 'truncated_normal']
+    prefix_lm_pivot_distribution: 'truncated_normal' # Options: ['uniform', 'truncated_normal']
+    prefix_lm_pivot_mean: 0.5
+    mean_ngram_size: 3
+    r_masking_prob: 0.25
+    s_masking_prob: 0.5
+    x_masking_longspan_smallprob: 0.08
+    x_masking_longspan_largeprob: 0.09
+    x_masking_shortspan_largeprob: 0.08
+    permutation: False
+    whole_word_masking: False
+    favor_longer_ngrams: False
+    respect_document_boundaries: True # If true, a single training exampl cannot cross document boundaries, increasing the fraction of <pad> tokens within a batch.
+
+  # Nsys profiling options
+  nsys_profile:
+    enabled: False
+    start_step: 10  # Global batch to start profiling
+    end_step: 10 # Global batch to end profiling
+    ranks: [0] # Global rank IDs to profile
+    gen_shape: False # Generate model and kernel details including input shapes
+
+  optim:
+    name: fused_adam # Supports distributed optimizer for memory savings. To enable, set to 'distributed_fused_adam'. Needs Apex to be built with specific args to work.
+    lr: 3e-5
+    weight_decay: 0.01 
+    betas: 
+    - 0.9
+    - 0.98
