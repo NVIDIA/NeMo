@@ -91,9 +91,12 @@ class NLPDDPStrategy(DDPStrategy):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(parallel_devices=parallel_devices, 
-                         cluster_environment=cluster_environment, 
-                         checkpoint_io=checkpoint_io, **kwargs)
+        super().__init__(
+            parallel_devices=parallel_devices,
+            cluster_environment=cluster_environment,
+            checkpoint_io=checkpoint_io,
+            **kwargs,
+        )
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
