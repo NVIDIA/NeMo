@@ -319,6 +319,10 @@ class ASRBPEMixin(ABC):
                 use_fast=hf_tokenizer_kwargs.get('use_fast', False),
             )
 
+        logging.info(
+            'Tokenizer {} initialized with {} tokens'.format(tokenizer.__class__.__name__, tokenizer.vocab_size)
+        )
+
         return tokenizer, model_path, vocab_path, spe_vocab_path
 
     def _cleanup_monolingual_and_aggregate_config_and_artifacts_if_needed(self):
