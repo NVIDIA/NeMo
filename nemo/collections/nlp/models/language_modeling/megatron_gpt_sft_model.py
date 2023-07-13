@@ -13,8 +13,8 @@
 # limitations under the License.
 import itertools
 import json
-from typing import Any, Optional
 from functools import partial
+from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
