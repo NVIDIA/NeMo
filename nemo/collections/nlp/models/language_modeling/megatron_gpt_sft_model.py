@@ -762,7 +762,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_validation_epoch_end(self):
         self.on_inference_epoch_end(self.cfg.data.validation_ds)
-        return super().on_validation_epoch_end()
+        #return super().on_validation_epoch_end()
 
     def on_inference_epoch_end(self, ds):
         app_state = AppState()
