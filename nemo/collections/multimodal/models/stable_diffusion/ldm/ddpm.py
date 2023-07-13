@@ -491,6 +491,7 @@ class LatentDiffusion(DDPM, Serialization):
         ignore_keys = cfg.ignore_keys
         cfg.conditioning_key = conditioning_key
         super().__init__(cfg=cfg)
+        self.precision = cfg.precision
         self.concat_mode = cfg.concat_mode
         self.cond_stage_trainable = cfg.cond_stage_trainable
         self.cond_stage_key = cfg.cond_stage_key
@@ -1119,6 +1120,8 @@ class LatentDiffusion(DDPM, Serialization):
         else:
             raise NotImplementedError()
 
+        if (self.precision == 'bf16') or (int(self.precision) == 16):
+            model_output = model_output.type(torch.float32)
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
         self.logvar = self.logvar.cuda(non_blocking=True)

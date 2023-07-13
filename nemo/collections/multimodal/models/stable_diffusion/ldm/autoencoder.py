@@ -417,6 +417,19 @@ class AutoencoderKL(pl.LightningModule):
                         del state_dict[checkpoint_key]
             return mismatched_keys
 
+        if state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512]):
+            for key in [
+                'encoder.mid.attn_1.q.weight',
+                'decoder.mid.attn_1.q.weight',
+                'encoder.mid.attn_1.v.weight',
+                'decoder.mid.attn_1.v.weight',
+                'encoder.mid.attn_1.k.weight',
+                'decoder.mid.attn_1.k.weight',
+                'encoder.mid.attn_1.proj_out.weight',
+                'decoder.mid.attn_1.proj_out.weight',
+            ]:
+                state_dict[key] = state_dict[key].unsqueeze(2).unsqueeze(3)
+
         if state_dict is not None:
             # Whole checkpoint
             mismatched_keys = _find_mismatched_keys(
