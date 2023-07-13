@@ -57,3 +57,11 @@ class MegatronTrainerBuilder:
         strategy = self._training_strategy()
         plugins = self._plugins()
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
+
+
+class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
+    def _grad_scaler(self) -> GradScaler:
+        return GradScaler(
+            init_scale=self.cfg.model.get('native_amp_init_scale', 2 ** 32),
+            growth_interval=self.cfg.model.get('native_amp_growth_interval', 1000),
+        )
