@@ -87,7 +87,6 @@ model:
   attention_type: 'multihead' # Attention type. Options ['multihead']
   share_embeddings_and_output_weights: True # Share embedding and output layer weights.
   attn_mask_type: padding # Attention mask type. Options ['padding', 'causal']. If padding will use a bidirectional mask over the prefix.
-  ul2_token_expansion_init: 'normal' # Initialization method for the ul2 token expansion. Options ['normal', 'copy', 'zero']
 
   tokenizer:
     library: 'megatron'
