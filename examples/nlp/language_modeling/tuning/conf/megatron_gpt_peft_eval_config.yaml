@@ -105,7 +105,7 @@ model:
       drop_last: False
       context_key: ${data.train_ds.context_key}
       label_key: ${data.train_ds.label_key}
-      query_key: ${data.train_ds.query_key} # This key is used when context is too long, and we first want to truncate context and then append query to it.
+      query_key: null # This key is used when context is too long, and we first want to truncate context and then append query to it.
       add_eos: ${data.train_ds.add_eos}
       add_sep: ${data.train_ds.add_sep}
       add_bos: ${data.train_ds.add_bos}
