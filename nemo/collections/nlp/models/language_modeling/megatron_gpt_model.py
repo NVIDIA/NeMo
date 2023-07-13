@@ -15,14 +15,10 @@
 import itertools
 import queue
 import warnings
-from dataclasses import asdict
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
-import numpy as np
 import torch
-import yaml
-from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
@@ -60,7 +56,6 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
-from tests.collections.nlp.test_retrieval_module import model_parallel_config
 
 try:
     import apex.transformer.pipeline_parallel.utils
