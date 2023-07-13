@@ -9,7 +9,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 
 
 class MegatronTrainerBuilder:
-
     def __init__(self, cfg) -> None:
         self.cfg = cfg
 
@@ -38,11 +37,13 @@ class MegatronTrainerBuilder:
                 scaler = self.grad_scaler()
 
             if megatron_amp_o2 and not with_distributed_adam:
-                plugins.append(MegatronHalfPrecisionPlugin(
-                    precision=self.cfg.trainer.precision, device='cuda', scaler=scaler))
+                plugins.append(
+                    MegatronHalfPrecisionPlugin(precision=self.cfg.trainer.precision, device='cuda', scaler=scaler)
+                )
             else:
-                plugins.append(PipelineMixedPrecisionPlugin(
-                    precision=self.cfg.trainer.precision, device='cuda', scaler=scaler))
+                plugins.append(
+                    PipelineMixedPrecisionPlugin(precision=self.cfg.trainer.precision, device='cuda', scaler=scaler)
+                )
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
