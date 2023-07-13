@@ -1,4 +1,5 @@
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -65,3 +66,10 @@ class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
             init_scale=self.cfg.model.get('native_amp_init_scale', 2 ** 32),
             growth_interval=self.cfg.model.get('native_amp_growth_interval', 1000),
         )
+
+
+class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
+    def create_trainer(self) -> Trainer:
+        strategy = self._training_strategy()
+        plugins = self._plugins()
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
