@@ -14,6 +14,7 @@
 import itertools
 import json
 from typing import Any, Optional
+from functools import partial
 
 import torch
 from omegaconf import DictConfig, ListConfig
