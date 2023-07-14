@@ -47,6 +47,9 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
             )
             t5_cfg.data.validation_ds.tgt_file_name = cfg.model.data.validation_ds.tgt_file_name
 
+        if cfg.model.data.validation_ds.get('aux_file_name', None) is not None:
+            t5_cfg.data.validation_ds.aux_file_name = cfg.model.data.validation_ds.aux_file_name        
+    
         if "write_predictions_to_file" in cfg.model.data.validation_ds:
             t5_cfg.data.validation_ds.write_predictions_to_file = (
                 cfg.model.data.validation_ds.write_predictions_to_file
@@ -56,7 +59,6 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
 
         t5_cfg.data.validation_ds.micro_batch_size = cfg.model.data.validation_ds.micro_batch_size
         t5_cfg.data.validation_ds.global_batch_size = cfg.model.data.validation_ds.global_batch_size
-
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:

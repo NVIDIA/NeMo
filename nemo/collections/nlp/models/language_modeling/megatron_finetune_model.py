@@ -59,9 +59,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         super().__init__(cfg, trainer=trainer)
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
         self.val_metric = torch.nn.ModuleList(self.val_metric)
+        if hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+            
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric)
+            if hasattr(self.cfg.data.test_ds, "metric"):
+                self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
 
     def setup_metric(self, data_cfg):
         # XNLI is a special case.
@@ -336,11 +341,17 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # Regular finetuning datasets will return a list of dicts for each microbatch.
         # But T0 datasets will return a single dict for the global batch.
         batch = next(dataloader_iter)
+        
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         
+        if 'metadata' in batch:
+            metadata = batch.pop('metadata')
+        else:
+            metadata = [{}] * len(batch['text_enc'])
+            
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
         # this will be ignored.
         loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
@@ -368,6 +379,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             'labels': labels_text,
             'categories': categories,
             'inputs': input_text,
+            'metadata': metadata, # [dict]
         }
 
     @classmethod
@@ -434,6 +446,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         'labels': x['labels'],
                         'categories': x['categories'],
                         'inputs': x['inputs'],
+                        'metadata': x['metadata']
                     }
                     for x in output
                 ],
@@ -448,11 +461,12 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 'labels': [],
                 'categories': [],
                 'inputs': [],
+                'metadata': [],
             }
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
-                    for pred, label, input, category in zip(
-                        batch['preds'], batch['labels'], batch['inputs'], batch['categories']
+                    for pred, label, input, category, metadata in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['categories'], batch['metadata']
                     ):
                         key = input + label
                         if key not in gt_inp_set:
@@ -461,13 +475,21 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                             deduplicated_outputs['labels'].append(label)
                             deduplicated_outputs['categories'].append(category)
                             deduplicated_outputs['inputs'].append(input)
+                            deduplicated_outputs['metadata'].append(metadata)
             
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
             if metric_name != 'loss':
                 # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
                 metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-                for pred, label, category in zip(deduplicated_outputs['preds'], deduplicated_outputs['labels'], deduplicated_outputs['categories']):
+                
+                if metric_label_key in deduplicated_outputs['metadata'][0]:
+                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+                else:
+                    labels = deduplicated_outputs['labels']
+                
+                for pred, label, category in zip(deduplicated_outputs['preds'], labels, deduplicated_outputs['categories']):
                     # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
                     pred, label = self.cast_for_metric(
                         pred=pred,
@@ -510,7 +532,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         
                 metric_fn.reset()
                 averaged_metric.append(metric_result)
-
+                
             # Write predictions, labels, and inputs to a file for each validation/test dataset.
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
                 logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
@@ -550,10 +572,17 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return averaged_loss, averaged_metric
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
-        with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
-            assert len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels'])
-            for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
-                f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
+        output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
+        with open(output_file_path, "w") as f_json:
+            assert (
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
+            )
+            for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
+                json_string = {'input': i, 'pred': p, 'label': l}
+                for k, v in m.items():
+                    if k not in json_string:
+                        json_string[k] = v
+                f_json.write(json.dumps(json_string) + '\n')
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
@@ -652,7 +681,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             data_cfg.src_file_name = [data_cfg.src_file_name]
             data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
-
+            
         for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
             dataset = SequenceToSequenceDataset(
                 src_file_name=src,
@@ -707,11 +736,21 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             data_cfg.src_file_name = [data_cfg.src_file_name]
             data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
+             
+        if 'aux_file_name' in data_cfg:
+            is_aux_list_config = isinstance(data_cfg.aux_file_name, ListConfig)
+            if is_src_list_config and is_tgt_list_config and not is_aux_list_config:
+                raise ValueError("aux_list a ListConfig or a string. ")
+            if not is_aux_list_config:
+                data_cfg.aux_file_name = [data_cfg.aux_file_name]
+        else:
+            data_cfg.aux_file_name = [None] * len(data_cfg.src_file_name)
 
-        for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
+        for src, tgt, aux in zip(data_cfg.src_file_name, data_cfg.tgt_file_name, data_cfg.aux_file_name):
             dataset = SequenceToSequenceDataset(
                 src_file_name=src,
                 tgt_file_name=tgt,
+                aux_file_name=aux,
                 src_tokenizer=self.tokenizer,
                 tgt_tokenizer=self.tokenizer,
                 max_src_seq_length=data_cfg.max_src_seq_length,
