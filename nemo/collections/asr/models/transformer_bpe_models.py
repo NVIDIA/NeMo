@@ -171,6 +171,17 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
     @torch.no_grad()
+    def translate(
+        self,
+        paths2audio_files: List[str],
+        batch_size: int = 4,
+        logprobs: bool = False,
+        return_hypotheses: bool = False,
+    ) -> List[str]:
+        hypotheses = self.transcribe(paths2audio_files, batch_size, logprobs, return_hypotheses)
+        return hypotheses
+
+    @torch.no_grad()
     def transcribe(
         self,
         paths2audio_files: List[str],
@@ -441,11 +452,13 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if self.use_transf_encoder:
             enc_states = self.transf_encoder(encoder_states=enc_states, encoder_mask=enc_mask)
 
-        dec_mask = lens_to_mask(transcript_length, transcript.shape[1]).to(transcript.dtype)
-        dec_states = self.transf_decoder(
-            input_ids=transcript, decoder_mask=dec_mask, encoder_embeddings=enc_states, encoder_mask=enc_mask
-        )
-        transf_log_probs = self.log_softmax(hidden_states=dec_states)
+        transf_log_probs = None
+        if transcript is not None:
+            dec_mask = lens_to_mask(transcript_length, transcript.shape[1]).to(transcript.dtype)
+            dec_states = self.transf_decoder(
+                input_ids=transcript, decoder_mask=dec_mask, encoder_embeddings=enc_states, encoder_mask=enc_mask
+            )
+            transf_log_probs = self.log_softmax(hidden_states=dec_states)
 
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
