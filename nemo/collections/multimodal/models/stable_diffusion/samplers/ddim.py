@@ -80,7 +80,7 @@ class DDIMSampler(AbstractBaseSampler):
         timesteps = self.ddim_timesteps
         total_steps = timesteps.shape[0]
 
-        print(f"Scoring using {self.sampler.name} with {total_steps} timesteps")
+        # print(f"Scoring using {self.sampler.name} with {total_steps} timesteps")
 
         b, *_, device = *x.shape, x.device
         time_range = torch.tensor(timesteps, device=device)

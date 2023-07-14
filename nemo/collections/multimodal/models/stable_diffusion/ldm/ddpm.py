@@ -233,7 +233,10 @@ class DDPM(torch.nn.Module):
             # compatibility for stable diffusion old checkpoint
             # remove megatron wrapper prefix
             if first_key == "model.betas":
-                new_k = new_k.lstrip("model.")
+                # new_k = new_k.lstrip("model.") #I don't think does what you think it does
+                new_k = new_k[len('model.'):]
+
+            # print(f'final k {new_k}')
             sd[new_k] = v
 
         keys = list(sd.keys())
@@ -1893,7 +1896,7 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 drop_last=True,
-                persistent_workers=True,
+                persistent_workers=cfg.num_workers > 0,
             )
 
     def setup_validation_data(self, cfg):
