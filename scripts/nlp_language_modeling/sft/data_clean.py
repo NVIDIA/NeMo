@@ -66,7 +66,7 @@ def data_clean(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--dataset_file", type=str, required=True, default='/dataset/conv/sharegpt/ShareGPT_V3_val.jsonl'
+        "--dataset_file", type=str, required=True, default='/dataset/input.jsonl'
     )
     parser.add_argument(
         "--model_file", type=str, required=False, default=None, help="Path to the sentence piece model file."
