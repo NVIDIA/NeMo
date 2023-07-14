@@ -348,7 +348,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         predicted_token_ids, _ = self.decode(
             tokens_enc=batch['text_enc'],
             enc_mask=batch['enc_mask'],
-            num_tokens_to_generate=30,
+            num_tokens_to_generate=data_cfg.max_tgt_seq_length,
             bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
         )
 
