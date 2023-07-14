@@ -340,7 +340,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
-
+        
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
         # this will be ignored.
         loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
@@ -361,22 +361,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             categories = [None] * len(preds_text)
         else:
             categories = batch['lang']
-
-        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-        assert len(categories) == len(preds_text) == len(labels_text)
-        for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
-            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-            pred, label = self.cast_for_metric(
-                pred=pred,
-                label=label,
-                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                class_labels=data_cfg.metric.get('class_labels', None),
-                labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
-            )
-            if batch_has_lang_information:
-                _ = metric(pred, label, category)
-            else:
-                _ = metric(pred, label)
 
         return {
             'loss': loss,
@@ -437,98 +421,118 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             loss = super().validation_epoch_end([x['loss'] for x in output])
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
-            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
-            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
             self.log(loss_log_key, loss, batch_size=1)
-            metric_object = (
-                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-            )
-            metric = metric_object.compute()
-            if metric_name == 'rouge':
-                metric = metric['rouge1_fmeasure']
-            # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
-            if isinstance(metric, dict):
-                # GLUE case:
-                if len(metric) == 1 and 'acc' in metric:
-                    metric = metric['acc']
-                    self.log(metric_log_key, metric, batch_size=1)
-                    logging.info(f"{mode} {metric_name}: {metric}")
-                # XNLI case where the metric dictionary contains the language and the computed metric as values.
-                else:
-                    for k, v in metric.items():
-                        if k != 'acc' and 'total' not in k:
-                            self.log(metric_log_key + f'_{k}', v, batch_size=1)
-                            logging.info(f"{mode} {metric_name} lang {k} : {v}")
-                    if metric_name != 'rouge':
-                        metric = metric['acc']
-            else:
-                self.log(metric_log_key, metric, batch_size=1)
-                logging.info(f"{metric_log_key}: {metric}")
-            metric_object.reset()
-
             averaged_loss.append(loss)
-            averaged_metric.append(metric)
+            
+            # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+            gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            torch.distributed.all_gather_object(
+                gathered_outputs,
+                [
+                    {
+                        'preds': x['preds'],
+                        'labels': x['labels'],
+                        'categories': x['categories'],
+                        'inputs': x['inputs'],
+                    }
+                    for x in output
+                ],
+                group=parallel_state.get_data_parallel_group(),
+            )
+
+
+            # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
+            gt_inp_set = set()
+            deduplicated_outputs = {
+                'preds': [],
+                'labels': [],
+                'categories': [],
+                'inputs': [],
+            }
+            for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                for batch in gathered_outputs[rank]:
+                    for pred, label, input, category in zip(
+                        batch['preds'], batch['labels'], batch['inputs'], batch['categories']
+                    ):
+                        key = input + label
+                        if key not in gt_inp_set:
+                            gt_inp_set.add(key)
+                            deduplicated_outputs['preds'].append(pred)
+                            deduplicated_outputs['labels'].append(label)
+                            deduplicated_outputs['categories'].append(category)
+                            deduplicated_outputs['inputs'].append(input)
+            
+            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            if metric_name != 'loss':
+                # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                for pred, label, category in zip(deduplicated_outputs['preds'], deduplicated_outputs['labels'], deduplicated_outputs['categories']):
+                    # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+                    pred, label = self.cast_for_metric(
+                        pred=pred,
+                        label=label,
+                        metric_name=metric_name,
+                        class_labels=data_cfg.metric.get('class_labels', None),
+                        labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
+                    )
+                    if category is not None:
+                        _ = metric_fn(pred, label, category)
+                    else:
+                        _ = metric_fn(pred, label)
+                        
+                metric_result = metric_fn.compute()
+
+                if metric_name == 'rouge':
+                    for k, v in metric_result.items():
+                        if 'fmeasure' in k:
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                    metric_result = metric_result['rouge1_fmeasure']
+
+                elif isinstance(metric_result, dict):
+                    # GLUE case:
+                    if len(metric_result) == 1 and 'acc' in metric_result:
+                        metric_result = metric_result['acc']
+                        self.log(metric_log_key, metric_result, batch_size=1)
+                        logging.info(f"{mode} {metric_name}: {metric_result}")
+                    # XNLI case where the metric dictionary contains the language and the computed metric as values.
+                    else:
+                        for k, v in metric_result.items():
+                            if k != 'acc' and 'total' not in k:
+                                self.log(metric_log_key + f'_{k}', v, batch_size=1)
+                                logging.info(f"{mode} {metric_name} lang {k} : {v}")
+                        if metric_name != 'rouge':
+                            metric_result = metric_result['acc']
+                else:
+                    self.log(metric_log_key, metric_result.item(), batch_size=1)
+                    logging.info(f"{metric_log_key}: {metric_result.item()}")
+                        
+                metric_fn.reset()
+                averaged_metric.append(metric_result)
 
             # Write predictions, labels, and inputs to a file for each validation/test dataset.
-            if data_cfg.get("write_predictions_to_file", False):
-
+            if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
+                logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
+                
                 # Check if the user provided a prefix path to the file(s) they want to write.
                 if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
                     raise ValueError(
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
 
-                # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-                gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-                torch.distributed.all_gather_object(
-                    gathered_outputs,
-                    [
-                        {
-                            'preds': x['preds'],
-                            'labels': x['labels'],
-                            'categories': x['categories'],
-                            'inputs': x['inputs'],
-                        }
-                        for x in output
-                    ],
-                    group=parallel_state.get_data_parallel_group(),
-                )
-
-                # Figure out what the suffix of the file should be.
                 filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-
-                # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
-                gt_inp_set = set()
-                deduplicated_outputs = {
-                    'preds': [],
-                    'labels': [],
-                    'categories': [],
-                    'inputs': [],
-                }
-
-                # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
-                if self.global_rank == 0:
-                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                        for batch in gathered_outputs[rank]:
-                            for pred, label, input, category in zip(
-                                batch['preds'], batch['labels'], batch['inputs'], batch['categories']
-                            ):
-                                gt_inp_set.add(input + label)
-                                deduplicated_outputs['preds'].append(pred)
-                                deduplicated_outputs['labels'].append(label)
-                                deduplicated_outputs['categories'].append(category)
-                                deduplicated_outputs['inputs'].append(input)
-                    self.write_predictions_to_file(
-                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
-                    )
-                torch.distributed.barrier()
-
+                self.write_predictions_to_file(
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                )
+            torch.distributed.barrier()
+        
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 1 else None
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
-        if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
+        if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
             app_state = AppState()
             monitor_mode = app_state.checkpoint_callback_params.mode
             assert monitor_mode in ['min', 'max']
@@ -536,10 +540,12 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         if mode == 'validation':
             self.log("validation_loss", averaged_loss, batch_size=1)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
+            if averaged_metric is not None:
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
         elif mode == 'test':
             self.log("test_loss", averaged_loss, batch_size=1)
-            self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
+            if averaged_metric is not None:
+                self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
 
         return averaged_loss, averaged_metric
 
@@ -609,7 +615,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                global_batch_size=data_cfg.global_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,
