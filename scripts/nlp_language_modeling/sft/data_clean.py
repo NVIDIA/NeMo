@@ -39,7 +39,8 @@ def data_clean(
     tokenizer = get_nmt_tokenizer(
         library=library, model_name=model_name, tokenizer_model=tokenizer_model, use_fast=True
     )
-    tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
+    if library == 'huggingface':
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
     d = GPTSFTChatDataset(dataset_file, tokenizer, seq_len, 1)
     total_records = len(d)
     removed_ids = set()
