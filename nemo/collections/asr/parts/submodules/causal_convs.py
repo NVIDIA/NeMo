@@ -138,7 +138,7 @@ class CausalConv1D(nn.Conv1d):
                 next_cache = new_x[:, :, : -self.cache_drop_size]
             else:
                 next_cache = new_x
-            next_cache = next_cache[:, :, -cache.size(-1):]
+            next_cache = next_cache[:, :, -cache.size(-1) :]
         return new_x, next_cache
 
     def forward(self, x, cache=None):
