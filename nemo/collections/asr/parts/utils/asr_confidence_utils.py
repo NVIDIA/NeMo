@@ -98,7 +98,9 @@ class ConfidenceMeasureConfig:
 
             # TODO (alaptev): delete the following two lines sometime in the future
             logging.warning("Re-writing `alpha` with the value of `temperature`.")
-            self.alpha = self.temperature
+            # self.temperature has type str
+            self.alpha = float(self.temperature)
+            self.temperature = "DEPRECATED"
         if self.name not in ConfidenceMeasureConstants.NAMES:
             raise ValueError(
                 f"`name` must be one of the following: "
@@ -183,6 +185,12 @@ class ConfidenceConfig:
     method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
+        # OmegaConf.structured ensures that post_init check is always executed
+        self.measure_cfg = OmegaConf.structured(
+            self.measure_cfg
+            if isinstance(self.measure_cfg, ConfidenceMeasureConfig)
+            else ConfidenceMeasureConfig(**self.measure_cfg)
+        )
         if self.method_cfg != "DEPRECATED":
             logging.warning(
                 "`method_cfg` is deprecated and will be removed in the future. Please use `measure_cfg` instead."
@@ -190,7 +198,13 @@ class ConfidenceConfig:
 
             # TODO (alaptev): delete the following two lines sometime in the future
             logging.warning("Re-writing `measure_cfg` with the value of `method_cfg`.")
-            self.measure_cfg = self.method_cfg
+            # OmegaConf.structured ensures that post_init check is always executed
+            self.measure_cfg = OmegaConf.structured(
+                self.method_cfg
+                if isinstance(self.method_cfg, ConfidenceMeasureConfig)
+                else ConfidenceMeasureConfig(**self.method_cfg)
+            )
+            self.method_cfg = "DEPRECATED"
         if self.aggregation not in ConfidenceConstants.AGGREGATIONS:
             raise ValueError(
                 f"`aggregation` has to be one of the following: "

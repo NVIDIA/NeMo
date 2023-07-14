@@ -16,12 +16,13 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureConfig, ConfidenceMeasureMixin
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
+from nemo.utils import logging
 
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
@@ -256,6 +257,12 @@ class GreedyCTCInferConfig:
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
+        # OmegaConf.structured ensures that post_init check is always executed
+        self.confidence_measure_cfg = OmegaConf.structured(
+            self.confidence_measure_cfg
+            if isinstance(self.confidence_measure_cfg, ConfidenceMeasureConfig)
+            else ConfidenceMeasureConfig(**self.confidence_measure_cfg)
+        )
         if self.confidence_method_cfg != "DEPRECATED":
             logging.warning(
                 "`confidence_method_cfg` is deprecated and will be removed in the future. "
@@ -264,4 +271,9 @@ class GreedyCTCInferConfig:
 
             # TODO (alaptev): delete the following two lines sometime in the future
             logging.warning("Re-writing `confidence_measure_cfg` with the value of `confidence_method_cfg`.")
-            self.confidence_measure_cfg = self.confidence_method_cfg
+            # OmegaConf.structured ensures that post_init check is always executed
+            self.confidence_measure_cfg = OmegaConf.structured(
+                self.confidence_method_cfg
+                if isinstance(self.confidence_method_cfg, ConfidenceMeasureConfig)
+                else ConfidenceMeasureConfig(**self.confidence_method_cfg)
+            )

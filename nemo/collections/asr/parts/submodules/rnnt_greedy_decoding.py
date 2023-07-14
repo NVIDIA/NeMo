@@ -31,7 +31,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -2207,6 +2207,12 @@ class GreedyRNNTInferConfig:
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
+        # OmegaConf.structured ensures that post_init check is always executed
+        self.confidence_measure_cfg = OmegaConf.structured(
+            self.confidence_measure_cfg
+            if isinstance(self.confidence_measure_cfg, ConfidenceMeasureConfig)
+            else ConfidenceMeasureConfig(**self.confidence_measure_cfg)
+        )
         if self.confidence_method_cfg != "DEPRECATED":
             logging.warning(
                 "`confidence_method_cfg` is deprecated and will be removed in the future. "
@@ -2215,7 +2221,13 @@ class GreedyRNNTInferConfig:
 
             # TODO (alaptev): delete the following two lines sometime in the future
             logging.warning("Re-writing `confidence_measure_cfg` with the value of `confidence_method_cfg`.")
-            self.confidence_measure_cfg = self.confidence_method_cfg
+            # OmegaConf.structured ensures that post_init check is always executed
+            self.confidence_measure_cfg = OmegaConf.structured(
+                self.confidence_method_cfg
+                if isinstance(self.confidence_method_cfg, ConfidenceMeasureConfig)
+                else ConfidenceMeasureConfig(**self.confidence_method_cfg)
+            )
+            self.confidence_method_cfg = "DEPRECATED"
 
 
 @dataclass
@@ -2227,6 +2239,12 @@ class GreedyBatchedRNNTInferConfig:
     confidence_method_cfg: str = "DEPRECATED"
 
     def __post_init__(self):
+        # OmegaConf.structured ensures that post_init check is always executed
+        self.confidence_measure_cfg = OmegaConf.structured(
+            self.confidence_measure_cfg
+            if isinstance(self.confidence_measure_cfg, ConfidenceMeasureConfig)
+            else ConfidenceMeasureConfig(**self.confidence_measure_cfg)
+        )
         if self.confidence_method_cfg != "DEPRECATED":
             logging.warning(
                 "`confidence_method_cfg` is deprecated and will be removed in the future. "
@@ -2235,7 +2253,13 @@ class GreedyBatchedRNNTInferConfig:
 
             # TODO (alaptev): delete the following two lines sometime in the future
             logging.warning("Re-writing `confidence_measure_cfg` with the value of `confidence_method_cfg`.")
-            self.confidence_measure_cfg = self.confidence_method_cfg
+            # OmegaConf.structured ensures that post_init check is always executed
+            self.confidence_measure_cfg = OmegaConf.structured(
+                self.confidence_method_cfg
+                if isinstance(self.confidence_method_cfg, ConfidenceMeasureConfig)
+                else ConfidenceMeasureConfig(**self.confidence_method_cfg)
+            )
+            self.confidence_method_cfg = "DEPRECATED"
 
 
 class GreedyTDTInfer(_GreedyRNNTInfer):
