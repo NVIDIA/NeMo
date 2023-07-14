@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import contextlib
-import os
 import json
+import os
 from dataclasses import dataclass, is_dataclass
 from typing import List, Optional, Union
 
@@ -23,11 +23,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
-from nemo.collections.asr.parts.utils.transcribe_utils import (
-    compute_output_filename,
-    prepare_audio_data,
-    setup_model,
-)
+from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, prepare_audio_data, setup_model
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
