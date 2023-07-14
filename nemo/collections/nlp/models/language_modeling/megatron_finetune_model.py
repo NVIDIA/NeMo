@@ -119,7 +119,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
             if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
                 if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
-                    # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
+                    # We pass average and num_classes to the metric constructor via kwargs.
                     metric = [
                         metric_class(**kwargs)
                         for _ in range(len(data_cfg.src_file_name))
