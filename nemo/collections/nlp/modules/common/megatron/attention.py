@@ -809,9 +809,6 @@ class CoreAttention(MegatronModule):
         else:
             self.attn_fn = self.torch_attention
             
-        print('*' * 10)
-        print(self.attn_fn)
-
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOSPositionEmbedding(kv_channels)
 
@@ -884,8 +881,6 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-        print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-        print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
         
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
