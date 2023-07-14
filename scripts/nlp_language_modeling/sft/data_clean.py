@@ -28,8 +28,17 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset i
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 
-def data_clean(dataset_file, output_file, seq_len=4096, library='huggingface', model_name='EleutherAI/gpt-neox-20b', tokenizer_model=None):
-    tokenizer = get_nmt_tokenizer(library=library, model_name=model_name, tokenizer_model=tokenizer_model, use_fast=True)
+def data_clean(
+    dataset_file,
+    output_file,
+    seq_len=4096,
+    library='huggingface',
+    model_name='EleutherAI/gpt-neox-20b',
+    tokenizer_model=None,
+):
+    tokenizer = get_nmt_tokenizer(
+        library=library, model_name=model_name, tokenizer_model=tokenizer_model, use_fast=True
+    )
     tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
     d = GPTSFTChatDataset(dataset_file, tokenizer, seq_len, 1)
     total_records = len(d)
@@ -62,10 +71,18 @@ if __name__ == '__main__':
         "--model_file", type=str, required=False, default=None, help="Path to the sentence piece model file."
     )
     parser.add_argument(
-        "--library", type=str, required=False, default='huggingface', help="tokenizer library, huggingface or sentencepiece"
+        "--library",
+        type=str,
+        required=False,
+        default='huggingface',
+        help="tokenizer library, huggingface or sentencepiece",
     )
     parser.add_argument(
-        "--model_name", type=str, required=False, default='EleutherAI/gpt-neox-20b', help="huggingface tokenizer model name"
+        "--model_name",
+        type=str,
+        required=False,
+        default='EleutherAI/gpt-neox-20b',
+        help="huggingface tokenizer model name",
     )
     parser.add_argument("--output_file", type=str, required=True)
     parser.add_argument("--seq_len", type=int, required=False, default=4096)

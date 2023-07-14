@@ -23,13 +23,26 @@ Example to create dataset used for attribute conditioned SFT model:
 
 """
 
-import fire
 import json
 import random
 
+import fire
 
 # All the keys ['spam', 'lang_mismatch', 'pii', 'not_appropriate', 'hate_speech', 'sexual_content', 'quality', 'toxicity', 'humor', 'creativity', 'violence', 'fails_task', 'helpfulness', 'political_content', 'moral_judgement']
-selected_keys = ['quality', 'toxicity', 'humor', 'creativity', 'violence', 'helpfulness', 'not_appropriate', 'hate_speech', 'sexual_content', 'fails_task', 'political_content', 'moral_judgement']
+selected_keys = [
+    'quality',
+    'toxicity',
+    'humor',
+    'creativity',
+    'violence',
+    'helpfulness',
+    'not_appropriate',
+    'hate_speech',
+    'sexual_content',
+    'fails_task',
+    'political_content',
+    'moral_judgement',
+]
 label_values = {}
 likert_scale = 5
 system_prompt = "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n"
@@ -63,8 +76,7 @@ def parse_conversations(tree_obj):
         role = 'User'
     elif prompt_obj['role'] == 'assistant':
         role = 'Assistant'
-    turn = {'value': prompt_obj['text'],
-            'from': role}
+    turn = {'value': prompt_obj['text'], 'from': role}
     if 'labels' in prompt_obj:
         turn['human_labels'] = prompt_obj['labels']
         for key in turn['human_labels']:
@@ -106,7 +118,14 @@ def get_data_records(objs, mask_role, type):
     return output
 
 
-def main(input_file='2023-04-12_oasst_all.trees.jsonl', output_file_prefix='oasst_output', mask_role='User', type='TEXT_TO_VALUE', split_ratio=0.95, seed=10):
+def main(
+    input_file='2023-04-12_oasst_all.trees.jsonl',
+    output_file_prefix='oasst_output',
+    mask_role='User',
+    type='TEXT_TO_VALUE',
+    split_ratio=0.95,
+    seed=10,
+):
     all_objs = []
     with open(input_file, 'r', encoding='utf-8') as f:
         for line in f:
