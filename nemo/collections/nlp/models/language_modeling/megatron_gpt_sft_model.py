@@ -443,7 +443,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     for pred, label, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
-                        key = input + ' '.join(label)
+                        key = input + label
                         if key not in inp_label_set:
                             inp_label_set.add(key)
                             deduplicated_outputs['preds'].append(pred)
@@ -478,7 +478,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 else:
                     self.log(metric_log_key, metric_result.item(), sync_dist=True)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
-
+                
+                metric_fn.reset()
                 averaged_metric.append(metric_result)
 
             # Write predictions to file
