@@ -191,6 +191,7 @@ class UL2Dataset(T5Dataset):
         extreme_ngram_span_length_distribution: LengthDistribution,
         sentinel_tokens: list,
         skip_masking_id: int,
+        task_type: int = None,
     ):
         sample = UL2Dataset.build_extreme_masking_training_sample(
             sample=sample,
@@ -213,6 +214,7 @@ class UL2Dataset(T5Dataset):
             eos_id=tokenizer.eos_id,
             pad_id=tokenizer.pad_id,
             skip_masking_id=skip_masking_id,
+            task_type=task_type,
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_x>')
         return sample
@@ -310,6 +312,7 @@ class UL2Dataset(T5Dataset):
         eos_id,
         pad_id,
         skip_masking_id=None,
+        task_type: int=None,
     ):
         """Build training sample.
         Arguments:
@@ -324,9 +327,9 @@ class UL2Dataset(T5Dataset):
             mask_id: Mask token id.
             pad_id: Padding token id.
             masked_lm_prob: Probability to mask tokens.
-            np_rng: Random number genenrator. Note that this rng state should be
+            np_rng: Random number generator. Note that this rng state should be
                   numpy and not python since python randint is inclusive for
-                  the opper bound whereas the numpy one is exclusive.
+                  the upper bound whereas the numpy one is exclusive.
             bos_id: start of decoder example id
             eos_id: end of generation id
             sentinel_tokens: unique value to be substituted for every replaced span
@@ -352,7 +355,8 @@ class UL2Dataset(T5Dataset):
         # 1. Small masking prob, large spans.
         # 2. Large masking prob, small spans.
         # 3. Large masking prob, large spans.
-        task_type = np_rng.randint(0, 3)
+        if task_type is None:
+            task_type = np_rng.randint(0, 3)
         if task_type == 0:
             # Large spans, small masking prob
             max_ngram_size, mean_ngram_size, min_ngram_size, masked_lm_prob = (
@@ -379,7 +383,8 @@ class UL2Dataset(T5Dataset):
             )
 
         # Masking.
-        max_predictions_per_seq = masked_lm_prob * max_num_tokens
+        # -2 for bos and eos tokens
+        max_predictions_per_seq = min(masked_lm_prob * max_num_tokens, max_seq_length_dec) - 2
 
         lm_pred = create_extreme_masked_lm_predictions(
             tokens=tokens,
@@ -399,6 +404,9 @@ class UL2Dataset(T5Dataset):
             masked_spans = None
         else:
             (output_tokens, masked_positions, masked_labels, masked_spans) = lm_pred
+
+        # num_tokens_dec = len(t5_decoder_in)
+        # padding_length_dec = max_seq_length_dec - num_tokens_dec
 
         # Padding.
         tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = T5Dataset.pad_and_convert_to_numpy(

@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
 from nemo.core import Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import DSET_TYPE_UL2, DSET_TYPE_UL2COLT5
 
 
 class T5Dataset(Dataset):
@@ -291,7 +292,7 @@ class T5Dataset(Dataset):
         tokens = tokens[:max_num_tokens]
 
         # Masking.
-        max_predictions_per_seq = masked_lm_prob * max_num_tokens
+        max_predictions_per_seq = min(max_seq_length_dec, masked_lm_prob * max_num_tokens)
         lm_pred = create_masked_lm_predictions(
             tokens=tokens,
             vocab_id_list=vocab_id_list,
@@ -312,7 +313,7 @@ class T5Dataset(Dataset):
             tokenizer_type=tokenizer_type,
             skip_masking_id=skip_masking_id,
         )
-
+        
         if masked_lm_prob == 0:
             (output_tokens, masked_positions, masked_labels, _) = lm_pred
             masked_spans = None
@@ -384,7 +385,6 @@ class T5Dataset(Dataset):
 
         # Add the remaining tokens to the t5 input
         t5_input.extend(output_tokens[start_index:])
-
         # assert (len(t5_input) - len(masked_spans)) + \
         #        (len(t5_decoder_in) - (len(masked_spans) + 1)) == len(tokens)
 
@@ -399,11 +399,13 @@ class T5Dataset(Dataset):
         # Tokens..
         filler = [pad_id] * padding_length
         tokens_enc = np.array(t5_input + filler, dtype=np.int64)
-
+        
         # Decoder-side padding mask.
         num_tokens_dec = len(t5_decoder_in)
         padding_length_dec = max_seq_length_dec - num_tokens_dec
+        
         assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
+
         filler_dec = [pad_id] * padding_length_dec
         tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
@@ -418,7 +420,6 @@ class T5Dataset(Dataset):
         # Loss mask
         loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
         loss_mask = np.array(loss_mask, dtype=np.int64)
-
         return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
 
 
