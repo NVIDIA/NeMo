@@ -736,17 +736,20 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             data_cfg.src_file_name = [data_cfg.src_file_name]
             data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
-             
+            
         if 'aux_file_name' in data_cfg:
             is_aux_list_config = isinstance(data_cfg.aux_file_name, ListConfig)
-            if is_src_list_config and is_tgt_list_config and not is_aux_list_config:
-                raise ValueError("aux_list a ListConfig or a string. ")
+            if (is_src_list_config and is_tgt_list_config) and not is_aux_list_config:
+                raise ValueError("aux_list must be a ListConfig ")
             if not is_aux_list_config:
-                data_cfg.aux_file_name = [data_cfg.aux_file_name]
+                aux_file_names = [data_cfg.aux_file_name]
+            else:
+                aux_file_names = data_cfg.aux_file_name
+            data_cfg.aux_file_name = aux_file_names
         else:
-            data_cfg.aux_file_name = [None] * len(data_cfg.src_file_name)
+            aux_file_names = [None] * len(data_cfg.src_file_name)
 
-        for src, tgt, aux in zip(data_cfg.src_file_name, data_cfg.tgt_file_name, data_cfg.aux_file_name):
+        for src, tgt, aux in zip(data_cfg.src_file_name, data_cfg.tgt_file_name, aux_file_names):
             dataset = SequenceToSequenceDataset(
                 src_file_name=src,
                 tgt_file_name=tgt,

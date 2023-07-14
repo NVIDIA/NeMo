@@ -806,7 +806,7 @@ class CoreAttention(MegatronModule):
             self.attn_fn = self.flash_attention
         else:
             self.attn_fn = self.torch_attention
-
+            
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOSPositionEmbedding(kv_channels)
 
@@ -978,8 +978,8 @@ class CoreAttention(MegatronModule):
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
         else:
             assert len(attention_mask.shape) == 2
-            attention_mask_q = attention_mask
-            attention_mask_kv = attention_mask
+            attention_mask_q = ~attention_mask
+            attention_mask_kv = ~attention_mask
 
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
@@ -1016,8 +1016,8 @@ class CoreAttention(MegatronModule):
             else:
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 assert len(attention_mask.shape) == 2
-                attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
-                attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
+                attention_mask_q = (~attention_mask).unsqueeze(1).unsqueeze(3)
+                attention_mask_kv = (~attention_mask).unsqueeze(1).unsqueeze(2)
 
             if attention_bias.shape[2] == attention_mask_q.shape[2]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
