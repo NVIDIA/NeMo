@@ -879,7 +879,7 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-
+        
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -957,7 +957,6 @@ class CoreAttention(MegatronModule):
         query_layer = _cast_if_autocast_enabled(query_layer)
         key_layer = _cast_if_autocast_enabled(key_layer)
         value_layer = _cast_if_autocast_enabled(value_layer)
-        attention_mask = _cast_if_autocast_enabled(attention_mask)
         attention_bias = _cast_if_autocast_enabled(attention_bias)
 
         if attention_bias is not None:
@@ -1007,7 +1006,7 @@ class CoreAttention(MegatronModule):
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-
+        
         if attention_mask is not None:
             if len(attention_mask.shape) == 4:
                 # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
