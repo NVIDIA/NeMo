@@ -31,6 +31,13 @@ def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_
         uc = None
     return c, uc
 
+def encode_prompt_batch(cond_stage_model, prompt_batch, unconditional_guidance_scale, images_per_prompt):
+    c = cond_stage_model.encode(images_per_prompt * prompt_batch)
+    if unconditional_guidance_scale != 1.0:
+        uc = cond_stage_model.encode((images_per_prompt * len(prompt_batch)) * [""])
+    else:
+        uc = None
+    return c, uc
 
 def initialize_sampler(model, sampler_type):
     if sampler_type == 'DDIM':
@@ -83,6 +90,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
     save_to_file = cfg.infer.get('save_to_file', True)
     out_path = cfg.infer.get('out_path', '')
     eta = cfg.infer.get('eta', 0)
+    return_logprobs=cfg.infer.get('get_logprobs', False)
 
     # get autocast_dtype
     if cfg.trainer.precision == 'bf16':
@@ -121,7 +129,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
             ).to(torch.cuda.current_device())
 
             tic = time.perf_counter()
-            samples, intermediates = sampler.sample(
+            samples, intermediates, logprobs = sampler.sample(
                 S=inference_steps,
                 conditioning=cond,
                 batch_size=batch_size,
@@ -131,6 +139,8 @@ def pipeline(model, cfg, verbose=True, rng=None):
                 unconditional_conditioning=u_cond,
                 eta=eta,
                 x_T=latents,
+                log_every_t=1,
+                return_logprobs=return_logprobs,
             )
             toc = time.perf_counter()
             sampling_time = toc - tic
@@ -153,6 +163,29 @@ def pipeline(model, cfg, verbose=True, rng=None):
                     'sampling-steps': inference_steps,
                 }
             )
+            def repeat_first(tens, rep):
+                reps = (1, ) * (len(tens.shape) - 1)
+                reps = (rep,) + reps
+                return tens.repeat(reps)
+
+            if return_logprobs:
+                print(f'logprobs: {logprobs}')
+                all_lp_mean = torch.sum(torch.cat(logprobs))
+                print(f'mean logprob {all_lp_mean}')
+                print(f'intermediates, {list(intermediates.keys())} {[intermediates[k][0].shape for k in intermediates.keys()]}')
+                print(f'intermediate len', len(intermediates['x_inter']))
+                idxes = [inference_steps - 1, inference_steps - 2, inference_steps - 3, inference_steps - 4]
+                index = torch.cat([torch.full((intermediates['x_inter'][0].shape[0],), idx, device=cond.device, dtype=torch.long) for idx in idxes], dim=0)
+                print(f'index {index}')
+                scores = sampler.scoring_fn(
+                    torch.cat(intermediates['x_inter'][0:4], dim=0),
+                    torch.cat(intermediates['x_inter'][1:5], dim=0),
+                    repeat_first(cond, 4),
+                    index=index,#torch.full((4,), inference_steps - 1, device=cond.device, dtype=torch.long),
+                    unconditional_guidance_scale=unconditional_guidance_scale,
+                    unconditional_conditioning=repeat_first(u_cond, 4),
+                )
+                print(f'scores {scores}')
 
         # Convert output type and save to disk
         if output_type == 'torch':
