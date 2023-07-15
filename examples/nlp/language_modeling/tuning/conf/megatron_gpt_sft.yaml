@@ -96,7 +96,7 @@ model:
       add_sep: False
       add_bos: False
       separate_prompt_and_response_with_newline: False
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: "answer" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
 
@@ -119,7 +119,7 @@ model:
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: "answer" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
 
@@ -147,7 +147,7 @@ model:
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: "answer" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
 
@@ -163,3 +163,10 @@ model:
     betas:
     - 0.9
     - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 500
+      constant_steps: 0
+      min_lr: 0.0
+      monitor: val_loss
+      reduce_on_plateau: false

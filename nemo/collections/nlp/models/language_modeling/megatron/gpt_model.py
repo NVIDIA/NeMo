@@ -122,10 +122,13 @@ def post_language_model_processing(
             assert output.dtype == torch.half
             loss += vocab_parallel_cross_entropy(output, labels)
         else:
-            # import ipdb; ipdb.set_trace()
             loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
+            # import ipdb; ipdb.set_trace()
+            # print(f"-1: {loss}")
             for i in range(speech_layers):
-                loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T
+                loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                # import ipdb; ipdb.set_trace()
+                # print(f"{i}: {loss}")
                 # logging.debug(f"token_loss_{i}: {tokens_loss}")
                 # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
@@ -334,9 +337,9 @@ class GPTModel(MegatronModule):
                 lm_output,
                 labels,
                 #jasoli: self.language_model.output_layer.weight needs to be words+1k
-                self.language_model.embedding.word_embeddings.weight
-                if not self.share_embeddings_and_output_weights
-                else self.word_embeddings_weight(),
+                self.language_model.embedding.word_embeddings.weight,
+                # if not self.share_embeddings_and_output_weights
+                # else self.word_embeddings_weight(),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,
