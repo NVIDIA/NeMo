@@ -673,7 +673,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
                         for i in range(speech_layers):
                             # What is labels[:7, :, :] if this is text?
-                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i, :, :], label_smoothing) * speech_mask.T
+                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
                             logging.debug(f"token_loss_{i}: {tokens_loss}")
                             logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
