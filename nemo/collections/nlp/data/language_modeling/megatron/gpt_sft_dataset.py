@@ -119,32 +119,31 @@ class GPTSFTDataset(Dataset):
 
         self.samples_mapping = None
         # Will be None after this call if `max_num_samples` is None
-        # Should be None, disabling
-        # self._build_samples_mapping()
+        self._build_samples_mapping()
 
-    # def _build_samples_mapping(self):
-    #     if self.max_num_samples is not None:
-    #         self.samples_mapping = get_samples_mapping(
-    #             indexed_dataset=self.indexed_dataset,
-    #             data_prefix=self.file_path,
-    #             num_epochs=None,
-    #             max_num_samples=self.max_num_samples,
-    #             max_seq_length=self.max_seq_length - 2,
-    #             short_seq_prob=0,
-    #             seed=self.seed,
-    #             name=self.file_path.split('/')[-1],
-    #             binary_head=False,
-    #             index_mapping_dir=self.index_mapping_dir,
-    #         )
-    #     else:
-    #         self.samples_mapping = None
+    def _build_samples_mapping(self):
+        if self.max_num_samples is not None:
+            self.samples_mapping = get_samples_mapping(
+                indexed_dataset=self.indexed_dataset,
+                data_prefix=self.file_path,
+                num_epochs=None,
+                max_num_samples=self.max_num_samples,
+                max_seq_length=self.max_seq_length - 2,
+                short_seq_prob=0,
+                seed=self.seed,
+                name=self.file_path.split('/')[-1],
+                binary_head=False,
+                index_mapping_dir=self.index_mapping_dir,
+            )
+        else:
+            self.samples_mapping = None
 
     def __len__(self):
-        return len(self.indexed_dataset)
-        # if self.max_num_samples is None:
-        #     return len(self.indexed_dataset)
-        # else:
-        #     return len(self.samples_mapping)
+        # return len(self.indexed_dataset)
+        if self.max_num_samples is None:
+            return len(self.indexed_dataset)
+        else:
+            return len(self.samples_mapping)
 
     def __getitem__(self, idx):
         if isinstance(idx, np.int64):
@@ -184,7 +183,7 @@ class GPTSFTDataset(Dataset):
             codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
 
             if codec_path.exists():
-                codec_codes = torch.load(codec_path).long()
+                codec_codes = torch.load(codec_path, map_location="cpu").long()
             else:
                 raise NotImplementedError("No audio loading option yet")
                 codec_codes = self.get_codec(audio).long()
@@ -197,22 +196,24 @@ class GPTSFTDataset(Dataset):
             answer_ids = codec_codes  # 8 x speech_length
         else:
             context = example[self.context_key]
+            question = example["question"]
             output = example[self.label_key]
 
-            if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-                text = context + '\n' + output
-            elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-                text = context + ' ' + output
+            # if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            #     text = context + '\n' + output
+            # elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            text = context + ' ' + question + ' ' + output
 
             # TODO: Need to add virtual tokens for different speech tasks
             pre_pad = []
             tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-            context_ids = pre_pad + self.tokenizer.text_to_ids(context)
-            answer_ids = tokenized_text[len(context_ids) :]
+            # context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+            answer_ids = tokenized_text
 
         # for the long context cases, collate_fn includes self.tokens_to_generate for padding
         answer_length = len(answer_ids[0]) if is_speech else len(answer_ids)
-        total_ids = len(context_ids) + max(answer_length, self.tokens_to_generate)
+        # total_ids = len(context_ids) + max(answer_length, self.tokens_to_generate)
+        total_ids = answer_length
 
         # TODO: Not supported for speech codes
         if self.add_bos:
@@ -230,18 +231,18 @@ class GPTSFTDataset(Dataset):
             truncation_length = total_ids - self.max_seq_length
             if self.truncation_field == "answer":
                 if is_speech:
-                    for i in range(codec_codes.shape[0]):
-                        answer_ids[i] = answer_ids[i, : -min(truncation_length, len(answer_ids))]
+                    answer_ids = answer_ids[:, : -min(truncation_length, answer_length)]
                 else:
-                    answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+                    answer_ids = answer_ids[: -min(truncation_length, answer_length)]
             elif self.truncation_field == "context":
                 # TODO: Not implemented for speech codes
+                raise("Not implemented for speech")
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
-        if len(context_ids) > self.max_seq_length:
-            context_ids = context_ids[: self.max_seq_length]
+        # if len(context_ids) > self.max_seq_length:
+        #     context_ids = context_ids[: self.max_seq_length]
 
-        assert len(context_ids) <= self.max_seq_length
+        # assert len(context_ids) <= self.max_seq_length
         # input_ids = context_ids
 
         answer_start_idx = 0
@@ -268,7 +269,7 @@ class GPTSFTDataset(Dataset):
             raise NotImplementedError("Does not work for speech :(")
             input_ids = input_ids[: self.max_seq_length]
 
-        context_ids = torch.LongTensor(context_ids)
+        # context_ids = torch.LongTensor(context_ids)
         if not is_speech:
             input_ids = torch.LongTensor(input_ids)
 
@@ -283,8 +284,8 @@ class GPTSFTDataset(Dataset):
         return [
             input_ids,
             answer_start_idx,
-            context_ids,
-            len(context_ids),
+            # context_ids,
+            # len(context_ids),
         ]
 
     def _maybe_cast_to_list(self, x):
@@ -336,11 +337,11 @@ class GPTSFTDataset(Dataset):
 
     def collate_fn(self, batch):
         # TODO: input_ids could be 2D array if speech
-        (input_ids, answer_start_idx, context_ids, context_length) = zip(*batch)
+        # (input_ids, answer_start_idx, context_ids, context_length) = zip(*batch)
+        (input_ids, answer_start_idx) = zip(*batch)
         input_lengths = []
         max_length = -1
         for input_id in input_ids:
-            # import ipdb;ipdb.set_trace()
             length_i = input_id.shape[0] if input_id.dim() < 2 else input_id.shape[1]
             input_lengths.append(length_i)
         max_length = max(input_lengths)
@@ -360,6 +361,7 @@ class GPTSFTDataset(Dataset):
             empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
             return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
+        # import ipdb;ipdb.set_trace()
         for i in range(len(batch)):
             # Should pad_id be eos_id?
             input_id_padded = general_padding(input_ids[i], input_lengths[i], max_length, pad_value=self.tokenizer.pad_id)
@@ -368,18 +370,18 @@ class GPTSFTDataset(Dataset):
             tokens.append(input_id_padded[:, :-1])
             labels.append(input_id_padded[:, 1:])
 
-            context_id_padded = general_padding(context_ids[i], context_length[i], max_length, pad_value=self.tokenizer.pad_id)
-            # if len(context_id_padded.shape) < 2:
-            #     context_id_padded = torch.LongTensor(pad_text_to_speech_dims(pad_text_to_speech_dims, self.tokenizer.pad_id))
-            contexts.append(context_id_padded)
+            # context_id_padded = general_padding(context_ids[i], context_length[i], max_length, pad_value=self.tokenizer.pad_id)
+            # # if len(context_id_padded.shape) < 2:
+            # #     context_id_padded = torch.LongTensor(pad_text_to_speech_dims(pad_text_to_speech_dims, self.tokenizer.pad_id))
+            # contexts.append(context_id_padded)
 
-            context_lengths.append(torch.LongTensor([context_length[i]]))
+            # context_lengths.append(torch.LongTensor([context_length[i]]))
 
             loss_mask_i = torch.LongTensor(self._build_loss_mask_2(input_lengths[i]-1, answer_start_idx[i]))
             loss_mask_i_padded = general_padding(loss_mask_i, input_lengths[i]-1, max_length-1, pad_value=0)
             loss_mask.append(loss_mask_i_padded)
 
-            speech_mask = loss_mask_i_padded if len(input_id_padded.shape) >= 2 else torch.zeros(loss_mask_i_padded.shape)
+            speech_mask = loss_mask_i_padded if len(input_ids[i].shape) >= 2 else torch.zeros(loss_mask_i_padded.shape)
             speech_mask_list.append(speech_mask)
 
         # attention_mask = [self._create_attention_mask(max_length) for _ in batch]
@@ -399,12 +401,12 @@ class GPTSFTDataset(Dataset):
             'attention_mask': attention_mask,
             'loss_mask': torch.stack(loss_mask),
             'position_ids': position_ids,
-            'contexts': torch.stack(contexts),  #@jasoli: Seems to only be used in predict_step
-            'context_lengths': torch.stack(context_lengths),
+            # 'contexts': torch.stack(contexts),  #@jasoli: Seems to only be used in predict_step
+            # 'context_lengths': torch.stack(context_lengths),
             "speech_mask": torch.stack(speech_mask_list),
         }
 
         # for key in processed_batch.keys():
-        #     print(key, processed_batch[key].shape)
+        #     print(key, processed_batch[key].device)
 
         return processed_batch

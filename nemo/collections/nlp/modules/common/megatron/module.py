@@ -113,7 +113,7 @@ class MegatronModule(torch.nn.Module):
 
     def initialize_word_embeddings(self, init_method, vocab_size, hidden_size, param_dtype=torch.float32):
         if not self.share_token_embeddings:
-            raise Exception('initialize_word_embeddings() was called but ' 'share_token_embeddings is false')
+            raise Exception('initialize_word_embeddings() was called but share_token_embeddings is false')
 
         # This function just initializes the word embeddings in the final stage
         # when we are using pipeline parallelism. If we aren't using pipeline

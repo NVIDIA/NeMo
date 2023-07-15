@@ -374,6 +374,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
+        # if self.cfg.get('megatron_amp_O2', False):
+        #     base_module = self.model.module
+        # else:
+        #     base_module = self.model
+        # print("FREEZE")
+        # for param in base_module.parameters():
+        #     param.requires_grad = False
+        # for param in base_module.language_model.embedding.parameters():
+        #     param.requires_grad = False
+
+        # for param in base_module.speech_residual_model.parameters():
+        #     param.requires_grad = False
+
     def configure_optimizers(self):
 
         if self.with_distributed_adam:
