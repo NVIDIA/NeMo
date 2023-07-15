@@ -252,29 +252,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building {self.model_name} datasets.')
-
-        enc_lens = []
-        dec_lens = []
-        from tqdm import tqdm
-        for i in tqdm(range(10000)):
-            sample = self._train_ds.datasets[0].__getitem__(i)
-            enc_t = self.tokenizer.ids_to_tokens(sample['text_enc'].tolist())
-            dec_t = self.tokenizer.ids_to_tokens(sample['text_dec'].tolist())
-            enc_lens.append(len([x for x in enc_t if "pad" not in x]))
-            dec_lens.append(len([x for x in dec_t if "pad" not in x]))
-        # sample = self._validation_ds.datasets[0].__getitem__(5)
-        # enc_t = self.tokenizer.ids_to_tokens(sample['text_enc'].tolist())
-        # print("encoder:\n", enc_t)
-        # print("LEN encoder:", len([x for x in enc_t if "pad" not in x]))
-        # dec_t = self.tokenizer.ids_to_tokens(sample['text_dec'].tolist())
-        # print("\ndecoder:\n", dec_t)
-        # print("LEN dec_t:", len([x for x in dec_t if "pad" not in x]))
-        # import pdb; pdb.set_trace()
-        # [print(k, " -- ", v) for k, v in self._validation_ds.datasets[0].__dict__.items() if "vocab" not in k]
-        import numpy as np
-        print("dec len: {np.average(dec_lens)}")
-        print("enc len: {np.average(enc_lens)}")
-        import pdb; pdb.set_trace()
         return self._train_ds, self._validation_ds, self._test_ds
 
     def list_available_models(self):
