@@ -513,7 +513,8 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
             pad_multiple=self.cfg.data.get('pad_multiple', 1),
             pitch_augment=self.cfg.data.get('pitch_augment', None),
             sup_data_path=self.cfg.data.get('sup_data_path', '/sup_data_path'),
-            speech_offset=self.cfg.data.get('speech_offset', None)
+            speech_offset=self.cfg.data.get('speech_offset', None),
+            mask_context_prob=self.cfg.data.get('mask_context_prob', 0.0),
         )
 
         rank = parallel_state.get_data_parallel_rank()

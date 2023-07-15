@@ -96,6 +96,7 @@ model:
     num_workers: 4
     pin_memory: true
     speech_offset: 29185
+    mask_context_prob: 0.15
     sup_data_path: ???
 
   optim:
