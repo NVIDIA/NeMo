@@ -23,7 +23,7 @@ NeMo GPT:
 
 
 import argparse
-
+import json
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -60,14 +60,13 @@ def data_clean(
             for i, line in enumerate(f):
                 if i in removed_ids:
                     continue
-                o.write(line)
+                obj = json.loads(line)
+                o.write(json.dumps(obj, ensure_ascii=False) + '\n')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset_file", type=str, required=True, default='/dataset/input.jsonl'
-    )
+    parser.add_argument("--dataset_file", type=str, required=True, default='/dataset/input.jsonl')
     parser.add_argument(
         "--model_file", type=str, required=False, default=None, help="Path to the sentence piece model file."
     )
