@@ -19,6 +19,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 
 __all__ = ['GPTSFTDataset']
 
@@ -134,7 +135,11 @@ class GPTSFTDataset(Dataset):
                 idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
-        example = self.indexed_dataset[idx]
+        try:
+            example = self.indexed_dataset[idx]
+        except Exception as e:
+            logging.error(f"Error while loading example {idx} from dataset {self.file_path}")
+            raise e
         return self._process_example(example)
 
     def _process_example(self, example):
