@@ -939,11 +939,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if att_context_size:
             att_context_size = list(att_context_size)
-<<<<<<< HEAD
-        elif hasattr(self._cfg, "att_context_size"):
-            att_context_size = self._cfg.att_context_size
-=======
->>>>>>> f7e33fc1a0dad23109ac81d824006350f6ad2b0b
         else:
             att_context_size = self.att_context_size
 
@@ -1032,8 +1027,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             with open_dict(self._cfg):
                 self._cfg.self_attention_model = self_attention_model
                 self._cfg.att_context_size = att_context_size
-<<<<<<< HEAD
-=======
 
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
         """
@@ -1053,7 +1046,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.pre_encode.change_subsampling_conv_chunking_factor(
             subsampling_conv_chunking_factor=subsampling_conv_chunking_factor
         )
->>>>>>> f7e33fc1a0dad23109ac81d824006350f6ad2b0b
 
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):

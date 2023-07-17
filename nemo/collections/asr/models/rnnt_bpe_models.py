@@ -253,8 +253,6 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
-<<<<<<< HEAD
-=======
         model = PretrainedModelInfo(
             pretrained_model_name="stt_en_fastconformer_transducer_xlarge",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_transducer_xlarge",
@@ -269,7 +267,6 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
->>>>>>> f7e33fc1a0dad23109ac81d824006350f6ad2b0b
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
