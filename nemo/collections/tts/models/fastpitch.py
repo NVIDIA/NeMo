@@ -37,7 +37,6 @@ from nemo.collections.tts.parts.utils.helpers import (
     process_batch,
     sample_tts_input,
 )
-from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     Index,
@@ -78,7 +77,7 @@ class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
 
 
-class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixin):
+class FastPitchModel(SpectrogramGenerator, FastPitchAdapterModelMixin):
     """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -818,29 +817,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         }
         if self.export_config["enable_volume"]:
             self._output_types["volume_aligned"] = NeuralType(('B', 'T'), RegressionValuesType())
-
-    def _export_teardown(self):
-        self._input_types = self._output_types = None
-
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        disabled_inputs = set()
-        if self.fastpitch.speaker_emb is None:
-            disabled_inputs.add("speaker")
-        if not self.export_config["enable_ragged_batches"]:
-            disabled_inputs.add("batch_lengths")
-        if not self.export_config["enable_volume"]:
-            disabled_inputs.add("volume")
-        return disabled_inputs
-
-    @property
-    def input_types(self):
-        return self._input_types
-
-    @property
-    def output_types(self):
-        return self._output_types
 
     def input_example(self, max_batch=1, max_dim=44):
         """
