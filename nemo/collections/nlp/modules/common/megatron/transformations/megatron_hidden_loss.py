@@ -36,7 +36,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
     def _validate_inputs(self, inputs):
         """Validate inputs"""
         # validate inputs
-        if not set(self.input_names).isssubset(set(inputs.keys())):
+        if not set(self.input_names).issubset(set(inputs.keys())):
             raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
 
     @property
@@ -68,10 +68,10 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
 
         # average loss over active steps only. loss [B, S]
         loss = loss_dict["loss"]
-        hidden_mask = inputs["hidden_mask"].to(loss)
-        loss = loss * hidden_mask
+        hiddens_mask = inputs["hiddens_mask"].to(loss)
+        loss = loss * hiddens_mask
         # loss [B, S] -> [B] sequence level loss
-        loss = loss.sum(dim=-1) / inputs["hidden_mask"].sum(dim=-1).clamp(min=1.0)
+        loss = loss.sum(dim=-1) / hiddens_mask.sum(dim=-1).clamp(min=1.0)
 
         # compute batch level weighted loss (scalar)
         weighted_loss = loss.sum() * self.loss_weight
@@ -107,9 +107,9 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
         Implement your own loss calculations. Must return "loss" key.
         loss shape - [B, S] for Batch, Sequence sizes
         """
-        z = self.get_input(inputs, "z")
+        z = inputs["z"]
         # get posterior
-        log_prob_q_z_given_x = self.get_input(inputs, "z_log_prob")
+        log_prob_q_z_given_x = inputs["z_log_prob"]
         # compute log prob of anchor a unit Normal distribution
         log_prob_P_z = -0.5 * (math.log(2 * math.pi) + z.pow(2))
         # aggregate over hidden dimension, default is sum
@@ -148,9 +148,9 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
         return ["z", "z_log_prob"]
 
     def _loss(self, inputs, batch_data=None):
-        z = self.get_input(inputs, "z")
+        z = inputs["z"]
         # get posterior
-        log_prob_q_z_given_x = self.get_input(inputs, "z_log_prob")
+        log_prob_q_z_given_x = inputs["z_log_prob"]
         # compute log prob of anchor a unit Normal distribution
         log_prob_p_z = -0.5 * (math.log(2 * math.pi) + z.pow(2)).sum(dim=-1)
 

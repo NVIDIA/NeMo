@@ -63,7 +63,7 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
     def _validate_inputs(self, inputs):
         """Validate inputs"""
         # validate inputs
-        if not set(self.input_names).isssubset(set(inputs.keys())):
+        if not set(self.input_names).issubset(set(inputs.keys())):
             raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
 
     def _transform(self, inputs, batch_data=None):
@@ -132,13 +132,14 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
             z_logvar: log variance of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
             z_log_prob: log probability of z over posterior log q(z|x) a tensor of shape (batch_size, seq_len, hidden_size)
         """
-        hiddens = self.get_input(inputs, "hiddens")
+        hiddens = inputs["hiddens"]
         # compute distribution's parameters (or use cached ones)
         if "z_mean" in inputs and "z_logvar" in inputs:
             z_mean = inputs["z_mean"]
             z_logvar = inputs["z_logvar"]
         else:
-            z_mean, z_logvar = self.hiddens_to_mean_logvar(hiddens).chunk(2, dim=-1)
+            # ColumnLinear returns output and bias, we ignore bias here (already added to hiddens)
+            z_mean, z_logvar = self.hiddens_to_mean_logvar(hiddens)[0].chunk(2, dim=-1)
         # clamp logvar
         z_logvar = z_logvar.clamp(min=self.min_logvar)
         # sample z with reparametrization (or use cached one)
@@ -148,6 +149,7 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
         else:
             e = torch.randn_like(hiddens)
             z = (z_logvar * 0.5).exp() * e + z_mean
+            z_log_prob = None
 
         if z_log_prob is None:
             # compute log probability of z under a diagonal Gaussian distribution

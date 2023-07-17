@@ -643,7 +643,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # check if hiddens is used
                     if self.enc_dec_model.hiddens_module is not None:
                         loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
-                            inputs=enc_output, batch_data=batch_data,
+                            outputs=enc_output, batch_data=batch_data,
                         )
                         loss_dict["tokens_loss"] = tokens_loss
                         return loss_dict
