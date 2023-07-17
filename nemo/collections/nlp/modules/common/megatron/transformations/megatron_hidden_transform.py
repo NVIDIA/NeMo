@@ -28,6 +28,10 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
+if not HAVE_MEGATRON_CORE:
+    raise NotImplementedError("Megatron Core is required to use Megatron Hidden Transformations")
+
 __all__ = ["MegatronBaseHiddenTransform", "MegatronGaussianHiddenTransform"]
 
 

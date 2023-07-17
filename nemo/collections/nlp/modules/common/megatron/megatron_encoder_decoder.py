@@ -100,7 +100,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         """
         if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
             # Attention mask is expected to be of shape [B x S]
-            enc_attn_mask = torch.ones(enc_attn_mask.size(0), self.hidden_steps).to(enc_attn_mask.device)
+            hiddens_mask = torch.ones(enc_attn_mask.size(0), self.hidden_steps).to(enc_attn_mask.device)
         else:
             hiddens_mask = enc_attn_mask
 

@@ -106,7 +106,7 @@ def get_hiddens_module(cfg=None):
         transform_cfg = [transform_cfg]
     hidden_transforms = []
     # here we expect transform_cfg to be a list of dictionaries
-    for cur_list_cfg in transform_cfg.items():
+    for cur_list_cfg in transform_cfg:
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
             if not "cls_name" in cls_kwargs:
@@ -125,7 +125,7 @@ def get_hiddens_module(cfg=None):
         loss_cfg = [loss_cfg]
     hidden_loss_transforms = []
     # here we expect loss_cfg to be a list of dictionaries
-    for cur_list_cfg in loss_cfg.items():
+    for cur_list_cfg in loss_cfg:
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
             if not "cls_name" in cls_kwargs:
