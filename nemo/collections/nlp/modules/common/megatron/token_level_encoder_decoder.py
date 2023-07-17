@@ -23,12 +23,12 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     ALiBiRelativePositionEmbedding,
     KERPLERelativePositionEmbedding,
     T5RelativePositionEmbedding,
 )
+from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
