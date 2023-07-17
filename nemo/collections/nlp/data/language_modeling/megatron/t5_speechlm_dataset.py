@@ -328,22 +328,32 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         return ret, ln
 
     def _mask_context_tokens(self, context_tokens, context_type):
+        # sample span length from poisson distribution with lambda = 3.5
+        span_length = torch.poisson(torch.tensor([3.5]))
+        span_length = int(span_length.item())
+        span_length = max(span_length, 1)
         if context_type == "SPEECH":
             # context tokens is a list with one element, which is a 2D tensor (8, n_timesteps)
             assert len(context_tokens) == 1 and context_tokens[0].dim() == 2
             context_tokens_tensor = context_tokens[0]
             n_timesteps = context_tokens_tensor.size()[1]
-            n_masked_timesteps = int(n_timesteps * self.mask_context_prob)
-            masked_timesteps = torch.randperm(n_timesteps)[:n_masked_timesteps]
-            context_tokens_tensor[:, masked_timesteps] = self.tokenizer.mask_id
+            span_length = min(span_length, n_timesteps)
+            n_spans = int(n_timesteps // span_length)
+            n_masked_spans = int(n_spans * self.mask_context_prob)
+            masked_spans = torch.randperm(n_spans)[:n_masked_spans]
+            for i in masked_spans:
+                context_tokens_tensor[:, i * span_length : (i + 1) * span_length] = self.tokenizer.mask_id
             return [context_tokens_tensor]
+        
         else:
             # context tokens is a list of integers
             n_timesteps = len(context_tokens)
-            n_masked_timesteps = int(n_timesteps * self.mask_context_prob)
-            masked_tokens = torch.randperm(n_timesteps)[:n_masked_timesteps]
-            for i in masked_tokens:
-                context_tokens[i] = self.tokenizer.mask_id
+            span_length = min(span_length, n_timesteps)
+            n_spans = int(n_timesteps // span_length)
+            n_masked_spans = int(n_spans * self.mask_context_prob)
+            masked_spans = torch.randperm(n_spans)[:n_masked_spans]
+            for i in masked_spans:
+                context_tokens[i * span_length : (i + 1) * span_length] = [self.tokenizer.mask_id for _ in range(span_length)]
             return context_tokens
 
     def _get_text_tokens(self, text):
