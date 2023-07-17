@@ -12,6 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""script to annotate the the datasets with using trained attribute prediciton model.
+First, we need to launch the NeMo Megatron inference server
+Example:
+```bash
+ python examples/nlp/language_modeling/megatron_gpt_eval.py \
+        gpt_model_file=/models/TRAINED_ATTR_PREDICTION_MODEL.nemo \
+        pipeline_model_parallel_split_rank=0 \
+        server=True \
+        tensor_model_parallel_size=TP_SIZE \
+        pipeline_model_parallel_size=PP_SIZE \
+        trainer.precision=bf16 \
+        trainer.devices=TP_SIZE*PP_SIZE \
+        trainer.num_nodes=1 \
+        web_server=False \
+        port=1424
+```
+
+Then, we can run this script to annotate the dataset.
+Example usage:
+
+python scripts/nlp_language_modeling/sft/attribute_annotate.py  --batch_size=1 --host=localhost --input_file_name=input.jsonl --output_file_name=output.jsonl --port_num=1424
+"""
+
 import json
 import os
 
@@ -209,7 +232,7 @@ class Worker(object):
 
 
 def main(
-    batch_size=1, host='cs1-gpu-0007', input_file_name='input.jsonl', output_file_name='output.jsonl', port_num=1424
+    batch_size=1, host='localhost', input_file_name='input.jsonl', output_file_name='output.jsonl', port_num=1424
 ):
     input_data = load_data(f'{input_file_name}')
     output_path = f'{output_file_name}'
