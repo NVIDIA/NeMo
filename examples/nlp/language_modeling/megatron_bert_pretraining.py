@@ -34,6 +34,9 @@ mp.set_start_method("spawn", force=True)
 
 @hydra_runner(config_path="conf", config_name="megatron_bert_config")
 def main(cfg) -> None:
+    if cfg.model.data.dataloader_type != "LDDL":
+        mp.set_start_method("spawn", force=True)
+
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 

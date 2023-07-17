@@ -84,7 +84,7 @@ Key Features
             * CTC
             * Transducer/RNNT
             * Hybrid Transducer/CTC
-            * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_
+            * NeMo Original `Multi-blank Transducers <https://arxiv.org/abs/2211.03541>`_ and `Token-and-Duration Transducers (TDT) <https://arxiv.org/abs/2304.06795>`_
         * Streaming/Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_chunked_inference>`_
         * Cache-aware Streaming Conformer - `<https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer>`_
         * Beam Search decoding
@@ -263,7 +263,7 @@ packaging is also needed:
 
 .. code-block:: bash
 
-  pip install -y packaging
+  pip install packaging
 
 
 Transformer Engine
@@ -280,19 +280,37 @@ It is highly recommended to use the NVIDIA PyTorch or NeMo container if having i
 
 Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
+
+Flash Attention
+~~~~~~~~~~~~~~~~~~~~
+Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models or use with attention bias (introduced from position encoding, e.g. Alibi), please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. 
+
+.. code-block:: bash
+
+  pip install flash-attn
+  pip install triton==2.0.0.dev20221202
+
+NLP inference UI
+~~~~~~~~~~~~~~~~~~~~
+To launch the inference web UI server, please install the gradio `gradio <https://gradio.app/>`_. 
+
+.. code-block:: bash
+
+  pip install gradio==3.34.0
+
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
 NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separate repository `https://github.com/NVIDIA/NeMo-text-processing <https://github.com/NVIDIA/NeMo-text-processing>`_.
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.16.0`` comes with container ``nemo:23.01``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.19.0`` comes with container ``nemo:23.04``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:23.01
+    docker pull nvcr.io/nvidia/nemo:23.04
 
 To build a nemo container with Dockerfile from a branch, please run
 
@@ -301,13 +319,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.03-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 23.06-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.03-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.06-py3
 
 Examples
 --------

@@ -144,7 +144,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             return dataset
 
         shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
         if hasattr(dataset, 'collate_fn'):
@@ -415,6 +415,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
 
+            self.joint.temperature = decoding_cfg.get('temperature', 1.0)
+
             # Update config
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding = decoding_cfg
@@ -441,6 +443,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 log_prediction=self.ctc_wer.log_prediction,
                 dist_sync_on_step=True,
             )
+
+            self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
 
             # Update config
             with open_dict(self.cfg.aux_ctc.decoding):
@@ -519,4 +523,28 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
         results.append(model)
 
+<<<<<<< HEAD
+=======
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_80ms",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_80ms",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_80ms/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_80ms.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_480ms",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_480ms",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_480ms/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_480ms.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_1040ms",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_1040ms",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_1040ms/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_1040ms.nemo",
+        )
+        results.append(model)
+
+>>>>>>> f7e33fc1a0dad23109ac81d824006350f6ad2b0b
         return results

@@ -15,10 +15,12 @@
 
 """
 # This script would evaluate an N-gram language model trained with KenLM library (https://github.com/kpu/kenlm) in
-# fusion with beam search decoders on top of a trained ASR model. NeMo's beam search decoders are capable of using the
-# KenLM's N-gram models to find the best candidates. This script supports both character level and BPE level
+# fusion with beam search decoders on top of a trained ASR model with CTC decoder. To evaluate a model with 
+# Transducer (RNN-T) decoder use another script 'scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py'. 
+# NeMo's beam search decoders are capable of using the KenLM's N-gram models
+# to find the best candidates. This script supports both character level and BPE level
 # encodings and models which is detected automatically from the type of the model.
-# You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
+# You may train the LM model with 'scripts/asr_language_modeling/ngram_lm/train_kenlm.py'.
 
 # Config Help
 
@@ -29,7 +31,7 @@ python eval_beamsearch_ngram.py --cfg job
 # USAGE
 
 python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-           input_manifest=<path to the evaluation JSON manifest file \
+           input_manifest=<path to the evaluation JSON manifest file> \
            kenlm_model_file=<path to the binary KenLM model> \
            beam_width=[<list of the beam widths, separated with commas>] \
            beam_alpha=[<list of the beam alphas, separated with commas>] \
@@ -70,8 +72,9 @@ from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization
+from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -111,10 +114,12 @@ class EvalBeamSearchNGramConfig:
     decoding_strategy: str = "beam"
     decoding: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=128)
     
-    separate_punctuation: bool = True
-    do_lowercase: bool = False
-    rm_punctuation: bool = False
-
+    text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
+        punctuation_marks = ".,?",
+        separate_punctuation = False,
+        do_lowercase = False,
+        rm_punctuation = False,
+    )
 # fmt: on
 
 
@@ -130,6 +135,7 @@ def beam_search_eval(
     beam_width: int = 128,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
+    punctuation_capitalization: PunctuationCapitalization = None,
 ):
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
@@ -148,7 +154,12 @@ def beam_search_eval(
     model.cfg.decoding.beam = cfg.decoding
 
     # Update model's decoding strategy
-    model.change_decoding_strategy(model.cfg.decoding)
+    if isinstance(model, EncDecHybridRNNTCTCModel):
+        model.change_decoding_strategy(model.cfg.decoding, decoder_type='ctc')
+        decoding = model.ctc_decoding
+    else:
+        model.change_decoding_strategy(model.cfg.decoding)
+        decoding = model.decoding
     logging.setLevel(level)
 
     wer_dist_first = cer_dist_first = 0
@@ -179,18 +190,12 @@ def beam_search_eval(
                     probs_batch[prob_index], device=packed_batch.device, dtype=packed_batch.dtype
                 )
 
-            _, beams_batch = model.decoding.ctc_decoder_predictions_tensor(
+            _, beams_batch = decoding.ctc_decoder_predictions_tensor(
                 packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
             )
-        pc = PunctuationCapitalization(',.?')
+
         for beams_idx, beams in enumerate(beams_batch):
             target = target_transcripts[sample_idx + beams_idx]
-            if cfg.separate_punctuation:
-                target = pc.separate_punctuation([target])[0]
-            if cfg.do_lowercase:
-                target = pc.do_lowercase([target])[0]
-            if cfg.rm_punctuation:
-                target = pc.rm_punctuation([target])[0]
             target_split_w = target.split()
             target_split_c = list(target)
             words_count += len(target_split_w)
@@ -198,10 +203,12 @@ def beam_search_eval(
             wer_dist_min = cer_dist_min = 10000
             for candidate_idx, candidate in enumerate(beams):  # type: (int, ctc_beam_decoding.rnnt_utils.Hypothesis)
                 pred_text = candidate.text
-                if cfg.do_lowercase:
-                    pred_text = pc.do_lowercase([pred_text])[0]
-                if cfg.rm_punctuation:
-                    pred_text = pc.rm_punctuation([pred_text])[0]
+                if cfg.text_processing.do_lowercase:
+                    pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
+                if cfg.text_processing.rm_punctuation:
+                    pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
+                if cfg.text_processing.separate_punctuation:
+                    pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -250,6 +257,7 @@ def beam_search_eval(
 
 @hydra_runner(config_path=None, config_name='EvalBeamSearchNGramConfig', schema=EvalBeamSearchNGramConfig)
 def main(cfg: EvalBeamSearchNGramConfig):
+    logging.warning("This file will be renamed to eval_beamsearch_ngram_ctc.py in the future NeMo (1.21) release.")
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
 
@@ -281,6 +289,14 @@ def main(cfg: EvalBeamSearchNGramConfig):
             target_transcripts.append(data['text'])
             audio_file_paths.append(str(audio_file.absolute()))
 
+    punctuation_capitalization = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
+    if cfg.text_processing.do_lowercase:
+        target_transcripts = punctuation_capitalization.do_lowercase(target_transcripts)
+    if cfg.text_processing.rm_punctuation:
+        target_transcripts = punctuation_capitalization.rm_punctuation(target_transcripts)
+    if cfg.text_processing.separate_punctuation:
+        target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
+
     if cfg.probs_cache_file and os.path.exists(cfg.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'.")
         logging.info(f"Loading the cached pickle file of probabilities from '{cfg.probs_cache_file}' ...")
@@ -311,6 +327,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
         with autocast():
             with torch.no_grad():
+                if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+                    asr_model.cur_decoder = 'ctc'
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
 
         all_probs = all_logits
@@ -326,7 +344,17 @@ def main(cfg: EvalBeamSearchNGramConfig):
     for batch_idx, probs in enumerate(all_probs):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
-        pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+        if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+        else:
+            pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+
+        if cfg.text_processing.do_lowercase:
+            pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
+        if cfg.text_processing.rm_punctuation:
+            pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
+        if cfg.text_processing.separate_punctuation:
+            pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
 
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
@@ -393,6 +421,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 beam_beta=hp["beam_beta"],
                 beam_batch_size=cfg.beam_batch_size,
                 progress_bar=True,
+                punctuation_capitalization=punctuation_capitalization,
             )
 
             if candidate_cer < best_cer:

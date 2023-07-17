@@ -172,6 +172,7 @@ class BertModel(MegatronModule):
         init_method_std=0.02,
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
@@ -187,6 +188,7 @@ class BertModel(MegatronModule):
         add_binary_head=True,
         megatron_legacy=False,
         sequence_parallel=False,
+        position_embedding_type='learned_absolute',
     ):
         super(BertModel, self).__init__()
         # args = get_args()
@@ -219,6 +221,7 @@ class BertModel(MegatronModule):
             post_process=self.post_process,
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
@@ -232,6 +235,7 @@ class BertModel(MegatronModule):
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
+            position_embedding_type=position_embedding_type,
         )
 
         self.initialize_word_embeddings(

@@ -156,7 +156,7 @@ def get_confidence_aggregation_bank():
 
 class ConfidenceMeasureMixin(ABC):
     """Confidence Measure Mixin class.
-    
+
     It initializes per-frame confidence measure.
     """
 
@@ -193,7 +193,7 @@ class ConfidenceMeasureMixin(ABC):
 
 class ConfidenceMixin(ABC):
     """Confidence Mixin class.
-    
+
     It initializes per-frame confidence measure.
     """
 
@@ -312,7 +312,7 @@ class ConfidenceMixin(ABC):
             raise RuntimeError(
                 f"""Something went wrong with word-level confidence aggregation.\n
             Please check these values for debugging:\n
-            len(words): {len(hypothesis.words)},\n
+            len(words): {len(words)},\n
             len(word_confidence): {len(word_confidence)},\n
             recognized text: `{' '.join(words)}`"""
             )

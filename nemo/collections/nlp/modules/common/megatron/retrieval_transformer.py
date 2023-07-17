@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, build_attention_mask_3d
 
@@ -54,6 +54,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         precision=16,
@@ -126,6 +127,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
@@ -337,6 +339,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         precision=16,
@@ -408,6 +411,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,

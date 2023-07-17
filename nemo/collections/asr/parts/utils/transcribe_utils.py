@@ -15,6 +15,7 @@ import glob
 import json
 import os
 import re
+from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -22,8 +23,7 @@ from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -57,7 +57,8 @@ def get_buffered_pred_feat_rnnt(
             print("Parsing manifest files...")
             for l in mfst_f:
                 row = json.loads(l.strip())
-                filepaths.append(row['audio_filepath'])
+                audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
+                filepaths.append(audio_file)
                 if 'text' in row:
                     refs.append(row['text'])
 
@@ -148,8 +149,9 @@ def get_buffered_pred_feat(
                 row = json.loads(l.strip())
                 if 'text' in row:
                     refs.append(row['text'])
+                audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 # do not support partial audio
-                asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
+                asr.read_audio_file(audio_file, delay, model_stride_in_secs)
                 hyp = asr.transcribe(tokens_per_chunk, delay)
                 hyps.append(hyp)
 
@@ -187,11 +189,6 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         asr_model = imported_class.restore_from(
             restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
-        if hasattr(cfg, "model_change"):
-            asr_model.change_attention_model(
-                self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
-                att_context_size=cfg.model_change.conformer.get("att_context_size", None),
-            )
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
@@ -199,6 +196,12 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
             model_name=cfg.pretrained_name, map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
+
+    if hasattr(cfg, "model_change"):
+        asr_model.change_attention_model(
+            self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
+            att_context_size=cfg.model_change.conformer.get("att_context_size", None),
+        )
 
     return asr_model, model_name
 
@@ -324,7 +327,7 @@ def write_transcription(
                     item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
-            with open(cfg.dataset_manifest, 'r', encoding='utf_8') as fr:
+            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item[pred_text_attr_name] = best_hyps[idx].text
@@ -359,11 +362,11 @@ def transcribe_partial_audio(
     num_workers: int = 0,
     channel_selector: Optional[int] = None,
     augmentor: DictConfig = None,
+    decoder_type: Optional[str] = None,
 ) -> List[str]:
     """
-    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py    """
-
-    assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
+    See description of this function in trancribe() in nemo/collections/asr/models/ctc_models.py and nemo/collections/asr/models/rnnt_models.py
+    """
 
     if return_hypotheses and logprobs:
         raise ValueError(
@@ -380,6 +383,17 @@ def transcribe_partial_audio(
     device = next(asr_model.parameters()).device
     dither_value = asr_model.preprocessor.featurizer.dither
     pad_to_value = asr_model.preprocessor.featurizer.pad_to
+
+    if decoder_type is not None:  # Hybrid model
+        decode_function = (
+            asr_model.decoding.rnnt_decoder_predictions_tensor
+            if decoder_type == 'rnnt'
+            else asr_model.ctc_decoding.ctc_decoder_predictions_tensor
+        )
+    elif hasattr(asr_model, 'joint'):  # RNNT model
+        decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
+    else:  # CTC model
+        decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
 
     try:
         asr_model.preprocessor.featurizer.dither = 0.0
@@ -403,18 +417,22 @@ def transcribe_partial_audio(
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            logits, logits_len, greedy_predictions = asr_model.forward(
+            outputs = asr_model.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
+            logits, logits_len = outputs[0], outputs[1]
+            if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
+                logits = asr_model.ctc_decoder(encoder_output=logits)
             if logprobs:
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
                     lg = logits[idx][: logits_len[idx]]
                     hypotheses.append(lg.cpu().numpy())
             else:
-                current_hypotheses, all_hyp = asr_model.decoding.ctc_decoder_predictions_tensor(
-                    logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
-                )
+                current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
+
+                if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
+                    current_hypotheses = current_hypotheses[0]
 
                 if return_hypotheses:
                     # dump log probs per file
@@ -425,7 +443,6 @@ def transcribe_partial_audio(
 
                 hypotheses += current_hypotheses
 
-            del greedy_predictions
             del logits
             del test_batch
 
@@ -442,14 +459,48 @@ def transcribe_partial_audio(
 
 
 class PunctuationCapitalization:
-    def __init__(self, punctuation_marks='.,?'):
-        self.regex_punctuation = re.compile(fr"([{''.join(punctuation_marks)}])")
+    def __init__(self, punctuation_marks: str):
+        """
+        Class for text processing with punctuation and capitalization. Can be used with class TextProcessingConfig.
 
-    def separate_punctuation(self, lines):
-        return [self.regex_punctuation.sub(r' \1 ', line) for line in lines]
+        Args:
+            punctuation_marks (str): String with punctuation marks to process.
+        Example: punctuation_marks = '.,?'
+        """
+        if punctuation_marks:
+            self.regex_punctuation = re.compile(fr"([{''.join(punctuation_marks)}])")
+            self.regex_extra_space = re.compile('\s{2,}')
+        else:
+            self.regex_punctuation = None
 
-    def do_lowercase(self, lines):
+    def separate_punctuation(self, lines: List[str]) -> List[str]:
+        if self.regex_punctuation is not None:
+            return [
+                self.regex_extra_space.sub(' ', self.regex_punctuation.sub(r' \1 ', line)).strip() for line in lines
+            ]
+        else:
+            return lines
+
+    def do_lowercase(self, lines: List[str]) -> List[str]:
         return [line.lower() for line in lines]
 
-    def rm_punctuation(self, lines):
-        return [self.regex_punctuation.sub(' ', line).strip() for line in lines]
+    def rm_punctuation(self, lines: List[str]) -> List[str]:
+        if self.regex_punctuation is not None:
+            return [self.regex_extra_space.sub(' ', self.regex_punctuation.sub(' ', line)).strip() for line in lines]
+        else:
+            return lines
+
+
+@dataclass
+class TextProcessingConfig:
+    # Punctuation marks to process. Example: ".,?"
+    punctuation_marks: str = ""
+
+    # Whether to apply lower case conversion on the training text.
+    do_lowercase: bool = False
+
+    # Whether to remove punctuation marks from text.
+    rm_punctuation: bool = False
+
+    # Whether to separate punctuation with the previouse word by space.
+    separate_punctuation: bool = True

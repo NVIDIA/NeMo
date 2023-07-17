@@ -64,7 +64,7 @@ An example ASR train and validation configuration should look similar to the fol
 There are two ways to test/validate on more than one manifest:
 
 - Specify a list in the `manifest_filepath` field. Results will be reported for each, the first one being used for overall loss / WER (specify `val_dl_idx` if you wish to change that). In this case, all manifests will share configuration parameters.
-- Use the ds_item key and pass a list of config objects to it. This allows you to use differently configured datasets for validation, e.g. 
+- Use the ds_item key and pass a list of config objects to it. This allows you to use differently configured datasets for validation, e.g.
 
 .. code-block:: yaml
 
@@ -235,6 +235,45 @@ For example, a decoder config corresponding to a sub-word tokenization model sho
       feat_in: *enc_final
       num_classes: -1  # filled with vocabulary size from tokenizer at runtime
       vocabulary: []  # filled with vocabulary from tokenizer at runtime
+
+
+On-the-fly Code Switching
+-------------------------
+
+Nemo supports creating code-switched synthetic utterances on-the-fly during training/validation/testing. This allows you to create ASR models which
+support intra-utterance code switching. If you have Nemo formatted audio data on disk (either JSON manifests or tarred audio data), you
+can easily mix as many of these audio sources together as desired by adding some extra parameters to your `train_ds`, `validation_ds`, and `test_ds`.
+
+Please note that this allows you to mix any kind of audio sources together to create synthetic utterances which sample from all sources. The most
+common use case for this is blending different languages together to create a multilingual code-switched model, but you can also blend
+together different audio sources from the same languages (or language families), to create noise robust data, or mix fast and slow speech from the
+same language.
+
+For multilingual code-switched models, we recommend using AggTokenizer for your Tokenizer if mixing different languages.
+
+The following example shows how to mix 3 different languages: English (en), German (de), and Japanese (ja) added to the `train_ds` model block, however
+you can add similar logic to your `validation_ds` and `test_ds` blocks for on-the-fly code-switched validation and test data too. This example mixes
+together 3 languages, but you can use as many as you want. However, be advised that the more languages you add, the higher your `min_duration` and `max_duration`
+need to be set to ensure all languages are sampled into each synthetic utterance, and setting these hyperparameters higher will use more VRAM per mini-batch during
+training and evaluation.
+
+.. code-block:: yaml
+
+  model:
+    train_ds:
+      manifest_filepath: [/path/to/EN/tarred_manifest.json, /path/to/DE/tarred_manifest.json, /path/to/JA/tarred_manifest.json]
+      tarred_audio_filepaths: ['/path/to/EN/tars/audio__OP_0..511_CL_.tar', '/path/to/DE/tars/audio__OP_0..1023_CL_.tar', '/path/to/JA/tars/audio__OP_0..2047_CL_.tar']
+      is_code_switched: true
+      is_tarred: true
+      shuffle: true
+        code_switched:              # add this block for code-switching
+          min_duration: 12          # the minimum number of seconds for each synthetic code-switched utterance
+          max_duration: 20          # the maximum number of seconds for each synthetic code-switched utterance
+          min_monolingual: 0.3      # the minimum percentage of utterances which will be pure monolingual (0.3 = 30%)
+          probs: [0.25, 0.5, 0.25]  # the probability to sample each language (matches order of `language` above) if not provided, assumes uniform distribution
+          force_monochannel: true   # if your source data is multi-channel, then setting this to True will force the synthetic utterances to be mono-channel
+          sampling_scales: 0.75     # allows you to down/up sample individual languages. Can set this as an array for individual languages, or a scalar for all languages
+          seed: 123                 # add a seed for replicability in future runs (highly useful for `validation_ds` and `test_ds`)
 
 
 Model Architecture Configurations
@@ -885,9 +924,9 @@ Hybrid ASR-TTS Model Configuration
 
 :ref:`Hybrid ASR-TTS model <Hybrid-ASR-TTS_model>` consists of three parts:
 
-* ASR model (``EncDecCTCModelBPE`` or ``EncDecRNNTBPEModel``)
+* ASR model (``EncDecCTCModelBPE``, ``EncDecRNNTBPEModel`` or ``EncDecHybridRNNTCTCBPEModel``)
 * TTS Mel Spectrogram Generator (currently, only :ref:`FastPitch <FastPitch_model>` model is supported)
-* Enhancer model (optional)
+* :ref:`Enhancer model <SpectrogramEnhancer_model>` (optional)
 
 Also, the config allows to specify :ref:`text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>`.
 
@@ -895,7 +934,7 @@ Main parts of the config:
 
 * ASR model
     * ``asr_model_path``: path to the ASR model checkpoint (`.nemo`) file, loaded only once, then the config of the ASR model is stored in the ``asr_model`` field
-    * ``asr_model_type``: needed only when training from scratch, ``rnnt_bpe`` corresponds to ``EncDecRNNTBPEModel``, ``ctc_bpe`` to ``EncDecCTCModelBPE``
+    * ``asr_model_type``: needed only when training from scratch. ``rnnt_bpe`` corresponds to ``EncDecRNNTBPEModel``, ``ctc_bpe`` to ``EncDecCTCModelBPE``, ``hybrid_rnnt_ctc_bpe`` to ``EncDecHybridRNNTCTCBPEModel``
     * ``asr_model_fuse_bn``: fusing BatchNorm in the pretrained ASR model, can improve quality in finetuning scenario
 * TTS model
     * ``tts_model_path``: path to the pretrained TTS model checkpoint (`.nemo`) file, loaded only once, then the config of the model is stored in the ``tts_model`` field
@@ -907,7 +946,7 @@ Main parts of the config:
         * ``speakers_filepath``: path (or paths) to the text file containing speaker ids for the multi-speaker TTS model (speakers are sampled randomly during training)
         * ``min_words`` and ``max_words``: parameters to filter text-only manifests by the number of words
         * ``tokenizer_workers``: number of workers for initial tokenization (when loading the data). ``num_CPUs / num_GPUs`` is a recommended value.
-    * ``asr_tts_sampling_technique``, ``asr_tts_sampling_temperature``, ``asr_tts_sampling_probabilities``: sampling parameters for text-only and audio-text data (if both specified). See parameters for ``nemo.collections.common.data.ConcatDataset``
+    * ``asr_tts_sampling_technique``, ``asr_tts_sampling_temperature``, ``asr_tts_sampling_probabilities``: sampling parameters for text-only and audio-text data (if both specified). Correspond to ``sampling_technique``, ``sampling_temperature``, and ``sampling_probabilities`` parameters of the :mod:`ConcatDataset <nemo.collections.common.data.dataset.ConcatDataset>`.
     * all other components are similar to conventional ASR models
 * ``validation_ds`` and ``test_ds`` correspond to the underlying ASR model
 
@@ -920,7 +959,7 @@ Main parts of the config:
     # asr model
     asr_model_path: ???
     asr_model: null
-    asr_model_type: null  # rnnt_bpe or ctc_bpe, needed only if instantiating from config, otherwise type is auto inferred
+    asr_model_type: null  # rnnt_bpe, ctc_bpe or hybrid_rnnt_ctc_bpe; needed only if instantiating from config, otherwise type is auto inferred
     asr_model_fuse_bn: false  # only ConformerEncoder supported now, use false for other models
 
     # tts model
@@ -972,6 +1011,7 @@ Training from Scratch
 To train ASR model from scratch using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text.py`` script with conventional ASR model config, e.g. ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` or  ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``
 
 Please specify the ASR model type, paths to the TTS model, and (optional) enhancer, along with text-only data-related fields.
+Use ``++`` or ``+`` markers for these options, since the options are not present in the original ASR model config.
 
 .. code-block:: shell
 

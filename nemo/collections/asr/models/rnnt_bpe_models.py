@@ -253,6 +253,23 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
+<<<<<<< HEAD
+=======
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_transducer_xlarge",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_transducer_xlarge",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_transducer_xlarge/versions/1.20.1/files/stt_en_fastconformer_transducer_xlarge.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_transducer_xxlarge",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_transducer_xxlarge",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_transducer_xxlarge/versions/1.20.0/files/stt_en_fastconformer_transducer_xxlarge.nemo",
+        )
+        results.append(model)
+
+>>>>>>> f7e33fc1a0dad23109ac81d824006350f6ad2b0b
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -454,6 +471,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self.joint.temperature = decoding_cfg.get('temperature', 1.0)
+
         # Update config
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
@@ -478,7 +497,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             return dataset
 
         shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
         if hasattr(dataset, 'collate_fn'):
