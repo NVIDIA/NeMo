@@ -69,9 +69,10 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         # average loss over active steps only. loss [B, S]
         loss = loss_dict["loss"]
         hiddens_mask = inputs["hiddens_mask"].to(loss)
-        loss = loss * hiddens_mask
-        # loss [B, S] -> [B] sequence level loss
-        loss = loss.sum(dim=-1) / hiddens_mask.sum(dim=-1).clamp(min=1.0)
+        # hiddens_mask[B, S] but loss is [S, B] due to rensor parallel
+        loss = loss * hiddens_mask.transpose(0, 1)
+        # loss [S, B] -> [B] sequence level loss
+        loss = loss.sum(dim=0) / hiddens_mask.sum(dim=1).clamp(min=1.0)
 
         # compute batch level weighted loss (scalar)
         weighted_loss = loss.sum() * self.loss_weight

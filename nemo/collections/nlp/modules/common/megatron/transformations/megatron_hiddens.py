@@ -258,7 +258,7 @@ class MegatronHiddensModule(torch.nn.Module):
         for i, loss_transform in enumerate(self.hidden_loss_transforms):
             cur_loss_dict = loss_transform.loss(outputs, batch_data=batch_data)
             joint_loss = joint_loss + cur_loss_dict["weighted_loss"]
-            cur_loss_dict.pop["weighted_loss"]
+            cur_loss_dict.pop("weighted_loss")
             # add name to loss values
             if loss_transform.name:
                 loss_dict = {f"{loss_transform.name}_{k}": v for k, v in cur_loss_dict.items()}
