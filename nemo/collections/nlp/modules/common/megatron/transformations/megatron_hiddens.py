@@ -37,7 +37,7 @@ __all__ = ["MegatronHiddensModule"]
 
 # a registry of all hidden transforms (maps name to class path)
 _LOSS_CLASS_REGISTRY = {
-    "a_mim": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronMIMHiddenLoss",
+    "a_mim": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronAMIMHiddenLoss",
     "vae": "nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss.MegatronVAEHiddenLoss",
 }
 
@@ -170,7 +170,7 @@ class MegatronHiddensModule(torch.nn.Module):
             raise TypeError(
                 f"hidden_loss_transforms should be a list of MegatronBaseHiddenLoss, but got {hidden_loss_transforms}"
             )
-        self.loss_transforms = torch.nn.ModuleList(self.loss_transforms)
+        self.hidden_loss_transforms = torch.nn.ModuleList(self.hidden_loss_transforms)
         if not all([isinstance(ht, MegatronBaseHiddenTransform) for ht in self.hidden_transforms]):
             raise TypeError(
                 f"hidden_transforms should be a list of MegatronBaseHiddenTransform, but got {hidden_transforms}"
@@ -254,7 +254,7 @@ class MegatronHiddensModule(torch.nn.Module):
         """
         loss_dict = {}
         joint_loss = 0.0
-        for i, loss_transform in enumerate(self.loss_transforms):
+        for i, loss_transform in enumerate(self.hidden_loss_transforms):
             cur_loss_dict = loss_transform.loss(outputs, batch_data=batch_data)
             joint_loss = joint_loss + cur_loss_dict["weighted_loss"]
             cur_loss_dict.pop["weighted_loss"]
