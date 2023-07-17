@@ -146,9 +146,10 @@ class Worker(object):
                     nums = []
                     for result in results:
                         # promblem result[-1] is '\n'
-                        current_val = result.split('<extra_id_2>')[-1]
-                        # remove whatever after <extra_id_1>
-                        current_val = current_val.split('<extra_id_1>')[0].strip()
+                        current_val = result.split('quality')[-1]
+                        current_val = 'quality' + current_val
+                        # remove whatever after new line
+                        current_val = current_val.split('\n')[0].strip()
                         # remove everything that is >= selected_keys[label_id]
                         splits = current_val.split(',')
                         filtered = []
