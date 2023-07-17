@@ -15,7 +15,6 @@
 import copy
 import functools
 import inspect
-from operator import itemgetter
 from typing import Any, Dict, List, Optional
 
 import torch

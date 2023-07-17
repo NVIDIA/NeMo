@@ -23,6 +23,7 @@ import functools
 from typing import List
 
 import torch
+from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_loss import MegatronBaseHiddenLoss
@@ -102,7 +103,7 @@ def get_hiddens_module(cfg=None):
 
     # build all hidden transforms. We support a list or a dictionary of transforms (list enforces order)
     transform_cfg = cfg.get("transform", [])
-    if isinstance(transform_cfg, dict):
+    if isinstance(transform_cfg, (DictConfig, dict)):
         transform_cfg = [transform_cfg]
     hidden_transforms = []
     # here we expect transform_cfg to be a list of dictionaries
@@ -121,7 +122,7 @@ def get_hiddens_module(cfg=None):
 
     # build all hidden losses
     loss_cfg = cfg.get("loss", [])
-    if isinstance(loss_cfg, dict):
+    if isinstance(loss_cfg, (DictConfig, dict)):
         loss_cfg = [loss_cfg]
     hidden_loss_transforms = []
     # here we expect loss_cfg to be a list of dictionaries
