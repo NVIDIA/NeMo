@@ -20,6 +20,7 @@ See example config in: examples/nlp/language_modeling/conf/megatron_hiddens_base
 """
 
 import functools
+import itertools
 from typing import List
 
 import torch
@@ -190,7 +191,7 @@ class MegatronHiddensModule(torch.nn.Module):
                 )
 
             # collect all duplicate output names
-            cur_hidden_outputs = set(ht.hidden_outputs)
+            cur_hidden_outputs = set(ht.output_names)
             if not cur_hidden_outputs.isdisjoint(hidden_outputs):
                 duplicate_names[ht.name] = list(cur_hidden_outputs.intersection(hidden_outputs))
 
@@ -201,7 +202,7 @@ class MegatronHiddensModule(torch.nn.Module):
             raise ValueError(f"Hidden transforms have duplicate outputs {{names: [duplicates]}} = {duplicate_names}")
 
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
-        loss_inputs = set(self.loss_inputs)
+        loss_inputs = set(itertools.chain(*[lt.input_names for lt in self.hidden_loss_transforms]))
         if not loss_inputs.issubset(hidden_outputs):
             raise ValueError(
                 f"Loss transforms inputs = {loss_inputs - hidden_outputs} are not supported by hidden transforms with hidden_outputs = {hidden_outputs}"

@@ -43,7 +43,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
     def input_names(self):
         """Returns and caches input names"""
         # we always expect hiddens_mask to be used to mask out loss of padded elements
-        return self._input_name() + ["hiddens_mask"]
+        return self._input_names() + ["hiddens_mask"]
 
     def _input_names(self):
         """Add here all required inputs"""
