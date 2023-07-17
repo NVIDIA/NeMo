@@ -64,3 +64,6 @@ markers = [
     "skipduringci: marks tests that are skipped ci as they are addressed by Jenkins jobs but should be run to test user setups",
     "pleasefixme: marks tests that are broken and need fixing",
 ]
+
+[build-system]
+requires = ["cython < 3.0.0"]
