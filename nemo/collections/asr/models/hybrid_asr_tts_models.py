@@ -33,10 +33,7 @@ from nemo.collections.asr.data.text_to_text import (
 )
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-<<<<<<< HEAD
-=======
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
->>>>>>> f7e33fc1a0dad23109ac81d824006350f6ad2b0b
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
