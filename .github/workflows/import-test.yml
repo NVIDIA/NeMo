@@ -23,7 +23,7 @@ jobs:
     - name: Install nemo dependencies
       id: nemo-wheel
       run:  |
-        pip install Cython
+        pip install "Cython<3.0.0"
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
@@ -55,7 +55,7 @@ jobs:
     - name: Install nemo dependencies
       id: nemo-wheel
       run:  |
-        pip install Cython
+        pip install "Cython<3.0.0"
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel
@@ -87,7 +87,7 @@ jobs:
     - name: Install nemo dependencies
       id: nemo-wheel
       run:  |
-        pip install Cython
+        pip install "Cython<3.0.0"
         # install test requirements
         pip install -r requirements/requirements_test.txt
         # Build nemo as a wheel

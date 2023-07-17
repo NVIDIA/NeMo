@@ -66,4 +66,4 @@ markers = [
 ]
 
 [build-system]
-requires = ["cython < 3.0.0"]
+requires = ["setuptools == 65.5.1", "cython < 3.0.0"]
