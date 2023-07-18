@@ -74,7 +74,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         # hiddens_mask has shape of [B x S]
         hiddens_mask = inputs["hiddens_mask"].to(loss)
         loss = loss * hiddens_mask
-        # sequence level loss [B x S] -> batch level loss [B] 
+        # sequence level loss [B x S] -> batch level loss [B]
         loss = loss.sum(dim=1) / hiddens_mask.sum(dim=1).clamp(min=1.0)
 
         # compute batch level weighted loss (scalar)
