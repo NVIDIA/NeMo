@@ -282,7 +282,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
-    
+
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [model.module if isinstance(model, Float16Module) else model for model in self.model]
@@ -481,7 +481,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
             batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
-        
+
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             if (not forward_only) or self.cfg.data.get('validation_drop_last', True):

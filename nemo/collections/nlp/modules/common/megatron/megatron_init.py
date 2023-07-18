@@ -232,7 +232,7 @@ def fake_initialize_model_parallel(
             if rank in ranks:
                 data_parallel_group = list(ranks)
                 logging.info(f'Rank {rank} has data parallel group: {data_parallel_group}')
-                
+
     data_parallel_rank = data_parallel_group.index(rank)
     logging.info(f'All data parallel group ranks: {all_data_parallel_group_ranks}')
     logging.info(f'Ranks {rank} has data parallel rank: {data_parallel_rank}')
