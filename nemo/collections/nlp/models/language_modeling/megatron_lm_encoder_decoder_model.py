@@ -598,7 +598,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     loss = self.loss_func(loss_mask, output_tensor)
 
                 reduced_loss = average_losses_across_data_parallel_group([loss])
-                    
+
                 return loss, {'avg': reduced_loss}
 
             return output, loss_func
