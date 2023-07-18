@@ -882,6 +882,25 @@ class CoreAttention(MegatronModule):
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
         
+#         bias = None
+#         if relative_position_bias is not None:
+#             if relative_position_bias.shape[-1] == 1:
+#                 from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import build_relative_position
+#                 position = build_relative_position(sq, full=True).unsqueeze(0).expand(np, -1, -1)
+#                 bias = -position.unsqueeze(0) * relative_position_bias
+#             if relative_position_bias.shape[-1] == sk:
+#                 bias = relative_position_bias            
+            
+#         context_layer2 = self.torch_attention(query_layer, key_layer, value_layer, attention_mask, bias)
+#         try:
+#             torch.testing.assert_close(context_layer, context_layer2, rtol=1e-3, atol=1e-3)
+#             err_str = ''
+#         except Exception as error:
+#             err_str = str(error).split('\n')[2]
+        
+#         print(f"{self.attention_type} {self.attn_mask_type} Layer-{self.layer_number:02d}: {err_str}")
+
+
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -938,7 +957,7 @@ class CoreAttention(MegatronModule):
             attention_mask = attention_mask[-sq:, -sk:]
 
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-
+        
         if attention_mask is not None:
             all_k_masked = attention_mask.all(axis=-1)
             zero_attention_mask = (1.0 - all_k_masked.type(attention_probs.type()))[:, :, :, None]
@@ -1042,6 +1061,9 @@ class CoreAttention(MegatronModule):
                 bias_type = 'alibi'
                 attention_bias = attention_bias.squeeze()
                 assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
+#             bias_type = 'alibi'
+#             attention_bias = attention_bias.squeeze()
+#             assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
         else:
             bias_type = 'matrix'
             assert len(attention_bias.size()) == 4
