@@ -881,7 +881,7 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-        
+
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -928,6 +928,14 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             attention_scores += attention_bias
+        
+        is_causal = self.attn_mask_type == AttnMaskType.causal and sq == sk
+        if attention_mask is None and is_causal:
+            s = max(sq, sk)
+            attention_mask = attention_scores.new_ones(b, 1, s, s, dtype=torch.bool)
+            attention_mask = attention_mask.tril()
+            attention_mask = ~attention_mask
+            attention_mask = attention_mask[-sq:, -sk:]
 
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # This is actually dropping out entire tokens to attend to, which might
@@ -1025,7 +1033,7 @@ class CoreAttention(MegatronModule):
         
         if self.position_embedding_type == 'alibi':
             if is_causal:
-                bias_type = 'vector'
+                bias_type = 'matrix'
                 assert len(attention_bias.size()) == 4
             else:
                 bias_type = 'alibi'
