@@ -587,14 +587,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             def loss_func(output_tensor):
                 if isinstance(output_tensor, dict):
+                    # handle loss of hidden transformations
                     loss_dict = output_tensor
-                    tokens_loss = self.loss_func(loss_mask, output_tensor)
                     output_tensor = loss_dict["tokens_loss"]
+                    recon_loss = self.loss_func(loss_mask, output_tensor)
+                    loss_dict["recon_loss"] = recon_loss
+                    loss = loss_dict["loss"] = loss_dict["loss"] + recon_loss
                 else:
-                    loss_dict = None
-                    
-                loss = self.loss_func(loss_mask, output_tensor)
+                    # reconstruction (tokens) only loss
+                    loss = self.loss_func(loss_mask, output_tensor)
+
                 reduced_loss = average_losses_across_data_parallel_group([loss])
+                    
                 return loss, {'avg': reduced_loss}
 
             return output, loss_func
