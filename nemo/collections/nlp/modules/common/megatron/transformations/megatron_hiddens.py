@@ -181,7 +181,7 @@ class MegatronHiddensModule(torch.nn.Module):
         # validate the inputs and outputs of all hidden transforms (make sure there are no duplicate output names)
         duplicate_names = {}
         # initialize with available outputs from hidden transforms with hiddens and mask as default
-        hidden_outputs = set(["hiddens", "hiddens_mask"])
+        hidden_outputs = set(["hiddens", "hiddens_mask", "enc_output"])
         for ht in self.hidden_transforms:
             # validate that all required inputs are available by order of hidden transforms
             cur_input_names = set(ht.input_names)
@@ -236,6 +236,9 @@ class MegatronHiddensModule(torch.nn.Module):
         for hidden_transform in self.hidden_transforms:
             # make sure to collect all outputs from hidden transforms
             outputs.update(hidden_transform.transform(outputs, batch_data=batch_data))
+        
+        # update final encoder output
+        outputs["enc_output"] = outputs[self.enc_output_name]
 
         return outputs
 
@@ -276,21 +279,3 @@ class MegatronHiddensModule(torch.nn.Module):
         loss_dict["loss"] = joint_loss
 
         return loss_dict
-
-    def get_enc_output(self, outputs):
-        """
-        Returns the encoder output from transformed hiddens output.
-        e.g., return z for latent variable models.
-
-        Args:
-            outputs: a dictionary of outputs (after hidden transforms)
-        
-        Returns:
-            enc_output: a tensor encoder outputs (e.g., to be used by decoder)
-        """
-        if torch.is_tensor(outputs):
-            enc_output = outputs
-        else:
-            enc_output = outputs[self.enc_output_name]
-
-        return enc_output

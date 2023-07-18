@@ -671,7 +671,31 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
             output = model(*args).contiguous()
 
+            # def loss_func(output_tensor):
+            #     if isinstance(output_tensor, dict):
+            #         # handle loss of hidden transformations
+            #         loss_dict = output_tensor
+            #         output_tensor = loss_dict["tokens_loss"]
+            #         recon_loss = self.loss_func(loss_mask, output_tensor)
+            #         loss_dict["recon_loss"] = recon_loss
+            #         loss = loss_dict["loss"] = loss_dict["loss"] + recon_loss
+            #     else:
+            #         # reconstruction (tokens) only loss
+            #         loss = self.loss_func(loss_mask, output_tensor)
+
+            #     reduced_loss = average_losses_across_data_parallel_group([loss])
+
+            #     return loss, {'avg': reduced_loss}
+
             def id_func(output_tensor):
+                if isinstance(output_tensor, dict):
+                    # handle loss of hidden transformations
+                    loss_dict = output_tensor
+                    output_tensor = loss_dict["tokens_loss"]
+                else:
+                    # reconstruction (tokens) only loss
+                    loss = self.loss_func(loss_mask, output_tensor)
+
                 return output_tensor, {output_name: output_tensor}
 
             return output, id_func
