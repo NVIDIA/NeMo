@@ -122,7 +122,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
 
-
         self.linear_in = ColumnParallelLinear(
             in_features, dim, bias=False, gather_output=True, init_method=self._get_init_fn(column_init_method)
         )
@@ -174,7 +173,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             w_out = inference_weight.get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
         else:
             w_in, w_out = None, None
-        x, _ = self.linear_in(x, weight=w_in)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x, _ = self.linear_in(
+            x, weight=w_in
+        )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x, weight=w_out)
         if self.norm_position == 'post':
@@ -185,11 +186,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             x = self.dropout(x)
 
         return x
-    
+
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         self.global_name_prefix = prefix
         return super().state_dict(destination, prefix, keep_vars)
-    
+
 
 @dataclass
 class ParallelLinearAdapterConfig:
@@ -433,7 +434,9 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             w_out = inference_weight.get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
         else:
             w_in, w_out = None, None
-        x, _ = self.linear_in(x, weight=w_in)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x, _ = self.linear_in(
+            x, weight=w_in
+        )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x, weight=w_out)
         if self.norm_position == 'post':

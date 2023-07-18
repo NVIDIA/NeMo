@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import abc
-from typing import List, Tuple, Optional, Dict
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -248,7 +248,14 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array, inference_peft_weights]
+        batch = [
+            tokens2use,
+            attention_mask_repeat,
+            positions2use,
+            setkey_value_array,
+            len_array,
+            inference_peft_weights,
+        ]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 

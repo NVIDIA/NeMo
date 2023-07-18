@@ -279,9 +279,11 @@ class GPTSFTDataset(Dataset):
         keys = list(batch[0]['metadata'].keys())
         collated_keys = {'inference_peft_weights': {}}
         for k in keys:
-            collated_keys['inference_peft_weights'][k] = torch.cat([item['metadata'][k].unsqueeze(0) for item in batch], dim=0)
+            collated_keys['inference_peft_weights'][k] = torch.cat(
+                [item['metadata'][k].unsqueeze(0) for item in batch], dim=0
+            )
         return collated_keys
-        
+
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]

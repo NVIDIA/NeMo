@@ -699,7 +699,12 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, 
+                tokens,
+                maxlen,
+                micro_batch_size,
+                counter,
+                context_length,
+                compute_attention_mask,
                 extra.get("inference_peft_weights", None),
             )
             output = inference_strategy.forward_step(batch, tensor_shape)

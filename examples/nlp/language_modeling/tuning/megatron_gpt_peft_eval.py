@@ -167,7 +167,7 @@ def main(cfg) -> None:
     )
 
     model.freeze()
-    model.state_dict() # @adithyare triggers state_dict call for parallel adapters which sets global names. this line is required.
+    model.state_dict()  # @adithyare triggers state_dict call for parallel adapters which sets global names. this line is required.
     _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
     request_dl = DataLoader(
         dataset=_test_ds[0],
