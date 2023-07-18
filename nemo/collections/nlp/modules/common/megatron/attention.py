@@ -72,6 +72,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     try:
         from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+
         HAVE_FLASH_ATTENTION = True
 
     except (ImportError, ModuleNotFoundError):
