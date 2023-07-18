@@ -236,7 +236,7 @@ class MegatronHiddensModule(torch.nn.Module):
         for hidden_transform in self.hidden_transforms:
             # make sure to collect all outputs from hidden transforms
             outputs.update(hidden_transform.transform(outputs, batch_data=batch_data))
-        
+
         # update final encoder output
         outputs["enc_output"] = outputs[self.enc_output_name]
 
