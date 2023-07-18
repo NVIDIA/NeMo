@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from functools import partial
 from typing import Any, Optional
 
 import torch
@@ -389,6 +390,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             "add_BOS": False,
             "all_probs": False,
             "compute_logprob": False,
+            "end_strings": ["<|endoftext|>"],
         }
         result = megatron_gpt_generate(
             model=self,
