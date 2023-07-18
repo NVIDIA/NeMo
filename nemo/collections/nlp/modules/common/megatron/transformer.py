@@ -507,11 +507,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
 
             residual = hidden_states
-            #print(f"hidden states before{hidden_states} shape {hidden_states.shape}")
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
-            #print(f"hidden states after{hidden_states} shape {hidden_states.shape}")
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -524,7 +522,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
             )
-            #print(f"hidden in {hidden_states} attention output {attention_output}")
 
             if get_key_value:
                 attention_output, presents = attention_output
@@ -664,9 +661,11 @@ class NoopTransformerLayer(MegatronModule):
     degredation.
     """
 
-    def __init__(self, layer_number):
+    def __init__(self, layer_number,precision):
         super().__init__()
         self.layer_number = layer_number
+        # Set megatron_amp_O2 to None to force FP32 to FP16
+        self.precision =  utils_funcs.dtype_from_precision(precision, None)
 
     def forward(  self,
         hidden_states,
@@ -681,7 +680,10 @@ class NoopTransformerLayer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,):
-        return hidden_states.clone()
+        # We caste precision for the corner case where we must caste FP32 embeddings to FP16
+        # on Pre-Ampere systems. It is a NOOP in all other cases
+        output = hidden_states.clone().to(self.precision)
+        return output
 
 class ParallelTransformerLayer(ParallelTransformerLayer_):
     def __init__(
@@ -1222,7 +1224,7 @@ class ParallelTransformer(MegatronModule):
             # this, we assign a 'no-op' layer on these ranks, which will
             # disconnect the input tensor from the output tensor.
             self.num_layers = 1
-            self.layers = torch.nn.ModuleList([ NoopTransformerLayer(1) ])
+            self.layers = torch.nn.ModuleList([ NoopTransformerLayer(1,precision)])
         else:
             self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 

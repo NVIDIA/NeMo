@@ -532,6 +532,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        self.standalone_embedding_stage = standalone_embedding_stage
         if kv_channels is None:
 
             assert (
@@ -597,7 +598,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
                 max_seq_len=max_position_embeddings,
             )
-
         # Transformer.
         self.encoder = ParallelTransformer(
             init_method=self.init_method,
@@ -746,8 +746,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
     ):
-        #saved_args = locals()
-        #print(f"rank {torch.distributed.get_rank()} args {saved_args}")
         # Embeddings.
         if self.pre_process and encoder_input is None:
             encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
