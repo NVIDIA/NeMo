@@ -1,4 +1,0 @@
-srun: launch/slurm: launch_p_step_launch: StepId=78559.0 aborted before step completely launched.
-srun: Job step aborted: Waiting up to 62 seconds for job step to finish.
-pyxis: importing docker image ...
-slurmstepd: error: *** JOB 78559 ON dgx1-002 CANCELLED AT 2023-07-18T11:40:55 ***
