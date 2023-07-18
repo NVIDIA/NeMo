@@ -70,11 +70,17 @@ try:
     HAVE_FLASH_ATTENTION = True
 
 except (ImportError, ModuleNotFoundError):
+    try:
+        from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+        HAVE_FLASH_ATTENTION = True
 
-    HAVE_FLASH_ATTENTION = False
+    except (ImportError, ModuleNotFoundError):
+        flash_attn_unpadded_func = None
 
-    flash_attn_unpadded_func, flash_attn_func = None, None
-    unpad_input, pad_input = None, None
+        HAVE_FLASH_ATTENTION = False
+
+        flash_attn_unpadded_func, flash_attn_func = None, None
+        unpad_input, pad_input = None, None
 
 """ We use the following notation throughout this file:
      h: hidden size
