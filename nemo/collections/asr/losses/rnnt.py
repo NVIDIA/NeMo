@@ -99,7 +99,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
-        force_float32=not numba_utils.is_numba_cuda_fp16_supported(),
+        force_float32=False,  # This is only temporarily false, will be dynamically updated during resolution
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -258,6 +258,10 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'warprnnt_numba':
+        # Update loss config's forced float32 flag if set to None
+        if loss_config.force_float32 is None:
+            loss_config.force_float32 = not numba_utils.is_numba_cuda_fp16_supported()
+
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
         loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
