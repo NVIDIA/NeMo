@@ -46,6 +46,7 @@ class DDIMSampler(AbstractBaseSampler):
         old_eps=None,
         t_next=None,
         return_logprobs=False,
+        return_mean_var=False,
     ):
         b, *_, device = *x.shape, x.device
         e_t = self._get_model_output(
@@ -53,7 +54,7 @@ class DDIMSampler(AbstractBaseSampler):
         )
         # x_prev, pred_x0 = self._get_x_prev_and_pred_x0(
         outs = self._get_x_prev_and_pred_x0(
-            use_original_steps, b, index, device, x, e_t, quantize_denoised, repeat_noise, temperature, noise_dropout, return_logprobs=return_logprobs,
+            use_original_steps, b, index, device, x, e_t, quantize_denoised, repeat_noise, temperature, noise_dropout, return_logprobs=return_logprobs, return_mean_var=return_mean_var
         )
         # return x_prev, pred_x0
         # outs contains x_prev, pred_x0, and possibly log_probs (if return log_probs was set)
@@ -72,6 +73,7 @@ class DDIMSampler(AbstractBaseSampler):
         use_original_steps=False,
         quantize_denoised=False,
         temperature=1.0,
+        return_mean_var=False,
     ):
         """
         Scores a given set of images under the model. Ensure you wrap this with torch.no_grad when appropriate.
@@ -88,7 +90,7 @@ class DDIMSampler(AbstractBaseSampler):
         e_t = self._get_model_output(
             x, time_range[cpu_idx], unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
         )
-        return self._get_step_logprob(use_original_steps, b, cpu_idx, device, x, x_prev, e_t, quantize_denoised, temperature)
+        return self._get_step_logprob(use_original_steps, b, cpu_idx, device, x, x_prev, e_t, quantize_denoised, temperature, return_mean_var)
 
     @torch.no_grad()
     def stochastic_encode(self, x0, t, use_original_steps=False, noise=None):

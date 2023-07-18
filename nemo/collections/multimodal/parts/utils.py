@@ -117,7 +117,7 @@ def setup_trainer_and_model_for_inference(
         )
 
         model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
+            cfg.model.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer, strict=False,
         )
 
     else:

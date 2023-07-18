@@ -115,6 +115,7 @@ class AbstractBaseSampler(ABC):
         unconditional_guidance_scale=1.0,
         unconditional_conditioning=None,
         return_logprobs=False,
+        return_mean_var=False,
         # this has to come in the same format as the conditioning, # e.g. as encoded tokens, ...
         **kwargs,
     ):
@@ -147,7 +148,7 @@ class AbstractBaseSampler(ABC):
             # TODO: remove?
             print(f'WARNING. Using eta=0.0 with return_logprobs. Depending on your sampler, logprobs may be meaningless')
 
-        samples, intermediates, logprobs = self.sampling_fn(
+        samples, intermediates, logprobs, means, vars = self.sampling_fn(
             conditioning,
             size,
             callback=callback,
@@ -165,8 +166,9 @@ class AbstractBaseSampler(ABC):
             unconditional_guidance_scale=unconditional_guidance_scale,
             unconditional_conditioning=unconditional_conditioning,
             return_logprobs=return_logprobs,
+            return_mean_var=return_mean_var,
         )
-        return samples, intermediates, logprobs
+        return samples, intermediates, logprobs, means, vars
 
     @torch.no_grad()
     def sampling_fn(
@@ -189,6 +191,7 @@ class AbstractBaseSampler(ABC):
         unconditional_guidance_scale=1.0,
         unconditional_conditioning=None,
         return_logprobs=False,
+        return_mean_var=False,
     ):
         device = self.model.betas.device
         b = shape[0]
@@ -204,6 +207,8 @@ class AbstractBaseSampler(ABC):
             timesteps = self.ddim_timesteps[:subset_end]
         intermediates = {"x_inter": [img], "pred_x0": [img]}
         logprobs = []
+        means = []
+        vars = []
 
         # TODO: Is this needed
         if self.sampler is Sampler.PLMS:
@@ -229,7 +234,7 @@ class AbstractBaseSampler(ABC):
                 img_orig = self.model.q_sample(x0, ts)  # TODO: deterministic forward pass?
                 img = img_orig * mask + (1.0 - mask) * img
             if self.supports_logprobs:
-                logprob_args = {'return_logprobs': return_logprobs}
+                logprob_args = {'return_logprobs': return_logprobs, 'return_mean_var': return_mean_var}
             else:
                 logprob_args = {}
             outs = self.p_sampling_fn(
@@ -256,7 +261,11 @@ class AbstractBaseSampler(ABC):
                 if len(old_eps) >= 4:
                     old_eps.pop(0)
             if return_logprobs:
-                logprobs.append(outs[-1])
+                logprobs.append(outs[2])
+            if return_mean_var:
+                offset = return_logprobs
+                means.append(outs[2 + offset])
+                vars.append(outs[3 + offset])
             if callback:
                 callback(i)
             if img_callback:
@@ -264,7 +273,7 @@ class AbstractBaseSampler(ABC):
             if index % log_every_t == 0 or index == total_steps - 1:
                 intermediates["x_inter"].append(img)
                 intermediates["pred_x0"].append(pred_x0)
-        return img, intermediates, logprobs
+        return img, intermediates, logprobs, means, vars
 
     def _get_model_output(
         self, x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs,
@@ -297,6 +306,7 @@ class AbstractBaseSampler(ABC):
         temperature,
         noise_dropout,
         return_logprobs,
+        return_mean_var=False,
     ):
         alphas = self.model.alphas_cumprod if use_original_steps else self.ddim_alphas
         alphas_prev = self.model.alphas_cumprod_prev if use_original_steps else self.ddim_alphas_prev
@@ -323,9 +333,12 @@ class AbstractBaseSampler(ABC):
             noise = torch.nn.functional.dropout(noise, p=noise_dropout)
         x_prev_mean = a_prev.sqrt() * pred_x0 + dir_xt
         x_prev = x_prev_mean + noise
+        additional_returns=[]
         if return_logprobs:
-            return x_prev, pred_x0, log_prob_gaussian(x_prev, mean=x_prev_mean, cov_diag=step_std) #log_prob_isotropic_gaussian(raw_noise)
-        return x_prev, pred_x0
+            additional_returns.append(log_prob_gaussian(x_prev, mean=x_prev_mean, cov_diag=step_std)) #log_prob_isotropic_gaussian(raw_noise)
+        if return_mean_var:
+            additional_returns += [x_prev_mean, sigma_t * temperature]
+        return x_prev, pred_x0, *additional_returns
     
     def _get_step_logprob(
             self,
@@ -338,6 +351,7 @@ class AbstractBaseSampler(ABC):
             e_t,
             quantize_denoised,
             temperature,
+            return_mean_var=False,
     ):
         """
         Given a noisy image at timestep `index` and a next step less noisy image at timestep
@@ -372,4 +386,6 @@ class AbstractBaseSampler(ABC):
         x_prev_standard = (x_prev - x_prev_mean) / step_std
         logprobs = log_prob_gaussian(x_prev, mean=x_prev_mean, cov_diag=step_std)
         # logprobs = log_prob_isotropic_gaussian(x_prev_standard)
+        if return_mean_var:
+            return logprobs, x_prev_mean, sigma_t * temperature
         return logprobs

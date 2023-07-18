@@ -129,7 +129,7 @@ def pipeline(model, cfg, verbose=True, rng=None):
             ).to(torch.cuda.current_device())
 
             tic = time.perf_counter()
-            samples, intermediates, logprobs = sampler.sample(
+            samples, intermediates, logprobs, _,_ = sampler.sample(
                 S=inference_steps,
                 conditioning=cond,
                 batch_size=batch_size,
@@ -195,6 +195,8 @@ def pipeline(model, cfg, verbose=True, rng=None):
             if output_type == 'pil':
                 output = [numpy_to_pil(x) for x in output]
 
+        print(f'save to file {save_to_file}')
+        save_to_file = True
         if save_to_file:
             os.makedirs(out_path, exist_ok=True)
             if output_type == 'pil':
