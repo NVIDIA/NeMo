@@ -1033,7 +1033,7 @@ class CoreAttention(MegatronModule):
         
         if self.position_embedding_type == 'alibi':
             if is_causal:
-                bias_type = 'matrix'
+                bias_type = 'vector'
                 assert len(attention_bias.size()) == 4
             else:
                 bias_type = 'alibi'
