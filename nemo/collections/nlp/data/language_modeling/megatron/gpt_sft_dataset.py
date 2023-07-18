@@ -14,6 +14,7 @@
 
 import numpy as np
 import torch
+from typing import Optional
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
