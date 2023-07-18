@@ -373,6 +373,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
         checkpoint_core_attention=False,
+        inference_peft_weights=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -410,7 +411,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             if self.is_adapter_available():
                 lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
                 if lora_kqv_adapter:
-                    lora_mixed_x_layer = lora_kqv_adapter(hidden_states)
+                    lora_mixed_x_layer = lora_kqv_adapter(hidden_states, inference_weight=inference_peft_weights)
                     mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
 
             # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]

@@ -382,6 +382,7 @@ def synced_generate(
     repetition_penalty=1.2,
     min_tokens_to_generate=0,
     end_strings=[],
+    inference_peft_weights=None,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -413,6 +414,7 @@ def synced_generate(
                 "greedy": greedy,
                 "repetition_penalty": repetition_penalty,
                 "min_tokens_to_generate": min_tokens_to_generate,
+                "inference_peft_weights": inference_peft_weights,
             },
         )
 
@@ -510,8 +512,9 @@ def generate(
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == get_model_parallel_src_rank():
         if isinstance(inputs, tuple):
-            context_tokens_tensor, context_length_tensor = inputs
+            context_tokens_tensor, context_length_tensor, inference_peft_weights = inputs
         else:
+            inference_peft_weights = None
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
@@ -562,6 +565,7 @@ def generate(
         repetition_penalty=repetition_penalty,
         min_tokens_to_generate=min_tokens_to_generate,
         end_strings=end_strings,
+        inference_peft_weights=inference_peft_weights,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -691,7 +695,8 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
+                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, 
+                extra.get("inference_peft_weights", None),
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
 

@@ -496,6 +496,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
+        inference_peft_weights=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -528,6 +529,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
+                inference_peft_weights=inference_peft_weights,
             )
 
             if get_key_value:
@@ -759,6 +761,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
+        inference_peft_weights=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -774,6 +777,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
+                inference_peft_weights,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -789,6 +793,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 checkpoint_core_attention,
+                inference_peft_weights,
             )
 
 
@@ -1432,6 +1437,7 @@ class ParallelTransformer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_activations_all_layers=None,
+        inference_peft_weights=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1562,6 +1568,7 @@ class ParallelTransformer(MegatronModule):
                                 self_attention_relative_position_bias=self_attention_relative_position_bias,
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                                 checkpoint_core_attention=checkpoint_core_attention,
+                                inference_peft_weights=inference_peft_weights,
                             )
                     # Update current sequence length outside of the loops
                     if self.transformer_engine:

@@ -568,7 +568,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 inference_config['inputs'] = batch
             else:
                 # peft_eval.py
-                inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
+                for k in ["contexts", "context_lengths"]:
+                    batch[k] = batch[k].cuda()
+                for k in batch.get("inference_peft_weights", {}).keys():
+                    batch["inference_peft_weights"][k] = batch["inference_peft_weights"][k].cuda()
+                inference_config['inputs'] = (batch["contexts"], 
+                                              batch["context_lengths"], 
+                                              batch.get("inference_peft_weights", None),
+                                             )
             return generate(self, **inference_config)
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):

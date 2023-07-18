@@ -97,7 +97,7 @@ class GPTSFTDataset(Dataset):
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(
-            dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
+            dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir, workers=2
         )
 
         # Will be None after this call if `max_num_samples` is None
@@ -149,7 +149,7 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
         if self.metadata_key in example:
-            metadata = example[self.metadata_key]
+            metadata = torch.load(example[self.metadata_key]["inference_peft_weights"], map_location='cpu')
         else:
             metadata = None
 
@@ -275,11 +275,22 @@ class GPTSFTDataset(Dataset):
         attention_mask = attention_mask < 0.5
         return attention_mask
 
+    def collate_metadata(self, batch):
+        keys = list(batch[0]['metadata'].keys())
+        collated_keys = {'inference_peft_weights': {}}
+        for k in keys:
+            collated_keys['inference_peft_weights'][k] = torch.cat([item['metadata'][k].unsqueeze(0) for item in batch], dim=0)
+        return collated_keys
+        
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1] for item in batch]
         labels = [item['input_ids'][1:] for item in batch]
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
+        if batch[0]['metadata']:
+            collated_weight_keys = self.collate_metadata(batch)
+        else:
+            collated_weight_keys = {}
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
 
         max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
@@ -310,5 +321,5 @@ class GPTSFTDataset(Dataset):
             'contexts': contexts,
             'context_lengths': context_lengths,
         }
-
+        processed_batch.update(collated_weight_keys)
         return processed_batch

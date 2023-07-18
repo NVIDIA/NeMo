@@ -745,6 +745,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
+        inference_peft_weights=None,
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
@@ -808,6 +809,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                inference_peft_weights=inference_peft_weights,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

@@ -859,6 +859,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     position_ids,
                     set_inference_key_value_memory,
                     inference_max_sequence_len,
+                    inference_peft_weights,
                 ) = batch
                 tokens = tokens.cuda()
                 position_ids = position_ids.cuda()
@@ -867,6 +868,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     attention_mask = attention_mask[0:1]
                 extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+                extra_arg['inference_peft_weights'] = inference_peft_weights
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             def id_func(output_tensor):

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import abc
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 
 import torch
 
@@ -215,6 +215,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         step: int,
         context_length: int,
         compute_attention_mask: bool = True,
+        inference_peft_weights: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
@@ -247,7 +248,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array, inference_peft_weights]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
@@ -287,6 +288,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
         step: int,
         context_length: int,
         compute_attention_mask: bool,
+        inference_peft_weights: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         # types2use = None
         if step == 0:
