@@ -99,7 +99,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
-        force_float32=not numba_utils.NUMBA_FP16_SUPPORTED,
+        force_float32=not numba_utils.is_numba_cuda_fp16_supported(),
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -444,7 +444,7 @@ class RNNTLoss(Loss):
         max_targets_len = target_lengths.max()
 
         # Force cast joint to float32
-        if not self._force_float32 and numba_utils.NUMBA_FP16_SUPPORTED:
+        if not self._force_float32 and numba_utils.is_numba_cuda_fp16_supported():
             # Execute the kernel in fp16
             pass
         elif self._force_float32 and log_probs.dtype != torch.float32:
