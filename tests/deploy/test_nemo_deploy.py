@@ -38,3 +38,7 @@ class TestNemoDeployment:
         nm = NemoDeploy(checkpoint_path=self.nemo_checkpoint_path,
                         triton_model_name="GPT_2B",
                         temp_nemo_dir=self.temp_nemo_dir)
+
+        nm.deploy()
+        nm.run()
+        nm.stop()

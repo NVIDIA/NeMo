@@ -18,7 +18,9 @@ import torch
 from nemo.core.classes.modelPT import ModelPT
 import importlib
 
-# from nemo.export import unpack_nemo_file
+from pytorch_lightning import Trainer
+from pytriton.model_config import ModelConfig, Tensor
+from pytriton.triton import Triton
 
 
 class NemoDeploy:
@@ -40,11 +42,56 @@ class NemoDeploy:
         self.max_batch_size = max_batch_size
         self.temp_nemo_dir = temp_nemo_dir
         self.model = None
+        self.triton = None
 
         if self.temp_nemo_dir is None:
             print("write later")
 
+    def deploy(self):
         self._init_nemo_model()
+        # Connecting inference callable with Triton Inference Server
+
+        try:
+            self.triton = Triton()
+            self.triton.bind(
+                model_name=self.model_name,
+                infer_func=self._llm_infer_fn,
+                inputs=[
+                    Tensor(dtype=np.float32, shape=(-1,)),
+                ],
+                outputs=[
+                    Tensor(dtype=np.float32, shape=(-1,)),
+                ],
+                config=ModelConfig(max_batch_size=self.max_batch_size)
+            )
+        except Exception as e:
+            self.triton = None
+            print(e)
+
+    def serve(self):
+        if self.triton is None:
+            raise Exception("deploy should be called first.")
+
+        try:
+            self.triton.serve()
+        except Exception as e:
+            self.triton = None
+            print(e)
+
+    def run(self):
+        if self.triton is None:
+            raise Exception("deploy should be called first.")
+
+        self.triton.run()
+
+    def stop(self):
+        if self.triton is None:
+            raise Exception("deploy should be called first.")
+
+        self.triton.stop()
+
+    def query(self):
+        raise NotImplementedError("This function will be implemented later.")
 
     def _get_module_and_class(self, target: str):
         l = target.rindex(".")
@@ -54,15 +101,12 @@ class NemoDeploy:
         model_config = ModelPT.restore_from(self.checkpoint_path, return_config=True)
         module_path, class_name = self._get_module_and_class(model_config.target)
         cls = getattr(importlib.import_module(module_path), class_name)
-        self.model = cls.restore_from(restore_path=self.checkpoint_path)
+        self.model = cls.restore_from(restore_path=self.checkpoint_path, trainer=Trainer())
 
     @batch
-    def _infer_fn(self, **inputs: np.ndarray):
+    def _llm_infer_fn(self, **inputs: np.ndarray):
         (input1_batch,) = inputs.values()
         input1_batch_tensor = torch.from_numpy(input1_batch).to("cuda")
         output1_batch_tensor = self.model(input1_batch_tensor)  # Calling the Python model inference
         output1_batch = output1_batch_tensor.cpu().detach().numpy()
         return [output1_batch]
-
-    def serve(self):
-        return True
