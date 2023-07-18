@@ -489,7 +489,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         checkpoint_core_attention=False,
-    ):  
+    ):
         # Self attention.
         if rotary_pos_emb is not None:
             # self attention pos_emb is (q, q)
@@ -642,6 +642,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         if get_key_value:
             output = [output, presents]
+            
         return output
 
 

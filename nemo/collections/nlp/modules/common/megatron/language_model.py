@@ -598,6 +598,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
                 max_seq_len=max_position_embeddings,
             )
+
         # Transformer.
         self.encoder = ParallelTransformer(
             init_method=self.init_method,

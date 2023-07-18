@@ -67,6 +67,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
 try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -282,8 +283,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
     
-        
-
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [model.module if isinstance(model, Float16Module) else model for model in self.model]
@@ -463,6 +462,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
+
         # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(forward_only),
@@ -481,6 +481,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
             batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
+        
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
