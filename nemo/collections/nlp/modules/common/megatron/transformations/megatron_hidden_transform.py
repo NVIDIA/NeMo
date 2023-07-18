@@ -67,7 +67,10 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
             raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
 
     def _transform(self, inputs, batch_data=None):
-        """Implement your own transformations"""
+        """
+        Implement your own transformations.
+        We expect here shapes to be [S x B x H] for Sequence, Batch, Hidden sizes (due to tensor parallel support).
+        """
         # by default we pass inputs.
         outputs = inputs.copy()
 
@@ -123,14 +126,16 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
 
     def _transform(self, inputs, batch_data=None):
         """
+        We expect here shapes to be [S x B x H] for Sequence, Batch, Hidden sizes (due to tensor parallel support).
+
         inputs:
-            hiddens: accepts a tensor of shape (batch_size, seq_len, hidden_size)    
+            hiddens: accepts a tensor of shape [S x B x H]
         
         outputs:
-            z: a sample from Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
-            z_mean: mean of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
-            z_logvar: log variance of Gaussian a tensor of shape (batch_size, seq_len, hidden_size)
-            z_log_prob: log probability of z over posterior log q(z|x) a tensor of shape (batch_size, seq_len, hidden_size)
+            z: a sample from Gaussian a tensor of shape [S x B x H]
+            z_mean: mean of Gaussian a tensor of shape [S x B x H]
+            z_logvar: log variance of Gaussian a tensor of shape [S x B x H]
+            z_log_prob: log probability of z over posterior log q(z|x) a tensor of shape [S x B x H]
         """
         hiddens = inputs["hiddens"]
         # compute distribution's parameters (or use cached ones)
@@ -158,8 +163,8 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
             z_log_prob = z_log_prob.sum(dim=-1)
 
         return {
-            "z": z,
-            "z_mean": z_mean,
-            "z_logvar": z_logvar,
-            "z_log_prob": z_log_prob,
+            "z": z, # [S x B x H]
+            "z_mean": z_mean, # [S x B x H]
+            "z_logvar": z_logvar, # [S x B x H]
+            "z_log_prob": z_log_prob, # [S x B]
         }

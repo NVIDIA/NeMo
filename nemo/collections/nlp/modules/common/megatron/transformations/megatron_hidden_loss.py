@@ -51,8 +51,11 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
 
     def _loss(self, inputs, batch_data=None):
         """
+        We expect input shapes to be [S x B x H] for Sequence, Batch, Hidden sizes (due to tensor parallel support).
+        We return a dictionary with dimensions [B x S x H], [B x S], [B], or [].
+
         Implement your own loss calculations. Must return "loss" key.
-        loss shape - [B, S] for Batch, Sequence sizes
+        loss shape - [B x S] for Batch, Sequence sizes
         batch_data - a dictionary of additional data that can be used to calculate loss
         """
         raise NotImplementedError("Please implement loss calculations in child class")
@@ -66,13 +69,13 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         if "loss" not in loss_dict:
             raise KeyError("Loss dict must contain 'loss' key")
 
-        # average loss over active steps only. loss [B, S]
+        # average loss over active steps only. loss [B x S]
         loss = loss_dict["loss"]
+        # hiddens_mask has shape of [B x S]
         hiddens_mask = inputs["hiddens_mask"].to(loss)
-        # hiddens_mask[B, S] but loss is [S, B] due to rensor parallel
-        loss = loss * hiddens_mask.transpose(0, 1)
-        # loss [S, B] -> [B] sequence level loss
-        loss = loss.sum(dim=0) / hiddens_mask.sum(dim=1).clamp(min=1.0)
+        loss = loss * hiddens_mask
+        # sequence level loss [B x S] -> batch level loss [B] 
+        loss = loss.sum(dim=1) / hiddens_mask.sum(dim=1).clamp(min=1.0)
 
         # compute batch level weighted loss (scalar)
         weighted_loss = loss.sum() * self.loss_weight
@@ -105,8 +108,12 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
 
     def _loss(self, inputs, batch_data=None):
         """
+        We expect input shapes to be [S x B x H] for Sequence, Batch, Hidden sizes (due to tensor parallel support).
+        We return a dictionary with dimensions [B x S x H], [B x S], [B], or [].
+
         Implement your own loss calculations. Must return "loss" key.
-        loss shape - [B, S] for Batch, Sequence sizes
+        loss shape - [B x S] for Batch, Sequence sizes
+        batch_data - a dictionary of additional data that can be used to calculate loss
         """
         z = inputs["z"]
         # get posterior
@@ -120,10 +127,11 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
         # here we return only the hidden loss part
         loss = -0.5 * (log_prob_P_z + log_prob_q_z_given_x)
 
+        # return losses shaped [B x S]
         return {
-            "loss": loss,
-            "log_prob_P_z": log_prob_P_z,
-            "log_prob_q_z_given_x": log_prob_q_z_given_x,
+            "loss": loss.transpose(0, 1),
+            "log_prob_P_z": log_prob_P_z.transpose(0, 1),
+            "log_prob_q_z_given_x": log_prob_q_z_given_x.transpose(0, 1),
         }
 
 
@@ -149,6 +157,14 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
         return ["z", "z_log_prob"]
 
     def _loss(self, inputs, batch_data=None):
+        """
+        We expect input shapes to be [S x B x H] for Sequence, Batch, Hidden sizes (due to tensor parallel support).
+        We return a dictionary with dimensions [B x S x H], [B x S], [B], or [].
+
+        Implement your own loss calculations. Must return "loss" key.
+        loss shape - [B x S] for Batch, Sequence sizes
+        batch_data - a dictionary of additional data that can be used to calculate loss
+        """
         z = inputs["z"]
         # get posterior
         log_prob_q_z_given_x = inputs["z_log_prob"]
@@ -160,9 +176,10 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
         # here we return only the hidden loss part
         loss = -kl_div
 
+        # return losses shaped [B x S]
         return {
-            "loss": loss,
-            "kl_div": kl_div,
-            "log_prob_p_z": log_prob_p_z,
-            "log_prob_q_z_given_x": log_prob_q_z_given_x,
+            "loss": loss.transpose(0, 1),
+            "kl_div": kl_div.transpose(0, 1),
+            "log_prob_p_z": log_prob_p_z.transpose(0, 1),
+            "log_prob_q_z_given_x": log_prob_q_z_given_x.transpose(0, 1),
         }
