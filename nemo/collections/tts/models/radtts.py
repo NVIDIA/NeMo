@@ -29,6 +29,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     regulate_len,
     sample_tts_input,
 )
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
     Index,
@@ -44,7 +45,7 @@ from nemo.utils.decorators import experimental
 
 
 @experimental
-class RadTTSModel(SpectrogramGenerator):
+class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -433,6 +434,13 @@ class RadTTSModel(SpectrogramGenerator):
         super().load_state_dict(new_state_dict, strict=strict)
 
     # Methods for model exportability
+    @property
+    def input_types(self):
+        return self._input_types
+
+    @property
+    def output_types(self):
+        return self._output_types
 
     def _prepare_for_export(self, **kwargs):
         self.model.remove_norms()

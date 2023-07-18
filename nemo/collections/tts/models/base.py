@@ -22,14 +22,14 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from nemo.collections.tts.parts.utils.helpers import OperationMode
-from nemo.core.classes import Exportable, ModelPT
+from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
 
-class SpectrogramGenerator(ModelPT, Exportable, ABC):
+class SpectrogramGenerator(ModelPT, ABC):
     """ Base class for all TTS models that turn text into a spectrogram """
 
     @abstractmethod
@@ -67,6 +67,18 @@ class SpectrogramGenerator(ModelPT, Exportable, ABC):
             if subclass_models is not None and len(subclass_models) > 0:
                 list_of_models.extend(subclass_models)
         return list_of_models
+
+    def set_export_config(self, args):
+        for k in ['enable_volume', 'enable_ragged_batches']:
+            if k in args:
+                self.export_config[k] = bool(args[k])
+                args.pop(k)
+        if 'num_speakers' in args:
+            self.export_config['num_speakers'] = int(args['num_speakers'])
+            args.pop('num_speakers')
+        if 'emb_range' in args:
+            raise Exception('embedding range is not user-settable')
+        super().set_export_config(args)
 
 
 class Vocoder(ModelPT, ABC):
@@ -330,38 +342,3 @@ class G2PModel(ModelPT, ABC):
         # recursively walk the subclasses to generate pretrained model info
         list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models
-
-    @property
-    def input_types(self):
-        return self._input_types
-
-    @property
-    def output_types(self):
-        return self._output_types
-
-    def _export_teardown(self):
-        self._input_types = self._output_types = None
-
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        disabled_inputs = set()
-        if self.fastpitch.speaker_emb is None:
-            disabled_inputs.add("speaker")
-        if not self.export_config["enable_ragged_batches"]:
-            disabled_inputs.add("batch_lengths")
-        if not self.export_config["enable_volume"]:
-            disabled_inputs.add("volume")
-        return disabled_inputs
-
-    def set_export_config(self, args):
-        for k in ['enable_volume', 'enable_ragged_batches']:
-            if k in args:
-                self.export_config[k] = bool(args[k])
-                args.pop(k)
-        if 'num_speakers' in args:
-            self.export_config['num_speakers'] = int(args['num_speakers'])
-            args.pop('num_speakers')
-        if 'emb_range' in args:
-            raise Exception('embedding range is not user-settable')
-        super().set_export_config(args)
