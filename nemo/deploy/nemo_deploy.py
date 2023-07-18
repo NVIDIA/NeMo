@@ -46,15 +46,15 @@ class NemoDeploy:
 
         self._init_nemo_model()
 
+    def _get_module_and_class(self, target: str):
+        l = target.rindex(".")
+        return target[0:l], target[l+1:len(target)]
+
     def _init_nemo_model(self):
         model_config = ModelPT.restore_from(self.checkpoint_path, return_config=True)
-        print(model_config.target)
-        #cls = importlib.import_module(model_config.target)
-        #self.model = ModelPT.restore_from(cls, self.checkpoint_path)
-
-        #import nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel as gpt
-        #cls = gpt.restore_from(self.checkpoint_path)
-        #print(cls)
+        module_path, class_name = self._get_module_and_class(model_config.target)
+        cls = getattr(importlib.import_module(module_path), class_name)
+        self.model = cls.restore_from(restore_path=self.checkpoint_path)
 
     @batch
     def _infer_fn(self, **inputs: np.ndarray):
