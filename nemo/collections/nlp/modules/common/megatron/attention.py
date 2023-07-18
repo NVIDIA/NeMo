@@ -882,22 +882,6 @@ class CoreAttention(MegatronModule):
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
         
-#         if relative_position_bias is not None:
-#             from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import build_relative_position
-#             position = build_relative_position(sq, full=True).unsqueeze(0).expand(np, -1, -1)
-#             bias = -position.unsqueeze(0) * relative_position_bias
-#         else:
-#             bias = None          
-#         context_layer2 = self.torch_attention(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-#         try:
-#             torch.testing.assert_close(context_layer, context_layer2, rtol=1e-3, atol=1e-3)
-#         except Exception as error:
-#             err_str = str(error).split('\n')[2]
-#             print(f"{self.attention_type} {self.attn_mask_type} Layer-{self.layer_number:02d}: {err_str}")
-        
-#         import pdb
-#         pdb.set_trace()
-
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
