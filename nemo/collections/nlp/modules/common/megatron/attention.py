@@ -76,7 +76,7 @@ except (ImportError, ModuleNotFoundError):
     flash_attn_unpadded_func, flash_attn_func = None, None
     unpad_input, pad_input = None, None
 
-# from ocean.nn.flash_attention import flash_attention
+from ocean.nn.flash_attention import flash_attention
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -881,26 +881,7 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-        
-#         bias = None
-#         if relative_position_bias is not None:
-#             if relative_position_bias.shape[-1] == 1:
-#                 from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import build_relative_position
-#                 position = build_relative_position(sq, full=True).unsqueeze(0).expand(np, -1, -1)
-#                 bias = -position.unsqueeze(0) * relative_position_bias
-#             if relative_position_bias.shape[-1] == sk:
-#                 bias = relative_position_bias            
-            
-#         context_layer2 = self.torch_attention(query_layer, key_layer, value_layer, attention_mask, bias)
-#         try:
-#             torch.testing.assert_close(context_layer, context_layer2, rtol=1e-3, atol=1e-3)
-#             err_str = ''
-#         except Exception as error:
-#             err_str = str(error).split('\n')[2]
-        
-#         print(f"{self.attention_type} {self.attn_mask_type} Layer-{self.layer_number:02d}: {err_str}")
-
-
+    
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -981,10 +962,6 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
-        query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
-        key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
-        value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
-
         # Use to ensure dtype cast to fp16 or bf16
         query_layer = _cast_if_autocast_enabled(query_layer)
         key_layer = _cast_if_autocast_enabled(key_layer)
@@ -997,6 +974,10 @@ class CoreAttention(MegatronModule):
             return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask,)
 
     def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask):
+        query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
+        key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
+        value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
+        
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -1036,32 +1017,52 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
-        if self.attention_dropout_p > 0.0:
-            raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-
+        q_len, kv_len = None, None
         if attention_mask is not None:
+            """
+            attention_mask: 0 is not masked; 1 is masked
+            """
             if len(attention_mask.shape) == 4:
-                # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
-                attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
-                attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
+                # [b, 1, sq, sk]
+                q_len = torch.any(torch.eq(attention_mask, False), dim=3).sum(-1).squeeze()
+                kv_len = torch.any(torch.eq(attention_mask, False), dim=2).sum(-1).squeeze()
             else:
-                # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
-                assert len(attention_mask.shape) == 2
-                attention_mask_q = (~attention_mask).unsqueeze(1).unsqueeze(3)
-                attention_mask_kv = (~attention_mask).unsqueeze(1).unsqueeze(2)
-
-            if attention_bias.shape[2] == attention_mask_q.shape[2]:
-                attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
-            if attention_bias.shape[3] == attention_mask_kv.shape[3]:
-                attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
+                # [b, s]
+                assert len(attention_mask.shape) == 2                
+                q_len = (~attention_mask).sum(-1).squeeze()
+                kv_len = (~attention_mask).sum(-1).squeeze()
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-        context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
+        
+        if self.position_embedding_type == 'alibi':
+            if is_causal:
+                bias_type = 'vector'
+                assert len(attention_bias.size()) == 4
+            else:
+                bias_type = 'alibi'
+                attention_bias = attention_bias.squeeze()
+                assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
+        else:
+            bias_type = 'matrix'
+            assert len(attention_bias.size()) == 4
+        
+        context_layer = flash_attention(
+            q=query_layer, 
+            k=key_layer, 
+            v=value_layer, 
+            q_len=q_len, 
+            kv_len=kv_len, 
+            softmax_scale=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
+            causal=is_causal, 
+            bias=attention_bias,
+            bias_type=bias_type,
+            dropout=self.attention_dropout_p if self.training else 0.0,
+            seed=torch.seed(),
+            layout='sbnd',
+            use_atomic_add=False,
+        )
 
-        # [b, sq, np, hn] -> [b, np, sq, hn]
-        context_layer = context_layer.permute(0, 2, 1, 3)
-
-        if attention_mask is not None:
-            context_layer = context_layer * attention_mask_q
+        # [sq, b, np, hn] -> [b, np, sq, hn]
+        context_layer = context_layer.permute(1, 2, 0, 3)
 
         return context_layer
