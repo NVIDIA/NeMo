@@ -141,7 +141,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         precision=16,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
@@ -659,7 +659,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         precision=16,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
@@ -804,7 +804,7 @@ class AutocastTransformerLayer(TransformerLayer):
         params_dtype: torch.dtype = torch.float32,
         get_rng_state_tracker: Optional[Callable] = None,
         fuse_wgrad_accumulation: bool = False,
-        apply_query_key_layer_scaling: bool = True,
+        apply_query_key_layer_scaling: bool = False,
         attention_softmax_in_fp32: bool = False,
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
@@ -814,6 +814,7 @@ class AutocastTransformerLayer(TransformerLayer):
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
         use_emha: bool = False,
+        ub_tp_comm_overlap: bool = False,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
     ) -> None:
@@ -846,6 +847,7 @@ class AutocastTransformerLayer(TransformerLayer):
             set_parallel_mode=tp_size > 1,
             fuse_qkv_params=True,
             zero_centered_gamma=zero_centered_gamma,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
         )
         # use_emha=use_emha,
 
@@ -895,7 +897,7 @@ class ParallelTransformer(MegatronModule):
         hidden_size,
         ffn_hidden_size,
         num_attention_heads,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         layer_type=LayerType.encoder,  # it can be a list of types or single type
         self_attn_mask_type=AttnMaskType.padding,
@@ -941,6 +943,7 @@ class ParallelTransformer(MegatronModule):
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        ub_tp_comm_overlap=False,
         normalize_attention_scores=True,
         multi_query_attention=False,
         num_moe_experts=1,
@@ -1084,6 +1087,7 @@ class ParallelTransformer(MegatronModule):
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
                     use_emha=use_emha,
+                    ub_tp_comm_overlap=ub_tp_comm_overlap,
                     zero_centered_gamma=normalization == 'layernorm1p',
                 )
             else:

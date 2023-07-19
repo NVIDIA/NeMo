@@ -17,6 +17,7 @@ import os
 import re
 from typing import Any, Dict, Optional, Union
 
+import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
@@ -131,6 +132,7 @@ class MegatronBaseModel(NLPModel):
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size'),
             use_fp8=cfg.get('fp8', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -163,6 +165,7 @@ class MegatronBaseModel(NLPModel):
         # The automatic garbage collector sould be disabled before training starts.
         if self.gc_interval > 0:
             gc.disable()
+            self.validation_global_step = 1
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -218,12 +221,27 @@ class MegatronBaseModel(NLPModel):
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
             use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
+            special_tokens=self.cfg.tokenizer.get('special_tokens', None),
             legacy=legacy,
         )
+
+        if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
+            tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
 
     def on_train_start(self) -> None:
         super().on_train_start()
         self.init_global_step = self.trainer.global_step
+
+    def on_validation_start(self) -> None:
+        super().on_validation_start()
+        if self.gc_interval > 0:
+            gc.collect()
+
+    def on_validation_end(self) -> None:
+        super().on_validation_end()
+        if self.gc_interval > 0:
+            gc.collect()
 
     def _build_vocab(self):
         """
@@ -372,6 +390,14 @@ class MegatronBaseModel(NLPModel):
 
         if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
             gc.collect()
+
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+        super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
+
+        if self.gc_interval > 0:
+            if self.validation_global_step % self.gc_interval == 0:
+                gc.collect()
+            self.validation_global_step += 1
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
@@ -558,6 +584,14 @@ class MegatronBaseModel(NLPModel):
             ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
                 'Make sure the number of model chunks is the same across all pipeline stages.'
             )
+
+        if self.cfg.get('ub_tp_comm_overlap', False):
+            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
