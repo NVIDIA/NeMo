@@ -847,6 +847,8 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         self.eval_loop_cnt = 0
         self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
         super().__init__(cfg=cfg, trainer=trainer)
+        self.decoder.output_types = self.output_types
+        self.decoder.output_types_for_export = self.output_types
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
