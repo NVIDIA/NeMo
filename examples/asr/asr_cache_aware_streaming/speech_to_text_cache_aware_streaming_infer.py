@@ -283,7 +283,6 @@ def main():
         help="Sets the att_context_size for the models which support multiple lookaheads",
     )
 
-
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
