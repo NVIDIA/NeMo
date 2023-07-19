@@ -388,9 +388,6 @@ class NLPModel(ModelPT, Exportable):
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
         # starting with trasformers v4.31.0, buffer for position_ids is persistent=False
-        if (
-            "position_ids" not in self.bert_model.embeddings._modules
-            and "bert_model.embeddings.position_ids" in state_dict
-        ):
+        if self.bert_model is not None and "position_ids" not in self.bert_model.embeddings._modules and "bert_model.embeddings.position_ids" in state_dict:
             del state_dict["bert_model.embeddings.position_ids"]
         super(ModelPT, self).load_state_dict(state_dict, strict=strict)
