@@ -482,7 +482,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 else:
                     self.log(metric_log_key, metric_result.item(), sync_dist=True)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
-                
+
                 metric_fn.reset()
                 averaged_metric.append(metric_result)
 
