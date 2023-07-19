@@ -94,3 +94,18 @@ class NemoDeploy:
         module_path, class_name = self._get_module_and_class(model_config.target)
         cls = getattr(importlib.import_module(module_path), class_name)
         self.model = cls.restore_from(restore_path=self.checkpoint_path, trainer=Trainer())
+
+        if not hasattr(self.model, "triton_infer_fn"):
+            raise Exception("triton_infer_fn function has not been found in the model class. "
+                            "In order to use nemo deployment, model classes need to implement "
+                            "triton_infer_fn function that runs inference.")
+
+        if not hasattr(self.model, "get_triton_input_type"):
+            raise Exception("get_triton_input_type function has not been found in the model class. "
+                            "In order to use nemo deployment, model classes need to implement "
+                            "get_triton_input_type function that returns the triton input types.")
+
+        if not hasattr(self.model, "get_triton_output_type"):
+            raise Exception("get_triton_output_type function has not been found in the model class. "
+                            "In order to use nemo deployment, model classes need to implement "
+                            "get_triton_output_type function that returns the triton output types.")

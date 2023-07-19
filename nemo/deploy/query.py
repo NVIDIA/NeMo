@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deploy import NemoDeploy
+
+def query_gpt():
+    return True

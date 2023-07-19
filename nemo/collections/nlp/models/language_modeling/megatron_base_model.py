@@ -638,7 +638,6 @@ class MegatronBaseModel(NLPModel):
         )
         return outputs
 
-
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         outputs = np.random.random_sample()
