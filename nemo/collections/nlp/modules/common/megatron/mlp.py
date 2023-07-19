@@ -227,7 +227,6 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-
         if self.fast_glu_activation:
             intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
             if bias_parallel is not None:

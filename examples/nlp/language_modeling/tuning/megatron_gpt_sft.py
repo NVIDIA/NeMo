@@ -21,7 +21,6 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -53,7 +52,6 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
         gpt_cfg.data = cfg.model.data
         gpt_cfg.optim = cfg.model.optim
-        gpt_cfg.use_cpu_initialization = False
         gpt_cfg.precision = cfg.trainer.precision
         gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
         gpt_cfg.restore_from_path = cfg.model.restore_from_path
