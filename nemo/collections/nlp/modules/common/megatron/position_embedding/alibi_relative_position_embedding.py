@@ -119,8 +119,8 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
-        if self.bidirectional and self.use_FA:
-            return self.slopes.unsqueeze(0)
+#         if self.bidirectional and self.use_FA:
+#             return self.slopes.unsqueeze(0)
         
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:

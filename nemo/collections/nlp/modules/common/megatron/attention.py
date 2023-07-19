@@ -76,7 +76,7 @@ except (ImportError, ModuleNotFoundError):
     flash_attn_unpadded_func, flash_attn_func = None, None
     unpad_input, pad_input = None, None
 
-from ocean.nn.flash_attention import flash_attention
+# from ocean.nn.flash_attention import flash_attention
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -1036,55 +1036,32 @@ class CoreAttention(MegatronModule):
         return context_layer
 
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
-        q_len, kv_len = None, None
+        if self.attention_dropout_p > 0.0:
+            raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
+
         if attention_mask is not None:
-            """
-            attention_mask: 0 is not masked; 1 is masked
-            """
             if len(attention_mask.shape) == 4:
-                # [b, 1, sq, sk]
-                q_len = torch.any(torch.eq(attention_mask, False), dim=3).sum(-1).squeeze()
-                kv_len = torch.any(torch.eq(attention_mask, False), dim=2).sum(-1).squeeze()
+                # [b, 1, sq, sk] -> [b, 1, sq, 1] / [b, 1, 1, sk]
+                attention_mask_q = torch.any(torch.eq(attention_mask, False), dim=3).unsqueeze(3)
+                attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).unsqueeze(2)
             else:
-                # [b, s]
-                assert len(attention_mask.shape) == 2                
-                q_len = (~attention_mask).sum(-1).squeeze()
-                kv_len = (~attention_mask).sum(-1).squeeze()
+                # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
+                assert len(attention_mask.shape) == 2
+                attention_mask_q = (~attention_mask).unsqueeze(1).unsqueeze(3)
+                attention_mask_kv = (~attention_mask).unsqueeze(1).unsqueeze(2)
+
+            if attention_bias.shape[2] == attention_mask_q.shape[2]:
+                attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
+            if attention_bias.shape[3] == attention_mask_kv.shape[3]:
+                attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
-        
-        if self.position_embedding_type == 'alibi':
-            if is_causal:
-                bias_type = 'vector'
-                assert len(attention_bias.size()) == 4
-            else:
-                bias_type = 'alibi'
-                attention_bias = attention_bias.squeeze()
-                assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
-#             bias_type = 'alibi'
-#             attention_bias = attention_bias.squeeze()
-#             assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
-        else:
-            bias_type = 'matrix'
-            assert len(attention_bias.size()) == 4
-        
-        context_layer = flash_attention(
-            q=query_layer, 
-            k=key_layer, 
-            v=value_layer, 
-            q_len=q_len, 
-            kv_len=kv_len, 
-            softmax_scale=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
-            causal=is_causal, 
-            bias=attention_bias,
-            bias_type=bias_type,
-            dropout=self.attention_dropout_p if self.training else 0.0,
-            seed=torch.seed(),
-            layout='bsnd',
-            use_atomic_add=False,
-        )
+        context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
+
+        if attention_mask is not None:
+            context_layer = context_layer * attention_mask_q
 
         return context_layer
