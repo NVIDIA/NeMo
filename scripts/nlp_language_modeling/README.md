@@ -7,7 +7,6 @@ Checkpoint conversion
 
 
 ```
-# Firstly, change to the directories where the llama checkpoints are saved
 python /path/to/convert_hf_llama_to_nemo.py --in-file ./ --out-file /path/to/llama-nemo-ckpt/llama-13b.nemo
 ```
 Use the following commands to modify the nemo checkpoint:

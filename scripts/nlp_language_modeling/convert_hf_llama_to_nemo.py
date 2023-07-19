@@ -59,13 +59,6 @@ def get_args():
     )
     parser.add_argument("--out-file", type=str, default=None, required=False, help="Path to output .nemo file.")
 
-    #parser.add_argument("--gpus_per_node", type=int, required=False, default=1)
-
-    #parser.add_argument("--tensor_model_parallel_size", type=int, required=False, default=1)
-    #parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
-
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
-
     args = parser.parse_args()
     return args
 
@@ -137,11 +130,7 @@ def load_config(llama_config):
     #print(nemo_config)
     return nemo_config
 
-def convert(local_rank, rank, world_size, args):
-
-    # tensor_model_parallel_size = args.tensor_model_parallel_size
-    #num_nodes = world_size // args.gpus_per_node
-    #assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
+def convert(args):
 
     #trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
     trainer = Trainer(accelerator='cpu')
@@ -241,5 +230,5 @@ def convert(local_rank, rank, world_size, args):
 if __name__ == '__main__':
     args = get_args()
     os.chdir(args.in_file)
-    convert(0, 0, 1, args)
+    convert(args)
 
