@@ -27,43 +27,42 @@ import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import Any, Optional
-import numpy as np
-from omegaconf import OmegaConf
 
+import numpy as np
 import torch
 from megatron.core import parallel_state
+from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
+from transformers import LlamaForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-#from nemo.collections.nlp.models.language_modeling.megatron_llama_model import MegatronLLAMAModel
+
+# from nemo.collections.nlp.models.language_modeling.megatron_llama_model import MegatronLLAMAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
-from transformers import LlamaForCausalLM
+
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file",
-        type=str,
-        default=None,
-        required=True,
-        help="Path to Huggingface LLaMA checkpoints",
+        "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--out-file", type=str, default=None, required=False, help="Path to output .nemo file.")
 
     args = parser.parse_args()
     return args
 
+
 def load_model(cls, checkpoint, strict, **kwargs):
-    #print(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
+    # print(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
@@ -83,60 +82,62 @@ def load_model(cls, checkpoint, strict, **kwargs):
         cls._set_model_restore_state(is_being_restored=False)
     return model
 
+
 def load_config(llama_config):
     nemo_config = {}
     nemo_config['cfg'] = {}
-    nemo_config['cfg']['encoder_seq_length']      = llama_config['max_sequence_length']
-    nemo_config['cfg']['num_layers']              = int(llama_config['num_hidden_layers'] )
-    nemo_config['cfg']['hidden_size']             = llama_config['hidden_size']
-    nemo_config['cfg']['ffn_hidden_size']         = llama_config['intermediate_size']
-    nemo_config['cfg']['num_attention_heads']     = llama_config['num_attention_heads']
+    nemo_config['cfg']['encoder_seq_length'] = llama_config['max_sequence_length']
+    nemo_config['cfg']['num_layers'] = int(llama_config['num_hidden_layers'])
+    nemo_config['cfg']['hidden_size'] = llama_config['hidden_size']
+    nemo_config['cfg']['ffn_hidden_size'] = llama_config['intermediate_size']
+    nemo_config['cfg']['num_attention_heads'] = llama_config['num_attention_heads']
     nemo_config['cfg']['max_position_embeddings'] = llama_config['max_position_embeddings']
-    nemo_config['cfg']['init_method_std']         = llama_config['initializer_range']
-    nemo_config['cfg']['normalization']           = 'rmsnorm'
-    nemo_config['cfg']['layernorm_epsilon']       = llama_config['rms_norm_eps']
-    nemo_config['cfg']['pre_process']             = True
-    nemo_config['cfg']['post_process']            = True
-    nemo_config['cfg']['bias']                    = False
-    nemo_config['cfg']['hidden_dropout']          = 0.0
-    nemo_config['cfg']['attention_dropout']       = 0.0
-    nemo_config['cfg']['ffn_dropout']             = 0.0
+    nemo_config['cfg']['init_method_std'] = llama_config['initializer_range']
+    nemo_config['cfg']['normalization'] = 'rmsnorm'
+    nemo_config['cfg']['layernorm_epsilon'] = llama_config['rms_norm_eps']
+    nemo_config['cfg']['pre_process'] = True
+    nemo_config['cfg']['post_process'] = True
+    nemo_config['cfg']['bias'] = False
+    nemo_config['cfg']['hidden_dropout'] = 0.0
+    nemo_config['cfg']['attention_dropout'] = 0.0
+    nemo_config['cfg']['ffn_dropout'] = 0.0
     nemo_config['cfg']['bias_dropout_add_fusion'] = False
-    nemo_config['cfg']['bias_activation_fusion']  = False
-    nemo_config['cfg']['use_cpu_initialization']  = False
+    nemo_config['cfg']['bias_activation_fusion'] = False
+    nemo_config['cfg']['use_cpu_initialization'] = False
     nemo_config['cfg']['share_embeddings_and_output_weights'] = False
     nemo_config['cfg']['make_vocab_size_divisible_by'] = 128
-    nemo_config['cfg']['activation']              = 'swiglu'
-    nemo_config['cfg']['transformer_block_type']  = 'pre_ln'
+    nemo_config['cfg']['activation'] = 'swiglu'
+    nemo_config['cfg']['transformer_block_type'] = 'pre_ln'
     nemo_config['cfg']['position_embedding_type'] = 'rope'
-    nemo_config['cfg']['precision']               = 32
-    nemo_config['cfg']['optim']                   = {'name': 'fused_adam'}
-    nemo_config['cfg']['tokenizer']               = {}
-    nemo_config['cfg']['tokenizer']['library']    = 'sentencepiece'
-    nemo_config['cfg']['tokenizer']['type']       = 'null'
-    nemo_config['cfg']['tokenizer']['model']      = 'tokenizer.model'
+    nemo_config['cfg']['precision'] = 32
+    nemo_config['cfg']['optim'] = {'name': 'fused_adam'}
+    nemo_config['cfg']['tokenizer'] = {}
+    nemo_config['cfg']['tokenizer']['library'] = 'sentencepiece'
+    nemo_config['cfg']['tokenizer']['type'] = 'null'
+    nemo_config['cfg']['tokenizer']['model'] = 'tokenizer.model'
     nemo_config['cfg']['tokenizer']['vocab_file'] = 'null'
     nemo_config['cfg']['tokenizer']['merge_file'] = 'null'
     nemo_config['cfg']['tokenizer']['tokenizer_model'] = 'null'
     nemo_config['cfg']['tokenizer']['sentencepiece_legacy'] = False
-    nemo_config['cfg']['micro_batch_size']        = 1
-    nemo_config['cfg']['global_batch_size']       = 1
+    nemo_config['cfg']['micro_batch_size'] = 1
+    nemo_config['cfg']['global_batch_size'] = 1
 
-    nemo_config['cfg']['use_scaled_init_method']  = True
-    nemo_config['cfg']['normalize_attention_scores']  = True
+    nemo_config['cfg']['use_scaled_init_method'] = True
+    nemo_config['cfg']['normalize_attention_scores'] = True
     nemo_config['cfg']['grad_allreduce_chunk_size_mb'] = 125
     nemo_config['cfg']['persist_layer_norm'] = True
     nemo_config['cfg']['masked_softmax_fusion'] = True
-    #print(nemo_config)
+    # print(nemo_config)
     return nemo_config
+
 
 def convert(args):
 
-    #trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
+    # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
     trainer = Trainer(accelerator='cpu')
-    #checkpoint_path = megatron_lm_inject_model_parallel_rank(
+    # checkpoint_path = megatron_lm_inject_model_parallel_rank(
     #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
-    #)
+    # )
     logging.info(f"loading checkpoint {args.in_file}")
     model = LlamaForCausalLM.from_pretrained(args.in_file)
     hf_config = vars(model.config)
@@ -144,8 +145,8 @@ def convert(args):
     print(f"hf_config: {hf_config}")
     print(f"nemo_config: {nemo_config}")
 
-    #print("named parameters:")
-    #for name, param in model.named_parameters():
+    # print("named parameters:")
+    # for name, param in model.named_parameters():
     #    print(f"- {name}")
 
     hidden_size = hf_config["hidden_size"]
@@ -153,8 +154,8 @@ def convert(args):
     head_size = hidden_size // head_num
     num_layers = hf_config["num_hidden_layers"]
 
-    #print(model)
-    #print(model.state_dict())
+    # print(model)
+    # print(model.state_dict())
 
     checkpoint = None
     checkpoint = OrderedDict()
@@ -171,12 +172,14 @@ def convert(args):
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
         old_tensor_shape = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].size()
-        new_tensor_shape = (head_num, head_size) + model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].size()[1:]
+        new_tensor_shape = (head_num, head_size) + model.state_dict()[
+            f'model.layers.{l}.self_attn.q_proj.weight'
+        ].size()[1:]
         q = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_tensor_shape)
         k = model.state_dict()[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_tensor_shape)
         v = model.state_dict()[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_tensor_shape)
         qkv_weights = torch.cat((q, k, v), axis=1)
-        qkv_weights = qkv_weights.reshape([3*hidden_size, hidden_size])
+        qkv_weights = qkv_weights.reshape([3 * hidden_size, hidden_size])
         qkv_weights_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.weight'
         checkpoint['state_dict'][qkv_weights_base_name] = qkv_weights
 
@@ -231,4 +234,3 @@ if __name__ == '__main__':
     args = get_args()
     os.chdir(args.in_file)
     convert(args)
-

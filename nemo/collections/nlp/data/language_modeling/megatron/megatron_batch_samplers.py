@@ -127,7 +127,7 @@ class BaseMegatronBatchSampler:
             When `rampup_batch_size` is enabled, the return value can be not exactly precise.
 
         """
-        #num_available_samples: int = self.total_samples - self.consumed_samples
+        # num_available_samples: int = self.total_samples - self.consumed_samples
         num_available_samples: int = self.total_samples
         if self.drop_last:
             return num_available_samples // self.global_batch_size
