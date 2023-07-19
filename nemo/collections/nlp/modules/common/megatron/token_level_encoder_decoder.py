@@ -142,6 +142,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.tokens_head_bias = tokens_head_bias
+        self.hiddens_cfg = hiddens_cfg
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -462,7 +463,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 self.share_decoder_tokens_head_embeddings
             ), "Decoder token embeddings and the outputlayer must be shared when using pipeline model parallel size > 1"
             assert (
-                self.enc_dec_model.hiddens_module is None
+                self.hiddens_cfg is None
             ), "Hiddens module must not be enabled when using pipeline model parallel size > 1"
 
         return encoder_kv_channels, decoder_kv_channels
@@ -641,7 +642,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
                     # check if hiddens is used
-                    if self.enc_dec_model.hiddens_module is not None:
+                    if self.hiddens_cfg is not None:
                         loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
                             outputs=enc_output, batch_data=batch_data,
                         )
@@ -655,7 +656,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # else return token logits (and hiddens if needed)
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
-                    if self.enc_dec_model.hiddens_module is not None:
+                    if self.hiddens_cfg is not None:
                         # return all hiddens and token logits
                         hiddens_dict = enc_output
                         hiddens_dict["token_logits"] = token_logits
