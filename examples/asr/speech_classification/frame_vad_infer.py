@@ -33,6 +33,7 @@ and also provide groundtruth in either RTTM files or label strings:
 {"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000, "label": "0 1 0 0 0 1 1 1 0"}
 or
 {"audio_filepath": "/path/to/audio_file1", "offset": 0, "duration": 10000, "rttm_filepath": "/path/to/rttm_file1.rttm"}
+
 """
 
 import os
