@@ -204,9 +204,15 @@ If striding approach is used for downsampling, all the convolutions in downsampl
 *  Multiple Look-aheads
 We support multiple look-aheads for cahce-aware models. You may specify a list of context sizes for att_context_size.
 During the training, different context sizes would be used randomly with the distribution specified by att_context_probs.
-The first item in the list would be the default during test/validation/inference.
-For example you may enable multiple look-aheads by setting `model.encoder.att_context_size=[[70,13],[70,6],[70,1],[70,0]]`.
+For example you may enable multiple look-aheads by setting `model.encoder.att_context_size=[[70,13],[70,6],[70,1],[70,0]]` for the training.
+The first item in the list would be the default during test/validation/inference. To switch between different look-aheads, you may use the method `asr_model.encoder.set_default_att_context_size(att_context_size)` or set the att_context_size like the following when using the script `speech_transcribe.py`:
 
+.. code-block:: Python
+
+    python [NEMO_GIT_FOLDER]/examples/asr/transcribe_speech.py \
+    pretrained_name="stt_en_fastconformer_hybrid_large_streaming_multi" \
+    audio_dir="<DIRECTORY CONTAINING AUDIO FILES>" \
+    att_context_size=[70,0]
 
 You may find the example config files for cache-aware streaming FastConformer models at
 ``<NeMo_git_root>/examples/asr/conf/fastconformer/cache_aware_streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
