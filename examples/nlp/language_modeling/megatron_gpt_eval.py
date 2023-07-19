@@ -15,6 +15,7 @@
 import asyncio
 import os
 import threading
+from functools import partial
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -173,8 +174,14 @@ def main(cfg) -> None:
         or cfg.pipeline_model_parallel_size < 0
         or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
     ):
+        save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.gpt_model_file):
+            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
         model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
+            restore_path=cfg.gpt_model_file,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=save_restore_connector,
         )
 
         with open_dict(cfg):
@@ -260,6 +267,7 @@ def main(cfg) -> None:
         "add_BOS": cfg.inference.add_BOS,
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
+        "end_strings": cfg.inference.end_strings,
     }
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
@@ -301,7 +309,12 @@ def main(cfg) -> None:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
                 if cfg.chat:
-                    web_ui = get_chatbot_demo
+                    defaults = {
+                        'user': cfg.chatbot_config.user,
+                        'assistant': cfg.chatbot_config.assistant,
+                        'system': cfg.chatbot_config.system,
+                    }
+                    web_ui = partial(get_chatbot_demo, defaults=defaults, value=cfg.chatbot_config.value)
                 else:
                     web_ui = get_demo
                 loop = asyncio.new_event_loop()
