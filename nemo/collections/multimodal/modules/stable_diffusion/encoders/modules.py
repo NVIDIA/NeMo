@@ -324,9 +324,16 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
 
 
 class FrozenMegatronCLIPEmbedder(AbstractEncoder):
-    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, use_fp16=False):
+    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, use_fp16=False):
         super().__init__()
-        cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
+        if restore_from_path is not None:
+            cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
+        elif cfg is not None:
+            state_dict = None
+        else:
+            raise ValueError("Either restore_from_path or cfg should not be None")
+
+        self.cfg = cfg
         self.build_tokenizer(cfg)
         self.load_model(cfg, state_dict)
 
@@ -400,11 +407,12 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
             post_process=cfg.text.post_process,
         )
 
-        clip_state_dict = {}
-        for key, value in state_dict.items():
-            key = key[6:]
-            clip_state_dict[key] = value
-        model.load_state_dict(clip_state_dict)
+        if state_dict is not None:
+            clip_state_dict = {}
+            for key, value in state_dict.items():
+                key = key[6:]
+                clip_state_dict[key] = value
+            model.load_state_dict(clip_state_dict)
 
         del model.vision_encoder
         self.model = model.text_encoder
