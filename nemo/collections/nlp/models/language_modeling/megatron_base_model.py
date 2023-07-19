@@ -15,6 +15,7 @@
 import gc
 import os
 import re
+import typing
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
@@ -37,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
@@ -640,8 +642,51 @@ class MegatronBaseModel(NLPModel):
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        outputs = np.random.random_sample()
-        return outputs
+        print(inputs)
+
+        def _str_ndarray2list(str_ndarray: np.ndarray) -> typing.List[str]:
+            str_ndarray = str_ndarray.astype("bytes")
+            str_ndarray = np.char.decode(str_ndarray, encoding="utf-8")
+            str_ndarray = str_ndarray.squeeze(axis=-1)
+            return str_ndarray.tolist()
+
+        self.eval()
+        prompts = _str_ndarray2list(inputs["prompts"])
+        ids = [self.tokenizer.text_to_ids(text) for text in prompts]
+        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
+
+        masks_and_position_ids = [
+            get_ltor_masks_and_position_ids(id_tensor, self.tokenizer.eos_id, False, False, False)
+            for id_tensor in id_tensors
+        ]
+
+        dt = None
+        if self.cfg['precision'] == 32:
+            dt = torch.float
+        elif self.cfg['precision'] == 16:
+            dt = torch.float16
+        elif self.cfg['precision'] == 'bf16':
+            dt = torch.bfloat16
+        else:
+            raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
+
+        output_tensors = []
+        with torch.no_grad():
+            for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+                attn_mask, _, pos_ids = attn_mask_and_pos_ids
+                assert tokens.shape == pos_ids.shape
+                assert attn_mask.shape[2] == attn_mask.shape[3] == tokens.shape[1] == pos_ids.shape[1]
+                with torch.autocast('cuda', dtype=dt):
+                    output_tensor = self.forward(
+                        tokens=tokens.cuda(),
+                        text_position_ids=pos_ids.cuda(),
+                        attention_mask=attn_mask.cuda(),
+                        labels=None,
+                    )
+                output_tensors.append(output_tensor)
+
+        outputs = np.random.random(10)
+        return {"outputs": outputs}
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""

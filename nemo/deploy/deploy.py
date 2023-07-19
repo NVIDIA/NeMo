@@ -53,7 +53,7 @@ class NemoDeploy:
         try:
             self.triton = Triton()
             self.triton.bind(
-                model_name=self.model_name,
+                model_name=self.triton_model_name,
                 infer_func=self.model.triton_infer_fn,
                 inputs=self.model.get_triton_input_type,
                 outputs=self.model.get_triton_output_type,

@@ -16,6 +16,7 @@ import pytest
 import urllib.request as req
 from pathlib import Path
 from nemo.deploy import NemoDeploy
+from nemo.deploy import NemoQuery
 
 
 class TestNemoDeployment:
@@ -27,6 +28,7 @@ class TestNemoDeployment:
     @pytest.mark.unit
     def test_to_triton_pytriton(self):
         """Here we test the slow inference deployment to triton"""
+        triton_model_name = "GPT_2B"
 
         if not Path(self.nemo_checkpoint_path):
             print("File will be downloaded...")
@@ -36,9 +38,11 @@ class TestNemoDeployment:
             print("Checkpoint has already been downloaded.")
 
         nm = NemoDeploy(checkpoint_path=self.nemo_checkpoint_path,
-                        triton_model_name="GPT_2B",
+                        triton_model_name=triton_model_name,
                         temp_nemo_dir=self.temp_nemo_dir)
 
         nm.deploy()
         nm.run()
+        nq = NemoQuery(url="localhost", model_name=triton_model_name)
+        output = nq.query_gpt(prompts=["test"])
         nm.stop()

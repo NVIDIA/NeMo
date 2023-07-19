@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .deploy import NemoDeploy
+from .query import NemoQuery
