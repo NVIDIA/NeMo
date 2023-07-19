@@ -42,7 +42,7 @@ class GPTSFTDataset(Dataset):
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
-        truncation_field: str = "answer",
+        truncation_field: str = "context",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         index_mapping_dir: str = None,
         prompt_template: str = None,
