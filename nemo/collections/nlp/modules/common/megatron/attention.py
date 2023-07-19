@@ -1059,7 +1059,6 @@ class CoreAttention(MegatronModule):
             dropout=self.attention_dropout_p if self.training else 0.0,
             seed=torch.seed(),
             layout='sbnd',
-            use_atomic_add=False,
         )
 
         # [sq, b, np, hn] -> [b, np, sq, hn]
