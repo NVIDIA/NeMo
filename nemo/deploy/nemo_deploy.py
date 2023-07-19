@@ -50,18 +50,13 @@ class NemoDeploy:
     def deploy(self):
         self._init_nemo_model()
         # Connecting inference callable with Triton Inference Server
-
         try:
             self.triton = Triton()
             self.triton.bind(
                 model_name=self.model_name,
-                infer_func=self._llm_infer_fn,
-                inputs=[
-                    Tensor(dtype=np.float32, shape=(-1,)),
-                ],
-                outputs=[
-                    Tensor(dtype=np.float32, shape=(-1,)),
-                ],
+                infer_func=self.model.triton_infer_fn,
+                inputs=self.model.get_triton_input_type,
+                outputs=self.model.get_triton_output_type,
                 config=ModelConfig(max_batch_size=self.max_batch_size)
             )
         except Exception as e:
@@ -90,9 +85,6 @@ class NemoDeploy:
 
         self.triton.stop()
 
-    def query(self):
-        raise NotImplementedError("This function will be implemented later.")
-
     def _get_module_and_class(self, target: str):
         l = target.rindex(".")
         return target[0:l], target[l+1:len(target)]
@@ -102,11 +94,3 @@ class NemoDeploy:
         module_path, class_name = self._get_module_and_class(model_config.target)
         cls = getattr(importlib.import_module(module_path), class_name)
         self.model = cls.restore_from(restore_path=self.checkpoint_path, trainer=Trainer())
-
-    @batch
-    def _llm_infer_fn(self, **inputs: np.ndarray):
-        (input1_batch,) = inputs.values()
-        input1_batch_tensor = torch.from_numpy(input1_batch).to("cuda")
-        output1_batch_tensor = self.model(input1_batch_tensor)  # Calling the Python model inference
-        output1_batch = output1_batch_tensor.cpu().detach().numpy()
-        return [output1_batch]

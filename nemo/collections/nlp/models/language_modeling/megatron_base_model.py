@@ -21,9 +21,13 @@ import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
+import numpy as np
+
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytriton.model_config import Tensor
+from pytriton.decorators import batch
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -34,9 +38,15 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+)
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.deploy.util import typedict2tensor
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -606,6 +616,33 @@ class MegatronBaseModel(NLPModel):
                 return True
             else:
                 return False
+
+    @property
+    def get_triton_input_type(self):
+        inputs = (
+                (
+                    Tensor(name="prompts", shape=(1,), dtype=bytes),
+                )
+                + typedict2tensor(LengthParam, overwrite_kwargs={"optional": True}, defaults=None)
+                + typedict2tensor(SamplingParam, overwrite_kwargs={"optional": True}, defaults=None)
+        )
+        return inputs
+
+    @property
+    def get_triton_output_type(self):
+        # return typedict2tensor(OutputType)
+        outputs = (
+                (
+                    Tensor(name="outputs", shape=(1,), dtype=np.float32),
+                )
+        )
+        return outputs
+
+
+    @batch
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        outputs = np.random.random_sample()
+        return outputs
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""
