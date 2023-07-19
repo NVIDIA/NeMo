@@ -646,6 +646,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                             outputs=enc_output, batch_data=batch_data,
                         )
                         loss_dict["tokens_loss"] = tokens_loss
+                        # We need to store default output in a known key, so that we can mimic default behaviour
+                        loss_dict["output"] = tokens_loss
                         return loss_dict
                     else:
                         return tokens_loss
@@ -657,6 +659,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         # return all hiddens and token logits
                         hiddens_dict = enc_output
                         hiddens_dict["token_logits"] = token_logits
+                        # We need to store default output in a known key, so that we can mimic default behaviour
+                        hiddens_dict["output"] = token_logits
                         return hiddens_dict
                     else:
                         return token_logits
