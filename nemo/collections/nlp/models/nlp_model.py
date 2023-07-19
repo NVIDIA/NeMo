@@ -16,7 +16,7 @@ import copy
 import hashlib
 import json
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Mapping
 
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -385,3 +385,9 @@ class NLPModel(ModelPT, Exportable):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
+        # starting trasformers v4.31.0, position_ids are part of state dict for bert_model
+        if "position_ids" not in self.bert_model.embeddings._modules and "bert_model.embeddings.position_ids" in state_dict:
+            del state_dict["bert_model.embeddings.position_ids"]
+        super(ModelPT, self).load_state_dict(state_dict, strict=strict)
