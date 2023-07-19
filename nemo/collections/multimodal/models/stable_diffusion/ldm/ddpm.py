@@ -1985,6 +1985,16 @@ class MegatronLatentDiffusion(MegatronMultimodalModel):
         else:
             return self.model.parameters()
 
+    def save_to(self, save_path: str):
+        # Replace .nemo path in config for NeMo CLIP
+        cfg = self._cfg
+        if cfg.get('cond_stage_config').get('restore_from_path'):
+            with open_dict(cfg):
+                cfg.cond_stage_config.restore_from_path = None
+                cfg.cond_stage_config.cfg = self.model.cond_stage_model.cfg
+            self._cfg = cfg
+        super().save_to(save_path)
+
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
     def __init__(
