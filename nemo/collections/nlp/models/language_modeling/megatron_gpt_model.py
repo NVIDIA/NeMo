@@ -523,7 +523,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             shape=input_shape,
             tp_size=self.cfg.get('tensor_model_parallel_size'),
             use_fp8=self.cfg.get('fp8'),
-            ub_cfgs=ub_cfgs
+            ub_cfgs=ub_cfgs,
         )
         self.initialize_ub = False
 
