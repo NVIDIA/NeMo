@@ -387,6 +387,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self.set_inference_config(inference_config={})
         self._inference_config['add_BOS'] = data_cfg.add_bos
         self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+        
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
         inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
@@ -438,18 +439,21 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 'inputs': [],
                 'metadata': [],
             }
+            total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
                     for pred, label, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
                         key = input + label
+                        total_size += 1
                         if key not in inp_label_set:
                             inp_label_set.add(key)
                             deduplicated_outputs['preds'].append(pred)
                             deduplicated_outputs['labels'].append(label)
                             deduplicated_outputs['inputs'].append(input)
                             deduplicated_outputs['metadata'].append(metadata)
+                        
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
@@ -484,7 +488,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
             # Write predictions to file
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
-                logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
+                logging.info(f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['inputs'])}")
 
                 # Check if the user provided a prefix path to the file(s) they want to write.
                 if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
