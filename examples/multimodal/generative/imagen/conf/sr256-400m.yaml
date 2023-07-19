@@ -55,7 +55,8 @@ model:
   global_batch_size: 16 # will use more micro batches to reach global batch size
   inductor: False
   inductor_cudagraphs: False
-  
+  channels_last: True
+
   unet_type: sr-unet
   unet:
     embed_dim: 128

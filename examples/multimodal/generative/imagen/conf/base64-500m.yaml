@@ -55,7 +55,8 @@ model:
   inductor: False
   inductor_cudagraphs: False
   unet_type: base
-  
+  channels_last: True
+
   unet:
     embed_dim: 256
     image_size: 64

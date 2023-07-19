@@ -49,8 +49,15 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
-
     HAVE_MEGATRON_CORE = False
+
+try:
+    from group_norm import GroupNormOpt
+
+    OPT_GROUP_NORM = True
+except Exception:
+    print('Fused optimized group norm has not been installed.')
+    OPT_GROUP_NORM = False
 
 DUMMY_TENSOR = torch.tensor([1.0])
 
@@ -75,6 +82,12 @@ class Imagen(torch.nn.Module, Serialization):
             unet = UNetModel(**cfg.unet, text_embed_dim=cfg.conditioning.embed_dim, noise_cond_aug=self.noise_cond_aug)
         else:
             raise NotImplemented(f'{self.unet_type} UNet is not implemented.')
+
+        self.channels_last = cfg.get('channels_last', False)
+        if self.channels_last:
+            assert OPT_GROUP_NORM, 'Training in channels last format requires optmized group norm implementation.'
+            logging.info('Training in torch channels last format.')
+            unet = unet.to(memory_format=torch.channels_last)
 
         # Preconditioning
         self.preconditioning_type = cfg.get('preconditioning_type', 'DDPM')
@@ -118,6 +131,11 @@ class Imagen(torch.nn.Module, Serialization):
             x_lowres = None
         else:
             assert x_lowres[0].dim() not in [0, 1], 'SR model should have low-resolution conditioning'
+
+        if self.channels_last:
+            x_start = x_start.to(memory_format=torch.channels_last)
+            if x_lowres is not None:
+                x_lowres = x_lowres.to(memory_format=torch.channels_last)
 
         # Apply random dropout to text embedding
         text_embed = random_dropout(text_embed, drop_rate=self.text_drop_rate)

@@ -44,6 +44,14 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
+try:
+    from group_norm import GroupNormOpt
+
+    OPT_GROUP_NORM = True
+except Exception:
+    print('Fused optimized group norm has not been installed.')
+    OPT_GROUP_NORM = False
+
 
 def conv_nd(dims, *args, **kwargs):
     """
@@ -116,13 +124,16 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels):
+def normalization(channels, act=""):
     """
     Make a standard normalization layer.
 
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
+    if OPT_GROUP_NORM:
+        return GroupNormOpt(32, channels, act=act)
+
     return nn.GroupNorm(32, channels)
 
 
