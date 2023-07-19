@@ -51,7 +51,7 @@ For Hybrid ASR models which have two decoders, you may select the decoder by --s
 If decoder is not set, then the default decoder would be used which is the RNNT decoder for Hybrid ASR models.
 
 ## Multi-lookahead models
-For models which support multiple lookaheads, the default is the last one in the list of model.encoder.att_context_size. To change it, you may use --att_context_size, for example --att_context_size [70,1].
+For models which support multiple lookaheads, the default is the first one in the list of model.encoder.att_context_size. To change it, you may use --att_context_size, for example --att_context_size [70,1].
 
 
 ## Evaluate a model trained with full context for offline mode
