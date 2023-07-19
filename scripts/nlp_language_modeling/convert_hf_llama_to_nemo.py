@@ -139,23 +139,6 @@ def load_config(llama_config):
 
 def convert(local_rank, rank, world_size, args):
 
-    app_state = AppState()
-    #initialize_model_parallel_for_nemo(
-    #    world_size=world_size,
-    #    global_rank=rank,
-    #    local_rank=local_rank,
-    #    tensor_model_parallel_size=args.tensor_model_parallel_size,
-    #    pipeline_model_parallel_size=args.pipeline_model_parallel_size,
-    #    virtual_pipeline_model_parallel_size=None,
-    #    pipeline_model_parallel_split_rank=0,
-    #    micro_batch_size=None,
-    #    global_batch_size=None,
-    #    seed=1234,
-    #    apex_transformer_log_level=30,
-    #)
-    # hard set the data parallel rank to 0, otherwiaze it is default to None
-    app_state.data_parallel_rank = 0
-
     # tensor_model_parallel_size = args.tensor_model_parallel_size
     #num_nodes = world_size // args.gpus_per_node
     #assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
@@ -246,8 +229,6 @@ def convert(local_rank, rank, world_size, args):
     checkpoint['state_dict'][output_layer_base_name] = output_layer_weight
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = OmegaConf.create(nemo_config)
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
 
     model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
@@ -261,15 +242,4 @@ if __name__ == '__main__':
     args = get_args()
     os.chdir(args.in_file)
     convert(0, 0, 1, args)
-#    if args.local_rank == -1:
-#        device = torch.device("cuda" if torch.cuda.is_available()  else "cpu")
-#        rank = args.local_rank
-#        local_rank = rank
-#        world_size = 1
-#    else:
-#        local_rank, rank, world_size = initialize_distributed(args)
-#
-#
-#    torch.distributed.barrier()
-#    convert(local_rank, rank, world_size, args)
-#    torch.distributed.barrier()
+
