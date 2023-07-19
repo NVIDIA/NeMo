@@ -200,6 +200,9 @@ class SaveRestoreConnector:
             state_dict: The state dict (which may have been modified)
             strict: Bool, whether to perform strict checks when loading the state dict.
         """
+        # starting trasformers v4.31.0, position_ids are part of state dict for bert_model
+        if hasattr(instance, 'bert_model') and "position_ids" not in instance.bert_model.embeddings._modules and "bert_model.embeddings.position_ids" in state_dict:
+            del state_dict["bert_model.embeddings.position_ids"]
         instance.load_state_dict(state_dict, strict=strict)
         instance._set_model_restore_state(is_being_restored=False)
 
