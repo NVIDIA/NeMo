@@ -780,7 +780,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def set_default_att_context_size(self, att_context_size):
         if att_context_size not in self.att_context_size_all:
-            logging.warning(f"att_context_size={att_context_size} is not among the list of the supported look-aheads: {self.att_context_size_all}")
+            logging.warning(
+                f"att_context_size={att_context_size} is not among the list of the supported look-aheads: {self.att_context_size_all}"
+            )
         self.att_context_size = att_context_size
 
     def setup_streaming_params(
