@@ -16,7 +16,7 @@ import copy
 import hashlib
 import json
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Mapping
 
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
