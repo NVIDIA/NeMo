@@ -707,7 +707,7 @@ class MegatronBaseModel(NLPModel):
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
 
-    def build_model_parallel_config(self):
+    def build_model_parallel_config(self) -> ModelParallelConfig:
         """ For attributes in the nemo model config that are the same as the
             megatron core ModelParallelConfig we will use the value from the nemo config.
             For attributes in ModelParallelConfig that are not in the nemo model config, we add custom logic.
@@ -735,7 +735,7 @@ class MegatronBaseModel(NLPModel):
             "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
             "bf16": precision == 'bf16' and megatron_amp_O2,
             "params_dtype": params_dtype,
-            "timers": None,  # NeMo dues not currently support megatron core timers
+            "timers": None,  # NeMo does not currently support megatron core timers
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
