@@ -425,7 +425,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                 scores = torch.cat((global_key_attn, scores), dim=-1)
 
                 # free memory
-                del global_key_attn_scores
+                del global_key_attn
 
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)
             p_attn = self.dropout(attn)
