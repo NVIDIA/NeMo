@@ -254,12 +254,12 @@ def float16_to_fp32(val):
 
 
 class Float16Module(MegatronModule):
-    def __init__(self, module, precision):
+    def __init__(self, module, precision, share_token_embeddings=True):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "Megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__()
+        super().__init__(share_token_embeddings=share_token_embeddings)
         self.precision = precision
 
         if precision == 'bf16':
@@ -290,7 +290,7 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage() and self.training:
             outputs = float16_to_fp32(outputs)
         return outputs
 

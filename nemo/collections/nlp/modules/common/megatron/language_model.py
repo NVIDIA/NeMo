@@ -21,7 +21,12 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding import (
+    ALiBiRelativePositionEmbedding,
+    KERPLERelativePositionEmbedding,
+    RotaryEmbedding,
+    SandwichRelativePositionEmbedding,
+)
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -65,7 +70,7 @@ def get_language_model(
     vocab_size,
     num_attention_heads,
     encoder_attn_mask_type,
-    apply_query_key_layer_scaling=True,
+    apply_query_key_layer_scaling=False,
     kv_channels=None,
     init_method=None,
     scaled_init_method=None,
@@ -116,6 +121,9 @@ def get_language_model(
     fp8_amax_compute_algo='most_recent',
     reduce_amax=True,
     use_emha=False,
+    ub_tp_comm_overlap=False,
+    use_flash_attention=False,
+    seq_len_interpolation_factor=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -191,6 +199,9 @@ def get_language_model(
         fp8_amax_compute_algo=fp8_amax_compute_algo,
         reduce_amax=reduce_amax,
         use_emha=use_emha,
+        ub_tp_comm_overlap=ub_tp_comm_overlap,
+        use_flash_attention=use_flash_attention,
+        seq_len_interpolation_factor=seq_len_interpolation_factor,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -497,6 +508,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        ub_tp_comm_overlap=False,
+        use_flash_attention=False,
+        seq_len_interpolation_factor=None,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -518,7 +532,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
-
         if kv_channels is None:
 
             assert (
@@ -549,7 +562,43 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             assert 0 < rotary_percentage <= 1
             if rotary_percentage < 1:
                 rotary_dim = int(rotary_dim * rotary_percentage)
-            self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
+            self.rotary_pos_emb = RotaryEmbedding(
+                rotary_dim, seq_len_interpolation_factor=seq_len_interpolation_factor
+            )
+
+        elif position_embedding_type == 'alibi':
+            # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
+            # addition for decoder. Currently it is only used for decoder model only.
+            # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
+            self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
+                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
+                num_attention_heads=num_attention_heads,
+                layer_type=LayerType.encoder,
+                num_attention_heads_alibi=None,
+                max_seq_len=max_position_embeddings,
+            )
+
+        elif position_embedding_type == 'kerple':
+            # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
+            # addition for decoder. Currently it is only used for decoder model only.
+            # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
+            self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
+                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
+                num_attention_heads=num_attention_heads,
+                layer_type=LayerType.encoder,
+                num_attention_heads_kerple=None,
+                max_seq_len=max_position_embeddings,
+            )
+            assert use_flash_attention == False  # flash-attention not supported with kerple at this point
+
+        elif position_embedding_type == 'sandwich':
+            self.encoder_relative_position_embedding = SandwichRelativePositionEmbedding(
+                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
+                num_attention_heads=num_attention_heads,
+                layer_type=LayerType.encoder,
+                hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
+                max_seq_len=max_position_embeddings,
+            )
 
         # Transformer.
         self.encoder = ParallelTransformer(
@@ -602,6 +651,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
             use_emha=use_emha,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
+            position_embedding_type=position_embedding_type,
+            use_flash_attention=use_flash_attention,
         )
         self._encoder_key = 'encoder'
 
@@ -642,6 +694,8 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
                 transformer_engine=transformer_engine,
+                position_embedding_type=position_embedding_type,
+                use_flash_attention=use_flash_attention,
             )
             self._decoder_key = 'decoder'
 
@@ -701,10 +755,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
                 v = ptuning_adapter.virtual_tokens
                 if ptuning_adapter and _sq >= v:  # The sequence should be longer the v to insert virtual embeddings.
-                    strategy = ptuning_adapter.adapter_strategy
-                    virtual_embeddings = self.forward_single_enabled_adapter_(
-                        _bs, ptuning_adapter, adapter_name=AdapterName.PTUNING_ADAPTER, adapter_strategy=strategy,
-                    )
+                    virtual_embeddings = ptuning_adapter(_bs)
                     encoder_input = encoder_input[
                         v:, :, :
                     ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
@@ -713,26 +764,35 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             pass
 
         # enc_attn_mask: [1, 1, s, s]
-
-        if self.position_embedding_type == 'rope':
-            if inference_max_sequence_len is not None:
-                rotary_pos_emb = self.rotary_pos_emb(inference_max_sequence_len)
-            elif self.encoder.input_tensor is not None:
-                if self.sequence_parallel:
-                    rotary_pos_emb = self.rotary_pos_emb(
-                        self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
-                    )
-                else:
-                    rotary_pos_emb = self.rotary_pos_emb(self.encoder.input_tensor.size(0))
+        if inference_max_sequence_len is not None:
+            enc_seq_length = inference_max_sequence_len
+        elif self.encoder.input_tensor is not None:
+            if self.sequence_parallel:
+                enc_seq_length = (
+                    self.encoder.input_tensor.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+                )
             else:
-                if self.sequence_parallel:
-                    rotary_pos_emb = self.rotary_pos_emb(
-                        encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
-                    )
-                else:
-                    rotary_pos_emb = self.rotary_pos_emb(encoder_input.size(0))
+                enc_seq_length = self.encoder.input_tensor.size(0)
         else:
-            rotary_pos_emb = None
+            if self.sequence_parallel:
+                enc_seq_length = encoder_input.size(0) * parallel_state.get_tensor_model_parallel_world_size()
+            else:
+                enc_seq_length = encoder_input.size(0)
+
+        rotary_pos_emb = None
+        encoder_self_attention_relative_position_bias = None
+        if self.position_embedding_type == 'rope':
+            rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
+        elif (
+            self.position_embedding_type == 'alibi'
+            or self.position_embedding_type == 'sandwich'
+            or self.position_embedding_type == 'kerple'
+        ):
+            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+            )
+            # causal attention bias: [1, head, 1, k]
+            # non-causal attention bias: [1, head, q, k]
 
         # encoder.
         if enc_hidden_states is None:
@@ -747,6 +807,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 rotary_pos_emb=(rotary_pos_emb, None, None)
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
+                self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
