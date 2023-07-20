@@ -581,6 +581,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         value_vectors_only_global = value.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
         value_vectors_only_global[is_local_index_global_attn_nonzero] = value[is_index_global_attn_nonzero]
 
+        # cut local attn probs to global only
+        attn_probs_only_global = attn_probs.narrow(-1, 0, max_num_global_attn_indices)
         # compute attn output only global
         attn_output_only_global = torch.matmul(
             attn_probs_only_global.clone(), value_vectors_only_global.transpose(1, 2).clone()
