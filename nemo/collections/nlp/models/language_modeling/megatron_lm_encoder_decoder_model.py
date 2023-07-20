@@ -590,16 +590,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     # handle loss of hidden transformations
                     loss_dict = output_tensor
                     output_tensor = loss_dict["tokens_loss"]
+                    
                     recon_loss = self.loss_func(loss_mask, output_tensor)
                     loss_dict["recon_loss"] = recon_loss
-                    loss = loss_dict["loss"] = loss_dict["loss"] + recon_loss
+                    loss = loss_dict["loss"] + recon_loss
+                    # FIXME: fix returned dictionary
+                    loss_dict = {k: average_losses_across_data_parallel_group([v]) for k, v in loss_dict.items()}
                 else:
                     # reconstruction (tokens) only loss
                     loss = self.loss_func(loss_mask, output_tensor)
+                    reduced_loss = average_losses_across_data_parallel_group([loss])
+                    loss_dict = {'avg': reduced_loss}
 
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-
-                return loss, {'avg': reduced_loss}
+                return loss, loss_dict
 
             return output, loss_func
 
@@ -665,7 +668,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         def fwd_output_only_func(dataloader_iter, model):
             batch = next(dataloader_iter)
-            batch = [x.cuda(non_blocking=True) for x in batch]
+            batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
