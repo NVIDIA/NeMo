@@ -86,6 +86,10 @@ def parse_conversations(tree_obj):
         turn['label'] = encode_labels(prompt_obj['labels'])
     if 'lang' in prompt_obj:
         turn['lang'] = prompt_obj['lang']
+        turn['label'] = turn['label'] + f',lang:{turn["lang"]}'
+        value_set = label_values.get('lang', set())
+        value_set.add(turn['lang'])
+        label_values['lang'] = value_set
     all_conversations = []
     multiple_sub_threads = []
     for next_obj in prompt_obj['replies']:
