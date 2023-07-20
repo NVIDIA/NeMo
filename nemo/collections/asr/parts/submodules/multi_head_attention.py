@@ -434,7 +434,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             if self.global_tokens > 0:
                 # compute sum of global and local attn
                 out = self._compute_attn_output_with_global_indices(
-                    value_vectors=v.transpose(1, 2),
+                    value=v,
                     attn_probs=p_attn,
                     max_num_global_attn_indices=max_num_global_attn_indices,
                     is_index_global_attn_nonzero=is_index_global_attn_nonzero,
@@ -553,31 +553,32 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
     def _compute_attn_output_with_global_indices(
         self,
-        value_vectors,
-        attn_probs,
-        max_num_global_attn_indices,
-        is_index_global_attn_nonzero,
-        is_local_index_global_attn_nonzero,
-        w,
-    ):
+        value: torch.Tensor,
+        attn_probs: torch.Tensor,
+        max_num_global_attn_indices: int,
+        is_index_global_attn_nonzero: tuple,
+        is_local_index_global_attn_nonzero: tuple,
+    ) -> torch.Tensor:
         """
         Compute the attention output with global indices.
+
         Args:
-            value_vectors (torch.Tensor): (batch, head, time, head_dim) The value vectors for global attention.
+            value (torch.Tensor): (batch, head, time, head_dim) The value vectors for global attention.
             attn_probs (torch.Tensor): (batch, time, head, 2w) The attention probabilities.
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
-        Returns:
-            torch.Tensor: (batch, time, head x head_dim) The attention output of all tokens with attention to global.
-        """
-        batch_size = attn_probs.shape[0]
 
-        # cut local attn probs to global only
-        attn_probs_only_global = attn_probs.narrow(-1, 0, max_num_global_attn_indices)
+        Returns:
+            torch.Tensor: (batch, time, head x head_dim) The attention output of all tokens attending to global.
+        """
+        batch_size, time = attn_probs.shape[0], attn_probs.shape[2]
+
+        value = value.transpose(1, 2)
+
         # get value vectors for global only
-        value_vectors_only_global = value_vectors.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
-        value_vectors_only_global[is_local_index_global_attn_nonzero] = value_vectors[is_index_global_attn_nonzero]
+        value_vectors_only_global = value.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
+        value_vectors_only_global[is_local_index_global_attn_nonzero] = value[is_index_global_attn_nonzero]
 
         # compute attn output only global
         attn_output_only_global = torch.matmul(
