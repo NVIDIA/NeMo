@@ -30,7 +30,7 @@ class TestNemoDeployment:
         """Here we test the slow inference deployment to triton"""
         triton_model_name = "GPT_2B"
 
-        if not Path(self.nemo_checkpoint_path):
+        if not Path(self.nemo_checkpoint_path).exists():
             print("File will be downloaded...")
             req.urlretrieve(self.nemo_checkpoint_link, self.nemo_checkpoint_path)
             print("File download completed.")
