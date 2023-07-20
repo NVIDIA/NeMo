@@ -595,7 +595,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
         # compute attn output with global
         attn_output_without_global = self.sliding_chunks_matmul_pv(
-            attn_probs_without_global, value_vectors.transpose(1, 2), w
+            attn_probs_without_global, value.transpose(1, 2), w
         )
 
         return attn_output_only_global + attn_output_without_global
