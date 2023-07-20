@@ -589,13 +589,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 if isinstance(output_tensor, dict):
                     # handle loss of hidden transformations
                     loss_dict = output_tensor
-<<<<<<< HEAD
                     output_tensor = loss_dict.pop("output")
                     # compute reconstruction (tokens) only loss from per-token reconstruction loss
-=======
-                    output_tensor = loss_dict["tokens_loss"]
-
->>>>>>> 7fa591675b17212e7863260aaf66bc4774c53809
                     recon_loss = self.loss_func(loss_mask, output_tensor)
                     loss_dict["recon_loss"] = recon_loss
                     # compute total loss
