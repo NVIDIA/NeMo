@@ -48,7 +48,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.deploy.util import typedict2tensor, str_list2numpy
+from nemo.deploy.util import typedict2tensor
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -632,10 +632,19 @@ class MegatronBaseModel(NLPModel):
 
     @property
     def get_triton_output_type(self):
-        # return typedict2tensor(OutputType)
+        dt = None
+        if self.cfg['precision'] == 32:
+            dt = np.float32
+        elif self.cfg['precision'] == 16:
+            dt = np.float16
+        elif self.cfg['precision'] == 'bf16':
+            dt = np.float16
+        else:
+            raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
+
         outputs = (
                 (
-                    Tensor(name="outputs", shape=(1,), dtype=bytes),
+                    Tensor(name="outputs", shape=(1,), dtype=dt),
                 )
         )
         return outputs
@@ -659,12 +668,16 @@ class MegatronBaseModel(NLPModel):
         ]
 
         dt = None
+        np_dt = None
         if self.cfg['precision'] == 32:
             dt = torch.float
+            np_dt = np.float32
         elif self.cfg['precision'] == 16:
             dt = torch.float16
+            np_dt = np.float16
         elif self.cfg['precision'] == 'bf16':
             dt = torch.bfloat16
+            np_dt = np.float16
         else:
             raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
 
@@ -683,9 +696,8 @@ class MegatronBaseModel(NLPModel):
                     )
                 output_tensors.append(output_tensor)
 
-        #test_output = [["test, test2, test3, ..."], ["get, gettter..."]]
-        print("************ output_tensors[0]:", output_tensors[0])
-        test_output = str_list2numpy(output_tensors[0])
+        test_output = output_tensors.cpu().detach().numpy()
+        print(test_output)
         return {"outputs": test_output}
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
