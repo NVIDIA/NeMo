@@ -558,6 +558,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         max_num_global_attn_indices: int,
         is_index_global_attn_nonzero: tuple,
         is_local_index_global_attn_nonzero: tuple,
+        w: int,
     ) -> torch.Tensor:
         """
         Compute the attention output with global indices.
@@ -568,7 +569,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
             is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
             is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
-
+            w (int): Local context size
         Returns:
             torch.Tensor: (batch, time, head x head_dim) The attention output of all tokens attending to global.
         """
