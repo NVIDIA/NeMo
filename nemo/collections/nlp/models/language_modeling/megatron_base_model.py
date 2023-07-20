@@ -668,16 +668,12 @@ class MegatronBaseModel(NLPModel):
         ]
 
         dt = None
-        np_dt = None
         if self.cfg['precision'] == 32:
             dt = torch.float
-            np_dt = np.float32
         elif self.cfg['precision'] == 16:
             dt = torch.float16
-            np_dt = np.float16
         elif self.cfg['precision'] == 'bf16':
             dt = torch.bfloat16
-            np_dt = np.float16
         else:
             raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
 
@@ -694,7 +690,11 @@ class MegatronBaseModel(NLPModel):
                         attention_mask=attn_mask.cuda(),
                         labels=None,
                     )
-                output_tensors.append(output_tensor.cpu().detach().numpy())
+                output_tensor = output_tensor.cpu().detach()
+                if dt == torch.bfloat16:
+                    output_tensor = output_tensor.to(torch.float16)
+
+                output_tensors.append(output_tensor.numpy())
 
         print(output_tensors)
         return {"outputs": output_tensors}
