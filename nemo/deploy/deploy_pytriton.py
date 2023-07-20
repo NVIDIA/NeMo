@@ -16,6 +16,7 @@ import numpy as np
 from pytriton.decorators import batch
 import torch
 from nemo.core.classes.modelPT import ModelPT
+from .deploy_base import DeployBase
 import importlib
 
 from pytorch_lightning import Trainer
@@ -23,33 +24,20 @@ from pytriton.model_config import ModelConfig, Tensor
 from pytriton.triton import Triton
 
 
-class NemoDeploy:
+class DeployPyTriton(DeployBase):
 
     def __init__(self,
                  checkpoint_path: str,
                  triton_model_name: str,
-                 inference_type: str="Normal",
-                 model_name: str = "GPT",
-                 model_type: str="LLM",
                  max_batch_size: int=128,
-                 temp_nemo_dir=None,
     ):
-        self.checkpoint_path = checkpoint_path
-        self.triton_model_name = triton_model_name
-        self.inference_type = inference_type
-        self.model_name = model_name
-        self.model_type = model_type
-        self.max_batch_size = max_batch_size
-        self.temp_nemo_dir = temp_nemo_dir
-        self.model = None
-        self.triton = None
-
-        if self.temp_nemo_dir is None:
-            print("write later")
+        super().__init__(checkpoint_path=checkpoint_path,
+                         triton_model_name=triton_model_name,
+                         max_batch_size=max_batch_size,
+                    )
 
     def deploy(self):
         self._init_nemo_model()
-        # Connecting inference callable with Triton Inference Server
         try:
             self.triton = Triton()
             self.triton.bind(
@@ -85,15 +73,8 @@ class NemoDeploy:
 
         self.triton.stop()
 
-    def _get_module_and_class(self, target: str):
-        l = target.rindex(".")
-        return target[0:l], target[l+1:len(target)]
-
     def _init_nemo_model(self):
-        model_config = ModelPT.restore_from(self.checkpoint_path, return_config=True)
-        module_path, class_name = self._get_module_and_class(model_config.target)
-        cls = getattr(importlib.import_module(module_path), class_name)
-        self.model = cls.restore_from(restore_path=self.checkpoint_path, trainer=Trainer())
+        super()._init_nemo_model()
 
         if not hasattr(self.model, "triton_infer_fn"):
             raise Exception("triton_infer_fn function has not been found in the model class. "

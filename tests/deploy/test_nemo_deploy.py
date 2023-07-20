@@ -15,7 +15,7 @@
 import pytest
 import urllib.request as req
 from pathlib import Path
-from nemo.deploy import NemoDeploy
+from nemo.deploy import DeployPyTriton
 from nemo.deploy import NemoQuery
 
 
@@ -37,9 +37,8 @@ class TestNemoDeployment:
         else:
             print("Checkpoint has already been downloaded.")
 
-        nm = NemoDeploy(checkpoint_path=self.nemo_checkpoint_path,
-                        triton_model_name=triton_model_name,
-                        temp_nemo_dir=self.temp_nemo_dir)
+        nm = DeployPyTriton(checkpoint_path=self.nemo_checkpoint_path,
+                        triton_model_name=triton_model_name)
 
         nm.deploy()
         nm.run()
