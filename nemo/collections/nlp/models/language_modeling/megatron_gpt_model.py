@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import fields
 import itertools
 import queue
 import warnings
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
+from more_itertools import distribute
+from omegaconf import OmegaConf
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -51,7 +54,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
@@ -71,6 +74,7 @@ try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -204,6 +208,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
+
+        # build the transformer config
+        self.transformer_config = self.build_transformer_config()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -1337,49 +1344,94 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
 
-    # def build_transformer_config(self):
-    #     """ Builds the megatron core gpt transformer config for the model."""
-    #     if self.cfg.get('kv_channels', None) is None:
-    #         assert (
-    #             self.cfg.hidden_size % self.cfg.num_attention_heads == 0
-    #         ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-    #         kv_channels = self.cfg.hidden_size // self.cfg.num_attention_heads
+    def build_transformer_config(self) -> TransformerConfig:
+        """ Builds the megatron core gpt transformer config for the model.
+            For attributes in the nemo model config that are the same 
+            as the megatron core TransformerConfig, we will use the value from the nemo model config.
+            For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """
 
-    #     # nemo megatron only suppots amp o2 for bfloat16 currently
-    #     if self.megatron_amp_o2:
-    #         params_dtype = torch.bfloat16
-    #         bf16 = True
-    #     else:
-    #         params_dtype = torch.float32
-    #         bf16 = False
+        # if self.cfg.get('kv_channels', None) is None:
+        #     assert (
+        #         self.cfg.hidden_size % self.cfg.num_attention_heads == 0
+        #     ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+        #     kv_channels = self.cfg.hidden_size // self.cfg.num_attention_heads
 
-    #     transformer_config = TransformerConfig(
-    #         num_layers=self.cfg.num_layers,
-    #         hidden_size=self.cfg.hidden_size,
-    #         num_attention_heads=self.cfg.num_attention_heads,
-    #         ffn_hidden_size=self.cfg.ffn_hidden_size,
-    #         kv_channels=kv_channels,
-    #         hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
-    #         attention_dropout=self.cfg.get('attention_dropout', 0.1),
-    #         fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
-    #         layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
-    #         tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
-    #         pipeline_model_parallel_size=self.cfg.get('pipeline_model_parallel_size', 1),
-    #         virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-    #         sequence_parallel_enabled=self.cfg.get('sequence_parallel'),
-    #         init_method_std=self.cfg.get('init_method_std', 0.02),
-    #         use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
-    #         params_dtype=params_dtype,
-    #         bf16=bf16,
-    #         apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
-    #         gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
-    #         bias_gelu_fusion=self.cfg.get('bias_activation_fusion', False),
-    #         masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', False),
-    #         persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-    #         bias_dropout_fusion=self.cfg.get('bias_dropout_add_fusion', True),
-    #         recompute_granularity=self.cfg.get('activations_checkpoint_granularity', None),
-    #         recompute_method=self.cfg.get('activations_checkpoint_method', None),
-    #         recompute_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
-    #     )
+        # create a dictionary copy of the model config
+        cfg = OmegaConf.to_container(self.cfg, resolve=True)
 
-    #     return transformer_config
+        # create a dict to store the transformer config arguments
+        transformer_config_dict = {}
+
+        # get model parallel configs from the base class
+        model_parallel_config = self.build_model_parallel_config()
+
+        add_bias_linear = self.cfg.get('bias', True)
+
+        activation = self.cfg.get('activation', 'gelu')
+        # TODO: need to check which activation functions are supported in mcore
+        activation_func = activation_to_func(activation)
+
+        init_method_std = self.cfg.get('init_method_std', 0.02)
+        # default used in mcore
+        init_method = init_method_normal(init_method_std)
+
+        output_layer_init_method = init_method
+        num_layers = self.cfg.get('num_layers', 1)
+        use_scaled_init_method = self.cfg.get('use_scaled_init_method', True)
+        if use_scaled_init_method:
+            output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
+
+        attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
+        apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
+        if apply_query_key_layer_scaling:
+            attention_softmax_in_fp32 = True
+
+        bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
+        bias_gelu_fusion = True if bias_activation_fusion else False
+
+        bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
+
+        # TODO: need to check if recompute APIs are matching up properly
+        recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
+        recompute_method = self.cfg.get('activations_checkpoint_method', None)
+        recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
+
+        # any configs that are not in the nemo model config will be added here
+        config_mapping = {
+            'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
+            'layernorm_zero_centered_gamma': False,  # not currently used in NeMo
+            'add_bias_linear': add_bias_linear,
+            'gated_linear_unit': False,  # TODO: is this used in NeMo?
+            'activation_func': activation_func,
+            'init_method': init_method,
+            'output_layer_init_method': output_layer_init_method,
+            'attention_softmax_in_fp32': attention_softmax_in_fp32,
+            'bias_gelu_fusion': bias_gelu_fusion,
+            'bias_dropout_fusion': bias_dropout_fusion,
+            'recompute_granularity': recompute_granularity,
+            'recompute_method': recompute_method,
+            'recompute_num_layers': recompute_num_layers,
+            'distribute_saved_activations': False,  # not currently used in NeMo
+        }
+
+        # populate the transformer config dict
+        for field in fields(TransformerConfig):
+            # model config has priority
+            if field.name in cfg:
+                transformer_config_dict[field.name] = cfg[field.name]
+            # then model parallel config
+            elif field in fields(model_parallel_config):
+                transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
+            # then config mapping
+            elif field.name in config_mapping:
+                transformer_config_dict[field.name] = config_mapping[field.name]
+            else:
+                logging.warning(
+                    f"The model: {self} does not have field.name: {field.name} in its cfg. "
+                    f"Add this key to cfg or config_mapping to make to make it configurable."
+                )
+
+        transformer_config = TransformerConfig(**transformer_config_dict)
+
+        return transformer_config
