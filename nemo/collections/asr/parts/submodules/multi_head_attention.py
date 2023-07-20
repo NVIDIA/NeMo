@@ -422,7 +422,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
                 # concat to local_attn_probs
                 # (batch, time, head, max_num_global_attn_indices + 2*w)
-                scores = torch.cat((global_key_attn_scores, scores), dim=-1)
+                scores = torch.cat((global_key_attn, scores), dim=-1)
 
                 # free memory
                 del global_key_attn_scores
