@@ -694,11 +694,10 @@ class MegatronBaseModel(NLPModel):
                         attention_mask=attn_mask.cuda(),
                         labels=None,
                     )
-                output_tensors.append(output_tensor)
+                output_tensors.append(output_tensor.cpu().detach().numpy())
 
-        test_output = output_tensors.cpu().detach().numpy()
-        print(test_output)
-        return {"outputs": test_output}
+        print(output_tensors)
+        return {"outputs": output_tensors}
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""
