@@ -124,6 +124,7 @@ class ModelPT(LightningModule, Model):
         self._optimizer = None
         self._scheduler = None
         self.set_trainer(trainer)
+        self._microbatch_to_global_batch = 1
 
         self._save_restore_connector = SaveRestoreConnector()
 
@@ -1602,27 +1603,28 @@ class ModelPT(LightningModule, Model):
             if self.cfg.nsys_profile.get('enabled', False):
                 # Nsys profiling options
                 self._nsys_profile_enabled = True
-                self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
-                self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+                # self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
+                # self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+                self._nsys_profile_step_multiple = self.cfg.nsys_profile.get('step_multiple', 0)
                 self._nsys_profile_ranks = self.cfg.nsys_profile.get('ranks', [0])
                 self._nsys_profile_gen_shape = self.cfg.nsys_profile.get('gen_shape', False)
 
-                if type(self._nsys_profile_start_step) == int:
-                    logging.info(f'Nsys profiling setup with start_step: {self._nsys_profile_start_step}')
+                if type(self._nsys_profile_step_multiple) == int:
+                    logging.info(f'Nsys profiling setup with profiling every: {self._nsys_profile_step_multiple} steps')
                 else:
                     raise ValueError(
-                        f'Nsys start_step must be of type int. Found: {type(self._nsys_profile_start_step)}'
+                        f'Nsys step_multiple must be of type int. Found: {type(self._nsys_profile_step_multiple)}'
                     )
 
-                if type(self._nsys_profile_end_step) == int:
-                    logging.info(f'Nsys profiling setup with end_step: {self._nsys_profile_end_step}')
-                else:
-                    raise ValueError(f'Nsys end_step must be of type int. Found: {type(self._nsys_profile_end_step)}')
-
-                if self._nsys_profile_end_step >= self._nsys_profile_start_step:
-                    pass
-                else:
-                    raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
+                # if type(self._nsys_profile_end_step) == int:
+                #     logging.info(f'Nsys profiling setup with end_step: {self._nsys_profile_end_step}')
+                # else:
+                #     raise ValueError(f'Nsys end_step must be of type int. Found: {type(self._nsys_profile_end_step)}')
+                #
+                # if self._nsys_profile_end_step >= self._nsys_profile_start_step:
+                #     pass
+                # else:
+                #     raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
                 logging.info(f"Nsys profiling on ranks: {self._nsys_profile_ranks}")
 
@@ -1651,8 +1653,9 @@ class ModelPT(LightningModule, Model):
             We use it here to enable nsys profiling and dynamic freezing.
         """
 
+        global_batch_idx = batch_idx / self._microbatch_to_global_batch
 
-        logging.info(f"Starting batch {batch_idx}")
+        logging.info(f"Starting batch {global_batch_idx}")
         sys.stdout.flush()
         sys.stderr.flush()
 
@@ -1660,14 +1663,12 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
-                    if batch_idx == self._nsys_profile_start_step:
+                    if batch_idx > 0 and batch_idx % self._nsys_profile_step_multiple == 0:
                         if get_rank() in self._nsys_profile_ranks:
                             logging.info(f"====== Start nsys profiling for rank {get_rank()} ======")
                             torch.cuda.cudart().cudaProfilerStart()
                             if self._nsys_profile_gen_shape:
                                 torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
-                        else:
-                            logging.info(f"xxxxxxxxxxxxx NO Nsys profiling for rank {get_rank()} xxxxxxxxxx")
 
 
         # dynamic freezing
@@ -1698,14 +1699,16 @@ class ModelPT(LightningModule, Model):
             We use it here to enable nsys profiling.
         """
 
-        logging.info(f"Finished batch {batch_idx}")
+        global_batch_idx = batch_idx / self._microbatch_to_global_batch
+        logging.info(f"Finished batch {global_batch_idx}")
         sys.stdout.flush()
         sys.stderr.flush()
 
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
-                    if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
+                    # if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
+                    if batch_idx > 0 and batch_idx % self._nsys_profile_step_multiple == 0 and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
 
