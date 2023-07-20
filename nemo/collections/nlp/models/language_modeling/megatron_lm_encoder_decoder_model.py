@@ -590,7 +590,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     # handle loss of hidden transformations
                     loss_dict = output_tensor
                     output_tensor = loss_dict["tokens_loss"]
-                    
+
                     recon_loss = self.loss_func(loss_mask, output_tensor)
                     loss_dict["recon_loss"] = recon_loss
                     loss = loss_dict["loss"] + recon_loss
