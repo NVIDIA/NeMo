@@ -409,16 +409,19 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
                     is_local_index_no_global_attn_nonzero,
                 ) = self._get_global_attn_indices(is_index_global_attn=is_index_global_attn)
 
-                global_key_attn_scores = self._concat_with_global_key_attn_probs(
-                    query_vectors=q.transpose(1, 2),
-                    key_vectors=k.transpose(1, 2),
+                # calculate global attn probs with global keys
+                # (batch, time, head, max_num_global_attn_indices)
+                global_key_attn = self._compute_global_key_attn(
+                    query=global_q.transpose(1, 2),
+                    key=global_k.transpose(1, 2),
                     max_num_global_attn_indices=max_num_global_attn_indices,
                     is_index_global_attn_nonzero=is_index_global_attn_nonzero,
                     is_local_index_global_attn_nonzero=is_local_index_global_attn_nonzero,
                     is_local_index_no_global_attn_nonzero=is_local_index_no_global_attn_nonzero,
                 ).transpose(1, 2)
+
                 # concat to local_attn_probs
-                # (batch_size, seq_len, num_heads, extra attention count + 2*window+1)
+                # (batch, time, head, max_num_global_attn_indices + 2*w)
                 scores = torch.cat((global_key_attn_scores, scores), dim=-1)
 
                 # free memory
@@ -506,15 +509,15 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             is_local_index_no_global_attn_nonzero,
         )
 
-    def _concat_with_global_key_attn_probs(
+    def _compute_global_key_attn(
         self,
-        key_vectors,
-        query_vectors,
-        max_num_global_attn_indices,
-        is_index_global_attn_nonzero,
-        is_local_index_global_attn_nonzero,
-        is_local_index_no_global_attn_nonzero,
-    ):
+        key: torch.Tensor,
+        query: torch.Tensor,
+        max_num_global_attn_indices: int,
+        is_index_global_attn_nonzero: tuple,
+        is_local_index_global_attn_nonzero: tuple,
+        is_local_index_no_global_attn_nonzero: tuple,
+    ) -> torch.Tensor:
         """
         Compute the attention probabilities using only global key vectors.
 
@@ -529,15 +532,15 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         Returns:
             attn_probs_from_global_key (torch.Tensor): (batch, time, head, max_num_global_attn_indices) The computed attention probabilities using only global key vectors.
         """
-        batch_size = key_vectors.shape[0]
+        batch_size = key.shape[0]
 
         # create only global key vectors
-        key_vectors_only_global = key_vectors.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
+        key_only_global = key.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
 
-        key_vectors_only_global[is_local_index_global_attn_nonzero] = key_vectors[is_index_global_attn_nonzero]
+        key_only_global[is_local_index_global_attn_nonzero] = key[is_index_global_attn_nonzero]
 
-        # (batch_size, seq_len, num_heads, max_num_global_attn_indices)
-        attn_probs_from_global_key = torch.einsum("blhd,bshd->blhs", (query_vectors, key_vectors_only_global))
+        # (batch_size, seq_len, head, max_num_global_attn_indices)
+        attn_probs_from_global_key = torch.einsum("blhd,bshd->blhs", (query, key_only_global))
 
         # need to transpose since ONNX export only supports consecutive indexing: https://pytorch.org/docs/stable/onnx.html#writes-sets
         attn_probs_from_global_key = attn_probs_from_global_key.transpose(1, 3)
