@@ -564,7 +564,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             # convert to list if not already converted.
-            batch = self._process_batch(batch)
+            if isinstance(batch, dict):
+                # convert to list if not already converted.
+                batch = self._process_batch(batch)
             batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
             (
                 encoder_input_ids,
