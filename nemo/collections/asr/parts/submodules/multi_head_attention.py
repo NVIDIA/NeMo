@@ -557,6 +557,17 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         is_local_index_global_attn_nonzero,
         w,
     ):
+        """
+        Compute the attention output with global indices.
+        Args:
+            value_vectors (torch.Tensor): (batch, head, time, head_dim) The value vectors for global attention.
+            attn_probs (torch.Tensor): (batch, time, head, 2w) The attention probabilities.
+            max_num_global_attn_indices (int): Maximum number of global attention indices in the batch.
+            is_index_global_attn_nonzero (tuple): Indices of global attention (non-zero elements).
+            is_local_index_global_attn_nonzero (tuple): Non-padding values within global attention indices.
+        Returns:
+            torch.Tensor: (batch, time, head x head_dim) The attention output of all tokens with attention to global.
+        """
         batch_size = attn_probs.shape[0]
 
         # cut local attn probs to global only
@@ -565,8 +576,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         value_vectors_only_global = value_vectors.new_zeros(batch_size, max_num_global_attn_indices, self.h, self.d_k)
         value_vectors_only_global[is_local_index_global_attn_nonzero] = value_vectors[is_index_global_attn_nonzero]
 
-        # use `matmul` because `einsum` crashes sometimes with fp16
-        # attn = torch.einsum('blhs,bshd->blhd', (selected_attn_probs, selected_v))
         # compute attn output only global
         attn_output_only_global = torch.matmul(
             attn_probs_only_global.clone(), value_vectors_only_global.transpose(1, 2).clone()
@@ -578,9 +587,6 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         ).contiguous()
 
         # compute attn output with global
-        # attn_output_without_global = self._sliding_chunks_matmul_attn_probs_value(
-        #    attn_probs_without_global, value_vectors, self.one_sided_attn_window_size
-        # )
         attn_output_without_global = self.sliding_chunks_matmul_pv(
             attn_probs_without_global, value_vectors.transpose(1, 2), w
         )
