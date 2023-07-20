@@ -159,8 +159,8 @@ class MegatronHiddensModule(torch.nn.Module):
         self,
         hidden_transforms: List[MegatronBaseHiddenLoss] = [],
         hidden_loss_transforms: List[MegatronBaseHiddenTransform] = [],
-        enc_output_name: str = "hiddens", # name (key) of the encoder output
-        loss_prefix: str = "hiddens_", # if not None or "", add this prefix to all loss names
+        enc_output_name: str = "hiddens",  # name (key) of the encoder output
+        loss_prefix: str = "hiddens_",  # if not None or "", add this prefix to all loss names
     ):
         super().__init__()
         self.hidden_transforms = hidden_transforms
@@ -279,7 +279,7 @@ class MegatronHiddensModule(torch.nn.Module):
 
         # joint weighted loss (float)
         loss_dict["loss"] = joint_loss
-        
+
         # add prefix to all loss keys (default to 'hiddens_')
         if self.loss_prefix:
             loss_dict = {f"{self.loss_prefix}{k}": v for k, v in loss_dict.items()}
