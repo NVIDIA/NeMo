@@ -339,7 +339,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
         else:
@@ -589,18 +589,20 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 if isinstance(output_tensor, dict):
                     # handle loss of hidden transformations
                     loss_dict = output_tensor
-                    output_tensor = loss_dict["tokens_loss"]
-                    
+                    output_tensor = loss_dict.pop("output")
+                    # compute reconstruction (tokens) only loss from per-token reconstruction loss
                     recon_loss = self.loss_func(loss_mask, output_tensor)
                     loss_dict["recon_loss"] = recon_loss
+                    # compute total loss
                     loss = loss_dict["loss"] + recon_loss
-                    # FIXME: fix returned dictionary
+                    # average losses across data parallel group
                     loss_dict = {k: average_losses_across_data_parallel_group([v]) for k, v in loss_dict.items()}
                 else:
-                    # reconstruction (tokens) only loss
+                    # compute reconstruction (tokens) only loss from per-token reconstruction loss
                     loss = self.loss_func(loss_mask, output_tensor)
+                    # average losses across data parallel group
                     reduced_loss = average_losses_across_data_parallel_group([loss])
-                    loss_dict = {'avg': reduced_loss}
+                    loss_dict = {'loss': reduced_loss}
 
                 return loss, loss_dict
 
