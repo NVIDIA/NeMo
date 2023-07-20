@@ -557,7 +557,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["enc_mask"],
             global_batch["dec_mask"],
             # FIXME: should be enabled to allow hidden transformations/loss related data
-            # global_batch.get('data', None), 
+            # global_batch.get('data', None),
         ]
 
     def get_forward_output_and_loss_func(self):
