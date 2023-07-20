@@ -43,5 +43,10 @@ class TestNemoDeployment:
         nm.deploy()
         nm.run()
         nq = NemoQuery(url="localhost", model_name=triton_model_name)
-        output = nq.query_gpt(prompts=["test"])
+
+        sentences = nq.query_gpt(prompts=["test"])
+        for sentence in sentences:
+            print("================================")
+            print(sentence)
+
         nm.stop()

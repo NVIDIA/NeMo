@@ -48,7 +48,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.deploy.util import typedict2tensor
+from nemo.deploy.util import typedict2tensor, str_list2numpy
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -635,15 +635,13 @@ class MegatronBaseModel(NLPModel):
         # return typedict2tensor(OutputType)
         outputs = (
                 (
-                    Tensor(name="outputs", shape=(1,), dtype=np.float32),
+                    Tensor(name="outputs", shape=(1,), dtype=bytes),
                 )
         )
         return outputs
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        print(inputs)
-
         def _str_ndarray2list(str_ndarray: np.ndarray) -> typing.List[str]:
             str_ndarray = str_ndarray.astype("bytes")
             str_ndarray = np.char.decode(str_ndarray, encoding="utf-8")
@@ -685,8 +683,10 @@ class MegatronBaseModel(NLPModel):
                     )
                 output_tensors.append(output_tensor)
 
-        outputs = np.random.random(10)
-        return {"outputs": outputs}
+        #test_output = [["test, test2, test3, ..."], ["get, gettter..."]]
+        print("************ output_tensors[0]:", output_tensors[0])
+        test_output = str_list2numpy(output_tensors[0])
+        return {"outputs": test_output}
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""

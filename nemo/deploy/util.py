@@ -47,3 +47,8 @@ def typedict2tensor(
         Tensor(name=name, **_get_tensor_params(type_), **overwrite_kwargs)
         for name, type_ in typing.get_type_hints(typedict_class).items()
     )
+
+
+def str_list2numpy(str_list: typing.List[str]) -> np.ndarray:
+    str_ndarray = np.array(str_list)[..., np.newaxis]
+    return np.char.encode(str_ndarray, "utf-8")

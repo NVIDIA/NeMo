@@ -16,12 +16,7 @@ import typing
 import numpy as np
 import logging
 from pytriton.client import ModelClient
-
-
-def str_list2numpy(str_list: typing.List[str]) -> np.ndarray:
-    str_ndarray = np.array(str_list)[..., np.newaxis]
-    return np.char.encode(str_ndarray, "utf-8")
-
+from .util import str_list2numpy
 
 class NemoQuery:
 
@@ -42,5 +37,8 @@ class NemoQuery:
             logger.info("================================")
             logger.info("Sent batch for inference:")
             result_dict = client.infer_batch(prompts=prompts)
-            return result_dict["outputs"]
+
+        sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
+        sentences = np.squeeze(sentences, axis=-1)
+        return sentences
 
