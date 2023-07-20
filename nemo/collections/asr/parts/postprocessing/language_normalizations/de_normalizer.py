@@ -4,7 +4,7 @@ import re
 class GermanTextPostProcessor(AbstractTextPostProcessor):
     language_id = "de"
 
-    def norm_spaces(self, text):
+    def normalize_spaces(self, text):
         #regex for removing extra whitespaces:
         #"because  they're say-   we- at    least that's" -> "because they're say- we- at least that's"
         reg_remove_extra_space = '\s{2,}'
@@ -20,7 +20,7 @@ class GermanTextPostProcessor(AbstractTextPostProcessor):
     def remove_punctutation(self, text):
 
         regex = r"[\.,\?]"
-        text = self.norm_spaces(re.sub(regex, ' ', text))
+        text = self.normalize_spaces(re.sub(regex, ' ', text))
         return text
     
     def remove_captialization(self, text):

@@ -1,8 +1,8 @@
 from nemo.collections.asr.parts.postprocessing.asr_text_postprocessor import AbstractTextPostProcessor
 import re
 
-class DefaultTextPostProcessor(AbstractTextPostProcessor):
-    language_id = "default"
+class SpanishTextPostProcessor(AbstractTextPostProcessor):
+    language_id = "es"
 
     def normalize_spaces(self, text):
         #regex for removing extra whitespaces:
@@ -19,7 +19,7 @@ class DefaultTextPostProcessor(AbstractTextPostProcessor):
         
     def remove_punctutation(self, text):
 
-        regex = r"[\.,\?]"
+        regex = r"[\.,¿\?]"
         text = self.normalize_spaces(re.sub(regex, ' ', text))
         return text
     
@@ -30,4 +30,4 @@ class DefaultTextPostProcessor(AbstractTextPostProcessor):
 
 
 # Registration step
-DefaultTextPostProcessor.register_processor()
+SpanishTextPostProcessor.register_processor()

@@ -7,14 +7,6 @@ class AbstractTextPostProcessor(ABC):
     language_id: str = None
     processor_registry: dict = {}
 
-    # def __init__(self, language_id):
-    #     self.language_id = language_id
-
-    #     if self.language_id is None:
-    #         raise ValueError("Must set class attribute `language`")
-        
-    #     self.register_processor()
-
     @abstractmethod    
     def remove_punctutation(self, text):
         """
@@ -86,12 +78,14 @@ class AbstractTextPostProcessor(ABC):
 
         if cls.get_processor(cls.language_id) is None:
             cls.register_language_processor(cls)
+        else:
+            raise KeyError(f"Registration failed: Normalizer for `{cls.language_id}` already exists!")
 
 
     
 @dataclass
 class TextPostProcessorConfig:
-    lang: str = "Default"
+    lang: str = "default"
     remove_punctuation: bool = False
     remove_capitalization: bool = False
 
