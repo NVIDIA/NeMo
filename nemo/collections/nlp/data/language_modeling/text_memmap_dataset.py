@@ -68,15 +68,15 @@ class TextMemMapDataset(Dataset):
     """
 
     def __init__(
-        self,
-        dataset_paths: List[str],
-        newline_int: Optional[int] = 10,
-        header_lines: Optional[int] = 0,
-        workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
-        build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = _build_index_from_memdata,
-        sort_dataset_paths: Optional[bool] = True,
-        index_mapping_dir: Optional[str] = None,
+            self,
+            dataset_paths: List[str],
+            newline_int: Optional[int] = 10,
+            header_lines: Optional[int] = 0,
+            workers: Optional[int] = None,
+            tokenizer: Optional[Type["TokenizerSpec"]] = None,
+            build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = _build_index_from_memdata,
+            sort_dataset_paths: Optional[bool] = True,
+            index_mapping_dir: Optional[str] = None,
     ):
         """
         Args:
@@ -289,16 +289,16 @@ class CSVMemMapDataset(TextMemMapDataset):
     """
 
     def __init__(
-        self,
-        dataset_paths: List[str],
-        newline_int: Optional[int] = 10,
-        header_lines: Optional[int] = 0,
-        workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
-        sort_dataset_paths: Optional[bool] = True,
-        data_col=1,
-        data_sep=",",
-        index_mapping_dir: Optional[str] = None,
+            self,
+            dataset_paths: List[str],
+            newline_int: Optional[int] = 10,
+            header_lines: Optional[int] = 0,
+            workers: Optional[int] = None,
+            tokenizer: Optional[Type["TokenizerSpec"]] = None,
+            sort_dataset_paths: Optional[bool] = True,
+            data_col=1,
+            data_sep=",",
+            index_mapping_dir: Optional[str] = None,
     ):
         """
         Args:
@@ -333,20 +333,76 @@ class CSVMemMapDataset(TextMemMapDataset):
         return super()._build_data_from_text(text)
 
 
+class CSVFieldsMemmapDataset(TextMemMapDataset):
+    """
+    Allow per-line lazy access to multiple text files using numpy memmap.
+    Returns a dictionary with multiple fields.
+    """
+
+    def __init__(self,
+                 dataset_paths,
+                 newline_int=10,
+                 header_lines=1,
+                 workers=None,
+                 tokenizer=None,
+                 sort_dataset_paths=True,
+                 data_sep=',',
+                 data_fields={"data": 0},
+                 index_mapping_dir: Optional[str] = None,
+                 ):
+        """
+        Args:
+            dataset_paths: list file paths that are read .
+            newline_int: ASCII code to use to interpret newlines in file.
+            header_lines: number of header lines in csv files.
+            workers: number of workers to use for creating index files.
+            tokenizer: tokenizer to use to convert text to tokens.
+            sort_dataset_paths: whether to sort datasets by paths.
+            data_sep: data separator.
+            data_fields:  dict of field names and their corresponding column indices
+            index_mapping_dir: directory to save the index mapping to.
+                If None, will write to the same folder as the dataset.
+        """
+        super().__init__(
+            dataset_paths=dataset_paths,
+            newline_int=newline_int,
+            header_lines=header_lines,
+            workers=workers,
+            tokenizer=tokenizer,
+            sort_dataset_paths=sort_dataset_paths,
+            index_mapping_dir=index_mapping_dir
+        )
+
+        self._data_fields = data_fields
+        self._data_sep = data_sep
+
+    def _build_data_from_text(self, text: str):
+        """
+
+        """
+        _build_data_from_text = super()._build_data_from_text
+        data = {}
+        text_fields = text.split(self._data_sep)
+        for field_name, field_idx in self._data_fields.items():
+            data[field_name] = _build_data_from_text(text_fields[field_idx])
+
+        return data
+
+
 class JSONLMemMapDataset(TextMemMapDataset):
     """
     Memory-mapped iteration over a JSONL file.
     """
 
     def __init__(
-        self,
-        dataset_paths: List[str],
-        newline_int: Optional[int] = 10,
-        header_lines: Optional[int] = 0,
-        workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
-        sort_dataset_paths: Optional[bool] = True,
-        index_mapping_dir: Optional[str] = None,
+            self,
+            dataset_paths: List[str],
+            newline_int: Optional[int] = 10,
+            header_lines: Optional[int] = 0,
+            workers: Optional[int] = None,
+            tokenizer: Optional[Type["TokenizerSpec"]] = None,
+            sort_dataset_paths: Optional[bool] = True,
+            index_mapping_dir: Optional[str] = None,
     ):
         """
         Args:
@@ -450,7 +506,8 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir
 
 
 def build_index_files(
-    dataset_paths, newline_int, workers=None, build_index_fn=_build_index_from_memdata, index_mapping_dir: str = None,
+        dataset_paths, newline_int, workers=None, build_index_fn=_build_index_from_memdata,
+        index_mapping_dir: str = None,
 ):
     """Auxiliary method to build multiple index files"""
     if len(dataset_paths) < 1:
@@ -464,7 +521,7 @@ def build_index_files(
     start_time = time.time()
     with mp.Pool(workers) as p:
         build_status = p.map(
-            partial(_build_memmap_index_files, newline_int, build_index_fn, index_mapping_dir=index_mapping_dir,),
+            partial(_build_memmap_index_files, newline_int, build_index_fn, index_mapping_dir=index_mapping_dir, ),
             dataset_paths,
         )
 
