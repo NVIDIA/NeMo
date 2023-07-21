@@ -44,7 +44,7 @@ class TestNemoDeployment:
         nm.run()
         nq = NemoQuery(url="localhost", model_name=triton_model_name)
 
-        output = nq.query_gpt(prompts=["hello, testing GPT inference"])
+        output = nq.query_gpt(prompts=["hello, testing GPT inference", "what else would you test?"])
         print(output)
 
         nm.stop()
