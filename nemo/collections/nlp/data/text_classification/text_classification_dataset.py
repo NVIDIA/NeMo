@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
@@ -130,15 +131,22 @@ class TextClassificationDataset(Dataset):
                         for index, line in enumerate(lines):
                             if index % 20000 == 0:
                                 logging.debug(f"Processing line {index}/{len(lines)}")
-                            line_splited = line.strip().split()
+                            
                             try:
+                                line_splited = line.strip().split()
                                 label = int(line_splited[-1])
-                            except ValueError:
+                                # ensure label in 0, 1
+                                if label not in [0, 1]:
+                                    label = 0
+                            except:
+                                #print(line_splited)
                                 logging.debug(f"Skipping line {line}")
                                 continue
+                            
                             labels.append(label)
                             sent_words = line_splited[:-1]
                             all_sents.append(sent_words)
+                            
                     verbose = True
 
                     self.features = self.get_features(
@@ -212,14 +220,14 @@ class TextClassificationDataset(Dataset):
         features = []
         sent_lengths = []
         too_long_count = 0
-        for sent_id, sent in enumerate(all_sents):
+        for sent_id, sent in tqdm(enumerate(all_sents)):
             if sent_id % 1000 == 0:
                 logging.debug(f"Encoding sentence {sent_id}/{len(all_sents)}")
             sent_subtokens = [tokenizer.cls_token]
             for word in sent:
                 word_tokens = tokenizer.text_to_tokens(word)
                 sent_subtokens.extend(word_tokens)
-
+            
             if max_seq_length > 0 and len(sent_subtokens) + 1 > max_seq_length:
                 sent_subtokens = sent_subtokens[: max_seq_length - 1]
                 too_long_count += 1
@@ -228,7 +236,7 @@ class TextClassificationDataset(Dataset):
             sent_lengths.append(len(sent_subtokens))
 
             input_ids = [tokenizer.tokens_to_ids(t) for t in sent_subtokens]
-
+            
             # The mask has 1 for real tokens and 0 for padding tokens.
             # Only real tokens are attended to.
             input_mask = [1] * len(input_ids)
@@ -243,8 +251,11 @@ class TextClassificationDataset(Dataset):
                 logging.info("input_mask: %s" % list2str(input_mask))
                 logging.info("label: %s" % labels[sent_id] if labels else "**Not Provided**")
 
-            label = labels[sent_id] if labels else -1
+            label = labels[sent_id] if labels else 0
             features.append([np.asarray(input_ids), np.asarray(segment_ids), np.asarray(input_mask), label])
+            # print("len sent: ", len(sent), " words")
+            # print("len input_ids: ", len(input_ids))
+            # raise ValueError
 
         if max_seq_length > -1 and too_long_count > 0:
             logging.warning(
@@ -275,10 +286,14 @@ def calc_class_weights(file_path: str, num_classes: int):
         parts = input_line.strip().split()
         try:
             label = int(parts[-1])
-        except ValueError:
-            raise ValueError(
-                f'No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line.'
-            )
+            if label not in [0, 1]:
+                label = 0
+        except:
+            label = 0
+            print("no label found, defaulting to label=0")
+            # raise ValueError(
+            #     f'No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line.'
+            # )
         labels.append(label)
 
     logging.info(f'Calculating stats of {file_path}...')

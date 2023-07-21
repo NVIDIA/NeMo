@@ -116,3 +116,7 @@ exp_manager:
   name: "TextClassification"  # The name of your model
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    name: toxicity_classification_jigsaw_both_weighted_loss
+    project: toxicity_classification
