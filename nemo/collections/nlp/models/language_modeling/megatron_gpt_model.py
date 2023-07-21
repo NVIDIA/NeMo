@@ -77,6 +77,7 @@ try:
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -216,6 +217,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
+        self.mcore_gpt = cfg.get('mcore_gpt', False)
+
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
             self.prev_consumed_samples = 0
@@ -254,26 +257,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     self.model.cuda(torch.cuda.current_device())
 
-            # Model wrapper to convert both model and inputs to half precision
-            if isinstance(self.model, list):
-                converted_model = []
-                for module in self.model:
-                    converted_model.append(
-                        Float16Module(
-                            config=self.model_parallel_config,
-                            module=module,
-                            precision=cfg.precision,
-                            share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
-                        )
-                    )
-                self.model = converted_model
-            else:
-                self.model = Float16Module(
-                    config=self.model_parallel_config,
-                    module=self.model,
-                    precision=cfg.precision,
-                    share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
-                )
+            self._wrap_model_for_O2()
 
         if self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
@@ -306,8 +290,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
-        elif isinstance(self.model, Float16Module):
+            return [
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                for model in self.model
+            ]
+        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
             return [self.model.module]
         else:
             return [self.model]
@@ -320,7 +307,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        if self.cfg.get('mcore_gpt', False):
+        if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
@@ -447,7 +434,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
                 for module in self.model:
-                    if isinstance(module, Float16Module):
+                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     stage_bucket = []
                     for layer in module.language_model.encoder.layers:
@@ -459,7 +446,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
                 for module in modules:
-                    if isinstance(module, Float16Module):
+                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     for layer in module.language_model.encoder.layers:
                         buckets.append(
@@ -593,7 +580,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # manually interact with the parameter.
             modules = self.model if isinstance(self.model, list) else [self.model]
             for module in modules:
-                if isinstance(module, Float16Module):
+                if isinstance(module, (Float16Module, MCoreFloat16Module)):
                     module = module.module
                 module = module.language_model
                 if hasattr(module, 'embedding'):
@@ -823,14 +810,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.get_attention_mask_from_fusion:
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+
             # Model forward pass
-            output_tensor = model(
-                batch['tokens'],
-                batch['position_ids'],
-                batch['attention_mask'],
-                batch['labels'],
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-            )
+            forward_args = {
+                'input_ids': batch['tokens'],
+                'position_ids': batch['position_ids'],
+                'attention_mask': batch['attention_mask'],
+                'labels': batch['labels'],
+            }
+            if not self.mcore_gpt:
+                forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+            output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -1444,3 +1434,36 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         transformer_config = TransformerConfig(**transformer_config_dict)
 
         return transformer_config
+
+    def _wrap_model_for_O2(self):
+        """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
+            Args:
+                model: The model to wrap. Can be a list of modules or a single module.
+            Returns:
+                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
+        """
+        Float16Wrapper = MCoreFloat16Module if self.mcore_gpt else Float16Module
+
+        nemo_args = {
+            'config': self.model_parallel_config,
+            'precision': self.cfg.precision,
+            'share_token_embeddings': self.cfg.get('share_embeddings_and_output_weights', True),
+        }
+        mcore_args = {
+            'config': self.transformer_config,
+        }
+
+        args = mcore_args if self.mcore_gpt else nemo_args
+
+        # Model wrapper to convert both model and inputs to half precision
+        if isinstance(self.model, list):
+            converted_model = []
+            for module in self.model:
+                args['module'] = module
+                converted_model.append(Float16Wrapper(**args))
+            self.model = converted_model
+        else:
+            args['module'] = self.model
+            self.model = Float16Wrapper(**args)
+
+        args.pop('module')
