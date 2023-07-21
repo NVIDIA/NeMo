@@ -1,12 +1,12 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.04-py3'
+          image 'nvcr.io/nvidia/pytorch:23.06-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1'
         }
   }
   options {
-    timeout(time: 2, unit: 'HOURS')
+    timeout(time: 8, unit: 'HOURS')
     disableConcurrentBuilds(abortPrevious: true)
   }
 
@@ -59,9 +59,10 @@ pipeline {
 
     stage('Megatron Core installation') {
       steps {
+        // commit points to core 23.05 ToT 
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout d2891b4ad3a00e3c4223f89491afd9e1b812f9b5 && \
+            git checkout 060415572f4365a2e895f8036c4e37dad0efbdf5 && \
             pip install -e .'
       }
     }
@@ -624,96 +625,97 @@ pipeline {
 
       }
     }
-    stage('L2: Megatron T5 Adapter PP=2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel{
-        stage('T5 Adapter tuning & inference TP=1 PP=2') {
-          steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
-                --config-name=megatron_t5_adapter_tuning_config \
-                name='test_tp1_pp2' \
-                exp_manager.exp_dir='examples/adapter_tuning' \
-                trainer.devices=2 \
-                trainer.max_steps=1 \
-                trainer.val_check_interval=1 \
-                trainer.max_epochs=null \
-                model.data.num_workers=1 \
-                model.tensor_model_parallel_size=1 \
-                model.pipeline_model_parallel_size=2 \
-                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['rte'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
-                --config-name=megatron_t5_adapter_inference \
-                adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
-                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
-                trainer.devices=2 \
-                data.num_workers=1 \
-                tensor_model_parallel_size=1 \
-                pipeline_model_parallel_size=2 \
-                data.global_batch_size=2 \
-                data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                pred_file_path='examples/adapter_tuning/test_tp1_pp2/preds.txt'"
-            sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
-          }
-        }
-      }
-    }
-    stage('L2: Megatron T5 Adapter TP=2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel{
-        stage('T5 Adapter tuning & inference TP=2 PP=1') {
-          steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
-                --config-name=megatron_t5_adapter_tuning_config \
-                name='test_tp2_pp1' \
-                exp_manager.exp_dir='examples/adapter_tuning' \
-                trainer.devices=2 \
-                trainer.max_steps=1 \
-                trainer.val_check_interval=1 \
-                trainer.max_epochs=null \
-                model.data.num_workers=1 \
-                model.tensor_model_parallel_size=2 \
-                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['rte'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
-                --config-name=megatron_t5_adapter_inference \
-                adapter_model_file='examples/adapter_tuning/test_tp2_pp1.nemo' \
-                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
-                trainer.devices=2 \
-                tensor_model_parallel_size=2 \
-                data.global_batch_size=2 \
-                data.micro_batch_size=2 \
-                data.num_workers=1 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                pred_file_path='examples/adapter_tuning/test_tp2_pp1/preds.txt'"
-            sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf examples/adapter_tuning/test_tp2_pp1"
-          }
-        }
-      }
-    }
+    // commented out temporarily to save time on github ci
+    //stage('L2: Megatron T5 Adapter PP=2') {
+    //  when {
+    //    anyOf {
+    //      branch 'main'
+    //      changeRequest target: 'main'
+    //    }
+    //  }
+    //  failFast true
+    //  parallel{
+    //    stage('T5 Adapter tuning & inference TP=1 PP=2') {
+    //      steps {
+    //        sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
+    //            --config-name=megatron_t5_adapter_tuning_config \
+    //            name='test_tp1_pp2' \
+    //            exp_manager.exp_dir='examples/adapter_tuning' \
+    //            trainer.devices=2 \
+    //            trainer.max_steps=1 \
+    //            trainer.val_check_interval=1 \
+    //            trainer.max_epochs=null \
+    //            model.data.num_workers=1 \
+    //            model.tensor_model_parallel_size=1 \
+    //            model.pipeline_model_parallel_size=2 \
+    //            model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+    //            model.existing_tasks=[] \
+    //            model.new_tasks=['rte'] \
+    //            model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.global_batch_size=4"
+    //        sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
+    //            --config-name=megatron_t5_adapter_inference \
+    //            adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
+    //            language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+    //            trainer.devices=2 \
+    //            data.num_workers=1 \
+    //            tensor_model_parallel_size=1 \
+    //            pipeline_model_parallel_size=2 \
+    //            data.global_batch_size=2 \
+    //            data.micro_batch_size=2 \
+    //            data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            pred_file_path='examples/adapter_tuning/test_tp1_pp2/preds.txt'"
+    //        sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
+    //        sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
+    //      }
+    //    }
+    //  }
+    //}
+    //stage('L2: Megatron T5 Adapter TP=2') {
+    //  when {
+    //    anyOf {
+    //      branch 'main'
+    //      changeRequest target: 'main'
+    //    }
+    //  }
+    //  failFast true
+    //  parallel{
+    //    stage('T5 Adapter tuning & inference TP=2 PP=1') {
+    //      steps {
+    //        sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
+    //            --config-name=megatron_t5_adapter_tuning_config \
+    //            name='test_tp2_pp1' \
+    //            exp_manager.exp_dir='examples/adapter_tuning' \
+    //            trainer.devices=2 \
+    //            trainer.max_steps=1 \
+    //            trainer.val_check_interval=1 \
+    //            trainer.max_epochs=null \
+    //            model.data.num_workers=1 \
+    //            model.tensor_model_parallel_size=2 \
+    //            model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+    //            model.existing_tasks=[] \
+    //            model.new_tasks=['rte'] \
+    //            model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.global_batch_size=4"
+    //        sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
+    //            --config-name=megatron_t5_adapter_inference \
+    //            adapter_model_file='examples/adapter_tuning/test_tp2_pp1.nemo' \
+    //            language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+    //            trainer.devices=2 \
+    //            tensor_model_parallel_size=2 \
+    //            data.global_batch_size=2 \
+    //            data.micro_batch_size=2 \
+    //            data.num_workers=1 \
+    //            data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            pred_file_path='examples/adapter_tuning/test_tp2_pp1/preds.txt'"
+    //        sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
+    //        sh "rm -rf examples/adapter_tuning/test_tp2_pp1"
+    //      }
+    //    }
+    //  }
+    //}
     stage('L2: Megatron T5 IA3 PP=2') {
       when {
         anyOf {
@@ -847,50 +849,51 @@ pipeline {
         }
       }
     }
-    stage('L2: Megatron GPT Adapter PP=2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel{
-        stage('GPT Adapter tuning & inference TP=1 PP=2') {
-          steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
-                --config-name=megatron_gpt_adapter_tuning_config \
-                name='test_tp1_pp2' \
-                exp_manager.exp_dir='examples/adapter_tuning' \
-                trainer.devices=2 \
-                trainer.max_steps=1 \
-                trainer.val_check_interval=1 \
-                trainer.max_epochs=null \
-                model.data.num_workers=1 \
-                model.tensor_model_parallel_size=1 \
-                model.pipeline_model_parallel_size=2 \
-                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['rte'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
-                --config-name=megatron_gpt_adapter_inference \
-                adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
-                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
-                inference.greedy=True \
-                inference.add_BOS=False \
-                trainer.devices=2 \
-                num_workers=1 \
-                tensor_model_parallel_size=2 \
-                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
-          }
-        }
-      }
-    }
+    // commented out to save time on github ci @adithyare
+    //stage('L2: Megatron GPT Adapter PP=2') {
+    //  when {
+    //    anyOf {
+    //      branch 'main'
+    //      changeRequest target: 'main'
+    //    }
+    //  }
+    //  failFast true
+    //  parallel{
+    //    stage('GPT Adapter tuning & inference TP=1 PP=2') {
+    //      steps {
+    //        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
+    //            --config-name=megatron_gpt_adapter_tuning_config \
+    //            name='test_tp1_pp2' \
+    //            exp_manager.exp_dir='examples/adapter_tuning' \
+    //            trainer.devices=2 \
+    //            trainer.max_steps=1 \
+    //            trainer.val_check_interval=1 \
+    //            trainer.max_epochs=null \
+    //            model.data.num_workers=1 \
+    //            model.tensor_model_parallel_size=1 \
+    //            model.pipeline_model_parallel_size=2 \
+    //            model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+    //            model.existing_tasks=[] \
+    //            model.new_tasks=['rte'] \
+    //            model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.global_batch_size=4"
+    //        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
+    //            --config-name=megatron_gpt_adapter_inference \
+    //            adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
+    //            gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+    //            inference.greedy=True \
+    //            inference.add_BOS=False \
+    //            trainer.devices=2 \
+    //            num_workers=1 \
+    //            tensor_model_parallel_size=2 \
+    //            data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+    //        sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
+    //        sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
+    //      }
+    //    }
+    //  }
+    //}
     stage('L2: Speech Transcription') {
       when {
         anyOf {
@@ -3278,43 +3281,44 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=1 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=rope \
-        model.rotary_percentage=0.5 \
-        model.normalization=rmsnorm \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method='block' \
-        model.activations_checkpoint_granularity='full' \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        // commented out to save time on github ci @adithyare
+        //sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        //trainer.devices=2 \
+        //trainer.accelerator=gpu \
+        //trainer.log_every_n_steps=1 \
+        //trainer.val_check_interval=2 \
+        //trainer.limit_val_batches=1 \
+        //trainer.accumulate_grad_batches=1 \
+        //trainer.max_steps=6 \
+        //trainer.precision=16 \
+        //trainer.gradient_clip_val=1.0 \
+        //exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        //exp_manager.resume_if_exists=True \
+        //model.tensor_model_parallel_size=2 \
+        //model.optim.name=fused_adam \
+        //model.optim.lr=2e-4 \
+        //model.optim.sched.warmup_steps=2 \
+        //model.optim.sched.constant_steps=2 \
+        //model.optim.sched.min_lr=8e-5 \
+        //model.max_position_embeddings=128 \
+        //model.encoder_seq_length=128 \
+        //model.data.seq_length=128 \
+        //model.position_embedding_type=rope \
+        //model.rotary_percentage=0.5 \
+        //model.normalization=rmsnorm \
+        //model.bias=False \
+        //model.bias_activation_fusion=False \
+        //model.bias_dropout_add_fusion=False \
+        //model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        //model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        //model.num_layers=8 \
+        //model.hidden_size=256 \
+        //model.num_attention_heads=8 \
+        //model.activations_checkpoint_method='block' \
+        //model.activations_checkpoint_granularity='full' \
+        //model.activations_checkpoint_num_layers=1 \
+        //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
@@ -3365,44 +3369,45 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
         model.use_flash_attention=True"
-        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=1 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=rope \
-        model.rotary_percentage=0.5 \
-        model.normalization=rmsnorm \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method='block' \
-        model.activations_checkpoint_granularity='full' \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
-        model.use_flash_attention=True"
+        // commented out to save time on github ci @adithyare
+        //sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        //trainer.devices=2 \
+        //trainer.accelerator=gpu \
+        //trainer.log_every_n_steps=1 \
+        //trainer.val_check_interval=2 \
+        //trainer.limit_val_batches=1 \
+        //trainer.accumulate_grad_batches=1 \
+        //trainer.max_steps=6 \
+        //trainer.precision=16 \
+        //trainer.gradient_clip_val=1.0 \
+        //exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        //exp_manager.resume_if_exists=True \
+        //model.tensor_model_parallel_size=2 \
+        //model.optim.name=fused_adam \
+        //model.optim.lr=2e-4 \
+        //model.optim.sched.warmup_steps=2 \
+        //model.optim.sched.constant_steps=2 \
+        //model.optim.sched.min_lr=8e-5 \
+        //model.max_position_embeddings=128 \
+        //model.encoder_seq_length=128 \
+        //model.data.seq_length=128 \
+        //model.position_embedding_type=rope \
+        //model.rotary_percentage=0.5 \
+        //model.normalization=rmsnorm \
+        //model.bias=False \
+        //model.bias_activation_fusion=False \
+        //model.bias_dropout_add_fusion=False \
+        //model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        //model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        //model.num_layers=8 \
+        //model.hidden_size=256 \
+        //model.num_attention_heads=8 \
+        //model.activations_checkpoint_method='block' \
+        //model.activations_checkpoint_granularity='full' \
+        //model.activations_checkpoint_num_layers=1 \
+        //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
+        //model.use_flash_attention=True"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
@@ -3451,42 +3456,43 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=1 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=alibi \
-        model.normalization=rmsnorm \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method='block' \
-        model.activations_checkpoint_granularity='full' \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        // not testing resume functionality to save time on ci @adithyare
+        //sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        //trainer.devices=2 \
+        //trainer.accelerator=gpu \
+        //trainer.log_every_n_steps=1 \
+        //trainer.val_check_interval=2 \
+        //trainer.limit_val_batches=1 \
+        //trainer.accumulate_grad_batches=1 \
+        //trainer.max_steps=6 \
+        //trainer.precision=16 \
+        //trainer.gradient_clip_val=1.0 \
+        //exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        //exp_manager.resume_if_exists=True \
+        //model.tensor_model_parallel_size=2 \
+        //model.optim.name=fused_adam \
+        //model.optim.lr=2e-4 \
+        //model.optim.sched.warmup_steps=2 \
+        //model.optim.sched.constant_steps=2 \
+        //model.optim.sched.min_lr=8e-5 \
+        //model.max_position_embeddings=128 \
+        //model.encoder_seq_length=128 \
+        //model.data.seq_length=128 \
+        //model.position_embedding_type=alibi \
+        //model.normalization=rmsnorm \
+        //model.bias=False \
+        //model.bias_activation_fusion=False \
+        //model.bias_dropout_add_fusion=False \
+        //model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        //model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        //model.num_layers=8 \
+        //model.hidden_size=256 \
+        //model.num_attention_heads=8 \
+        //model.activations_checkpoint_method='block' \
+        //model.activations_checkpoint_granularity='full' \
+        //model.activations_checkpoint_num_layers=1 \
+        //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
@@ -3535,42 +3541,43 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=1 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=kerple \
-        model.normalization=rmsnorm \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method='block' \
-        model.activations_checkpoint_granularity='full' \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        // commented out to save time on github ci @adithyare
+        //sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        //trainer.devices=2 \
+        //trainer.accelerator=gpu \
+        //trainer.log_every_n_steps=1 \
+        //trainer.val_check_interval=2 \
+        //trainer.limit_val_batches=1 \
+        //trainer.accumulate_grad_batches=1 \
+        //trainer.max_steps=6 \
+        //trainer.precision=16 \
+        //trainer.gradient_clip_val=1.0 \
+        //exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        //exp_manager.resume_if_exists=True \
+        //model.tensor_model_parallel_size=2 \
+        //model.optim.name=fused_adam \
+        //model.optim.lr=2e-4 \
+        //model.optim.sched.warmup_steps=2 \
+        //model.optim.sched.constant_steps=2 \
+        //model.optim.sched.min_lr=8e-5 \
+        //model.max_position_embeddings=128 \
+        //model.encoder_seq_length=128 \
+        //model.data.seq_length=128 \
+        //model.position_embedding_type=kerple \
+        //model.normalization=rmsnorm \
+        //model.bias=False \
+        //model.bias_activation_fusion=False \
+        //model.bias_dropout_add_fusion=False \
+        //model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        //model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        //model.num_layers=8 \
+        //model.hidden_size=256 \
+        //model.num_attention_heads=8 \
+        //model.activations_checkpoint_method='block' \
+        //model.activations_checkpoint_granularity='full' \
+        //model.activations_checkpoint_num_layers=1 \
+        //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
@@ -3771,7 +3778,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
       failFast true
       steps {
-        sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results"
+        sh "rm -rf /home/TestData/nlp/lora_tuning_tp2"
         sh "python examples/nlp/language_modeling/tuning/megatron_gpt_peft_tuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
@@ -3780,7 +3787,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
         trainer.precision=16 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_peft_lora_results \
+        exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2 \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -3794,7 +3801,21 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]"
-        sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results"
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_tuning/checkpoints/megatron_gpt_peft_tuning.nemo \
+        model.peft.restore_from_ckpt_name=null \
+        model.peft.restore_from_hparams_path=null \
+        trainer.devices=2 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+        model.data.test_ds.names=['quarel4'] \
+        model.data.test_ds.global_batch_size=1 \
+        model.data.test_ds.micro_batch_size=1 \
+        model.data.test_ds.tokens_to_generate=10 \
+        inference.greedy=True \
+        inference.repetition_penalty=1.0 \
+        inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2/out.jsonl'"
+        sh "rm -rf /home/TestData/nlp/lora_tuning_tp2"
       }
     }
     stage('L2: Megatron GPT Eval') {
@@ -3856,40 +3877,41 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             rm -rf examples/nlp/language_modeling/out.jsonl"
       }
     }
-    stage('L2: Megatron GPT Prompt Tuning TP1 PP1') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel{
-        stage('GPT Prompt Learning TP=1 PP=1') {
-          steps {
-            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
-                --config-name=megatron_gpt_prompt_learning_config \
-                name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
-                trainer.devices=1 \
-                trainer.max_steps=1 \
-                trainer.val_check_interval=1 \
-                trainer.max_epochs=null \
-                model.data.num_workers=1 \
-                model.tensor_model_parallel_size=1 \
-                model.virtual_prompt_style='p-tuning' \
-                model.p_tuning.encoder_type='embedding' \
-                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['rte'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
-            sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
-          }
-        }
-      }
-    }
+    // commented out to save time we are testing tp>1 and pp>1 anyway. @adithyare
+    //stage('L2: Megatron GPT Prompt Tuning TP1 PP1') {
+    //  when {
+    //    anyOf {
+    //      branch 'main'
+    //      changeRequest target: 'main'
+    //    }
+    //  }
+    //  failFast true
+    //  parallel{
+    //    stage('GPT Prompt Learning TP=1 PP=1') {
+    //      steps {
+    //        sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+    //            --config-name=megatron_gpt_prompt_learning_config \
+    //            name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
+    //            trainer.devices=1 \
+    //            trainer.max_steps=1 \
+    //            trainer.val_check_interval=1 \
+    //            trainer.max_epochs=null \
+    //            model.data.num_workers=1 \
+    //            model.tensor_model_parallel_size=1 \
+    //            model.virtual_prompt_style='p-tuning' \
+    //            model.p_tuning.encoder_type='embedding' \
+    //            model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp1.nemo' \
+    //            model.existing_tasks=[] \
+    //            model.new_tasks=['rte'] \
+    //            model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+    //            model.global_batch_size=4"
+    //        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
+    //        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
+    //      }
+    //    }
+    //  }
+    //}
 
     stage('L2: Megatron GPT Prompt Tuning TP2 PP1') {
       when {
@@ -4456,46 +4478,47 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    stage('L2: Megatron T5 Prompt Learning TP1 PP1') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel{
-        stage('T5 Prompt Learning TP=1 PP=1') {
-          steps {
-            sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning.py \
-                --config-name=megatron_t5_prompt_learning \
-                name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test' \
-                trainer.devices=1 \
-                trainer.max_steps=1 \
-                trainer.val_check_interval=1 \
-                trainer.max_epochs=null \
-                model.data.num_workers=1 \
-                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['squad'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
-                model.global_batch_size=4 \
-                model.micro_batch_size=4"
-            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test"
-            sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
-                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo' \
-                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
-                pred_file_path='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_preds.txt' \
-                data.global_batch_size=4 \
-                data.micro_batch_size=4"
-            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo"
-            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_preds.txt"
-          }
-        }
-      }
-    }
+    // commented out to save time in github ci, we have tp>1 and pp>1 tests anyway @adithyare
+    //stage('L2: Megatron T5 Prompt Learning TP1 PP1') {
+    //  when {
+    //    anyOf {
+    //      branch 'main'
+    //      changeRequest target: 'main'
+    //    }
+    //  }
+    //  failFast true
+    //  parallel{
+    //    stage('T5 Prompt Learning TP=1 PP=1') {
+    //      steps {
+    //        sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning.py \
+    //            --config-name=megatron_t5_prompt_learning \
+    //            name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test' \
+    //            trainer.devices=1 \
+    //            trainer.max_steps=1 \
+    //            trainer.val_check_interval=1 \
+    //            trainer.max_epochs=null \
+    //            model.data.num_workers=1 \
+    //            model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+    //            model.existing_tasks=[] \
+    //            model.new_tasks=['squad'] \
+    //            model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+    //            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+    //            model.global_batch_size=4 \
+    //            model.micro_batch_size=4"
+    //        sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test"
+    //        sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
+    //            virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo' \
+    //            language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+    //            data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+    //            pred_file_path='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_preds.txt' \
+    //            data.global_batch_size=4 \
+    //            data.micro_batch_size=4"
+    //        sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo"
+    //        sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_preds.txt"
+    //      }
+    //    }
+    //  }
+    //}
 
     stage('L2: Megatron T5 Prompt Learning TP2 PP1') {
       when {

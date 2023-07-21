@@ -141,7 +141,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         precision=16,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
@@ -549,13 +549,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if self.is_adapter_available():
                 adapter_1 = self.get_adapter_module(AdapterName.PRE_ATTN_ADAPTER)
                 if adapter_1:
-                    strategy = adapter_1.adapter_strategy
-                    attention_output = self.forward_single_enabled_adapter_(
-                        attention_output,
-                        adapter_1,
-                        adapter_name=AdapterName.PRE_ATTN_ADAPTER,
-                        adapter_strategy=strategy,
-                    )
+                    attention_output = (
+                        adapter_1(attention_output) + attention_output
+                    )  # simple adapter call with residual connection
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
@@ -626,15 +622,12 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 layernorm_input = normalization_output
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
-        if (
-            self.is_adapter_available()
-        ):  # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
+        if self.is_adapter_available():
+            # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
             if adapter_2:
-                strategy = adapter_2.adapter_strategy
-                mlp_output = self.forward_single_enabled_adapter_(
-                    mlp_output, adapter_2, adapter_name=AdapterName.POST_ATTN_ADAPTER, adapter_strategy=strategy
-                )
+                mlp_output = adapter_2(mlp_output) + mlp_output  # simple adapter call with residual connection
+
         residual = layernorm_input
 
         bias_dropout_add_func = self._get_bias_droput_add_func(
@@ -666,7 +659,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         precision=16,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
@@ -811,7 +804,7 @@ class AutocastTransformerLayer(TransformerLayer):
         params_dtype: torch.dtype = torch.float32,
         get_rng_state_tracker: Optional[Callable] = None,
         fuse_wgrad_accumulation: bool = False,
-        apply_query_key_layer_scaling: bool = True,
+        apply_query_key_layer_scaling: bool = False,
         attention_softmax_in_fp32: bool = False,
         seq_length: Optional[int] = None,
         micro_batch_size: Optional[int] = None,
@@ -821,6 +814,7 @@ class AutocastTransformerLayer(TransformerLayer):
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
         use_emha: bool = False,
+        ub_tp_comm_overlap: bool = False,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
     ) -> None:
@@ -853,6 +847,7 @@ class AutocastTransformerLayer(TransformerLayer):
             set_parallel_mode=tp_size > 1,
             fuse_qkv_params=True,
             zero_centered_gamma=zero_centered_gamma,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
         )
         # use_emha=use_emha,
 
@@ -902,7 +897,7 @@ class ParallelTransformer(MegatronModule):
         hidden_size,
         ffn_hidden_size,
         num_attention_heads,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         layer_type=LayerType.encoder,  # it can be a list of types or single type
         self_attn_mask_type=AttnMaskType.padding,
@@ -948,6 +943,7 @@ class ParallelTransformer(MegatronModule):
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        ub_tp_comm_overlap=False,
         normalize_attention_scores=True,
         multi_query_attention=False,
         num_moe_experts=1,
@@ -1091,6 +1087,7 @@ class ParallelTransformer(MegatronModule):
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
                     use_emha=use_emha,
+                    ub_tp_comm_overlap=ub_tp_comm_overlap,
                     zero_centered_gamma=normalization == 'layernorm1p',
                 )
             else:
