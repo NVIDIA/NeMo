@@ -56,6 +56,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.model_parallel_config import ModelParallelConfig
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -185,12 +186,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         else:
             assert attention_type == AttnType.cross_attn
             self.query = tensor_parallel.ColumnParallelLinear(
-                hidden_size,
-                projection_size,
-                gather_output=False,
-                init_method=init_method,
-                config=config,
-                bias=bias,
+                hidden_size, projection_size, gather_output=False, init_method=init_method, config=config, bias=bias,
             )
 
             self.key_value = tensor_parallel.ColumnParallelLinear(

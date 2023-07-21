@@ -53,6 +53,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.model_parallel_config import ModelParallelConfig
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -286,10 +287,7 @@ class Embedding(MegatronModule):
         config.params_dtype = dtype
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size,
-            self.hidden_size,
-            init_method=self.init_method,
-            config=config,
+            vocab_size, self.hidden_size, init_method=self.init_method, config=config,
         )
         self._word_embeddings_key = 'word_embeddings'
 
