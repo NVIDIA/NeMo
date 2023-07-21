@@ -100,9 +100,6 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
-        # set the megatron core model parallel config
-        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
-
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
@@ -156,6 +153,9 @@ class MegatronBaseModel(NLPModel):
 
         # This must be called after initialize model parallel since it needs to know the data parallel size
         self._validate_and_override_config()
+
+        # set the megatron core model parallel config
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
