@@ -320,6 +320,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
             )
         else:
+            assert (
+                self.cfg.get('num_query_groups', None) is None
+            ), "Group Query Attention is only supported in Megatron Core. Set 'mcore_gpt' to use GQA."
+
             model = GPTModel(
                 config=self.model_parallel_config,
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
