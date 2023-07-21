@@ -727,8 +727,8 @@ pipeline {
       parallel{
         stage('T5 IA3 tuning & inference TP=1 PP=2') {
           steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
-                --config-name=megatron_t5_ia3_tuning_config \
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_peft_tuning.py \
+                --config-name=megatron_t5_peft_tuning_config \
                 name='test_tp1_pp2' \
                 exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
@@ -743,10 +743,11 @@ pipeline {
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
-                --config-name=megatron_t5_ia3_inference \
-                adapter_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
+                model.global_batch_size=4 \
+                model.task_templates[0].taskname=rte"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_peft_eval.py \
+                --config-name=megatron_t5_peft_eval_config \
+                peft_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 data.num_workers=1 \
@@ -773,8 +774,8 @@ pipeline {
       parallel{
         stage('T5 IA3 tuning & inference TP=2 PP=1') {
           steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
-                --config-name=megatron_t5_ia3_tuning_config \
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_peft_tuning.py \
+                --config-name=megatron_t5_peft_tuning_config \
                 name='test_tp2_pp1' \
                 exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
@@ -788,9 +789,10 @@ pipeline {
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
-                --config-name=megatron_t5_ia3_inference \
+                model.global_batch_size=4 \
+                model.task_templates[0].taskname=rte"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_peft_eval.py \
+                --config-name=megatron_t5_peft_eval_config \
                 adapter_model_file='examples/ia3_tuning/test_tp2_pp1.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
@@ -4477,7 +4479,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/t5_index_mappings"
       }
     }
-
     // commented out to save time in github ci, we have tp>1 and pp>1 tests anyway @adithyare
     //stage('L2: Megatron T5 Prompt Learning TP1 PP1') {
     //  when {
@@ -4531,8 +4532,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       parallel{
         stage('T5 Prompt Learning TP=2 PP=1') {
           steps {
-            sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning.py \
-                --config-name=megatron_t5_prompt_learning \
+            sh "python examples/nlp/language_modeling/megatron_t5_peft_tuning.py \
+                --config-name=megatron_t5_peft_tuning_config \
                 name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2' \
                 trainer.devices=2 \
                 trainer.max_steps=1 \
@@ -4548,8 +4549,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.global_batch_size=8 \
                 model.micro_batch_size=8"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2"
-            sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
-                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
+            sh "python examples/nlp/language_modeling/megatron_t5_peft_eval.py \
+                --config-name=megatron_t5_peft_eval_config 
+                peft_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
                 pred_file_path='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2_preds.txt' \

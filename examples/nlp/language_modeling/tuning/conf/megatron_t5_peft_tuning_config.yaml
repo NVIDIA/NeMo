@@ -47,7 +47,7 @@ model:
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  virtual_prompt_style: 'no-prompts' # can be 'no-prompts' or 'p-tuning'  
+  virtual_prompt_style: 'p-tuning' # can be 'no-prompts' or 'p-tuning'  
   global_batch_size: 32
   micro_batch_size: 4
   language_model_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
@@ -77,18 +77,18 @@ model:
   ffn_dropout: 0.0
 
   existing_tasks: []
-  new_tasks: ["taskname"] 
+  new_tasks: ["squad"] 
 
   task_templates: 
-  - taskname: "taskname" # The task name
-    prompt_template: "{input} {output}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
-    total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
+  - taskname: "squad" # The task name
+    prompt_template: "{context} {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    total_virtual_tokens: 10 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
     virtual_token_splits: [] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
-    truncate_field: "input" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
-    answer_field: "output"
+    truncate_field: "context" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+    answer_field: "answer"
 
   peft:
-    peft_scheme: "ia3"  # can be either lora, adapter,ia3, or ptuning
+    peft_scheme: "ptuning"  # can be either lora, adapter,ia3, or ptuning
     restore_from_path: null
     
     # Used for adapter peft training
