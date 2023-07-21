@@ -513,7 +513,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def initialize_ub_func(self):
         ub_cfgs = self.cfg.get('ub_tp_comm_overlap_cfg', None)
         if ub_cfgs is None:
-            warnings.warn("TP config not provided. Initializing TP comm overlap with the default config.")
+            warnings.warn("Couldn't find TP config. Please check the path correctness. Initializing TP comm overlap with the default config.")
 
         input_shape = [
             self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
