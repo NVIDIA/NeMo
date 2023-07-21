@@ -20,14 +20,15 @@ from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
-import torch.nn.functional as F
 
-from nemo.utils import logging
-from nemo.collections.nlp.modules.common.megatron.utils import erf_gelu, squared_relu
+from nemo.collections.nlp.modules.common.megatron.utils import erf_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
+from nemo.utils import logging
 
 
 def dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool]) -> torch.dtype:
