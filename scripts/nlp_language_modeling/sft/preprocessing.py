@@ -85,7 +85,7 @@ def parse_conversations(tree_obj):
             label_values[key] = value_set
         turn['label'] = encode_labels(prompt_obj['labels'])
     if 'lang' in prompt_obj:
-        turn['lang'] = prompt_obj['lang']
+        turn['lang'] = prompt_obj['lang'].split('-')[0]
         turn['label'] = turn['label'] + f',lang:{turn["lang"]}'
         value_set = label_values.get('lang', set())
         value_set.add(turn['lang'])
