@@ -283,6 +283,7 @@ def send_generate_info(
     repetition_penalty,
     min_tokens_to_generate,
     end_strings,
+    inference_peft_weights,
 ):
     """
     Needs to be synced up with receive_generate_info
@@ -317,6 +318,8 @@ def send_generate_info(
     size = torch.as_tensor([string_tensor.size(0)], device=torch.cuda.current_device(), dtype=torch.int64)
     torch.distributed.broadcast(size, src, model_parallel_group)
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
+    #list_peft_weights = [inference_peft_weights]
+    #torch.distributed.broadcast_object_list(list_peft_weights, src, model_parallel_group)
 
 
 def receive_generate_info():
@@ -350,6 +353,10 @@ def receive_generate_info():
 
     string_tensor = torch.empty(array_size[0], dtype=torch.int8, device=torch.cuda.current_device())
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
+    list_peft_weights = [None]
+    #print('init', list_peft_weights)
+    #torch.distributed.broadcast_object_list(list_peft_weights, src, model_parallel_group)
+    #print('revc', list_peft_weights)
     bytes = string_tensor.cpu().numpy().tobytes()
     end_strings = pickle.loads(bytes)
 
@@ -366,6 +373,7 @@ def receive_generate_info():
         repetition_penalty,
         min_tokens_to_generate,
         end_strings,
+        list_peft_weights[0],
     )
 
 
@@ -536,6 +544,7 @@ def generate(
             repetition_penalty,
             min_tokens_to_generate,
             end_strings,
+            inference_peft_weights,
         )
     else:
         (
@@ -551,6 +560,7 @@ def generate(
             repetition_penalty,
             min_tokens_to_generate,
             end_strings,
+            inference_peft_weights,
         ) = receive_generate_info()
 
     output = synced_generate(
