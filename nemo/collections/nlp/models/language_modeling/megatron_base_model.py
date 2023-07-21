@@ -694,9 +694,11 @@ class MegatronBaseModel(NLPModel):
                 if dt == torch.bfloat16:
                     output_tensor = output_tensor.to(torch.float16)
 
-                output_tensors.append(output_tensor.numpy())
+                # For now, only the last prompt's output will be sent back.
+                # output_tensors.append(output_tensor.numpy())
+                output_tensors = output_tensor.numpy()
 
-        return {"outputs": np.array(output_tensors)}
+        return {"outputs": output_tensors}
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""

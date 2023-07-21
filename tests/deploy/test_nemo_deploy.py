@@ -18,7 +18,6 @@ from pathlib import Path
 from nemo.deploy import DeployPyTriton
 from nemo.deploy import NemoQuery
 
-
 class TestNemoDeployment:
 
     nemo_checkpoint_link = "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
@@ -44,7 +43,7 @@ class TestNemoDeployment:
         nm.run()
         nq = NemoQuery(url="localhost", model_name=triton_model_name)
 
-        output = nq.query_gpt(prompts=["hello, testing GPT inference", "what else would you test?"])
+        output = nq.query_gpt(prompts=["hello, testing GPT inference"])
         print(output)
 
         nm.stop()
