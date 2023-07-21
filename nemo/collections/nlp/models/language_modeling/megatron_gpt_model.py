@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import fields
 import itertools
 import queue
-from turtle import pos
 import warnings
+from dataclasses import fields
 from functools import partial
+from turtle import pos
 from typing import Any, Dict, Iterator, List, Optional, Union
-from more_itertools import distribute
-from omegaconf import OmegaConf
 
 import torch
+from more_itertools import distribute
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
@@ -73,11 +73,11 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
