@@ -30,6 +30,7 @@ from argparse import ArgumentParser
 import torch
 from megatron.core import parallel_state
 from omegaconf import open_dict
+from pytorch_lightning.core.saving import load_hparams_from_yaml
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -144,6 +145,21 @@ def convert(local_rank, rank, world_size, args):
 
     if args.model_type == 'gpt':
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+
+        hparams = load_hparams_from_yaml(args.hparams_file)
+        if (
+            'cfg' in hparams
+            and 'transformer_engine' in hparams['cfg']
+            and 'fp8' in hparams['cfg']
+            and hparams['cfg']['fp8'] == True
+            and hparams['cfg']['transformer_engine'] == True
+        ):
+            # WAR to enable exporting FP8 scales from modules
+            # TODO: Need to find a cleaner way
+            for module in model.modules():
+                if hasattr(module, 'fp8'):
+                    setattr(module, 'fp8', True)
+
     elif args.model_type == 'sft':
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
