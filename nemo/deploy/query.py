@@ -38,7 +38,5 @@ class NemoQuery:
             logger.info("Sent batch for inference:")
             result_dict = client.infer_batch(prompts=prompts)
 
-        sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
-        sentences = np.squeeze(sentences, axis=-1)
-        return sentences
+        return result_dict["outputs"]
 
