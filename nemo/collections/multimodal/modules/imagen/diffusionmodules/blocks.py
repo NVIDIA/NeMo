@@ -65,8 +65,8 @@ def check_cuda():
 
 
 try:
-    from flash_attn.flash_attention import FlashAttention
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_func, flash_attn_unpadded_kvpacked_func
+    from flash_attn import flash_attn_varlen_func as flash_attn_unpadded_func
+    from flash_attn import flash_attn_varlen_kvpacked_func as flash_attn_unpadded_kvpacked_func
 
     flash_attn_installed = check_cuda()
 except ImportError:
