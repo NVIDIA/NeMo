@@ -55,7 +55,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state, tensor_parallel
-
+    from megatron.core.model_parallel_config import ModelParallelConfig
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -166,6 +166,12 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
         )
 
+        config = ModelParallelConfig()
+        config.use_cpu_initialization = use_cpu_initialization
+        config.params_dtype = self.dtype
+        config.sequence_parallel = sequence_parallel
+        config.async_tensor_model_parallel_allreduce = async_tensor_model_parallel_allreduce
+        config.gradient_accumulation_fusion = gradient_accumulation_fusion
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
             self.query_key_value = tensor_parallel.ColumnParallelLinear(
@@ -173,12 +179,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 3 * projection_size,
                 gather_output=False,
                 init_method=init_method,
-                use_cpu_initialization=use_cpu_initialization,
-                params_dtype=self.dtype,
+                config=config,
                 bias=bias,
-                sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
         else:
             assert attention_type == AttnType.cross_attn
@@ -187,12 +189,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 projection_size,
                 gather_output=False,
                 init_method=init_method,
-                use_cpu_initialization=use_cpu_initialization,
-                params_dtype=self.dtype,
+                config=config,
                 bias=bias,
-                sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
             self.key_value = tensor_parallel.ColumnParallelLinear(
@@ -200,12 +198,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 2 * projection_size,
                 gather_output=False,
                 init_method=init_method,
-                use_cpu_initialization=use_cpu_initialization,
-                params_dtype=self.dtype,
+                config=config,
                 bias=bias,
-                sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
         self.core_attention = CoreAttention(
@@ -226,6 +220,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             use_flash_attention=use_flash_attention,
         )
 
+        config = ModelParallelConfig()
+        config.use_cpu_initialization = use_cpu_initialization
+        config.params_dtype = self.dtype
+        config.sequence_parallel = sequence_parallel
+        config.gradient_accumulation_fusion = gradient_accumulation_fusion
         # Output.
         self.dense = tensor_parallel.RowParallelLinear(
             projection_size,
@@ -233,11 +232,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
-            use_cpu_initialization=use_cpu_initialization,
-            params_dtype=self.dtype,
+            config=config,
             bias=bias,
-            sequence_parallel_enabled=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         self.headscale = headscale
