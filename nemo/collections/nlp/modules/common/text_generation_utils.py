@@ -284,6 +284,7 @@ def send_generate_info(
     min_tokens_to_generate,
     end_strings,
     inference_peft_weights,
+    send_order,
 ):
     """
     Needs to be synced up with receive_generate_info
@@ -318,8 +319,23 @@ def send_generate_info(
     size = torch.as_tensor([string_tensor.size(0)], device=torch.cuda.current_device(), dtype=torch.int64)
     torch.distributed.broadcast(size, src, model_parallel_group)
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
-    #list_peft_weights = [inference_peft_weights]
-    #torch.distributed.broadcast_object_list(list_peft_weights, src, model_parallel_group)
+
+    # broadcasting the list of keys representing the peft param names
+    torch.distributed.broadcast_object_list([send_order], src, model_parallel_group)
+
+    if inference_peft_weights:
+        for r in inference_peft_weights.keys():
+            for k in send_order:
+                if int(r) > 0:
+                    inference_peft_weights[r][k] = inference_peft_weights[r][k].cuda()
+                    peft_weight_shape = torch.as_tensor(inference_peft_weights[r][k].shape, device=torch.cuda.current_device(), dtype=torch.int64)
+                    # send the shape of peft weight matrices
+                    torch.distributed.send(peft_weight_shape, dst=int(r), group=model_parallel_group)
+                    # send the peft weight matrices
+                    torch.distributed.send(inference_peft_weights[r][k], dst=int(r), group=model_parallel_group)
+                    del inference_peft_weights[r][k]
+                else:
+                    inference_peft_weights[r][k] = inference_peft_weights[r][k].cuda()
 
 
 def receive_generate_info():
@@ -328,6 +344,7 @@ def receive_generate_info():
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = get_model_parallel_src_rank()
+    rank = torch.distributed.get_rank()
     input_info_tensor = torch.empty(11, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
     batch_size = int(input_info_tensor[0].item())
@@ -353,13 +370,21 @@ def receive_generate_info():
 
     string_tensor = torch.empty(array_size[0], dtype=torch.int8, device=torch.cuda.current_device())
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
-    list_peft_weights = [None]
-    #print('init', list_peft_weights)
-    #torch.distributed.broadcast_object_list(list_peft_weights, src, model_parallel_group)
-    #print('revc', list_peft_weights)
+    
+    recv_order = [None]
+    torch.distributed.broadcast_object_list(recv_order, src, model_parallel_group)
+    if recv_order[0]:
+        inference_peft_weights = {str(rank): {}}
+        for k in recv_order[0]:
+            peft_weight_shape = torch.empty(3, dtype=torch.int64, device=torch.cuda.current_device())
+            torch.distributed.recv(peft_weight_shape, src, model_parallel_group)
+            t = torch.empty((peft_weight_shape[0], peft_weight_shape[1], peft_weight_shape[2]), dtype=torch.float32, device=torch.cuda.current_device())
+            torch.distributed.recv(t, src, model_parallel_group)
+            inference_peft_weights[str(rank)][k] = t.contiguous()
+    else:
+        inference_peft_weights = None
     bytes = string_tensor.cpu().numpy().tobytes()
     end_strings = pickle.loads(bytes)
-
     return (
         context_length_tensor,
         context_tokens_tensor,
@@ -373,7 +398,7 @@ def receive_generate_info():
         repetition_penalty,
         min_tokens_to_generate,
         end_strings,
-        list_peft_weights[0],
+        inference_peft_weights, 
     )
 
 
@@ -525,8 +550,13 @@ def generate(
     if torch.distributed.get_rank() == get_model_parallel_src_rank():
         if isinstance(inputs, tuple):
             context_tokens_tensor, context_length_tensor, inference_peft_weights = inputs
+            if inference_peft_weights:
+                send_order = list(sorted(inference_peft_weights["0"].keys()))
+            else:
+                send_order = None
         else:
             inference_peft_weights = None
+            send_order = None
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
@@ -545,6 +575,7 @@ def generate(
             min_tokens_to_generate,
             end_strings,
             inference_peft_weights,
+            send_order,
         )
     else:
         (

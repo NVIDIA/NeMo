@@ -40,7 +40,7 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: str = "text",
         label_key: str = "answer",
-        metadata_key: str = "metadata",
+        inference_peft_weight_key: str = "inference_peft_weights",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "context",
@@ -65,7 +65,7 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
-        metadata_key: Key used to supply other example level information
+        inference_peft_weight_key: Key used to supply infernece peft weights per example
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
@@ -85,7 +85,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.context_key = context_key
         self.label_key = label_key
-        self.metadata_key = metadata_key
+        self.inference_peft_weight_key = inference_peft_weight_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
@@ -155,10 +155,11 @@ class GPTSFTDataset(Dataset):
         """
         context = example[self.context_key]
         output = example[self.label_key]
-        if self.metadata_key in example:
-            metadata = torch.load(example[self.metadata_key]["inference_peft_weights"], map_location='cpu')
-        else:
-            metadata = None
+        inference_peft_weights = {}
+        if self.inference_peft_weight_key in example:
+            rank_keys = example[self.inference_peft_weight_key].keys()
+            for k in rank_keys:
+                inference_peft_weights[k] = torch.load(example[self.inference_peft_weight_key][k], map_location='cpu')
 
         if self.prompt_template is not None:
             assert f'{{{self.context_key}}}' in self.prompt_template
@@ -239,7 +240,7 @@ class GPTSFTDataset(Dataset):
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
-            'metadata': metadata,
+            self.inference_peft_weight_key: inference_peft_weights,
         }
 
         return processed_example
@@ -282,13 +283,18 @@ class GPTSFTDataset(Dataset):
         attention_mask = attention_mask < 0.5
         return attention_mask
 
-    def collate_metadata(self, batch):
-        keys = list(batch[0]['metadata'].keys())
-        collated_keys = {'inference_peft_weights': {}}
-        for k in keys:
-            collated_keys['inference_peft_weights'][k] = torch.cat(
-                [item['metadata'][k].unsqueeze(0) for item in batch], dim=0
-            )
+    def collage_inference_peft_weights(self, batch):
+        rank_keys = list(batch[0][self.inference_peft_weight_key].keys())
+        weight_keys = list(batch[0][self.inference_peft_weight_key][rank_keys[0]])
+        collated_keys = {}
+        for r in rank_keys:
+            for w in weight_keys:
+                collated_inference_peft_weights = torch.cat(
+                    [item[self.inference_peft_weight_key][r][w].unsqueeze(0) for item in batch], dim=0
+                )
+                collated_keys[r] = collated_keys.get(r, {})
+                collated_keys[r][w] = collated_keys[r].get(w, {})
+                collated_keys[r][w] = collated_inference_peft_weights
         return collated_keys
 
     def collate_fn(self, batch):
@@ -296,10 +302,10 @@ class GPTSFTDataset(Dataset):
         labels = [item['input_ids'][1:] for item in batch]
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
-        if batch[0]['metadata']:
-            collated_weight_keys = self.collate_metadata(batch)
+        if batch[0][self.inference_peft_weight_key]:
+            collated_weight_keys = self.collage_inference_peft_weights(batch)
         else:
-            collated_weight_keys = {}
+            collated_weight_keys = None
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
 
         max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
@@ -330,5 +336,6 @@ class GPTSFTDataset(Dataset):
             'contexts': contexts,
             'context_lengths': context_lengths,
         }
-        processed_batch.update(collated_weight_keys)
+        if collated_weight_keys:
+            processed_batch.update({self.inference_peft_weight_key: collated_weight_keys})
         return processed_batch

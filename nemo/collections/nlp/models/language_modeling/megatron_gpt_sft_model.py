@@ -575,8 +575,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 # peft_eval.py
                 for k in ["contexts", "context_lengths"]:
                     batch[k] = batch[k].cuda()
-                for k in batch.get("inference_peft_weights", {}).keys():
-                    batch["inference_peft_weights"][k] = batch["inference_peft_weights"][k].cuda()
+                for r in batch.get("inference_peft_weights", {}).keys():
+                    for w in batch["inference_peft_weights"].get(r, {}).keys():
+                        batch["inference_peft_weights"][r][w] = batch["inference_peft_weights"][r][w]
                 inference_config['inputs'] = (
                     batch["contexts"],
                     batch["context_lengths"],

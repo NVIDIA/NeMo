@@ -169,8 +169,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
         if inference_weight:
-            w_in = inference_weight.get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
-            w_out = inference_weight.get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
+            rank = torch.distributed.get_rank()
+            w_in = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
+            w_out = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
         else:
             w_in, w_out = None, None
         x, _ = self.linear_in(
@@ -430,8 +431,9 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
         if inference_weight:
-            w_in = inference_weight.get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
-            w_out = inference_weight.get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
+            rank = torch.distributed.get_rank()
+            w_in = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
+            w_out = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
         else:
             w_in, w_out = None, None
         x, _ = self.linear_in(
