@@ -213,6 +213,8 @@ def main(cfg) -> None:
             pretrained_cfg.precision = trainer.precision
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
+            pretrained_cfg["use_flash_attention"] = True
+            pretrained_cfg.apply_query_key_layer_scaling = False
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
