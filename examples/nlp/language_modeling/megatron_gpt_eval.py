@@ -291,7 +291,7 @@ def main(cfg) -> None:
         lines = []
         for line in f:
             line = json.loads(line)
-            lines.append(line["input"])
+            lines.append(line["truncated_input"])
     # # First method of running text generation, call model.generate method
     # response = model.generate(
     #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
