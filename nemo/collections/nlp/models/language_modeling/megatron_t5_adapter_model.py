@@ -147,24 +147,28 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         }
 
     def validation_step(self, dataloader_iter, batch_idx, inference=False):
-        batch = next(dataloader_iter)
-        enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        try:
+            batch = next(dataloader_iter)
+            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
-        mode = self.training
-        self.eval()
-        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-        self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
-        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
+            mode = self.training
+            self.eval()
+            gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+            self._reconfigure_and_process_inference_batch(enc_input.size(0), gbs)
+            loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
 
-        if self.cfg.get('report_validation_metric', False):
-            metrics = self.compute_accuracy(enc_input, enc_mask, labels)
-            metrics['loss'] = loss_mean
-        else:
-            metrics = {'loss': loss_mean}
+            if self.cfg.get('report_validation_metric', False):
+                metrics = self.compute_accuracy(enc_input, enc_mask, labels)
+                metrics['loss'] = loss_mean
+            else:
+                metrics = {'loss': loss_mean}
 
-        self.validation_step_outputs.append(metrics)
-        self.train(mode=mode)
-        return metrics
+            self.validation_step_outputs.append(metrics)
+            self.train(mode=mode)
+            return metrics
+        except StopIteration:
+            return
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 

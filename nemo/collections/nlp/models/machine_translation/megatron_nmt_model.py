@@ -332,57 +332,67 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         return loss_mean
 
     def eval_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = next(dataloader_iter)
-        batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
-        batch = self.process_global_batch_for_text_translation_datasets(batch)
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        try:
+            # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
+            batch = next(dataloader_iter)
+            batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
+            batch = self.process_global_batch_for_text_translation_datasets(batch)
 
-        # Eval step requires text datasets so we need to reconfigure MBS on each batch.
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=batch['text_enc'].size(0),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
-        # This returns the averaged loss across data-parallel groups.
-        reduced_loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, True)
+            # Eval step requires text datasets so we need to reconfigure MBS on each batch.
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=batch['text_enc'].size(0),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+            # This returns the averaged loss across data-parallel groups.
+            reduced_loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, True)
 
-        tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
+            tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
-        predicted_tokens_ids, _ = self.decode(
-            tokens_enc,
-            enc_mask,
-            tokens_enc.size(1)
-            + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
-            tokenizer=self.decoder_tokenizer,
-        )
+            predicted_tokens_ids, _ = self.decode(
+                tokens_enc,
+                enc_mask,
+                tokens_enc.size(1)
+                + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                tokenizer=self.decoder_tokenizer,
+            )
 
-        if self.multilingual:
-            source_processor = self.source_processor_list[dataloader_idx]
-            target_processor = self.target_processor_list[dataloader_idx]
-        else:
-            source_processor = self.source_processor
-            target_processor = self.target_processor
+            if self.multilingual:
+                source_processor = self.source_processor_list[dataloader_idx]
+                target_processor = self.target_processor_list[dataloader_idx]
+            else:
+                source_processor = self.source_processor
+                target_processor = self.target_processor
 
-        # Post-process the translations and inputs to log.
-        preds = self.postprocess_outputs(
-            outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=target_processor,
-        )
-        labels = self.postprocess_outputs(
-            outputs=labels, tokenizer=self.decoder_tokenizer, processor=target_processor,
-        )
-        encoder_inputs = self.postprocess_outputs(
-            outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
-        )
+            # Post-process the translations and inputs to log.
+            preds = self.postprocess_outputs(
+                outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=target_processor,
+            )
+            labels = self.postprocess_outputs(
+                outputs=labels, tokenizer=self.decoder_tokenizer, processor=target_processor,
+            )
+            encoder_inputs = self.postprocess_outputs(
+                outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
+            )
 
-        return {
-            'inputs': encoder_inputs,
-            'translations': preds,
-            'ground_truths': labels,
-            'loss': reduced_loss,
-        }
+            val_outputs = {
+                'inputs': encoder_inputs,
+                'translations': preds,
+                'ground_truths': labels,
+                'loss': reduced_loss,
+            }
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(val_outputs)
+            else:
+                self.validation_step_outputs.append(val_outputs)
+
+            return val_outputs
+        except StopIteration:
+            return
 
     def postprocess_outputs(self, outputs, tokenizer, processor):
         # Convert ids to lists.
@@ -437,11 +447,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         return dataloaders
 
-    def on_validation_epoch_endend(self, outputs):
-        return self.eval_epoch_end(outputs, 'val')
+    def on_validation_epoch_end(self):
+        return self.eval_epoch_end(self.validation_step_outputs, 'val')
 
     def on_test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'test')
+        return self.eval_epoch_end(self.test_step_outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
         if not outputs:
@@ -540,6 +550,20 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), batch_size=1)
+
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self._cfg.train_ds.global_batch_size,
+                micro_batch_size=self._cfg.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        if mode == 'val':
+            self.validation_step_outputs.clear() # free memory
+        else:
+            self.test_step_outputs.clear() # free memory
 
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
@@ -802,16 +826,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def list_available_models(self):
         pass
 
-    def on_validation_epoch_end(self):
-        app_state = AppState()
-        if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=self._cfg.train_ds.global_batch_size,
-                micro_batch_size=self._cfg.train_ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
+    # def on_validation_epoch_end(self):
+    #     app_state = AppState()
+    #     if hasattr(self, "_train_ds"):
+    #         _reconfigure_microbatch_calculator(
+    #             rank=app_state.global_rank,
+    #             rampup_batch_size=None,
+    #             global_batch_size=self._cfg.train_ds.global_batch_size,
+    #             micro_batch_size=self._cfg.train_ds.micro_batch_size,
+    #             data_parallel_size=parallel_state.get_data_parallel_world_size(),
+    #         )
 
     def on_validation_epoch_start(self):
         app_state = AppState()

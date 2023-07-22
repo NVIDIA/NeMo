@@ -366,53 +366,61 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter, batch_idx):
-        batch = next(dataloader_iter)
-        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-        self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
-        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
-        if loss_mean.item == 0.0:
-            loss_mean = []
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        try:
+            batch = next(dataloader_iter)
+            gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+            self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
+            loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
+            if loss_mean.item == 0.0:
+                loss_mean = []
 
-        if self.cfg.get('report_validation_metric', False):
-            preds_text, labels_text = [], []
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            input_lenghts = torch.argmax(loss_mask, 1, keepdim=True)
+            if self.cfg.get('report_validation_metric', False):
+                preds_text, labels_text = [], []
+                input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+                input_lenghts = torch.argmax(loss_mask, 1, keepdim=True)
 
-            res = megatron_gpt_generate(
-                self.cuda(),
-                (
-                    torch.cat(
-                        (
-                            input_ids,
-                            torch.zeros(
-                                input_ids.shape[0], self.length_params['max_length'], dtype=input_ids.dtype
-                            ).to(self.device),
+                res = megatron_gpt_generate(
+                    self.cuda(),
+                    (
+                        torch.cat(
+                            (
+                                input_ids,
+                                torch.zeros(
+                                    input_ids.shape[0], self.length_params['max_length'], dtype=input_ids.dtype
+                                ).to(self.device),
+                            ),
+                            axis=1,
                         ),
-                        axis=1,
+                        input_lenghts.squeeze(1),
                     ),
-                    input_lenghts.squeeze(1),
-                ),
-                self.tokenizer,
-                self.length_params,
-                self.sampling_params,
-                task_ids=taskname_ids,
-            )
+                    self.tokenizer,
+                    self.length_params,
+                    self.sampling_params,
+                    task_ids=taskname_ids,
+                )
 
-            for pred, label in zip(res['token_ids'], labels):
-                # ids_to_text ignores special tokens by default
-                pred = self.tokenizer.ids_to_text(pred)
-                label = self.tokenizer.ids_to_text(label)
-                preds_text.append(pred)
-                labels_text.append(label)
+                for pred, label in zip(res['token_ids'], labels):
+                    # ids_to_text ignores special tokens by default
+                    pred = self.tokenizer.ids_to_text(pred)
+                    label = self.tokenizer.ids_to_text(label)
+                    preds_text.append(pred)
+                    labels_text.append(label)
+                self.validation_step_outputs.append({
+                    'loss': loss_mean,
+                    'preds': preds_text,
+                    'labels': labels_text,
+                })
+                return {
+                    'loss': loss_mean,
+                    'preds': preds_text,
+                    'labels': labels_text,
+                }
 
-            return {
-                'loss': loss_mean,
-                'preds': preds_text,
-                'labels': labels_text,
-            }
-
-        self.validation_step_outputs.append({'loss': loss_mean})
-        return {'loss': loss_mean}
+            self.validation_step_outputs.append({'loss': loss_mean})
+            return {'loss': loss_mean}
+        except StopIteration:
+            return
 
     def on_train_epoch_start(self) -> None:
         gbs = self.cfg.global_batch_size

@@ -422,37 +422,40 @@ class MegatronBertModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def validation_step(self, dataloader_iter, batch_idx):
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        try:
+            if self.cfg.data.dataloader_type == "LDDL":
+                seq_length = dataloader_iter.iterator.get_seqlen()
+                tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            else:
+                tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
-        if self.cfg.data.dataloader_type == "LDDL":
-            seq_length = dataloader_iter.iterator.get_seqlen()
-            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-        else:
-            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            fwd_bwd_function = get_forward_backward_func()
 
-        fwd_bwd_function = get_forward_backward_func()
+            losses_reduced_per_micro_batch = fwd_bwd_function(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                data_iterator=dataloader_iter,
+                model=[self.model],
+                num_microbatches=get_num_microbatches(),
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                sequence_parallel=self.cfg.get('sequence_parallel', False),
+                enable_autocast=self.enable_autocast,
+            )
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
-        )
+            if losses_reduced_per_micro_batch:
+                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.vstack(loss_tensors_list)
+                loss_mean = loss_tensor.mean(axis=0)
+            else:
+                loss_mean = torch.tensor([0.0]).cuda()
 
-        if losses_reduced_per_micro_batch:
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.vstack(loss_tensors_list)
-            loss_mean = loss_tensor.mean(axis=0)
-        else:
-            loss_mean = torch.tensor([0.0]).cuda()
-
-        loss = loss_mean[0]
-        self.validation_step_outputs.append(loss)
-        return loss
+            loss = loss_mean[0]
+            self.validation_step_outputs.append(loss)
+            return loss
+        except StopIteration:
+            return
 
     def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():
