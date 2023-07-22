@@ -60,9 +60,9 @@ pipeline {
     stage('Megatron Core installation') {
       steps {
         // commit points to core 23.05 ToT 
-        sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+        sh 'git clone https://github.com/aklife97/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout 060415572f4365a2e895f8036c4e37dad0efbdf5 && \
+            git checkout custom_wt && \
             pip install -e .'
       }
     }
