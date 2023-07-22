@@ -328,7 +328,9 @@ def send_generate_info(
             for k in send_order:
                 if int(r) > 0:
                     inference_peft_weights[r][k] = inference_peft_weights[r][k].cuda()
-                    peft_weight_shape = torch.as_tensor(inference_peft_weights[r][k].shape, device=torch.cuda.current_device(), dtype=torch.int64)
+                    peft_weight_shape = torch.as_tensor(
+                        inference_peft_weights[r][k].shape, device=torch.cuda.current_device(), dtype=torch.int64
+                    )
                     # send the shape of peft weight matrices
                     torch.distributed.send(peft_weight_shape, dst=int(r), group=model_parallel_group)
                     # send the peft weight matrices
@@ -370,7 +372,7 @@ def receive_generate_info():
 
     string_tensor = torch.empty(array_size[0], dtype=torch.int8, device=torch.cuda.current_device())
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
-    
+
     recv_order = [None]
     torch.distributed.broadcast_object_list(recv_order, src, model_parallel_group)
     if recv_order[0]:
@@ -378,7 +380,11 @@ def receive_generate_info():
         for k in recv_order[0]:
             peft_weight_shape = torch.empty(3, dtype=torch.int64, device=torch.cuda.current_device())
             torch.distributed.recv(peft_weight_shape, src, model_parallel_group)
-            t = torch.empty((peft_weight_shape[0], peft_weight_shape[1], peft_weight_shape[2]), dtype=torch.float32, device=torch.cuda.current_device())
+            t = torch.empty(
+                (peft_weight_shape[0], peft_weight_shape[1], peft_weight_shape[2]),
+                dtype=torch.float32,
+                device=torch.cuda.current_device(),
+            )
             torch.distributed.recv(t, src, model_parallel_group)
             inference_peft_weights[str(rank)][k] = t.contiguous()
     else:
@@ -398,7 +404,7 @@ def receive_generate_info():
         repetition_penalty,
         min_tokens_to_generate,
         end_strings,
-        inference_peft_weights, 
+        inference_peft_weights,
     )
 
 
