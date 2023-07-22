@@ -245,6 +245,7 @@ def main(cfg) -> None:
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
+    print(f'\n{OmegaConf.to_yaml(model._cfg)}')
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
@@ -286,7 +287,6 @@ def main(cfg) -> None:
         for line in f:
             line = json.loads(line)
             lines.append(line["input"])
-
     # # First method of running text generation, call model.generate method
     # response = model.generate(
     #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
