@@ -4550,7 +4550,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.micro_batch_size=8"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2"
             sh "python examples/nlp/language_modeling/megatron_t5_peft_eval.py \
-                --config-name=megatron_t5_peft_eval_config 
+                --config-name=megatron_t5_peft_eval_config \
                 peft_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
