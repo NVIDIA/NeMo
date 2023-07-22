@@ -286,8 +286,7 @@ def main(cfg) -> None:
         for line in f:
             line = json.loads(line)
             lines.append(line["input"])
-            if len(lines) == 8:
-                break
+
     # # First method of running text generation, call model.generate method
     # response = model.generate(
     #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
