@@ -172,6 +172,11 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             if additional_tokens['additional_special_tokens']:
                 tokenizer.add_special_tokens(additional_tokens)
 
+            if dataset_type == "audio":
+                logging.error(
+                    f"dataset_type {dataset_type} is not supported for {tokenizer_cfg.library} tokenizer library."
+                )
+
         if tokenizer_cfg.library == 'sentencepiece':
             # NOTE: This is an ugly way to support both NeMo-Megatron trained checkpoints and huggingface checkpoints.
             # Huggingface and Google checkpoints will add sentinel tokens first (right after the base vocabulary), but in NeMo-Megatron, we add <cls>, <sep>, <mask>, <pad>, <bos> etc. beofore sentinel tokens <extra_id_xx>.
@@ -198,6 +203,21 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                         )[0]
                     else:
                         tokenizer.add_special_tokens([f'<extra_id_{mask_type}>'])
+
+            if dataset_type == "audio":
+                N_AUDIO_TOKENS = 8192
+                # this is a hack. either introduce a new config param (like num_audio_tokens)
+                # or just increase num_sentinel_tokens, in which case all the audio tokens will be named <extra_id_xx> tokens
+
+                if N_AUDIO_TOKENS > 0:
+                    for i in range(N_AUDIO_TOKENS):
+                        if len(tokenizer.text_to_ids(f'<audio_id_{i}>')) == 1:
+                            tokenizer.special_token_to_id[f'<audio_id_{i}>'] = tokenizer.text_to_ids(
+                                f'<audio_id_{i}>'
+                            )[0]
+                        else:
+                            tokenizer.add_special_tokens([f'<audio_id_{i}>'])
+
 
     def build_train_valid_test_datasets(self):
         logging.info(f'Building {self.model_name} datasets.')
