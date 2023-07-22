@@ -161,7 +161,6 @@ if __name__ == '__main__':
         choices=['ctc', 'rnnt'],
         help='whether to output a ctc or rnnt model from the hybrid',
     )
-    parser.add_argument('--cuda', action='store_true', help='put Nemo model onto GPU prior to savedown')
 
     args = parser.parse_args()
 
@@ -180,9 +179,6 @@ if __name__ == '__main__':
             f"the model_type arg must be one of 'ctc' or 'rnnt', received unknown value: '{args.model_type}'. Aborting."
         )
         exit(255)
-
-    if args.cuda and torch.cuda.is_available():
-        output_model = output_model.cuda()
 
     output_model.save_to(args.output)
     logging.info(f'Converted {args.model_type.upper()} model was successfully saved to {args.output}')
