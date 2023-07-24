@@ -31,6 +31,8 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     normalization,
     timestep_embedding,
     zero_module,
+    default,
+    exists
 )
 
 
@@ -560,7 +562,7 @@ class UNetModel(nn.Module):
                     "provide num_res_blocks either as an int (globally constant) or "
                     "as a list/tuple (per-level) with the same length as channel_mult"
                 )
-        self.num_res_blocks = num_res_blocks
+            self.num_res_blocks = num_res_blocks
         # self.num_res_blocks = num_res_blocks
         if disable_self_attentions is not None:
             # should be a list of booleans, indicating whether to disable self-attention in TransformerBlocks or not
@@ -634,7 +636,6 @@ class UNetModel(nn.Module):
                 )
             else:
                 raise ValueError()
-
         self.input_blocks = nn.ModuleList(
             [TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))]
         )

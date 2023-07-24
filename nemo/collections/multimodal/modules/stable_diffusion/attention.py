@@ -256,7 +256,6 @@ class CrossAttention(nn.Module):
             v = rearrange_heads_outer(v, h)
 
             sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
-            del q, k
 
             if exists(mask):
                 # standard stable diffusion does not run into here
@@ -270,7 +269,6 @@ class CrossAttention(nn.Module):
 
             out = einsum('b i j, b j d -> b i d', attn, v)
 
-            del q, k, v
 
             # (b h) n d -> b n (h d)
             out = rearrange_heads_inner(out, h)
@@ -343,7 +341,7 @@ class BasicTransformerBlock(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.norm3 = nn.LayerNorm(dim)
         self.use_checkpoint = use_checkpoint
-        if self.checkpoint:
+        if self.use_checkpoint:
             print(f"{self.__class__.__name__} is using checkpointing")
 
     def forward(self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
