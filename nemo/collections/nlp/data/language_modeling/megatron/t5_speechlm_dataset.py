@@ -165,8 +165,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         skipped = 0
         i = 0
         for json_line in tqdm(copy_dataset):
-            if i > 25:
-                break
+            # if i > 25:
+            #     break
             i += 1
 
             # Read example dict or load the information for a single example from .json file

@@ -505,6 +505,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     dec_input = current
                 else:
                     dec_input = dec_input + current
+                break
         return dec_input
 
     def forward(
@@ -655,8 +656,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     token_logits = self.tokens_head(dec_output)[0]
 
                 if labels is not None:
-                    # [b, s] -> [s, b]
-                    labels = labels.transpose(0, 1).contiguous()
+                    if labels.dim() == 2:
+                        # [b, s] -> [s, b]
+                        labels = labels.transpose(0, 1).contiguous()
+                    elif labels.dim() == 3:
+                        # [b, c, s] -> [c, s, b]
+                        labels = labels.permute(1, 2, 0).contiguous()
 
                     # Set label smoothing to 0 if in eval mode.
                     label_smoothing = self.label_smoothing if self.training else 0.0

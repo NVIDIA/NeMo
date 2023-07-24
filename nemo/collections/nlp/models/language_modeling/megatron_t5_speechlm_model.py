@@ -138,6 +138,70 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
             return True
         return False
 
+    def setup_optimizer_param_groups(self):
+        """
+            Used to create param groups for the optimizer.
+            As an example, this can be used to specify per-layer learning rates:
+
+            optim.SGD([
+                        {'params': model.base.parameters()},
+                        {'params': model.classifier.parameters(), 'lr': 1e-3}
+                        ], lr=1e-2, momentum=0.9)
+
+            See https://pytorch.org/docs/stable/optim.html for more information.
+            By default, ModelPT will use self.parameters().
+            Override this method to add custom param groups.
+            In the config file, add 'optim_param_groups' to support different LRs
+            for different components (unspecified params will use the default LR):
+
+            model:
+                optim_param_groups:
+                    encoder:
+                        lr: 1e-4
+                        momentum: 0.8
+                    decoder:
+                        lr: 1e-3
+                optim:
+                    lr: 3e-3
+                    momentum: 0.9
+        """
+        if not hasattr(self, "parameters"):
+            self._optimizer_param_groups = None
+            return
+
+        known_groups = []
+        param_groups = []
+        if "optim_param_groups" in self.cfg:
+            param_groups_cfg = self.cfg.optim_param_groups
+            for group, group_cfg in param_groups_cfg.items():
+                module = getattr(self, group, None)
+                if module is None:
+                    raise ValueError(f"{group} not found in model.")
+                elif hasattr(module, "parameters"):
+                    known_groups.append(group)
+                    new_group = {"params": module.parameters()}
+                    for k, v in group_cfg.items():
+                        new_group[k] = v
+                    param_groups.append(new_group)
+                else:
+                    raise ValueError(f"{group} does not have parameters.")
+
+            other_params = []
+            for n, p in self.named_parameters():
+                is_unknown = True
+                for group in known_groups:
+                    if n.startswith(group):
+                        is_unknown = False
+                if is_unknown:
+                    other_params.append(p)
+
+            if len(other_params):
+                param_groups = [{"params": other_params}] + param_groups
+        else:
+            param_groups = [{"params": self.parameters()}]
+
+        self._optimizer_param_groups = param_groups
+
     def forward(
         self, virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, speech_mask=None, inference=False,
     ):
@@ -370,7 +434,6 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         out = None
         if tokens.dim() > 2:
             for i in range(tokens.size()[1]):
-                # import ipdb; ipdb.set_trace()
                 cur = self.embed_input(tokens[:, i, :], taskname_ids, inference)
                 if out is None:
                     out = cur
