@@ -678,13 +678,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                             tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
                         elif labels.dim() == 3:
                             tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
-                        logging.debug(f"token_loss: {tokens_loss}")
-                        logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
-                        for i in range(speech_layers):
-                            # What is labels[:7, :, :] if this is text?
-                            tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
-                            logging.debug(f"token_loss_{i}: {tokens_loss}")
-                            logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
+                            logging.debug(f"token_loss: {tokens_loss}")
+                            logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
+                            for i in range(speech_layers):
+                                # What is labels[:7, :, :] if this is text? (It is all zeros)
+                                tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
+                                logging.debug(f"token_loss_{i}: {tokens_loss}")
+                                logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
