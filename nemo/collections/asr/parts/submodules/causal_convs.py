@@ -127,6 +127,7 @@ class CausalConv1D(nn.Conv1d):
             dtype=dtype,
         )
 
+    # Why would it even need this?
     def update_cache(self, x, cache=None):
         if cache is None:
             new_x = F.pad(x, pad=(self._left_padding, self._right_padding))
@@ -142,6 +143,7 @@ class CausalConv1D(nn.Conv1d):
         return new_x, next_cache
 
     def forward(self, x, cache=None):
+        # It seems to think that it needs to pad before 
         x, cache = self.update_cache(x, cache=cache)
         x = super().forward(x)
         if cache is None:

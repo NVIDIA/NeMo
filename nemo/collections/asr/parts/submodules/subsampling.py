@@ -563,6 +563,7 @@ class ConvSubsampling(torch.nn.Module):
         self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
 
+# Here is where the float casts come from
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
     add_pad: float = all_paddings - kernel_size
@@ -574,6 +575,20 @@ def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_nu
         else:
             lengths = torch.floor(lengths)
     return lengths.to(dtype=torch.int)
+
+# def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
+#     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
+#     add_pad: int = all_paddings - kernel_size
+#     one: int = 1
+#     for i in range(repeat_num):
+#         if ceil_mode:
+#             lengths = torch.div(lengths + add_pad + stride - 1, stride, rounding_mode="floor")
+#         else:
+#             lengths = torch.div(lengths + add_pad, stride, rounding_mode="floor")
+#         lengths += one
+
+#     return lengths
+
 
 
 class TimeReductionModule(nn.Module):

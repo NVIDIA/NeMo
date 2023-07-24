@@ -178,6 +178,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
         else:
             input_example = torch.randn(max_batch, self._feat_in, max_dim, device=dev)
+            # So this is correctly set as an int64 dtype then...
+            # Changing to int32 does in fact make it int32. But we need this to be int64...
             input_example_length = torch.randint(max_dim // 4, max_dim, (max_batch,), device=dev, dtype=torch.int64)
             all_input_example = tuple([input_example, input_example_length])
 
@@ -649,6 +651,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
         if torch.distributed.is_initialized():
+            # This float32 usage not seem good...
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
             # Update across all ranks in the distributed system

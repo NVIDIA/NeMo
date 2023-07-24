@@ -958,6 +958,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
                     param.grad.data.div_(norm)
 
     # EncDecRNNTModel is exported in 2 parts
+    # So this is an overridden class?
     def list_export_subnets(self):
         return ['encoder', 'decoder_joint']
 

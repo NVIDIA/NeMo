@@ -173,8 +173,10 @@ class Exportable(ABC):
             # Set module mode
             with torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
 
+                print("GALVEZ:input_example=", input_example)
                 if input_example is None:
                     input_example = self.input_module.input_example()
+                print("GALVEZ:input_example=", input_example)
 
                 # Remove i/o examples from args we propagate to enclosed Exportables
                 my_args.pop('output')

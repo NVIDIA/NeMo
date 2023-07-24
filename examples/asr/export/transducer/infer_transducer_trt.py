@@ -17,13 +17,14 @@ import json
 import os
 import tempfile
 from argparse import ArgumentParser
+import tensorrt as trt   # you must import trt before nemo import
 
 import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import ONNXGreedyBatchedRNNTInfer
+from trt_greedy_batched_rnnt import TRTGreedyBatchedRNNTInfer
 from nemo.utils import logging
 
 
@@ -65,9 +66,9 @@ def parse_arguments():
     parser.add_argument(
         '--pretrained_model', type=str, default=None, required=False, help='Name of a pretrained NeMo file'
     )
-    parser.add_argument('--onnx_encoder', type=str, default=None, required=False, help="Path to onnx encoder model")
+    parser.add_argument('--trt_encoder', type=str, default=None, required=False, help="Path to tensorrt encoder model")
     parser.add_argument(
-        '--onnx_decoder', type=str, default=None, required=False, help="Path to onnx decoder + joint model"
+        '--trt_decoder', type=str, default=None, required=False, help="Path to tensorrt decoder + joint model"
     )
     parser.add_argument('--threshold', type=float, default=0.01, required=False)
 
@@ -96,9 +97,6 @@ def assert_args(args):
             "`nemo_model` and `pretrained_model` cannot both be passed ! Only one can be passed to this script."
         )
 
-    if args.export and (args.onnx_encoder is not None or args.onnx_decoder is not None):
-        raise ValueError("If `export` is set, then `onnx_encoder` and `onnx_decoder` arguments must be None")
-
     if args.audio_dir is None and args.dataset_manifest is None:
         raise ValueError("Both `dataset_manifest` and `audio_dir` cannot be None!")
 
@@ -107,13 +105,6 @@ def assert_args(args):
 
     if int(args.max_symbold_per_step) < 1:
         raise ValueError("`max_symbold_per_step` must be an integer > 0")
-
-
-def export_model_if_required(args, nemo_model):
-    if args.export:
-        nemo_model.export("temp_rnnt.onnx", onnx_opset_version=18)  #, verbose=True)
-        args.onnx_encoder = "encoder-temp_rnnt.onnx"
-        args.onnx_decoder = "decoder_joint-temp_rnnt.onnx"
 
 
 def resolve_audio_filepaths(args):
@@ -153,20 +144,22 @@ def main():
     if torch.cuda.is_available():
         nemo_model = nemo_model.to('cuda')
 
-    export_model_if_required(args, nemo_model)
+    # export_model_if_required(args, nemo_model)
 
     # Instantiate RNNT Decoding loop
-    encoder_model = args.onnx_encoder
-    decoder_model = args.onnx_decoder
+    encoder_model = args.trt_encoder
+    decoder_model = args.trt_decoder
     max_symbols_per_step = args.max_symbold_per_step
-    decoding = ONNXGreedyBatchedRNNTInfer(encoder_model, decoder_model, max_symbols_per_step)
+    decoding = TRTGreedyBatchedRNNTInfer(encoder_model, decoder_model, max_symbols_per_step)
 
     audio_filepath = resolve_audio_filepaths(args)
 
     # Evaluate Pytorch Model (CPU/GPU)
-    actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
+    # actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
 
-    # Evaluate ONNX model
+    #torch.cuda.empty_cache() # to empty all cuda memory
+
+    # Evaluate TRT model
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_filepath:
@@ -181,7 +174,16 @@ def main():
         temporary_datalayer = nemo_model._setup_transcribe_dataloader(config)
 
         all_hypothesis = []
-        for test_batch in tqdm(temporary_datalayer, desc="ONNX Transcribing"):
+        for i, test_batch in enumerate(tqdm(temporary_datalayer, desc="TRT Transcribing")):
+            if i == 2:
+                torch.cuda.cudart().cudaProfilerStart()
+            if i == 3:
+                torch.cuda.cudart().cudaProfilerStop()
+            # if i < 36:
+            #     continue
+            # if i > 38:
+            #     break
+            # print("GALVEZ:", test_batch)
             input_signal, input_signal_length = test_batch[0], test_batch[1]
             input_signal = input_signal.to(device)
             input_signal_length = input_signal_length.to(device)
@@ -206,14 +208,14 @@ def main():
     if args.log:
         for pt_transcript, onnx_transcript in zip(actual_transcripts, all_hypothesis):
             print(f"Pytorch Transcripts : {pt_transcript}")
-            print(f"ONNX Transcripts    : {onnx_transcript}")
+            print(f"TRT Transcripts    : {onnx_transcript}")
         print()
 
     # Measure error rate between onnx and pytorch transcipts
     pt_onnx_cer = word_error_rate(all_hypothesis, actual_transcripts, use_cer=True)
     assert pt_onnx_cer < args.threshold, "Threshold violation !"
 
-    print("Character error rate between Pytorch and ONNX :", pt_onnx_cer)
+    print("Character error rate between Pytorch and TRT :", pt_onnx_cer)
 
 
 if __name__ == '__main__':

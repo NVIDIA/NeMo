@@ -16,6 +16,8 @@ import torch
 
 from nemo.collections.asr.models import ASRModel
 
+from nemo.collections.asr.parts.submodules.subsampling import calc_length
+
 
 class TestASRSubsamplingConvChunking:
     @pytest.mark.with_downloads()
@@ -59,3 +61,7 @@ class TestASRSubsamplingConvChunking:
         assert diff <= 1e-6
         diff = torch.max(torch.abs(logprobs_batch4_split - logprobs_batch4_nosplit))
         assert diff <= 1e-6
+
+def test_calc_length():
+    result = calc_length(torch.tensor([2135], dtype=torch.int64), 2, 3, 2, False, 2)
+    assert result == 534
