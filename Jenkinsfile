@@ -744,7 +744,9 @@ pipeline {
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=4 \
-                model.task_templates.0.taskname=rte"
+                model.task_templates.0.taskname=rte \
+                model.virtual_prompt_style='no-prompts' \
+                model.peft.peft_scheme='ia3'"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_peft_eval.py \
                 --config-name=megatron_t5_peft_eval_config \
                 peft_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
@@ -756,7 +758,9 @@ pipeline {
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                pred_file_path='examples/ia3_tuning/test_tp1_pp2/preds.txt'"
+                pred_file_path='examples/ia3_tuning/test_tp1_pp2/preds.txt' \
+                model.virtual_prompt_style='no-prompts' \
+                model.peft.peft_scheme='ia3'"
             sh "rm -rf examples/ia3_tuning/test_tp1_pp2.nemo"
             sh "rm -rf examples/ia3_tuning/test_tp1_pp2"
           }
