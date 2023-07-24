@@ -500,7 +500,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         else:
             dec_input = None
             for i in range(dec_input_ids.size()[1]):
+                # For text inputs, only include 1st channel embeddings. Zero-out others.
+                include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
                 current = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
+                current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
                 if dec_input is None:
                     dec_input = current
                 else:
@@ -671,9 +674,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         assert token_logits.dtype == torch.half
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
-                        # import ipdb; ipdb.set_trace()
-                        # TODO: Need to handle all text batches, which should have lablels in only 2 dims
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
+                        if labels.dim() == 2:
+                            tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
+                        elif labels.dim() == 3:
+                            tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
                         logging.debug(f"token_loss: {tokens_loss}")
                         logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
                         for i in range(speech_layers):

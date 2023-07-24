@@ -214,7 +214,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
             # Get embeddings for text tokens and insert virtual token embeddings
             # input_embeds = self.embed_input(input_ids, taskname_ids, inference)
             # import ipdb; ipdb.set_trace()
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids, inference)
+            input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_tokens, question_tokens], taskname_ids, inference)
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -434,7 +434,9 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         out = None
         if tokens.dim() > 2:
             for i in range(tokens.size()[1]):
+                include_channel_flag = (torch.sum(tokens[:, i, :], dim=1) > 0).float()
                 cur = self.embed_input(tokens[:, i, :], taskname_ids, inference)
+                cur = cur * include_channel_flag.unsqueeze(1).unsqueeze(2)
                 if out is None:
                     out = cur
                 else:
@@ -460,7 +462,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids, inference)
+            input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_tokens, question_tokens], taskname_ids, inference)
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
