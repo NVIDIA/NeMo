@@ -50,7 +50,7 @@ class TensorRTLLM(ITritonDeployable):
                         self.tokenizer = get_tokenzier(os.path.join(self.model_dir, f))
                         self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
 
-    def export(
+    def transfer(
         self,
         nemo_checkpoint_path,
         delete_existing_files=True,

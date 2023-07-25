@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo.export import TensorRTLLM
+from nemo.transfer import TensorRTLLM
 
 
 class TestNemoExport:
@@ -28,7 +28,7 @@ class TestNemoExport:
 
     @pytest.mark.unit
     def test_trt_llm_export(self):
-        """Here we test the trt-llm export and infer function"""
+        """Here we test the trt-llm transfer and infer function"""
 
         if not Path(self.nemo_checkpoint_path).exists():
             print("File will be downloaded...")
@@ -38,6 +38,6 @@ class TestNemoExport:
             print("Checkpoint has already been downloaded.")
 
         trt_llm_exporter = TensorRTLLM(model_dir=self.trt_llm_model_dir)
-        trt_llm_exporter.export(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
+        trt_llm_exporter.transfer(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
         output = trt_llm_exporter.forward(["test1", "how about test 2"])
         print(output)
