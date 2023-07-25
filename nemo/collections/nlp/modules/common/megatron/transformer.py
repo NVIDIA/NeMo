@@ -1090,9 +1090,14 @@ class ParallelTransformer(MegatronModule):
         )  # transformer engine forward allows for more granular selective checkpointing
 
         if self.model_type == ModelType.encoder_or_decoder:
-            assert (
-                num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
-            ), 'num_layers must be divisible by pipeline_model_parallel_size'
+            if standalone_embedding_stage:
+                assert (
+                    num_layers % (parallel_state.get_pipeline_model_parallel_world_size() - 1) == 0
+                ), 'num_layers must be divisible by pipeline_model_parallel_size'
+            else:
+                assert (
+                    num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+                ), 'num_layers must be divisible by pipeline_model_parallel_size'
 
         assert moe_frequency <= num_layers, 'MoE frequency must be <= number of transformer layers'
         # TODO: Add similar assert for encoder-decoder.
