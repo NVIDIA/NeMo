@@ -18,7 +18,7 @@ from torch import nn as nn
 from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
-from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
+from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D, CausalConv1DNew
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
@@ -306,7 +306,7 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-        self.depthwise_conv = CausalConv1D(
+        self.depthwise_conv = CausalConv1DNew(
             in_channels=dw_conv_input_dim,
             out_channels=dw_conv_input_dim,
             kernel_size=kernel_size,
