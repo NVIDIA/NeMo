@@ -3774,7 +3774,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2"
       }
     }
-    TODO: @athitten Skipping temporarily for self.vaidation_step_outputs realted eror
     stage('L2: Megatron GPT PEFT Lora TP=2') {
       when {
         anyOf {
