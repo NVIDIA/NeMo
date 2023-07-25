@@ -128,7 +128,7 @@ class MegatronBaseModel(NLPModel):
 
         if vp_size is not None:
             if vp_size == 1:
-                self.cfg.virtual_pipeline_model_parallel_size = None
+                vp_size = None
             else:
                 assert (
                     self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
@@ -140,7 +140,7 @@ class MegatronBaseModel(NLPModel):
             local_rank=init_local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
-            virtual_pipeline_model_parallel_size=cfg.get('virtual_pipeline_model_parallel_size', None),
+            virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
@@ -636,8 +636,13 @@ class MegatronBaseModel(NLPModel):
                 and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
+                word_embeddings_weight = (
+                    model[-1].module.shared_embedding_or_output_weight()
+                    if getattr(self, 'mcore_gpt', False)
+                    else model[-1].model_embeddings_weight()
+                )
                 # substract the embedding weights on the last virtual stage
-                num_word_embedding_parameters = sum([p.nelement() for p in model[-1].word_embeddings_weight()])
+                num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
@@ -646,8 +651,13 @@ class MegatronBaseModel(NLPModel):
                 and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
+                word_embeddings_weight = (
+                    model.module.shared_embedding_or_output_weight()
+                    if getattr(self, 'mcore_gpt', False)
+                    else model.model_embeddings_weight()
+                )
                 # substract the embedding weights on the last stage
-                num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
+                num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_parameters_on_device -= num_word_embedding_parameters
 
         # to be summed across data parallel group
