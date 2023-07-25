@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import typing
-from pytriton.model_config import Tensor
+
 import numpy as np
+from pytriton.model_config import Tensor
+
 
 def typedict2tensor(
     typedict_class,

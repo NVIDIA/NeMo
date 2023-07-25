@@ -50,9 +50,7 @@ def nemo_decode(
             start_time = datetime.datetime.now()
             checkpoint_dir_path = temp_dir / "unpacked"
             nemo_dir = unpack_nemo_ckpt(args.in_file, checkpoint_dir_path)
-            LOGGER.info(
-                "Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time
-            )
+            LOGGER.info("Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time)
 
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
             nemo_dir, load_checkpoints_to_cpu=not args.load_checkpoints_on_gpu

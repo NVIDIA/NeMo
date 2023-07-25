@@ -12,23 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import urllib.request as req
 from pathlib import Path
-from nemo.deploy import DeployPyTriton
-from nemo.deploy import NemoQuery
+
+import pytest
+
+from nemo.deploy import DeployPyTriton, NemoQuery
+from nemo.export import TensorRTLLM
+
 
 class TestNemoDeployment:
 
     nemo_checkpoint_link = "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     nemo_checkpoint_path = "/opt/checkpoints/GPT-2B.nemo"
     temp_nemo_dir = "/opt/checkpoints/GPT-2B/"
+    trt_llm_model_dir = "/opt/checkpoints/GPT-2B-TRT-LLM/"
 
-    @pytest.mark.unit
-    def test_to_triton_pytriton(self):
-        """Here we test the slow inference deployment to triton"""
-        triton_model_name = "GPT_2B"
-
+    def _download_nemo_checkpoint(self):
         if not Path(self.nemo_checkpoint_path).exists():
             print("File will be downloaded...")
             req.urlretrieve(self.nemo_checkpoint_link, self.nemo_checkpoint_path)
@@ -36,8 +36,33 @@ class TestNemoDeployment:
         else:
             print("Checkpoint has already been downloaded.")
 
-        nm = DeployPyTriton(checkpoint_path=self.nemo_checkpoint_path,
-                        triton_model_name=triton_model_name)
+    @pytest.mark.unit
+    def test_in_framework_pytriton(self):
+        """Here we test the in framework inference deployment to triton"""
+        triton_model_name = "GPT_2B"
+        self._download_nemo_checkpoint()
+
+        nm = DeployPyTriton(checkpoint_path=self.nemo_checkpoint_path, triton_model_name=triton_model_name)
+
+        nm.deploy()
+        nm.run()
+        nq = NemoQuery(url="localhost", model_name=triton_model_name)
+
+        output = nq.query_gpt(prompts=["hello, testing GPT inference"])
+        print(output)
+
+        nm.stop()
+
+    @pytest.mark.unit
+    def test_trt_llm_pytriton(self):
+        """Here we test the optimized trt-llm inference deployment to triton"""
+        triton_model_name = "GPT_2B"
+        self._download_nemo_checkpoint()
+
+        trt_llm_exporter = TensorRTLLM(model_dir=self.trt_llm_model_dir)
+        trt_llm_exporter.export(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
+
+        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=triton_model_name)
 
         nm.deploy()
         nm.run()

@@ -30,13 +30,7 @@ import torch
 from tqdm import tqdm
 from transformers import GPT2Tokenizer, T5Tokenizer
 
-from .convert import (
-    cpu_map_location,
-    gpu_map_location,
-    split_and_save_weight,
-    str_to_np_dtype,
-    torch2np,
-)
+from .convert import cpu_map_location, gpu_map_location, split_and_save_weight, str_to_np_dtype, torch2np
 from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_gpt_config
 
 LOGGER = logging.getLogger(__name__)
@@ -107,9 +101,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
                 val.tofile(out_dir / "model.wpe.bin")
                 model_level_weights["model.wpe.bin"].append(val)
         if pp_idx == 0:
-            val = model.get("state_dict", model)[
-                "model.language_model.embedding.word_embeddings.weight"
-            ]
+            val = model.get("state_dict", model)["model.language_model.embedding.word_embeddings.weight"]
             val = torch2np(val, storage_type)
             model_level_weights["model.wte.bin"].append(val)
         if has_lm_head and pp_idx == training_pp_size - 1:
@@ -156,9 +148,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
         model_level_weights[key].tofile(out_dir / key)
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
-    tokenizer_config = update_tokenizer_paths(
-        nemo_model_config["tokenizer"], unpacked_checkpoints_dir
-    )
+    tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
     copy_tokenizer_files(tokenizer_config, out_dir)
     tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
     tokenizer = build_tokenizer(tokenizer_config)
@@ -202,10 +192,7 @@ def prompt_convert(args, prompt_config, prompt_weights):
     actual_num_tasks = 0
     for task_name_id, prompt_task in enumerate(prompt_templates):
         prompt_task_name = prompt_task["taskname"]
-        if (
-            f"prompt_table.{prompt_task_name}.prompt_embeddings.weight"
-            not in prompt_weights["prompt_table"].keys()
-        ):
+        if f"prompt_table.{prompt_task_name}.prompt_embeddings.weight" not in prompt_weights["prompt_table"].keys():
             continue
         prompt_length = int(prompt_task["total_virtual_tokens"])
         config[f"task_{actual_num_tasks:d}"] = {}
@@ -216,9 +203,7 @@ def prompt_convert(args, prompt_config, prompt_weights):
         ]
         actual_num_tasks += 1
         # put converted prompts weights to the model weights saved dir
-        prompt_task_weights_output_path = (
-            config_saved_dir / f"model.prompt_table.{prompt_task_name}.weight.bin"
-        )
+        prompt_task_weights_output_path = config_saved_dir / f"model.prompt_table.{prompt_task_name}.weight.bin"
         val = torch2np(prompt_task_weights)
         val.tofile(prompt_task_weights_output_path)
 

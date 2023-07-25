@@ -33,10 +33,7 @@ def _check_model_compatibility(model: nn.Module) -> Tuple[bool, bool]:
             num_layer_norm += 1
 
     return (
-        1 <= num_embeddings
-        and num_embeddings <= 2
-        and num_module_list == 1
-        and num_layer_norm == 1,
+        1 <= num_embeddings and num_embeddings <= 2 and num_module_list == 1 and num_layer_norm == 1,
         num_embeddings > 1,
     )
 

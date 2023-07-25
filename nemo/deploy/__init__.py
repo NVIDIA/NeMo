@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deploy_pytriton import DeployPyTriton
 from .deploy_base import DeployBase
-from .triton_deployable import ITritonDeployable
-
+from .deploy_pytriton import DeployPyTriton
 from .query import NemoQuery
+from .triton_deployable import ITritonDeployable

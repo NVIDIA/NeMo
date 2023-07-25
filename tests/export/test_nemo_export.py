@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import urllib.request as req
 from pathlib import Path
+
+import pytest
+
 from nemo.export import TensorRTLLM
 
 

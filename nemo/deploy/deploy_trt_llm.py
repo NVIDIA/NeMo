@@ -12,29 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-from pytriton.decorators import batch
-import torch
-from nemo.core.classes.modelPT import ModelPT
-from .deploy_base import DeployBase
 import importlib
 
+import numpy as np
+import torch
 from pytorch_lightning import Trainer
+from pytriton.decorators import batch
 from pytriton.model_config import ModelConfig, Tensor
 from pytriton.triton import Triton
 
+from nemo.core.classes.modelPT import ModelPT
+
+from .deploy_base import DeployBase
+
 
 class DeployModelNavigator(DeployBase):
-
-    def __init__(self,
-                 checkpoint_path: str,
-                 triton_model_name: str,
-                 max_batch_size: int=128,
+    def __init__(
+        self,
+        checkpoint_path: str,
+        triton_model_name: str,
+        max_batch_size: int = 128,
     ):
-        super().__init__(checkpoint_path=checkpoint_path,
-                         triton_model_name=triton_model_name,
-                         max_batch_size=max_batch_size,
-                    )
+        super().__init__(
+            checkpoint_path=checkpoint_path,
+            triton_model_name=triton_model_name,
+            max_batch_size=max_batch_size,
+        )
 
     def deploy(self):
         raise NotImplementedError

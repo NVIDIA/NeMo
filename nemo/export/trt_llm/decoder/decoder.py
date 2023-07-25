@@ -6,10 +6,7 @@ import tensorrt as trt
 from tensorrt_llm.functional import RaggedTensor
 from tensorrt_llm.module import Module
 
-from ..tensorrt_llm_utils import (
-    get_hidden_act,
-    get_tensor_parallel_group,
-)
+from ..tensorrt_llm_utils import get_hidden_act, get_tensor_parallel_group
 
 
 class DecoderLayer(Module, ABC):
@@ -122,9 +119,7 @@ class DecoderLayer(Module, ABC):
 
         hidden_states = self.post_attention_forward(residual, hidden_states, attention_output.data)
 
-        hidden_states = RaggedTensor.from_row_lengths(
-            hidden_states, input_lengths, max_input_length
-        )
+        hidden_states = RaggedTensor.from_row_lengths(hidden_states, input_lengths, max_input_length)
 
         if use_cache:
             return (hidden_states, presents)

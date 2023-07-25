@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-import numpy as np
 import logging
+import typing
+
+import numpy as np
 from pytriton.client import ModelClient
+
 from .util import str_list2numpy
 
-class NemoQuery:
 
+class NemoQuery:
     def __init__(self, url, model_name):
         self.url = url
         self.model_name = model_name
@@ -39,4 +41,3 @@ class NemoQuery:
             result_dict = client.infer_batch(prompts=prompts)
 
         return result_dict["outputs"]
-

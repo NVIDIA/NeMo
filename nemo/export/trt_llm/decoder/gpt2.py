@@ -39,9 +39,7 @@ class GPT2DecoderLayer(DecoderLayer):
         # Decode the concat QKV weights and split them to different GPU rank.
         attention.qkv.weight.value = np.ascontiguousarray(
             split(
-                torch_to_np(layer.attn.c_attn.weight, dtype=self.dtype).reshape(
-                    qkv_shape[0], 3, qkv_shape[-1] // 3
-                ),
+                torch_to_np(layer.attn.c_attn.weight, dtype=self.dtype).reshape(qkv_shape[0], 3, qkv_shape[-1] // 3),
                 self.tensor_parallel,
                 self.rank,
                 dim=-1,
@@ -51,9 +49,7 @@ class GPT2DecoderLayer(DecoderLayer):
         )
         attention.qkv.bias.value = np.ascontiguousarray(
             split(
-                torch_to_np(layer.attn.c_attn.bias, dtype=self.dtype).reshape(
-                    3, qkv_shape[-1] // 3
-                ),
+                torch_to_np(layer.attn.c_attn.bias, dtype=self.dtype).reshape(3, qkv_shape[-1] // 3),
                 self.tensor_parallel,
                 self.rank,
                 dim=-1,

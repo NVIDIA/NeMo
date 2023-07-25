@@ -228,9 +228,7 @@ def build(
         args.quant_mode = QuantMode(0)
 
     if args.int8_kv_cache:
-        assert (
-            args.use_gpt_attention_plugin
-        ), "You have to use GPT attention plugin when int8 KV cache is set"
+        assert args.use_gpt_attention_plugin, "You have to use GPT attention plugin when int8 KV cache is set"
         args.quant_mode = args.quant_mode.set_int8_kv_cache()
 
     if args.random_seed is not None:

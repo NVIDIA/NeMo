@@ -44,11 +44,7 @@ def nemo_to_gpt_config(nemo_model_config, vocab_size, eos_id, bos_id):
         "intermediate_size": "ffn_hidden_size",
     }
 
-    kwargs = {
-        key: nemo_model_config[value]
-        for key, value in convertion_dict.items()
-        if value in nemo_model_config
-    }
+    kwargs = {key: nemo_model_config[value] for key, value in convertion_dict.items() if value in nemo_model_config}
     kwargs["vocab_size"] = vocab_size
     kwargs["eos_token_id"] = eos_id
     kwargs["bos_token_id"] = bos_id
@@ -170,9 +166,7 @@ class UnpackedNemoCheckpointDir:
                 # assume that parallel ranks 0 checkpoint should have model config embedded
                 checkpoint_path = checkpoints_paths[0]
 
-                map_location_fn = (
-                    cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
-                )
+                map_location_fn = cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
 
                 model_00 = torch.load(checkpoint_path, map_location=map_location_fn)
                 if "hyper_parameters" in model_00 and "cfg" in model_00["hyper_parameters"]:
@@ -184,9 +178,7 @@ class UnpackedNemoCheckpointDir:
                 del model_00
 
         if model_config is None:
-            LOGGER.warning(
-                "Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir
-            )
+            LOGGER.warning("Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir)
 
         LOGGER.debug("Loaded model config %s", model_config)
 

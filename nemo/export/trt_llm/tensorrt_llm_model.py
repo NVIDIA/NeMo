@@ -11,14 +11,7 @@ import tensorrt as trt
 import torch
 from tensorrt_llm._common import default_net
 from tensorrt_llm._utils import pad_vocab_size
-from tensorrt_llm.functional import (
-    RaggedTensor,
-    Tensor,
-    assertion,
-    expand_mask,
-    gather_last_token_logits,
-    shape,
-)
+from tensorrt_llm.functional import RaggedTensor, Tensor, assertion, expand_mask, gather_last_token_logits, shape
 from tensorrt_llm.layers import ColumnLinear, Embedding, LayerNorm
 from tensorrt_llm.module import Module, ModuleList
 from torch import nn
@@ -119,18 +112,12 @@ class ModelBuilder(Module):
         assert model_config.rotary_pct > 0, "GPT Next uses rotary embedding."
 
         self.num_layers = model_config.n_layer
-        input_decoder_layers = [
-            NemoLayer(weights_dir, i, model_config) for i in range(self.num_layers)
-        ]
+        input_decoder_layers = [NemoLayer(weights_dir, i, model_config) for i in range(self.num_layers)]
         self.add_decoder_layers(input_decoder_layers)
 
         self.ln_f = LayerNorm(normalized_shape=self.hidden_size, dtype=self.dtype)
-        self.ln_f.weight.value = get_tensor_from_file(
-            weights_dir, "final_layernorm.weight", dtype=self.dtype
-        )
-        self.ln_f.bias.value = get_tensor_from_file(
-            weights_dir, "final_layernorm.bias", dtype=self.dtype
-        )
+        self.ln_f.weight.value = get_tensor_from_file(weights_dir, "final_layernorm.weight", dtype=self.dtype)
+        self.ln_f.bias.value = get_tensor_from_file(weights_dir, "final_layernorm.bias", dtype=self.dtype)
 
     def forward(
         self,
@@ -160,9 +147,7 @@ class ModelBuilder(Module):
 
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids.data, -1))
-        hidden_states = RaggedTensor.from_row_lengths(
-            hidden_states, input_ids.row_lengths, input_ids.max_row_length
-        )
+        hidden_states = RaggedTensor.from_row_lengths(hidden_states, input_ids.row_lengths, input_ids.max_row_length)
 
         for layer, past in zip(self.layers, past_key_value):
             hidden_states = layer(
@@ -216,13 +201,9 @@ class LMHeadModelBuilder(ModelBuilder):
 
         if vocab_size_padded != self.vocab_size:
             pad_width = vocab_size_padded - self.vocab_size
-            lm_head_weight = np.pad(
-                lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-            )
+            lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
-        self.lm_head.weight.value = np.ascontiguousarray(
-            split(lm_head_weight, self.tensor_parallel, self.rank)
-        )
+        self.lm_head.weight.value = np.ascontiguousarray(split(lm_head_weight, self.tensor_parallel, self.rank))
 
     def load_nemo(self, weights_dir: Path, model_config: GPT2Config):
         super().load_nemo(weights_dir, model_config)
@@ -246,13 +227,9 @@ class LMHeadModelBuilder(ModelBuilder):
 
         if vocab_size_padded != self.vocab_size:
             pad_width = vocab_size_padded - self.vocab_size
-            lm_head_weight = np.pad(
-                lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-            )
+            lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
-        self.lm_head.weight.value = np.ascontiguousarray(
-            split(lm_head_weight, self.tensor_parallel, self.rank)
-        )
+        self.lm_head.weight.value = np.ascontiguousarray(split(lm_head_weight, self.tensor_parallel, self.rank))
 
     def forward(
         self,
@@ -301,9 +278,7 @@ class LMHeadModelBuilder(ModelBuilder):
 
         return lm_logits
 
-    def prepare_inputs(
-        self, max_batch_size, max_input_len, max_new_tokens, use_cache, max_beam_width: int = 1
-    ):
+    def prepare_inputs(self, max_batch_size, max_input_len, max_new_tokens, use_cache, max_beam_width: int = 1):
         """@brief: Prepare inputs Tensors for the model, the given sizes are used to determine the
         ranges of the dimensions of when using TRT dynamic shapes.
 
@@ -524,9 +499,7 @@ class LMHeadModelBuilder(ModelBuilder):
             output_dir: the output directory where we save the generated tensorrt_llm engine file.
         """
         assert self.rank < torch.cuda.device_count(), f"Rank {self.rank} out of bound"
-        assert (
-            self.tensor_parallel <= torch.cuda.device_count()
-        ), f"Not enough GPUs, requesting {self.tensor_parallel}"
+        assert self.tensor_parallel <= torch.cuda.device_count(), f"Not enough GPUs, requesting {self.tensor_parallel}"
 
         build(
             self,

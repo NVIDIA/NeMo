@@ -18,7 +18,6 @@ import numpy as np
 
 
 class ITritonDeployable(ABC):
-
     @abstractmethod
     def get_triton_input(self):
         pass
@@ -30,5 +29,3 @@ class ITritonDeployable(ABC):
     @abstractmethod
     def triton_infer_fn(self, **inputs: np.ndarray):
         pass
-
-

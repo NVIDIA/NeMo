@@ -12,19 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-import os
 import argparse
+import os
 import pprint
 import shutil
+from pathlib import Path
 
+import numpy as np
 import torch
+from pytriton.decorators import batch
+
+from nemo.deploy import ITritonDeployable
+
 from .trt_llm.nemo_utils import get_model_config, get_tokenzier, nemo_decode, nemo_to_tensorrt_llm
 from .trt_llm.tensorrt_llm_run import generate, load
 
 
-class TensorRTLLM:
-
+class TensorRTLLM(ITritonDeployable):
     def __init__(self, model_dir: str):
         if not Path(model_dir).is_dir():
             raise Exception("A valid directory path should be provided.")
@@ -46,13 +50,14 @@ class TensorRTLLM:
                         self.tokenizer = get_tokenzier(os.path.join(self.model_dir, f))
                         self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
 
-    def export(self,
-               nemo_checkpoint_path,
-               delete_existing_files=True,
-               n_gpus=1,
-               max_input_len=200,
-               max_output_len=200,
-               max_batch_size=32,
+    def export(
+        self,
+        nemo_checkpoint_path,
+        delete_existing_files=True,
+        n_gpus=1,
+        max_input_len=200,
+        max_output_len=200,
+        max_batch_size=32,
     ):
         if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
             for files in os.listdir(self.model_dir):
@@ -73,7 +78,6 @@ class TensorRTLLM:
             nemo_checkpoint_path, self.model_dir, tensor_parallelism=n_gpus
         )
 
-        # We can also load the model config and tokenizer from the weights_dir.
         model_config = get_model_config(weights_dir)
         nemo_to_tensorrt_llm(
             weights_dir,
@@ -89,7 +93,22 @@ class TensorRTLLM:
 
     def forward(self, input_texts, max_output_len=200):
         if self.model is None:
-            raise Exception("A nemo checkpoint should be exported and "
-                            "TensorRT LLM should be loaded first to run inference.")
+            raise Exception(
+                "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
+            )
         else:
             return generate(input_texts, max_output_len, self.model)
+
+    @property
+    def get_triton_input(self):
+        inputs = (Tensor(name="prompts", shape=(1,), dtype=bytes),)
+        return inputs
+
+    @property
+    def get_triton_output(self):
+        outputs = (Tensor(name="outputs", shape=(1,), dtype=bytes),)
+        return outputs
+
+    @batch
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        pass

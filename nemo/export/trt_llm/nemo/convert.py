@@ -78,9 +78,7 @@ def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
 
     # compute weight scaling factors for fp->int8 and int8->fp
     if is_qkv and not multi_query_mode:
-        scale_w_orig_quant_t = (
-            127.0 / act_range["w"].reshape(3, -1).max(dim=-1, keepdims=True)[0].cpu().numpy()
-        )
+        scale_w_orig_quant_t = 127.0 / act_range["w"].reshape(3, -1).max(dim=-1, keepdims=True)[0].cpu().numpy()
         scale_w_orig_quant_c = 127.0 / act_range["w"].reshape(3, -1).cpu().numpy()
     elif is_qkv and multi_query_mode:
         raise ValueError("Multi-query w/ int8 quant has not been supported yet")
@@ -174,9 +172,7 @@ def str_to_np_dtype(type_str):
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
 @torch.no_grad()
-def split_and_save_weight(
-    tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config
-):
+def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config):
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
     num_attention_heads = config.get("num_attention_heads", 0)
