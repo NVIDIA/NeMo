@@ -244,6 +244,13 @@ class IndexedDataset(torch.utils.data.Dataset):
             sents = np.split(a, offsets[:-1])
             return sents
 
+    def get(self, idx, offset, length):
+        # print(f":{idx}|{offset}|{length}")
+        item = self[idx.item()]
+        # print(f":{idx}|{offset}|{length}|{item.shape}")
+        split = item[:,offset:offset+length]
+        return split
+
     def __len__(self):
         return self._len
 

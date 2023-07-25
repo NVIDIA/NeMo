@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory, IndexedCachedDataset, MMapIndexedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory, IndexedCachedDataset, MMapIndexedDataset, IndexedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -45,7 +45,7 @@ def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length,
     def _build_dataset(current_data_prefix, current_num_samples):
         delay_data_mmap = cfg.data.get('delay_data_mmap', False)
         indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup, delay_data_mmap)
-        total_num_of_documents = indexed_dataset.sizes.shape[0]
+        total_num_of_documents = len(indexed_dataset)
         # Print stats about the splits.
         logging.info(' > dataset split:')
         logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
@@ -230,7 +230,7 @@ def _build_train_valid_test_datasets(
     delay_data_mmap = cfg.data.get('delay_data_mmap', False)
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap)
 
-    total_num_of_documents = indexed_dataset.sizes.shape[0]
+    total_num_of_documents = len(indexed_dataset)
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
 
     # Print stats about the splits.
@@ -285,7 +285,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap=Fa
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap=delay_data_mmap)
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
-    logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
+    logging.info('    number of documents: {}'.format(len(indexed_dataset)))
 
     return indexed_dataset
 
@@ -318,7 +318,7 @@ class GPTDataset(Dataset):
 
         # Checks
         assert np.min(documents) >= 0
-        assert np.max(documents) < indexed_dataset.sizes.shape[0]
+        assert np.max(documents) < len(indexed_dataset)
 
         self.reset_position_ids = cfg.data.get('reset_position_ids', False)
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
@@ -343,12 +343,16 @@ class GPTDataset(Dataset):
                     os.makedirs(self.index_mapping_dir)
             torch.distributed.barrier()
 
+        splits = self.indexed_dataset.sizes
+        if isinstance(self.indexed_dataset, IndexedDataset):
+            splits = self.indexed_dataset.sizes[1::2]
+
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
             self.name,
             data_prefix,
             documents,
-            self.indexed_dataset.sizes,
+            splits,
             num_samples,
             seq_length,
             seed,
@@ -378,8 +382,6 @@ class GPTDataset(Dataset):
         offset_f = self.sample_idx[idx][1]
         offset_l = self.sample_idx[idx + 1][1]
         # If we are within the same document, just extract the chunk.
-        if isinstance(self.indexed_dataset, IndexedCachedDataset):
-            import ipdb; ipdb.set_trace()
         if doc_index_f == doc_index_l:
             sample = self.indexed_dataset.get(
                 self.doc_idx[doc_index_f], offset=offset_f, length=offset_l - offset_f + self.add_extra_token
