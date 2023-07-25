@@ -164,7 +164,7 @@ class MultiResolutionMelLoss(Loss):
 
 
 class RelativeFeatureMatchingLoss(Loss):
-    def __init__(self, div_guard=1e-6):
+    def __init__(self, div_guard=1e-3):
         super(RelativeFeatureMatchingLoss, self).__init__()
         self.div_guard = div_guard
 

@@ -18,7 +18,7 @@ import torch
 from nemo.collections.tts.losses.audio_codec_loss import MaskedMAELoss, MaskedMSELoss
 
 
-class TestEnCodecLoss:
+class TestAudioCodecLoss:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_masked_loss_l1(self):

@@ -35,8 +35,6 @@ model:
 
   sample_rate: ${sample_rate}
   samples_per_frame: ${samples_per_frame}
-  gen_loss_scale: 3.0
-  feature_loss_scale: 3.0
   # Probability of updating the discriminator during each training step
   disc_update_prob: 0.67
 
@@ -118,11 +116,13 @@ model:
     _target_: nemo.collections.tts.modules.audio_codec_modules.MultiResolutionDiscriminatorSTFT
     resolutions: [[128, 32, 128], [256, 64, 256], [512, 128, 512], [1024, 256, 1024], [2048, 512, 2048]]
 
+  # The original EnCodec uses hinged loss, but squared-GAN loss is more stable
+  # and reduces the need to tune the loss weights or use a gradient balancer.
   generator_loss:
-    _target_: nemo.collections.tts.losses.audio_codec_loss.GeneratorHingedLoss
+    _target_: nemo.collections.tts.losses.audio_codec_loss.GeneratorSquaredLoss
 
   discriminator_loss:
-    _target_: nemo.collections.tts.losses.audio_codec_loss.DiscriminatorHingedLoss
+    _target_: nemo.collections.tts.losses.audio_codec_loss.DiscriminatorSquaredLoss
 
   optim:
     _target_: torch.optim.Adam
