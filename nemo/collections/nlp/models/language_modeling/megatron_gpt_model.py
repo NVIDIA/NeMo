@@ -710,18 +710,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             parallel_state.is_pipeline_first_stage(ignore_virtual=True)
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
+            module_list = self.get_gpt_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[0]  # only the first virtual rank has the embeddings
-                else:
-                    module = self.model
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[-1]  # only the last virtual rank has the embeddings
-                else:
-                    module = self.model
-            if module.share_token_embeddings:
-                word_embeddings_weight = module.word_embeddings_weight()
+                module = module_list[0]  # only the first virtual rank has the embeddings
+            elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                module = module_list[-1]  # only the last virtual rank has the embeddings
+            share_embeddings = (
+                module.share_embeddings_and_output_weights if self.mcore_gpt else module.share_token_embeddings
+            )
+            if share_embeddings:
+                word_embeddings_weight = (
+                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.model_embeddings_weight()
+                )
                 # (@adithyare) adapter training now extends MegatronGPTModel so we have to add this check here to ensure we do not perform all_reduce when grad is None.
                 # grad can be None when performing PeFT training.
                 if word_embeddings_weight.requires_grad:
@@ -1081,17 +1081,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_test_data(self.cfg.data)
 
         if stage == 'fit':
-            # when using pipeline model parallel the final stage need to initialize word embeddings
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if isinstance(self.model, list):
-                    for i, module in enumerate(self.model):
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                        if self.cfg.get('share_embeddings_and_output_weights', True):
-                            module.sync_initial_word_embeddings()
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-                else:
-                    if self.cfg.get('share_embeddings_and_output_weights', True):
-                        self.model.sync_initial_word_embeddings()
+                if self.cfg.get('share_embeddings_and_output_weights', True):
+                    for index, module in enumerate(self.get_gpt_module_list()):
+                        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                            parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                        sync_embeddings = (
+                            module.initialize_last_stage_with_word_embeddings
+                            if self.mcore_gpt
+                            else module.sync_initial_word_embeddings
+                        )
+                        sync_embeddings()
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
