@@ -15,6 +15,7 @@
 import numpy as np
 import torch
 from nemo.core.classes.modelPT import ModelPT
+from nemo.deploy.triton_deployable import ITritonDeployable
 import importlib
 
 from pytorch_lightning import Trainer
@@ -58,6 +59,10 @@ class DeployBase(ABC):
         module_path, class_name = DeployBase.get_module_and_class(model_config.target)
         cls = getattr(importlib.import_module(module_path), class_name)
         self.model = cls.restore_from(restore_path=self.checkpoint_path, trainer=Trainer())
+
+        if not issubclass(type(self.model), ITritonDeployable):
+            raise Exception("This model is not deployable to Triton."
+                            "nemo.deploy.ITritonDeployable class should be inherited")
 
     @staticmethod
     def get_module_and_class(target: str):

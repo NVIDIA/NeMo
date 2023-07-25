@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deploy_pytriton import DeployPyTriton
-from .deploy_base import DeployBase
-from .triton_deployable import ITritonDeployable
 
-from .query import NemoQuery
+from abc import ABC, abstractmethod
+import numpy as np
+
+
+class ITritonDeployable(ABC):
+
+    @abstractmethod
+    def get_triton_input(self):
+        pass
+
+    @abstractmethod
+    def get_triton_output(self):
+        pass
+
+    @abstractmethod
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        pass
+
+
