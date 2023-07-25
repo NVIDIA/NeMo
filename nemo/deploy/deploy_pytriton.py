@@ -43,8 +43,8 @@ class DeployPyTriton(DeployBase):
             self.triton.bind(
                 model_name=self.triton_model_name,
                 infer_func=self.model.triton_infer_fn,
-                inputs=self.model.get_triton_input_type,
-                outputs=self.model.get_triton_output_type,
+                inputs=self.model.get_triton_input,
+                outputs=self.model.get_triton_output,
                 config=ModelConfig(max_batch_size=self.max_batch_size)
             )
         except Exception as e:
@@ -73,20 +73,4 @@ class DeployPyTriton(DeployBase):
 
         self.triton.stop()
 
-    def _init_nemo_model(self):
-        super()._init_nemo_model()
 
-        if not hasattr(self.model, "triton_infer_fn"):
-            raise Exception("triton_infer_fn function has not been found in the model class. "
-                            "In order to use nemo deployment, model classes need to implement "
-                            "triton_infer_fn function that runs inference.")
-
-        if not hasattr(self.model, "get_triton_input_type"):
-            raise Exception("get_triton_input_type function has not been found in the model class. "
-                            "In order to use nemo deployment, model classes need to implement "
-                            "get_triton_input_type function that returns the triton input types.")
-
-        if not hasattr(self.model, "get_triton_output_type"):
-            raise Exception("get_triton_output_type function has not been found in the model class. "
-                            "In order to use nemo deployment, model classes need to implement "
-                            "get_triton_output_type function that returns the triton output types.")

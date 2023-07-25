@@ -49,6 +49,7 @@ from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.deploy.util import typedict2tensor
+from nemo.deploy import ITritonDeployable
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -72,7 +73,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronBaseModel"]
 
 
-class MegatronBaseModel(NLPModel):
+class MegatronBaseModel(NLPModel, ITritonDeployable):
     """
     Megatron base class. All NeMo Megatron models inherit from this class.
 
@@ -620,7 +621,7 @@ class MegatronBaseModel(NLPModel):
                 return False
 
     @property
-    def get_triton_input_type(self):
+    def get_triton_input(self):
         inputs = (
                 (
                     Tensor(name="prompts", shape=(1,), dtype=bytes),
@@ -631,7 +632,7 @@ class MegatronBaseModel(NLPModel):
         return inputs
 
     @property
-    def get_triton_output_type(self):
+    def get_triton_output(self):
         dt = None
         if self.cfg['precision'] == 32:
             dt = np.float32
