@@ -90,12 +90,18 @@ def _mask_targets(
             # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
             if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
                 logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
-        if i == 0 and gtype == 'VALUE_TO_TEXT':
+        if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
             # mask the first turn completely to provide at least one turn as context
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role:
+        elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
+        elif speaker == mask_role and (i > 1):
+            # leave the first human tag unmasked
+            target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
+        elif speaker == mask_role and (i <= 1):
+            # mask out everything in the second turn
+            target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
             target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
