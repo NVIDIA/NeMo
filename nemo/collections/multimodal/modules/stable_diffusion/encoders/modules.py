@@ -181,8 +181,10 @@ class SpatialRescaler(nn.Module):
 class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
 
+    LAYERS = ["last", "pooled", "hidden"]
+
     def __init__(
-        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, capture_cudagraph_iters: int = -1
+        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, capture_cudagraph_iters: int = -1, layer="last", layer_idx=None, always_return_pooled=False
     ):
         super().__init__()
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
@@ -190,6 +192,13 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         self.device = device
         self.max_length = max_length
         self.freeze()
+
+        self.layer = layer
+        self.layer_idx = layer_idx
+        self.return_pooled = always_return_pooled
+        if layer == "hidden":
+            assert layer_idx is not None
+            assert 0 <= abs(layer_idx) <= 12
 
         # CUDA graph captured sub-modules
         self.capture_cudagraph_iters = capture_cudagraph_iters
@@ -216,8 +225,13 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         )
         if self.capture_cudagraph_iters < 0:
             tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
-            outputs = self.transformer(input_ids=tokens)
-            z = outputs.last_hidden_state
+            outputs = self.transformer(input_ids=tokens, output_hidden_states=(self.layer == "hidden"))
+            if self.layer == "last":
+                z = outputs.last_hidden_state
+            elif self.layer == "pooled":
+                z = outputs.pooler_output[:, None, :]
+            else:
+                z = outputs.hidden_states[self.layer_idx]
 
         else:
             if self.static_tokens is None:
@@ -240,11 +254,18 @@ class FrozenCLIPEmbedder(AbstractEncoder):
                     self.static_outputs = self.transformer(input_ids=self.static_tokens)
                 torch.cuda.current_stream().wait_stream(self.stream)
             self.iterations += 1
-            z = self.static_outputs.last_hidden_state
+            if self.layer == "last":
+                z = static_outputs.last_hidden_state
+            elif self.layer == "pooled":
+                z = static_outputs.pooler_output[:, None, :]
+            else:
+                z = static_outputs.hidden_states[self.layer_idx]
 
         # # Pad the seq length to multiple of 8
         seq_len = (z.shape[1] + 8 - 1) // 8 * 8
         z = torch.nn.functional.pad(z, (0, 0, 0, seq_len - z.shape[1]), value=0.0)
+        if self.return_pooled:
+            return z, outputs.pooler_output if self.capture_cudagraph_iters < 0 else static_outputs.pooler_output
         return z
 
     def encode(self, text):
@@ -447,6 +468,107 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
                 break
             x = r(x, attn_mask)
         return x
+
+    def encode(self, text):
+        return self(text)
+
+
+class FrozenOpenCLIPEmbedder2(AbstractEncoder):
+    """
+    Uses the OpenCLIP transformer encoder for text
+    """
+
+    LAYERS = ["pooled", "last", "penultimate"]
+
+    def __init__(
+        self,
+        arch="ViT-H-14",
+        version="laion2b_s32b_b79k",
+        device="cuda",
+        max_length=77,
+        freeze=True,
+        layer="last",
+        always_return_pooled=False,
+        legacy=True,
+    ):
+        super().__init__()
+        assert layer in self.LAYERS
+        model, _, _ = open_clip.create_model_and_transforms(
+            arch,
+            device=torch.device("cpu"),
+            pretrained=version,
+        )
+        del model.visual
+        self.model = model
+
+        self.device = device
+        self.max_length = max_length
+        self.return_pooled = always_return_pooled
+        if freeze:
+            self.freeze()
+        self.layer = layer
+        if self.layer == "last":
+            self.layer_idx = 0
+        elif self.layer == "penultimate":
+            self.layer_idx = 1
+        else:
+            raise NotImplementedError()
+        self.legacy = legacy
+
+    def freeze(self):
+        self.model = self.model.eval()
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def forward(self, text):
+        tokens = open_clip.tokenize(text)
+        z = self.encode_with_transformer(tokens.to(self.device))
+        if not self.return_pooled and self.legacy:
+            return z
+        if self.return_pooled:
+            assert not self.legacy
+            return z[self.layer], z["pooled"]
+        return z[self.layer]
+
+    def encode_with_transformer(self, text):
+        x = self.model.token_embedding(text)  # [batch_size, n_ctx, d_model]
+        x = x + self.model.positional_embedding
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.text_transformer_forward(x, attn_mask=self.model.attn_mask)
+        if self.legacy:
+            x = x[self.layer]
+            x = self.model.ln_final(x)
+            return x
+        else:
+            # x is a dict and will stay a dict
+            o = x["last"]
+            o = self.model.ln_final(o)
+            pooled = self.pool(o, text)
+            x["pooled"] = pooled
+            return x
+
+    def pool(self, x, text):
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        x = (
+            x[torch.arange(x.shape[0]), text.argmax(dim=-1)]
+            @ self.model.text_projection
+        )
+        return x
+
+    def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
+        outputs = {}
+        for i, r in enumerate(self.model.transformer.resblocks):
+            if i == len(self.model.transformer.resblocks) - 1:
+                outputs["penultimate"] = x.permute(1, 0, 2)  # LND -> NLD
+            if (
+                self.model.transformer.grad_checkpointing
+                and not torch.jit.is_scripting()
+            ):
+                x = checkpoint(r, x, attn_mask)
+            else:
+                x = r(x, attn_mask=attn_mask)
+        outputs["last"] = x.permute(1, 0, 2)  # LND -> NLD
+        return outputs
 
     def encode(self, text):
         return self(text)
