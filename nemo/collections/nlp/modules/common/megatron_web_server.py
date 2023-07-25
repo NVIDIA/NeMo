@@ -227,10 +227,14 @@ def get_chatbot_demo(
                     widgets = []
                     for item in attributes:
                         if item.type == 'int':
-                            slider = gr.Slider(minimum=item.min, maximum=item.max, step=1, value=item.default, label=item.name)
+                            slider = gr.Slider(
+                                minimum=item.min, maximum=item.max, step=1, value=item.default, label=item.name
+                            )
                             widgets.append(slider)
                         elif item.type == 'list':
-                            dropdown = gr.Dropdown(item.choices, label=item.name, default=item.default, value=item.default)
+                            dropdown = gr.Dropdown(
+                                item.choices, label=item.name, default=item.default, value=item.default
+                            )
                             widgets.append(dropdown)
                     used_value = gr.CheckboxGroup(keys, value=keys)
 
@@ -244,9 +248,7 @@ def get_chatbot_demo(
                         return values
 
                     used_value.change(
-                        change_visibility,
-                        inputs=[used_value],
-                        outputs=widgets,
+                        change_visibility, inputs=[used_value], outputs=widgets,
                     )
 
                 def set_sampling(x):

@@ -44,6 +44,44 @@ from langchain.prompts.few_shot import PromptTemplate
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import text_generation
 
+langs = [
+    'ar',
+    'bg',
+    'bn',
+    'ca',
+    'cs',
+    'da',
+    'de',
+    'el',
+    'en',
+    'eo',
+    'es',
+    'eu',
+    'fa',
+    'fi',
+    'fr',
+    'gl',
+    'he',
+    'hu',
+    'id',
+    'it',
+    'ja',
+    'ko',
+    'nb',
+    'nl',
+    'pl',
+    'pt',
+    'ro',
+    'ru',
+    'sk',
+    'sv',
+    'th',
+    'tr',
+    'uk',
+    'vi',
+    'zh',
+]
+
 SFT_PREFIX = """<extra_id_0>System
 {system_message}"""
 
@@ -76,6 +114,7 @@ selected_keys = [
     'fails_task',
     'political_content',
     'moral_judgement',
+    'lang',
 ]
 
 
@@ -139,10 +178,11 @@ def create_gen_function(host='localhost', port=5555):
 
 
 class Worker(object):
-    def __init__(self, host='localhost', port=5555, progress_bar=None, output_file=None):
+    def __init__(self, host='localhost', port=5555, progress_bar=None, output_file=None, process_lang=False):
         self.req = create_gen_function(host=host, port=port)
         self.fout = open(output_file, "a", encoding='utf-8')
         self.progress_bar = progress_bar
+        self.process_lang = process_lang
 
     def process_result(self, batch):
         while True:
@@ -151,7 +191,7 @@ class Worker(object):
                 turns = [i['turn'] for i in batch]
                 prompts = [i['prompt'] for i in batch]
 
-                for label_id in range(1, len(selected_keys) + 1):
+                for label_id in range(1, len(selected_keys)):
                     results = self.req(
                         prompts,
                         greedy=True,
@@ -206,6 +246,61 @@ class Worker(object):
                     prompts = filtered_prompts
                     current_values = filtered_current_values
 
+                if self.process_lang:
+                    results = self.req(
+                        prompts,
+                        greedy=True,
+                        add_BOS=False,
+                        token_to_gen=1,
+                        min_tokens=1,
+                        temp=0.1,
+                        top_p=1.0,
+                        top_k=1,
+                        repetition=1.0,
+                        end_strings=["<extra_id_1>", "<|endoftext|>"],
+                    )
+                    # get current value from result
+                    current_values = []
+                    for result in results:
+                        # promblem result[-1] is '\n'
+                        if result.endswith('\n'):
+                            result = result[:-1] + '@'
+                        current_values.append(result.split('\n')[-1])
+
+                    nums = []
+                    for result in results:
+                        # promblem result[-1] is '\n'
+                        current_val = result.split('quality')[-1]
+                        current_val = 'quality' + current_val
+                        # remove whatever after new line
+                        current_val = current_val.split('\n')[0].strip()
+                        # remove everything that is >= selected_keys[label_id]
+                        splits = current_val.split(',')
+                        filtered = []
+                        for item in splits:
+                            filtered.append(item)
+                            if item.split(':')[0] == selected_keys[label_id]:
+                                nums.append(item.split(':')[1])
+                                break
+                        current_val = '<extra_id_2>' + ','.join(filtered)
+                        current_values.append(current_val)
+
+                    filtered_items = []
+                    filtered_turns = []
+                    filtered_prompts = []
+                    filtered_current_values = []
+
+                    for result, item, turn, num, current_value in zip(results, items, turns, nums, current_values):
+                        if num not in langs:
+                            print(f'error {num} not in langs')
+                            continue
+                        filtered_current_values.append(current_value)
+                        filtered_items.append(item)
+                        filtered_turns.append(turn)
+                    items = filtered_items
+                    turns = filtered_turns
+                    current_values = filtered_current_values
+
                 batch = []
                 for item, turn, current_value in zip(items, turns, current_values):
                     response_text = current_value[12:]
@@ -232,7 +327,12 @@ class Worker(object):
 
 
 def main(
-    batch_size=1, host='localhost', input_file_name='input.jsonl', output_file_name='output.jsonl', port_num=1424
+    batch_size=1,
+    host='batch-block1-10453',
+    input_file_name='input.jsonl',
+    output_file_name='output.jsonl',
+    port_num=1424,
+    process_lang=True,
 ):
     input_data = load_data(f'{input_file_name}')
     output_path = f'{output_file_name}'
@@ -248,7 +348,9 @@ def main(
 
     progress_bar = tqdm.tqdm(total=len(filter_data))
 
-    worker = Worker(host=host, port=port_num, progress_bar=progress_bar, output_file=output_path)
+    worker = Worker(
+        host=host, port=port_num, progress_bar=progress_bar, output_file=output_path, process_lang=process_lang
+    )
     for batch_idx in range(0, len(filter_data), batch_size):
         batch = [line for line in filter_data[batch_idx : batch_idx + batch_size]]
         turns = [
