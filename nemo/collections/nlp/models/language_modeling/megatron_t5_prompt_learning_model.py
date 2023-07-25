@@ -213,6 +213,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return loss_mean
 
     def get_forward_output_and_loss_func(self):
+        # FIXME: consolidate this method into MegatronLMEncoderDecoderModel (or have a common base class)
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
