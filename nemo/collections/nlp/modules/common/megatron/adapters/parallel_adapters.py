@@ -23,6 +23,9 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+from torch.nn import functional as F
+from torch import autocast
+
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
@@ -163,24 +166,45 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             raise NotImplementedError("out_init_method should be zero, normal or xavier")
         return init_fn
-
+    
+    def mixed_batch_inference_layer_norm(self, x, ln_weight, ln_bias):
+        """
+        mixed batch layer norm allows ln_weight and ln_bias to be different for each input in x.
+        @TODO: results are not the same as pytorch layernorm and apex's mixed fused layer norm. needs further investigation of correctness. @adithyare
+        """
+        x_mu = x.mean(-1, keepdims=True).expand_as(x)
+        x_var = x.var(-1, unbiased=False, keepdims=True).expand_as(x) 
+        x_ln = (x - x_mu) / torch.sqrt(x_var + self.layer_norm.eps)
+        x_ln *= ln_weight.type_as(x)
+        x_ln += ln_bias.type_as(x)
+        return x_ln
+    
+    def maybe_mixed_batch_ln(self, x, ln_weight, ln_bias):
+        if ln_bias is not None and ln_weight is not None:
+            return self.mixed_batch_inference_layer_norm(x, ln_weight, ln_bias)
+        else:
+            return self.layer_norm(x)
+ 
     def forward(self, x, inference_weight=None):
-
-        if self.norm_position == 'pre':
-            x = self.layer_norm(x)
+        w_in, w_out, ln_weight, ln_bias = None, None, None, None
         if inference_weight:
             rank = torch.distributed.get_rank()
             w_in = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
             w_out = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
-        else:
-            w_in, w_out = None, None
+            ln_weight = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "layer_norm.weight"]), None)
+            ln_bias = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "layer_norm.bias"]), None)
+            
+        if self.norm_position == 'pre':
+            self.maybe_mixed_batch_ln(x, ln_weight, ln_bias)
+        
         x, _ = self.linear_in(
             x, weight=w_in
         )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x, weight=w_out)
+
         if self.norm_position == 'post':
-            x = self.layer_norm(x)
+            self.maybe_mixed_batch_ln(x, ln_weight, ln_bias)
 
         # Add dropout if available
         if self.dropout is not None:
@@ -418,6 +442,13 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         return True
 
     def forward(self, x, inference_weight=None):
+        w_in, w_out, ln_weight, ln_bias = None, None, None, None
+        if inference_weight:
+            rank = torch.distributed.get_rank()
+            w_in = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
+            w_out = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
+            ln_weight = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "layer_norm.weight"]), None)
+            ln_bias = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "layer_norm.bias"]), None)
 
         if self.position_embedding_strategy:
             pos = self.position_embeddings(self.position_id).unsqueeze(0)
@@ -429,20 +460,14 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
                 x = torch.cat((x, pos), dim=2)
 
         if self.norm_position == 'pre':
-            x = self.layer_norm(x)
-        if inference_weight:
-            rank = torch.distributed.get_rank()
-            w_in = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_in.weight"]), None)
-            w_out = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
-        else:
-            w_in, w_out = None, None
+            x = self.maybe_mixed_batch_ln(x, ln_weight, ln_bias)
         x, _ = self.linear_in(
             x, weight=w_in
         )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x, weight=w_out)
         if self.norm_position == 'post':
-            x = self.layer_norm(x)
+            x = self.maybe_mixed_batch_ln(x, ln_weight, ln_bias)
 
         # Add dropout if available
         if self.dropout is not None:
