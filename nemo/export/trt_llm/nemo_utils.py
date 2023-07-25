@@ -83,7 +83,7 @@ def get_model_config(weights_dir: Path) -> GPT2Config:
 
 def get_tokenzier(weights_dir: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
-    tokenizer_config = {"library": "sentencepiece", "model": str(weights_dir / "tokenizer.model")}
+    tokenizer_config = {"library": "sentencepiece", "model": str(weights_dir + "/tokenizer.model")}
     return build_tokenizer(tokenizer_config)
 
 

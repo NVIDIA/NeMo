@@ -31,11 +31,20 @@ class TensorRTLLM:
 
         self.model_dir = model_dir
         self.model = None
+        self.tokenizer = None
         self._load()
 
     def _load(self):
-        if len(os.listdir(self.model_dir)) > 0:
-            pass
+        self.tokenizer = None
+        self.model = None
+
+        folders = os.listdir(self.model_dir)
+        if len(folders) > 0:
+            for f in folders:
+                if Path(os.path.join(self.model_dir, f)).is_dir():
+                    if f[-3:] == "gpu":
+                        self.tokenizer = get_tokenzier(os.path.join(self.model_dir, f))
+                        self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
 
     def export(self,
                nemo_checkpoint_path,
@@ -45,7 +54,6 @@ class TensorRTLLM:
                max_output_len=200,
                max_batch_size=32,
     ):
-
         if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
             for files in os.listdir(self.model_dir):
                 path = os.path.join(self.model_dir, files)
@@ -79,9 +87,9 @@ class TensorRTLLM:
 
         self._load()
 
-    def infer(self, sentences):
+    def forward(self, input_texts, max_output_len=200):
         if self.model is None:
             raise Exception("A nemo checkpoint should be exported and "
                             "TensorRT LLM should be loaded first to run inference.")
         else:
-            return None
+            return generate(input_texts, max_output_len, self.model)

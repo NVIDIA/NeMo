@@ -36,6 +36,6 @@ class TestNemoExport:
             print("Checkpoint has already been downloaded.")
 
         trt_llm_exporter = TensorRTLLM(model_dir=self.trt_llm_model_dir)
-        trt_llm_exporter.export(nemo_checkpoint_path=self.nemo_checkpoint_path)
-        # output = trt_llm_exporter.infer(["test1", "how about test 2"])
-        # print(output)
+        trt_llm_exporter.export(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
+        output = trt_llm_exporter.forward(["test1", "how about test 2"])
+        print(output)
