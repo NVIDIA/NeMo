@@ -184,6 +184,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
+        # If setting val and test dataloaders via this method, create self.validation_step_outputs and self.test_step_outputs
+        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
+            for _ in range(len(self._validation_dl)):
+                self.validation_step_outputs.append([])
+
+        if type(self._test_dl) == list and len(self._test_dl) > 1: 
+            for _ in range(len(self._test_dl)):
+                self.test_step_outputs.append([])
+
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if isinstance(self.model, list):
