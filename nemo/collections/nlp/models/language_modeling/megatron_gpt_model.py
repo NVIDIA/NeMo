@@ -722,7 +722,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
             if share_embeddings:
                 word_embeddings_weight = (
-                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.model_embeddings_weight()
+                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
                 # (@adithyare) adapter training now extends MegatronGPTModel so we have to add this check here to ensure we do not perform all_reduce when grad is None.
                 # grad can be None when performing PeFT training.
