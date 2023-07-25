@@ -313,6 +313,10 @@ class IndexedCachedDataset(IndexedDataset):
                 sents.append(self[i])
             return sents
 
+    # def get(self, idx, offset=0, length=None):
+    #     item = self[idx]
+    #     import ipdb; ipdb.set_trace()
+
 
 class IndexedDatasetBuilder(object):
     element_sizes = {np.uint8: 1, np.int8: 1, np.int16: 2, np.int32: 4, np.int64: 8, np.float64: 4, np.double: 8}

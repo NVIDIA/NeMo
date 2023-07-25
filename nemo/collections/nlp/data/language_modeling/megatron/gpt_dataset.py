@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory, IndexedCachedDataset, MMapIndexedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -181,7 +181,7 @@ def build_train_valid_test_datasets(
                 cfg,
                 trainer,
                 prefixes[i],
-                data_impl,
+                data_impl[i],
                 splits_string,
                 datasets_train_valid_test_num_samples[i],
                 seq_length,
@@ -272,6 +272,8 @@ def _build_train_valid_test_datasets(
     train_dataset = build_dataset(0, 'train')
     valid_dataset = build_dataset(1, 'valid')
     test_dataset = build_dataset(2, 'test')
+    if isinstance(indexed_dataset, MMapIndexedDataset):
+        deallocate_indexed_dataset_memory(indexed_dataset)
 
     return (train_dataset, valid_dataset, test_dataset)
 
@@ -356,7 +358,7 @@ class GPTDataset(Dataset):
             shuffle_documents=self.shuffle_documents,
             exchange_indices_distributed=self.exchange_indices_distributed,
         )
-        deallocate_indexed_dataset_memory(self.indexed_dataset)
+        # deallocate_indexed_dataset_memory(self.indexed_dataset)
 
     def create_data_mmap(self):
         self.indexed_dataset.create_data_mmap()
@@ -376,6 +378,8 @@ class GPTDataset(Dataset):
         offset_f = self.sample_idx[idx][1]
         offset_l = self.sample_idx[idx + 1][1]
         # If we are within the same document, just extract the chunk.
+        if isinstance(self.indexed_dataset, IndexedCachedDataset):
+            import ipdb; ipdb.set_trace()
         if doc_index_f == doc_index_l:
             sample = self.indexed_dataset.get(
                 self.doc_idx[doc_index_f], offset=offset_f, length=offset_l - offset_f + self.add_extra_token
@@ -636,7 +640,12 @@ def _build_index_mappings(
             # Use C++ implementation for speed.
             # First compile and then import.
             assert doc_idx.dtype == np.int32
-            assert sizes.dtype == np.int32
+            if sizes.dtype != np.int32:
+                if np.max(np.abs(sizes)) < 2**31-1:
+                    sizes = sizes.astype(np.int32)
+                else:
+                    raise NotImplementedError("Sizes needs to be int32?")
+            # assert sizes.dtype == np.int32
             try:
                 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
 
