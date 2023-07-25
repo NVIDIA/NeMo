@@ -635,7 +635,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
             if adapter_2:
-                mlp_output = adapter_2(mlp_output, inference_weight=inference_peft_weights) + mlp_output  # simple adapter call with residual connection
+                mlp_output = (
+                    adapter_2(mlp_output, inference_weight=inference_peft_weights) + mlp_output
+                )  # simple adapter call with residual connection
 
         residual = layernorm_input
 

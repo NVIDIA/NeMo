@@ -22,9 +22,8 @@ from typing import Any, Optional
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-
-from torch.nn import functional as F
 from torch import autocast
+from torch.nn import functional as F
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
@@ -166,25 +165,25 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             raise NotImplementedError("out_init_method should be zero, normal or xavier")
         return init_fn
-    
+
     def mixed_batch_inference_layer_norm(self, x, ln_weight, ln_bias):
         """
         mixed batch layer norm allows ln_weight and ln_bias to be different for each input in x.
         @TODO: results are not the same as pytorch layernorm and apex's mixed fused layer norm. needs further investigation of correctness. @adithyare
         """
         x_mu = x.mean(-1, keepdims=True).expand_as(x)
-        x_var = x.var(-1, unbiased=False, keepdims=True).expand_as(x) 
+        x_var = x.var(-1, unbiased=False, keepdims=True).expand_as(x)
         x_ln = (x - x_mu) / torch.sqrt(x_var + self.layer_norm.eps)
         x_ln *= ln_weight.type_as(x)
         x_ln += ln_bias.type_as(x)
         return x_ln
-    
+
     def maybe_mixed_batch_ln(self, x, ln_weight, ln_bias):
         if ln_bias is not None and ln_weight is not None:
             return self.mixed_batch_inference_layer_norm(x, ln_weight, ln_bias)
         else:
             return self.layer_norm(x)
- 
+
     def forward(self, x, inference_weight=None):
         w_in, w_out, ln_weight, ln_bias = None, None, None, None
         if inference_weight:
@@ -193,10 +192,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             w_out = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "linear_out.weight"]), None)
             ln_weight = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "layer_norm.weight"]), None)
             ln_bias = inference_weight[str(rank)].get(''.join([self.global_name_prefix, "layer_norm.bias"]), None)
-            
+
         if self.norm_position == 'pre':
             self.maybe_mixed_batch_ln(x, ln_weight, ln_bias)
-        
+
         x, _ = self.linear_in(
             x, weight=w_in
         )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
