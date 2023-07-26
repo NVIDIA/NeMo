@@ -34,3 +34,4 @@ from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.models.slm_models import SelfSupervisedRandomQuantizationModel
 from nemo.collections.asr.models.slu_models import SLUIntentSlotBPEModel
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models.transformer_bpe_models import EncDecTransfModelBPE

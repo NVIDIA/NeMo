@@ -11,9 +11,60 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Run ``python build_ensemble.py --help`` for usage examples.
-# TODO: write usage. Mention that neither train nor dev requires transcriptions
+
+"""
+This script provides a functionality to create confidence-based ensembles
+from a collection of pretrained models.
+
+For more details see the paper https://arxiv.org/abs/2306.15824
+or tutorial in tutorials/asr/Confidence_Ensembles.ipynb
+
+You would typically use this script by providing a yaml config file or overriding
+default options from command line.
+
+Usage examples:
+
+1. Building an ensemble of two monolingual models with default settings (no confidence tuning).
+
+    python build_ensemble.py --config-path=. --config-name=ensemble_config.yaml
+        ensemble.0.model=stt_it_conformer_ctc_large
+        ensemble.0.training_manifest=<path to the Italian data of 100+ utterances (no transcription required)>
+        ensemble.1.model=stt_es_conformer_ctc_large
+        ensemble.1.training_manifest=<path to the Spanish data of 100+ utterances (no transcription required)>
+        output_path=<path to the desired location of the .nemo checkpoint>
+
+    You can have more than 2 models and can control transcription settings (e.g., batch size)
+    with ``transcription.<any argument of examples/asr/transcribe_speech.py>`` parameters.
+
+2. If you want to get improved results, you can enable tuning of the confidence and logistic regression (LR) parameters.
+   E.g.
+
+   python build_ensemble.py
+        <all arguments like in the previous example>
+        ensemble.0.dev_manifest=<path to the dev data that's required for tuning>
+        ...
+        # IMPORTANT: see the note below if you use > 2 models!
+        ensemble.N.dev_manifest=<path to the dev data that's required for tuning>
+        tune_confidence=True  # to allow confidence tuning. LR is tuned by default
+
+    As with any tuning, it is recommended to have reasonably large validation set for each model,
+    otherwise you might overfit to the validation data.
+
+    Note that if you add additional models (> 2) you will need to modify ensemble_config.yaml
+    or create a new one with added models in there. While it's theoretically possible to
+    fully override such parameters from commandline, hydra is very unfriendly for such
+    use-cases, so it's strongly recommended to be creating new configs.
+
+3. If you want to precisely control tuning grid search, you can do that with
+
+    python build_ensemble.py
+        <all arguments as in the previous examples>
+        tune_confidence_config.confidence_type='[entropy_renyi_exp,entropy_tsallis_exp]'  # only tune over this set
+        tune_confidence_config.alpha='[0.1,0.5,1.0]'  # only tune over this set
+
+You can check the dataclasses in this file for the full list of supported
+arguments and their default values.
+"""
 
 import atexit
 
@@ -31,7 +82,7 @@ from typing import Dict, List, Optional, Tuple
 import joblib
 import numpy as np
 import pytorch_lightning as pl
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import MISSING, DictConfig, OmegaConf
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -46,7 +97,7 @@ from nemo.collections.asr.models.confidence_ensemble import (
 )
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     ConfidenceConfig,
-    ConfidenceMethodConfig,
+    ConfidenceMeasureConfig,
     get_confidence_aggregation_bank,
     get_confidence_measure_bank,
 )
@@ -73,9 +124,9 @@ except ImportError:
 @dataclass
 class EnsembleConfig:
     # .nemo path or pretrained name
-    model: str
+    model: str = MISSING
     # path to the training data manifest (non-tarred)
-    training_manifest: str
+    training_manifest: str = MISSING
     # specify to limit the number of training samples
     # 100 is most likely enough, but setting higher default just in case
     max_training_samples: int = 1000
@@ -92,8 +143,8 @@ class TuneConfidenceConfig:
     # not including max prob, as there is always an entropy-based metric
     # that's better but otherwise including everything
     confidence_type: Tuple[str] = (
-        "entropy_renui_exp",
-        "entropy_renui_lin",
+        "entropy_renyi_exp",
+        "entropy_renyi_lin",
         "entropy_tsallis_exp",
         "entropy_tsallis_lin",
         "entropy_gibbs_lin",
@@ -150,10 +201,10 @@ class TuneLogisticRegressionConfig:
 @dataclass
 class BuildEnsembleConfig:
     # where to save the resulting ensemble model
-    output_path: str
+    output_path: str = MISSING
 
     # each model specification
-    ensemble: List[EnsembleConfig]
+    ensemble: List[EnsembleConfig] = MISSING
 
     random_seed: int = 0  # for reproducibility
 
@@ -163,14 +214,9 @@ class BuildEnsembleConfig:
         preserve_frame_confidence=True,
         exclude_blank=True,
         aggregation="mean",
-        method_cfg=ConfidenceMethodConfig(
-            name="entropy",
-            entropy_type="renui",
-            temperature=0.25,  # this is not really temperature, but alpha, see https://arxiv.org/abs/2212.08703
-            entropy_norm="lin",
-        ),
+        measure_cfg=ConfidenceMeasureConfig(name="entropy", entropy_type="renyi", alpha=0.25, entropy_norm="lin",),
     )
-    temperature: float = 1.0  # this is a real temperature that will be applied to logits
+    temperature: float = 1.0
 
     # this is optional, but can be used to change any aspect of the transcription
     # config, such as batch size or amp usage. Note that model, data and confidence
@@ -458,7 +504,7 @@ def find_best_confidence(
     return best_conf_spec.to_confidence_config(), best_pipe
 
 
-@hydra_runner(schema=BuildEnsembleConfig)
+@hydra_runner(config_name="BuildEnsembleConfig", schema=BuildEnsembleConfig)
 def main(cfg: BuildEnsembleConfig):
     # silencing all messages from nemo/ptl to avoid dumping tons of configs to the stdout
     logging.getLogger('pytorch_lightning').setLevel(logging.CRITICAL)
@@ -471,12 +517,10 @@ def main(cfg: BuildEnsembleConfig):
     pl.seed_everything(cfg.random_seed)
     cfg.transcription.random_seed = None  # seed is already applied
     cfg.transcription.return_transcriptions = True
-    # that sets preserve_alignment to True
-    cfg.transcription.compute_timestamps = True
+    cfg.transcription.preserve_alignment = True
     cfg.transcription.ctc_decoding.temperature = cfg.temperature
     cfg.transcription.rnnt_decoding.temperature = cfg.temperature
     # this ensures that generated output is after log-softmax for consistency with CTC
-    cfg.transcription.rnnt_decoding.confidence_cfg.preserve_frame_confidence = True
 
     train_confidences = []
     dev_confidences = []
