@@ -14,7 +14,6 @@ trainer:
   val_check_interval: 20
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null 
   benchmark: False
 
 exp_manager:
