@@ -283,10 +283,28 @@ class GPTSFTDataset(Dataset):
         attention_mask = attention_mask < 0.5
         return attention_mask
 
+    def pad_and_concat(self, batch, r, w):
+        """ 
+        pads lora tensors of different sizes (from different tasks)
+        TODO: support padding for non-lora as well.
+        """
+        _, max_sized_weight = max([(item[self.inference_peft_weight_key][r][w].numel(), item[self.inference_peft_weight_key][r][w].shape) for item in batch])
+        for i in batch:
+            if i[self.inference_peft_weight_key][r][w].shape != max_sized_weight:
+                a = i[self.inference_peft_weight_key][r][w] 
+                z = torch.zeros(max_sized_weight).type_as(a)
+                print(a.shape, "going to be converted to", z.shape)
+                z[:a.shape[0], :a.shape[1]] = a
+                i[self.inference_peft_weight_key][r][w] = z
+        return True
+        
     def collage_inference_peft_weights(self, batch):
         rank_keys = list(batch[0][self.inference_peft_weight_key].keys())
         weight_keys = list(batch[0][self.inference_peft_weight_key][rank_keys[0]])
         collated_keys = {}
+        for w in weight_keys:
+            for r in rank_keys:
+                self.pad_and_concat(batch, r, w)
         for r in rank_keys:
             for w in weight_keys:
                 collated_inference_peft_weights = torch.cat(
