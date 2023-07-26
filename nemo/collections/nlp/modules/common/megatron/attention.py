@@ -926,7 +926,7 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             attention_scores += attention_bias
-            
+
         is_causal = self.attn_mask_type == AttnMaskType.causal and sq == sk
         if attention_mask is None and is_causal:
             s = max(sq, sk)
@@ -934,7 +934,7 @@ class CoreAttention(MegatronModule):
             attention_mask = attention_mask.tril()
             attention_mask = ~attention_mask
             attention_mask = attention_mask[:, :, -sq:, -sk:]
-            
+
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
@@ -947,7 +947,7 @@ class CoreAttention(MegatronModule):
 
         # change view [b * np, sq, sk]
         attention_probs = rearrange(attention_probs, 'b np sq sk -> (b np) sq sk')
-        
+
         if attention_mask is not None:
             all_k_masked = attention_mask.all(axis=-1)
             zero_attention_mask = (1.0 - all_k_masked.type(attention_probs.type()))[:, :, :, None]
