@@ -60,7 +60,7 @@ class TestNemoDeployment:
         self._download_nemo_checkpoint()
 
         trt_llm_exporter = TensorRTLLM(model_dir=self.trt_llm_model_dir)
-        # trt_llm_exporter.transfer(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
+        trt_llm_exporter.transfer(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
 
         nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=triton_model_name)
 
