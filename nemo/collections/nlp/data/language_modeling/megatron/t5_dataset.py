@@ -59,6 +59,7 @@ class T5Dataset(Dataset):
         documents=None,
         skip_masking_id=None,
         sentinel_tokens=None,
+        shuffle_documents: bool = True
     ):
         super().__init__()
         # Params to store.
@@ -77,6 +78,7 @@ class T5Dataset(Dataset):
         self.respect_document_boundaries = respect_document_boundaries
         self.skip_masking_id = skip_masking_id
         self.sentinel_tokens = sentinel_tokens
+        self.shuffle_documents = shuffle_documents
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
@@ -107,6 +109,7 @@ class T5Dataset(Dataset):
                 seq_length=self.max_seq_length - self.MAX_SEQ_LENGTH_DELTA,
                 seed=self.seed,
                 index_mapping_dir=self.index_mapping_dir,
+                shuffle_documents=self.shuffle_documents,
             )
         else:
             self.samples_mapping = get_samples_mapping(

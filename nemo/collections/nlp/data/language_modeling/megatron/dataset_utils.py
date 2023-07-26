@@ -813,6 +813,7 @@ def get_dataset(
             documents=documents,
             use_prefix_noncausal_mask=cfg.get("attn_mask_type", "causal") == "padding",
             sentinel_tokens=sentinel_tokens,
+            shuffle_documents=cfg.data.get("shuffle_documents", False),
             **kwargs,
         )
     else:
