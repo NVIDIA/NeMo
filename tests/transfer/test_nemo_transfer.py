@@ -20,14 +20,14 @@ import pytest
 from nemo.transfer import TensorRTLLM
 
 
-class TestNemoExport:
+class TestNemoTransfer:
 
     nemo_checkpoint_link = "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     nemo_checkpoint_path = "/opt/checkpoints/GPT-2B.nemo"
     trt_llm_model_dir = "/opt/checkpoints/GPT-2B-TRT-LLM/"
 
     @pytest.mark.unit
-    def test_trt_llm_export(self):
+    def test_trt_llm_transfer(self):
         """Here we test the trt-llm transfer and infer function"""
 
         if not Path(self.nemo_checkpoint_path).exists():
