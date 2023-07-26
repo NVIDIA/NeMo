@@ -35,7 +35,7 @@ model:
     batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 8
-    pin_memory: false
+    pin_memory: true
     use_start_end_token: true
     trim_silence: false
     max_duration: 16.7
@@ -167,7 +167,6 @@ model:
 
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
-  num_nodes: 1
   max_epochs: 1000
   max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
