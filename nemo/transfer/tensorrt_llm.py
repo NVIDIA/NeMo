@@ -116,6 +116,5 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         input_texts = str_ndarray2list(inputs.pop("prompts"))
         output_texts = self.forward(input_texts)
-        print("**** output_texts: ", output_texts)
-        output = cast_output(prompts, np.bytes_)
+        output = cast_output(output_texts, np.bytes_)
         return {"outputs": output}
