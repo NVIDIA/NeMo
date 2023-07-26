@@ -44,9 +44,9 @@ from nemo.utils import AppState, logging
 try:
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
+        get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
-        get_current_global_batch_size,
     )
 
     HAVE_APEX = True
@@ -397,7 +397,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
         preds_text = [
-            self.tokenizer.ids_to_text(t[l.item():][:data_cfg.get('tokens_to_generate')]) for t, l in zip(output['token_ids'], batch['context_lengths'])
+            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+            for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
 
         return {
@@ -535,7 +536,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         inference_config = inference_config.copy()
         global_batch_size_per_gpu = batch['tokens'].size(0)
         num_micro_batches_before_decode = get_num_microbatches()
-        
+
         compute_logprob = inference_config.get('compute_logprob', False)
         if compute_logprob:
             inference_config['inputs'] = batch
@@ -553,7 +554,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 # peft_eval.py
                 inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
             response = generate(self, **inference_config)
-        
+
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -562,7 +563,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             micro_batch_size=global_batch_size_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-            
+
         return response
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
