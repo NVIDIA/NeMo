@@ -48,7 +48,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.deploy.util import typedict2tensor
+from nemo.deploy.utils import typedict2tensor
 from nemo.deploy import ITritonDeployable
 
 try:

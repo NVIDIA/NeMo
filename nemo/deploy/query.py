@@ -18,7 +18,7 @@ import typing
 import numpy as np
 from pytriton.client import ModelClient
 
-from .util import str_list2numpy
+from .utils import str_list2numpy
 
 
 class NemoQuery:
@@ -32,6 +32,7 @@ class NemoQuery:
         logger = logging.getLogger("nemo.client")
 
         prompts = str_list2numpy(prompts)
+        output_type = None
 
         logger.info("================================")
         logger.info("Preparing the client")
@@ -39,5 +40,10 @@ class NemoQuery:
             logger.info("================================")
             logger.info("Sent batch for inference:")
             result_dict = client.infer_batch(prompts=prompts)
+            output_type = client.model_config.outputs[0].dtype
 
-        return result_dict["outputs"]
+        if output_type == np.bytes_:
+            sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
+            return sentences
+        else:
+            return result_dict["outputs"]

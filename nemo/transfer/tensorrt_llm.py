@@ -17,12 +17,15 @@ import os
 import pprint
 import shutil
 from pathlib import Path
+import typing
 
 import numpy as np
 import torch
 from pytriton.decorators import batch
+from pytriton.model_config import Tensor
 
 from nemo.deploy import ITritonDeployable
+from nemo.deploy.utils import str_ndarray2list, cast_output
 
 from .trt_llm.nemo_utils import get_model_config, get_tokenzier, nemo_decode, nemo_to_tensorrt_llm
 from .trt_llm.tensorrt_llm_run import generate, load
@@ -111,4 +114,8 @@ class TensorRTLLM(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        pass
+        input_texts = str_ndarray2list(inputs.pop("prompts"))
+        output_texts = self.forward(input_texts)
+        print("**** output_texts: ", output_texts)
+        output = cast_output(prompts, np.bytes_)
+        return {"outputs": output}

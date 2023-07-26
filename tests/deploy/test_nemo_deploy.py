@@ -56,11 +56,11 @@ class TestNemoDeployment:
     @pytest.mark.unit
     def test_trt_llm_pytriton(self):
         """Here we test the optimized trt-llm inference deployment to triton"""
-        triton_model_name = "GPT_2B"
+        triton_model_name = "GPT_2B_TRT_LLM"
         self._download_nemo_checkpoint()
 
         trt_llm_exporter = TensorRTLLM(model_dir=self.trt_llm_model_dir)
-        trt_llm_exporter.transfer(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
+        # trt_llm_exporter.transfer(nemo_checkpoint_path=self.nemo_checkpoint_path, n_gpus=1)
 
         nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=triton_model_name)
 
@@ -68,7 +68,7 @@ class TestNemoDeployment:
         nm.run()
         nq = NemoQuery(url="localhost", model_name=triton_model_name)
 
-        output = nq.query_gpt(prompts=["hello, testing GPT inference"])
+        output = nq.query_gpt(prompts=["hello, testing GPT inference", "another GPT inference test?"])
         print(output)
 
         nm.stop()

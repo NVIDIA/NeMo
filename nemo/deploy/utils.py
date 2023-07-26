@@ -15,6 +15,7 @@
 import typing
 
 import numpy as np
+import torch
 from pytriton.model_config import Tensor
 
 
@@ -54,3 +55,25 @@ def typedict2tensor(
 def str_list2numpy(str_list: typing.List[str]) -> np.ndarray:
     str_ndarray = np.array(str_list)[..., np.newaxis]
     return np.char.encode(str_ndarray, "utf-8")
+
+
+def str_ndarray2list(str_ndarray: np.ndarray) -> typing.List[str]:
+    str_ndarray = str_ndarray.astype("bytes")
+    str_ndarray = np.char.decode(str_ndarray, encoding="utf-8")
+    str_ndarray = str_ndarray.squeeze(axis=-1)
+    return str_ndarray.tolist()
+
+
+def cast_output(data, required_dtype):
+    if isinstance(data, torch.Tensor):
+        data = data.cpu().numpy()
+    elif not isinstance(data, np.ndarray):
+        data = np.array(data)
+
+        data_is_str = required_dtype in (object, np.object_, bytes, np.bytes_)
+        if data_is_str:
+            data = np.char.encode(data, "utf-8")
+
+    if data.ndim < 2:
+        data = data[..., np.newaxis]
+    return data.astype(required_dtype)
