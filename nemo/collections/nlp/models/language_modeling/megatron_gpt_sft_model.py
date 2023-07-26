@@ -46,6 +46,7 @@ try:
         _reconfigure_microbatch_calculator,
         get_micro_batch_size,
         get_num_microbatches,
+        get_current_global_batch_size,
     )
 
     HAVE_APEX = True
@@ -393,7 +394,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
         preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :]) for t, l in zip(output['token_ids'], batch['context_lengths'])
+            self.tokenizer.ids_to_text(t[l.item():][:data_cfg.get('tokens_to_generate')]) for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
 
         return {
@@ -528,6 +529,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         inference_config = self.get_inference_config()
         # need to overwrite some configuration, make it immutable
         inference_config = inference_config.copy()
+        global_batch_size_per_gpu = batch['tokens'].size(0)
+        num_micro_batches_before_decode = get_num_microbatches()
+        
         compute_logprob = inference_config.get('compute_logprob', False)
         if compute_logprob:
             inference_config['inputs'] = batch
@@ -536,8 +540,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             inference_config["add_BOS"] = False
             inference_config['greedy'] = True
             response = generate(self, **inference_config)
-            compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
-            return compute_prob_response
+            response = get_computeprob_response(self.tokenizer, response, batch)
         else:
             # for megatron_gpt_eval.py
             if isinstance(batch, list):
@@ -545,7 +548,18 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             else:
                 # peft_eval.py
                 inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
-            return generate(self, **inference_config)
+            response = generate(self, **inference_config)
+        
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_size_per_gpu // num_micro_batches_before_decode,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+            
+        return response
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
@@ -619,14 +633,35 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=data_cfg.global_batch_size,
-            micro_batch_size=data_cfg.micro_batch_size,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        global_batch_size_per_gpu = batch['tokens'].size(0)
+        # This should happen only on the last batch of the dataset.
+        if (
+            global_batch_size_per_gpu
+            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+        ):
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
+            if (
+                global_batch_size_per_gpu
+                != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
+            ):
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                    micro_batch_size=global_batch_size_per_gpu,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+            # NOTE: need to explicitly handle resetting for multi-validation
+            else:
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=data_cfg.global_batch_size,
+                    micro_batch_size=data_cfg.micro_batch_size,
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
 
     def build_train_valid_test_datasets(self, stage):
         if stage != 'test':

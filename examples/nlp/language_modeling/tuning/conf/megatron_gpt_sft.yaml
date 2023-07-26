@@ -109,12 +109,12 @@ model:
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
-      shuffle: True
+      shuffle: False
       num_workers: 4
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
-      drop_last: True
+      drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
       query_key: ${model.data.train_ds.query_key}
@@ -139,12 +139,12 @@ model:
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
-      shuffle: True
+      shuffle: False
       num_workers: 4
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
-      drop_last: True
+      drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
       query_key: ${model.data.train_ds.query_key}
