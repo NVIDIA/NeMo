@@ -22,6 +22,8 @@ import pytest
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
+TOKENIZER_FILE_43B = '/home/TestData/nlp/megatron_sft/tokenizer.model'
+
 
 def ids_to_text(tokenizer, ids):
     tokens = tokenizer.ids_to_tokens(ids)
@@ -79,7 +81,7 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model='/Projects/ft_chat/tokenizer.model')
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
             result = d[0]
             input_ids = result['input_ids']
@@ -101,7 +103,7 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model='/Projects/ft_chat/tokenizer.model')
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
             result = d[0]
             input_ids = result['input_ids']
@@ -123,7 +125,7 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model='/Projects/ft_chat/tokenizer.model')
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
             result = d[0]
             input_ids = result['input_ids']
@@ -145,7 +147,7 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model='/Projects/ft_chat/tokenizer.model')
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
             result = d[0]
             input_ids = result['input_ids']
