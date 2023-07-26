@@ -99,7 +99,7 @@ def get_args():
     )
     parser.add_argument(
         "--output_format",
-        default=".flac",
+        default="flac",
         type=str,
         help="If provided, format output audio will be saved as. If not provided, will keep original format.",
     )
@@ -207,6 +207,11 @@ def main():
         audio_trimmer = instantiate(audio_trimmer_config)
     else:
         audio_trimmer = None
+
+    if output_format:
+        if output_format.upper() not in sf.available_formats():
+            raise ValueError(f"Unsupported output audio format: {output_format}")
+        output_format = f".{output_format}"
 
     output_audio_dir.mkdir(exist_ok=True, parents=True)
 
