@@ -400,6 +400,12 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy):
             # Keep the full precision master parameters
             self.model = self.model.float()
         self.model = _LightningModuleWrapperBase(self.model)
+
+        # Move model from CPU to GPU, which is to avoid out-of-memory carash before sharding.
+        # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
+        # In case of GPU-initialized model, this is no-op.
+        self.model = self.model.cuda(torch.cuda.current_device())
+
         self.barrier()
 
         self.setup_optimizers(trainer)

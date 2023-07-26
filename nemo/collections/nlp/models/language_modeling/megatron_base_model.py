@@ -596,6 +596,9 @@ class MegatronBaseModel(NLPModel):
             ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
                 'Make sure the number of model chunks is the same across all pipeline stages.'
             )
+        
+        if self._cfg.get('use_cpu_initialization', False) and self.cfg.get('transformer_engine', False):
+            raise ValueError('Transformer Engine does not support CPU model initialization.')
 
         if self.cfg.get('ub_tp_comm_overlap', False):
             if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):

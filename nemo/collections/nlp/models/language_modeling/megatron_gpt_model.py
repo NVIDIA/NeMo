@@ -229,6 +229,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                on_cpu=cfg.get('fsdp', False) and cfg.get('use_cpu_initialization', False),
             )
 
         # if we're not using interleaved, then self.model is a module.
