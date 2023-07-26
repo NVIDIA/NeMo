@@ -93,7 +93,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
                 checkpoint = uninject_model_parallel_rank(checkpoint)
             checkpoint = str(checkpoint)
-            if checkpoint[-10:] == '-last.ckpt':
+            # second case is for distributed checkpoints, since they are a directory there's no extension
+            if checkpoint[-10:] == '-last.ckpt' or checkpoint[-5:] == '-last':
                 continue
             index = checkpoint.find(self.monitor) + len(self.monitor) + 1  # Find monitor in str + 1 for '='
             if index != -1:
