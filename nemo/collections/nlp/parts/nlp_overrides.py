@@ -90,6 +90,8 @@ class NLPDDPStrategy(DDPStrategy):
             )
 
         if not HAVE_MEGATRON_CORE:
+            import sys
+            print(sys.path)
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )

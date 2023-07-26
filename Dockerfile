@@ -21,14 +21,6 @@ ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.04-py3
 # image (by specifying build target as `nemo-deps`)
 FROM ${BASE_IMAGE} as nemo-deps
 
-# dependency flags; should be declared after FROM
-# torchaudio: not required by default
-ARG REQUIRE_TORCHAUDIO=false
-# k2: not required by default
-ARG REQUIRE_K2=false
-# ais cli: not required by default, install only if required
-ARG REQUIRE_AIS_CLI=false
-
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
 # libavdevice-dev rerquired for latest torchaudio
@@ -70,22 +62,9 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
     --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" \
     --global-option="--deprecated_fused_adam" --global-option="--bnp" --global-option="--fast_multihead_attn" \
     --global-option="--xentropy" ./ 
-  # pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
-
-# build torchaudio
-WORKDIR /tmp/torchaudio_build
-COPY scripts/installers /tmp/torchaudio_build/scripts/installers/
-RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh); INSTALL_CODE=$?; \
-  echo ${INSTALL_MSG}; \
-  if [ ${INSTALL_CODE} -ne 0 ]; then \
-  echo "torchaudio installation failed";  \
-  if [ "${REQUIRE_TORCHAUDIO}" = true ]; then \
-  exit ${INSTALL_CODE};  \
-  else echo "Skipping failed torchaudio installation"; fi \
-  else echo "torchaudio installed successfully"; fi
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -107,18 +86,8 @@ ARG MEGATRON_VER=unknown
 RUN git clone https://github.com/crankshaw-google/Megatron-LM.git \
   && cd Megatron-LM \
   && git checkout $MEGATRON_VER \
-  && pip install -e .
+  && pip install .
 
-# # install k2, skip if installation fails
-# COPY scripts /tmp/nemo/scripts/
-# RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh); INSTALL_CODE=$?; \
-#   echo ${INSTALL_MSG}; \
-#   if [ ${INSTALL_CODE} -ne 0 ]; then \
-#   echo "k2 installation failed";  \
-#   if [ "${REQUIRE_K2}" = true ]; then \
-#   exit ${INSTALL_CODE};  \
-#   else echo "Skipping failed k2 installation"; fi \
-#   else echo "k2 installed successfully"; fi
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -151,21 +120,8 @@ RUN wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json \
 
 COPY scripts /workspace/nemo/scripts
 COPY examples /workspace/nemo/examples
-COPY tests /workspace/nemo/tests
-COPY tutorials /workspace/nemo/tutorials
-# COPY README.rst LICENSE /workspace/nemo/
+COPY LICENSE /workspace/nemo/
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
   chmod +x start-jupyter.sh
 
-# If required, install AIS CLI
-RUN if [ "${REQUIRE_AIS_CLI}" = true ]; then \
-  INSTALL_MSG=$(/bin/bash scripts/installers/install_ais_cli_latest.sh); INSTALL_CODE=$?; \
-  echo ${INSTALL_MSG}; \
-  if [ ${INSTALL_CODE} -ne 0 ]; then \
-  echo "AIS CLI installation failed"; \
-  exit ${INSTALL_CODE}; \
-  else echo "AIS CLI installed successfully"; fi \
-  else echo "Skipping AIS CLI installation"; fi
-
-ENTRYPOINT ["/bin/bash", "/workspace/nemo/scripts/gce/container_entrypoint.sh"]
