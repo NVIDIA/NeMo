@@ -1247,21 +1247,76 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
         """
-        if isinstance(self.model, list):
-            for i in range(len(self.model)):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+        # mcore uses distributed checkpointing
+        if self.mcore_gpt:
+            checkpoint['sharded_state_dict'] = self.sharded_state_dict()
+
+        # legacy checkpointing for interleaved
+        else:
+            if isinstance(self.model, list):
+                for i in range(len(self.model)):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
         """
-        if isinstance(self.model, list):
-            for i in range(len(self.model)):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+        # mcore uses distributed checkpointing
+        if self.mcore_gpt:
+            for index, module in enumerate(self.get_gpt_module_list()):
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                # TODO: do we need this?
+                # when using interleaved, model is GPTModel, so we need to remove the 'model.' prefix
+                # checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                # checkpoint_state_dict = {
+                #     key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                #     for key in list(checkpoint_state_dict.keys())
+                # }
+                checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                module.load_state_dict(checkpoint_state_dict, strict=True)
+
+            # reset virtual pipeline model parallel rank
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+        # legacy checkpointing for interleaved
+        else:
+            if isinstance(self.model, list):
+                for i in range(len(self.model)):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+    def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
+        """
+        Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
+        When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to 
+        self.state_dict().
+        The sharded tensor mapping is defined in the GPTModel class from mcore.
+        """
+
+        # TODO: does this work?
+        if self.mcore_gpt:
+            prefix = f'{prefix}model.'
+            model_key = prefix
+            sharded_state_dict = {}
+            for index, module in enumerate(self.get_gpt_module_list()):
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    model_key = f'{prefix}_{index}'
+                model_sharded_state_dict = module.sharded_state_dict(prefix=prefix)
+                sharded_state_dict[model_key] = model_sharded_state_dict
+
+            # reset virtual pipeline model parallel rank
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+            return sharded_state_dict
 
     def parameters(self):
         if isinstance(self.model, list):
