@@ -940,7 +940,7 @@ class CoreAttention(MegatronModule):
         # seem a bit unusual, but is taken from the original Transformer paper.
         
         if attention_mask is not None:
-            all_k_masked = attention_mask.all(axis=-1).squeeze(0)
+            all_k_masked = attention_mask.all(axis=-1)
             zero_attention_mask = (1.0 - all_k_masked.type(attention_probs.type()))[:, :, :, None]
             attention_probs = attention_probs * zero_attention_mask
 
