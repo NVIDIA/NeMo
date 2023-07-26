@@ -40,11 +40,10 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    use_fsdp = cfg.model.get('fsdp', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
 
     plugins = []
-    if use_fsdp:
+    if cfg.model.get('fsdp', False):
         assert not with_distributed_adam, 'Distributed optimizer cannot be used with FSDP.'
         if megatron_amp_o2:
             logging.info('Torch/FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
