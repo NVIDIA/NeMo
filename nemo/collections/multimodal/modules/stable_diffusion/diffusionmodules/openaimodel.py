@@ -961,6 +961,14 @@ class UNetModel(nn.Module):
                 res_dict["output_blocks." + str(target_id) + mid_str + post_fix] = value_
         return res_dict
 
+    def _sdxl_embedding_mapping(self, sdxl_dict):
+        res_dict = {}
+        for key_, value_ in sdxl_dict.items():
+            new_key_ = key_.replace('add_embedding.', 'label_emb.').replace('linear_1.', '0.0.').replace('linear_2.', '0.2.')
+            res_dict[new_key_] = value_
+        return res_dict
+
+
     def _state_key_mapping(self, state_dict: dict):
         import re
 
@@ -969,6 +977,7 @@ class UNetModel(nn.Module):
         mid_dict = {}
         output_dict = {}
         other_dict = {}
+        sdxl_dict = {}
         for key_, value_ in state_dict.items():
             if "down_blocks" in key_:
                 input_dict[key_.replace('down_blocks', 'input_blocks')] = value_
@@ -976,6 +985,9 @@ class UNetModel(nn.Module):
                 output_dict[key_.replace('up_blocks', 'output_blocks')] = value_
             elif "mid_block" in key_:
                 mid_dict[key_.replace('mid_block', 'middle_block')] = value_
+            elif "add_embedding" in key_:
+                #SDXL related mapping
+                sdxl_dict[key_] = value_
             else:
                 other_dict[key_] = value_
 
@@ -983,6 +995,7 @@ class UNetModel(nn.Module):
         output_dict = self._output_blocks_mapping(output_dict)
         mid_dict = self._mid_blocks_mapping(mid_dict)
         other_dict = self._other_blocks_mapping(other_dict)
+        sdxl_dict = self._sdxl_embedding_mapping(sdxl_dict)
         # key_list = state_dict.keys()
         # key_str = " ".join(key_list)
 
@@ -994,6 +1007,7 @@ class UNetModel(nn.Module):
         res_dict.update(output_dict)
         res_dict.update(mid_dict)
         res_dict.update(other_dict)
+        res_dict.update(sdxl_dict)
 
         return res_dict
 
@@ -1009,16 +1023,25 @@ class UNetModel(nn.Module):
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
+        #SDXL specific mapping
+        if 'output_blocks.2.2.conv.bias' in missing_keys and 'output_blocks.2.1.conv.bias' in loaded_keys:
+            state_dict['output_blocks.2.2.conv.bias'] = state_dict['output_blocks.2.1.conv.bias']
+            state_dict['output_blocks.2.2.conv.weight'] = state_dict['output_blocks.2.1.conv.weight']
+
+
         if (
             'input_blocks.1.0.in_layers.2.weight' in loaded_keys
             and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
         ):
             # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
             for key_ in missing_keys:
-                s = key_.split('.')
-                idx = int(s[-2])
-                new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
-                state_dict[key_] = state_dict[new_key_]
+                try:
+                    s = key_.split('.')
+                    idx = int(s[-2])
+                    new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
+                    state_dict[key_] = state_dict[new_key_]
+                except:
+                    continue
 
             loaded_keys = list(state_dict.keys())
             missing_keys = list(set(expected_keys) - set(loaded_keys))
