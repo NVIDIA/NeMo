@@ -14,9 +14,9 @@
 
 import os
 import re
+import shutil
 from copy import deepcopy
 from pathlib import Path
-import shutil
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import pytorch_lightning
