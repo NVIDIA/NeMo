@@ -630,6 +630,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     )
                     return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
+                    if loss_for_ub.isnan():
+                        global_rank = torch.distributed.get_rank()
+                        raise AssertionError, f'Got NaN in training loss at rank {global_rank}'
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub, {'avg': reduced_loss}
 
