@@ -11,7 +11,6 @@ class SimplestModule(torch.nn.Module):
         layer_index_tensor = torch.tile(torch.tensor([layer_i], requires_grad=True, dtype=dec_hidden.dtype, device=dec_hidden.device), [*dec_hidden.shape[:-1],1])
         # dec_prediction = torch.argmax(dec_logits, dim=-1, keepdim=True)
         out = torch.cat([dec_hidden, dec_logits, layer_index_tensor], dim=-1) * mask.T.unsqueeze(-1)
-        # import ipdb; ipdb.set_trace()
         out = torch.nn.functional.relu(self.conv(out.transpose(1, 2)))
         out = self.norm(out.transpose(1, 2))
         out = self.dropout(out) * mask.T.unsqueeze(-1)

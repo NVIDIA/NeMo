@@ -89,14 +89,10 @@ def post_language_model_processing(
 
     speech_layers = 7
     last_layer_output = lm_output
-    last_layer_logits = output
+    last_layer_logits = output[:,:,-1024:]
     speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)
-    # import ipdb; ipdb.set_trace()
     for i in range(speech_layers):
-        if i == 0:
-            last_layer_output = speech_residual_model(last_layer_output, last_layer_output, i, speech_mask)
-        else:
-            last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
+        last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
         # Need to check that the below line is correct
         # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
         # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
@@ -302,7 +298,7 @@ class GPTModel(MegatronModule):
                 hidden_size=hidden_size,
                 param_dtype=self.dtype,
             )
-        self.hidden_size = hidden_size
+        self.hidden_size = self.language_model.hidden_size
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
