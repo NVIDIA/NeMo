@@ -255,7 +255,7 @@ class NLPDDPStrategy(DDPStrategy):
         """
 
         # check if using distributed checkpointing
-        if ckpt_to_dir(checkpoint).is_dir():
+        if ckpt_to_dir(filepath).is_dir():
             # converts the optimizer states to their sharded equivalents
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
