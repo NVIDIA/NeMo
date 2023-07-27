@@ -16,6 +16,7 @@ from calendar import c
 import itertools
 from operator import is_
 import os
+from pyexpat import model
 import shutil
 import tempfile
 from collections import defaultdict
@@ -212,6 +213,11 @@ class NLPDDPStrategy(DDPStrategy):
 
         model_sharded_state_dict = self.lightning_module.sharded_state_dict()
 
+        # remove _extra_state
+        model_sharded_state_dict = {
+            key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
+        }
+
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict,
             optim_params_iter=itertools.chain.from_iterable(g for g in optimizer.float16_groups),
@@ -254,8 +260,9 @@ class NLPDDPStrategy(DDPStrategy):
             called on every rank and internally does the rank checking.
         """
 
+        # TODO: add a distributed checkpoint attribute
         # check if using distributed checkpointing
-        if ckpt_to_dir(filepath).is_dir():
+        if getattr(self.lightning_module, 'mcore_gpt'):
             # converts the optimizer states to their sharded equivalents
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
@@ -276,7 +283,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
-        if ckpt_to_dir(checkpoint).is_dir():
+        if getattr(self.lightning_module, 'mcore_gpt'):
             return
 
         # legacy state dict logic, does not use megatron core
@@ -328,7 +335,7 @@ class NLPDDPStrategy(DDPStrategy):
             raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
 
         # Check if using distributed checkpointing
-        if ckpt_to_dir(checkpoint_path).is_dir():
+        if getattr(self.lightning_module, 'mcore_gpt'):
 
             # Distributed checkpoints must be directories.
             if not fs.isdir(checkpoint_path):
@@ -356,7 +363,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
-        if ckpt_to_dir(filepath).is_dir():
+        if getattr(self.lightning_module, 'mcore_gpt'):
             if self.is_global_zero:
                 shutil.rmtree(ckpt_to_dir(filepath))
 
