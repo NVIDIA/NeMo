@@ -826,17 +826,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def list_available_models(self):
         pass
 
-    # def on_validation_epoch_end(self):
-    #     app_state = AppState()
-    #     if hasattr(self, "_train_ds"):
-    #         _reconfigure_microbatch_calculator(
-    #             rank=app_state.global_rank,
-    #             rampup_batch_size=None,
-    #             global_batch_size=self._cfg.train_ds.global_batch_size,
-    #             micro_batch_size=self._cfg.train_ds.micro_batch_size,
-    #             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-    #         )
-
     def on_validation_epoch_start(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
