@@ -24,6 +24,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset i
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_FILE_43B = '/home/TestData/nlp/megatron_sft/tokenizer.model'
+MERGE_FILE = '/home/TestData/nlp/megatron_sft/merges.txt'
+VOCAB_FILE = '/home/TestData/nlp/megatron_sft/vocab.json'
 
 
 def ids_to_text(tokenizer, ids):
@@ -43,7 +45,7 @@ def get_random_sentence():
 
 
 def get_random_label():
-    keys = ["quality" "toxicity", "humor", "creativity", "violence", "helpfulness", "not_appropriate"]
+    keys = ["quality", "toxicity", "humor", "creativity", "violence", "helpfulness", "not_appropriate"]
     values = [random.randrange(0, 5) for i in range(len(keys))]
     return ",".join([k + ":" + str(v) for k, v in zip(keys, values)])
 
@@ -170,7 +172,9 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='huggingface', model_name='EleutherAI/gpt-neox-20b', use_fast=True)
+            tokenizer = get_nmt_tokenizer(
+                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+            )
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
@@ -183,7 +187,7 @@ class TestGPTSFTChatDataset:
             for i in range(1, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 20
+            assert mask.sum().item() == 16
         finally:
             os.remove(temp_file)
 
@@ -195,7 +199,9 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
-            tokenizer = get_nmt_tokenizer(library='huggingface', model_name='EleutherAI/gpt-neox-20b', use_fast=True)
+            tokenizer = get_nmt_tokenizer(
+                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+            )
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
@@ -208,7 +214,7 @@ class TestGPTSFTChatDataset:
             for i in range(2, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 17
+            assert mask.sum().item() == 15
         finally:
             os.remove(temp_file)
 
@@ -220,7 +226,9 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(library='huggingface', model_name='EleutherAI/gpt-neox-20b', use_fast=True)
+            tokenizer = get_nmt_tokenizer(
+                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+            )
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
@@ -233,7 +241,7 @@ class TestGPTSFTChatDataset:
             for i in range(1, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 66
+            assert mask.sum().item() == 70
         finally:
             os.remove(temp_file)
 
@@ -245,7 +253,9 @@ class TestGPTSFTChatDataset:
         records = 1
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
-            tokenizer = get_nmt_tokenizer(library='huggingface', model_name='EleutherAI/gpt-neox-20b', use_fast=True)
+            tokenizer = get_nmt_tokenizer(
+                library='huggingface', model_name='gpt2', merges_file=MERGE_FILE, vocab_file=VOCAB_FILE, use_fast=True
+            )
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
@@ -258,6 +268,6 @@ class TestGPTSFTChatDataset:
             for i in range(0, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 99
+            assert mask.sum().item() == 105
         finally:
             os.remove(temp_file)

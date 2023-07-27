@@ -76,6 +76,8 @@ def parse_conversations(tree_obj):
         role = 'User'
     elif prompt_obj['role'] == 'assistant':
         role = 'Assistant'
+    else:
+        raise ValueError(f'unknown role {prompt_obj["role"]}')
     turn = {'value': prompt_obj['text'], 'from': role}
     if 'labels' in prompt_obj:
         turn['human_labels'] = prompt_obj['labels']
