@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from calendar import c
 import itertools
-from operator import is_
 import os
 import shutil
 import tempfile
+from calendar import c
 from collections import defaultdict
 from contextlib import contextmanager
+from operator import is_
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.utilities.cloud_io import get_filesystem
 from omegaconf import OmegaConf
+from pyexpat import model
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -34,7 +36,6 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
-from lightning_fabric.utilities.cloud_io import get_filesystem
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -43,7 +44,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import inject_model_parallel_rank, ckpt_to_dir
+from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank
 
 try:
     from apex.transformer.enums import ModelType
@@ -58,8 +59,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
-    from megatron.core import dist_checkpointing
+    from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
     from megatron.core.dist_checkpointing.optimizer import (
         get_param_id_to_sharded_param_map,
