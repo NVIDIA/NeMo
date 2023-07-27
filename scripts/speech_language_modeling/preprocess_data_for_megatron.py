@@ -98,7 +98,8 @@ def get_tokenizer(args):
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
     return tokenizer
 
-
+# TODO: this Encoder is copy of Encoder in ../nlp_language_modeling/preprocess_data_for_megatron.py
+# with some code refactor, should merge them together
 class Encoder(object):
     def __init__(self, args):
         self.args = args
@@ -123,12 +124,27 @@ class Encoder(object):
         else:
             Encoder.splitter = IdentitySplitter()
 
+    def process(self, text):
+        text = text.strip()
+        if self.args.apply_ftfy:
+            text = ftfy.fix_text(text)
+        doc_ids = []
+        for sentence in Encoder.splitter.tokenize(text):
+            sentence_ids = Encoder.tokenizer.text_to_ids(sentence)
+            if len(sentence_ids) > 0:
+                doc_ids.append(sentence_ids)
+        if len(doc_ids) > 0 and self.args.append_eod:
+            doc_ids[-1].append(Encoder.tokenizer.eos_id)
+        return doc_ids
+
     def encode(self, json_line):
         if not self.args.text_file:
             data = json.loads(json_line)
             ids = {}
             for key in self.args.json_keys:
                 text = data[key]
+                doc_ids = self.process(text)
+                """
                 if self.args.apply_ftfy:
                     text = ftfy.fix_text(text)
                 doc_ids = []
@@ -138,10 +154,13 @@ class Encoder(object):
                         doc_ids.append(sentence_ids)
                 if len(doc_ids) > 0 and self.args.append_eod:
                     doc_ids[-1].append(Encoder.tokenizer.eos_id)
+                """
                 ids[key] = doc_ids
         else:
             data = json_line
             ids = {}
+            doc_ids = self.process(data)
+            """
             text = data.strip()
             if self.args.apply_ftfy:
                 text = ftfy.fix_text(text)
@@ -152,6 +171,7 @@ class Encoder(object):
                     doc_ids.append(sentence_ids)
             if len(doc_ids) > 0 and self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eos_id)
+            """
             ids['text'] = doc_ids
         return ids, len(json_line)
 
@@ -159,6 +179,7 @@ class Encoder(object):
 class AudioEncoder(object):
     def __init__(self, args):
         self.args = args
+        self.token_id_offset = args.audio_token_id_offset
 
     def initializer(self):
         pass
@@ -166,6 +187,9 @@ class AudioEncoder(object):
     def flatten_codebooks(self, codes):
         """flatten codebooks
         """
+        if len(codes.shape) == 1:
+            return codes
+        
         codes = codes.copy()
         for n in range(1, codes.shape[0]):
             codes[n, :] += self.codebook_size * n
@@ -187,32 +211,109 @@ class AudioEncoder(object):
         assert len(codes.shape) == 2, f"codes must be 2D, got {len(codes.shape)}"
 
         if self.args.n_codebooks_to_use is not None:
-            codes = codes[:self.args.n_codebooks_to_use, :]
+            codes = codes[:self.args.n_codebooks_to_use, :]    # [N, T]
+        codes = np.squeeze(codes)  # remove the empty dimension if num_codebooks == 1
 
-        # if n_codebooks_to_use is only one, we need to add a dimension
-        if self.args.n_codebooks_to_use == 1:
-            codes = np.expand_dims(codes, axis=0)        # [N, T]
+        if self.token_id_offset > 0:
+            codes = codes + self.token_id_offset
         
         # flatten
         if self.args.flatten_audio_codebooks:
             codes = self.flatten_codebooks(codes)      # [T]  
-        return codes    
+        
+        # pack it in right format append eod if needed
+        doc_ids = []
+        if len(codes) > 0:
+            doc_ids.append(codes)       # list of numpy arrays
+
+        if len(doc_ids) > 0 and self.args.append_eod_for_audio:
+            # to deal with single codebook vs multiple codebooks
+            audio_eod_shape = (doc_ids[-1].shape[0], 1) if len(doc_ids[-1].shape) == 2 else (1,) 
+            audio_eod_dtype = doc_ids[-1].dtype
+            audio_eod = np.full(audio_eod_shape, Encoder.tokenizer.eos_id, dtype=audio_eod_dtype)
+            
+            # concat audio_eod (which is same as eos_id from text tokenizer for now)
+            doc_ids[-1] = np.concatenate([doc_ids[-1], audio_eod], axis=-1)
+            # doc_ids[-1].append(Encoder.tokenizer.eos_id)
+
+        return doc_ids    
+
 
     def encode(self, json_line):
         data = json.loads(json_line)
         ids = {}
         for key in self.args.json_keys:
             audio = data[key]       # audio codes filepath
-            doc_ids = []
-
-            audio = self.process(audio)     # [T] or [N, T]
-            if len(audio) > 0:
-                doc_ids.append(audio)       # list of numpy arrays
-            if len(doc_ids) > 0 and self.args.append_eod and not self.args.flatten_audio_codebooks:
-                doc_ids[-1].append(Encoder.tokenizer.eos_id)
+            doc_ids = self.process(audio)     # [T] or [N, T]
             ids[key] = doc_ids
-        return ids, audio.size
-    
+        return ids, len(json_line)      # TODO: len(json_line) is not meaningful for audio data, change it
+ 
+
+class AudioTextEncoder(object):
+    def __init__(self, args):
+        self.args = args
+        self.text_encoder = Encoder(args)
+        self.audio_encoder = AudioEncoder(args)
+
+    def initializer(self):
+        self.text_encoder.initializer()
+        self.audio_encoder.initializer()
+
+    def encode(self, json_line):
+        if self.args.text_file:
+            raise ValueError("text_file is not supported for AudioTextEncoder")
+        data = json.loads(json_line)
+        ids = {}
+        for key in self.args.json_keys:
+            if key == "text":
+                text = data[key]
+                doc_ids = self.text_encoder.process(text)
+                processed = len(text)
+
+            if key == "audio":
+                audio = data[key]
+                doc_ids = self.audio_encoder.process(audio)
+                processed = audio.size
+
+            # paired audio text
+            if key == "audio_text":
+                # audio
+                audio = data["audio_codes"]
+                audio_ids = self.audio_encoder.process(audio)   # list of arrays; change name to audio_doc_ids
+                # text
+                text = data["text"]
+                text_ids = self.text_encoder.process(text)      # list of arrays; change name to text_doc_ids
+                text_ids = [np.array(t) for t in text_ids]      
+
+                # if audio_ids is multi-dim, pad text_ids
+                # just look at the last element of audio_ids to get the shape
+                # other elements should have the same shape
+                if len(audio_ids[-1].shape) > 1:
+                    for i, t in enumerate(text_ids):
+                        # expand text_ids dims to match audio_ids
+                        if len(t.shape) == 1:
+                            text_ids[i] = np.expand_dims(text_ids[i], axis=0)
+                        pad_matrix_shape = (audio_ids[-1].shape[0]-1, t.shape[-1])
+                        pad_matrix = np.full(pad_matrix_shape, Encoder.tokenizer.pad_id, dtype=t.dtype)
+                        
+                        # make sure that pad_matrix is not null : corner case
+                        if pad_matrix.size > 0:
+                            text_ids[i] = np.concatenate([text_ids[i], pad_matrix], axis=0)
+
+                # concat corresponding audio and text
+                if not len(audio_ids) == len(text_ids):
+                    raise ValueError(f"len(audio_ids) ({len(audio_ids)}) != len(text_ids) ({len(text_ids)}). you may have used split_sentences flag for text")
+                
+                doc_ids = []
+                for i in range(len(audio_ids)):
+                    doc_ids.append(np.concatenate([audio_ids[i], text_ids[i]], axis=-1))
+
+                processed = len(json_line)  # TODO: Not meaningful for audio_text data
+
+            ids[key] = doc_ids
+        
+        return ids, processed
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -273,7 +374,9 @@ def get_args():
     group = parser.add_argument_group(title='audio Tokenizer')
     group.add_argument('--flatten_audio_codebooks', action='store_true', help='flatten audio codebooks')
     group.add_argument('--n_codebooks_to_use', type=int, default=None, help='number of codebooks to use')
-    
+    group.add_argument('--append_eod_for_audio', action='store_true', help='append eod for audio')
+    group.add_argument('--audio_token_id_offset', type=int, default=256003, help='audio token id offset')
+
     args = parser.parse_args()
     args.keep_empty = False
 
@@ -290,11 +393,8 @@ def get_args():
     assert args.tokenizer_type is not None or args.tokenizer_model is not None
     
     if args.dataset_impl == 'mmap':     # if you are not flattening use 'lazy' or 'cached' which use 'IndexedDatasetBuilder'
-        assert args.flatten_audio_codebooks, "mmap need --flatten_audio_codebooks flag"
+        assert args.flatten_audio_codebooks or args.n_codebooks_to_use==1 , "mmap need --flatten_audio_codebooks flag or n_codebooks_to_use=1"
 
-
-    if args.append_eod:
-        assert args.flatten_audio_codebooks, "add_eod need --flatten_audio_codebooks flag"    
     
     return args
 
@@ -315,7 +415,8 @@ def main():
         assert os.path.exists(args.input), f'File does not exist: {args.input}'
         json_files = [args.input]
 
-    encoder = AudioEncoder(args)
+    # encoder = AudioEncoder(args)    
+    encoder = AudioTextEncoder(args)
 
     if args.dataset_impl == 'retmmap':
         assert args.need_pad_id, "retmmap need --need_pad_id flag"
