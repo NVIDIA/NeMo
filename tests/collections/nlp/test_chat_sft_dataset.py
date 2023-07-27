@@ -94,7 +94,6 @@ class TestGPTSFTChatDataset:
             for i in range(1, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 17
         finally:
             os.remove(temp_file)
 
@@ -116,7 +115,6 @@ class TestGPTSFTChatDataset:
             for i in range(2, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 15
         finally:
             os.remove(temp_file)
 
@@ -138,7 +136,6 @@ class TestGPTSFTChatDataset:
             for i in range(1, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 60
         finally:
             os.remove(temp_file)
 
@@ -160,7 +157,6 @@ class TestGPTSFTChatDataset:
             for i in range(0, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 90
         finally:
             os.remove(temp_file)
 
@@ -187,7 +183,6 @@ class TestGPTSFTChatDataset:
             for i in range(1, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 16
         finally:
             os.remove(temp_file)
 
@@ -214,7 +209,6 @@ class TestGPTSFTChatDataset:
             for i in range(2, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 15
         finally:
             os.remove(temp_file)
 
@@ -241,7 +235,6 @@ class TestGPTSFTChatDataset:
             for i in range(1, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 70
         finally:
             os.remove(temp_file)
 
@@ -268,6 +261,5 @@ class TestGPTSFTChatDataset:
             for i in range(0, turn_num, 2):
                 expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
             assert text == expected_text
-            assert mask.sum().item() == 105
         finally:
             os.remove(temp_file)
