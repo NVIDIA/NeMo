@@ -17,7 +17,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
-from group_norm import GroupNormOpt
+from apex.contrib.group_norm import GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
@@ -50,7 +50,7 @@ def nonlinearity(x):
 
 
 def Normalize(in_channels, num_groups=32, act=""):
-    return GroupNormOpt(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
+    return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
 
 
 class Upsample(nn.Module):

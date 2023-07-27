@@ -27,7 +27,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import repeat
-from group_norm import GroupNormOpt
+from apex.contrib.group_norm import GroupNorm
 from torch._dynamo import disable
 
 
@@ -216,7 +216,7 @@ def normalization(channels, act=""):
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNormOpt(32, channels, act=act)
+    return GroupNorm(32, channels, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.

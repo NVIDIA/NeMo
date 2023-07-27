@@ -17,7 +17,7 @@ from inspect import isfunction
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from group_norm import GroupNormOpt
+from apex.contrib.group_norm import GroupNorm
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -112,7 +112,7 @@ def zero_module(module):
 
 
 def Normalize(in_channels):
-    return GroupNormOpt(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+    return GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
 
 class LinearAttention(nn.Module):
