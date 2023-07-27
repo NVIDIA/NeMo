@@ -885,6 +885,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of the iterator
         try:
+            mode = 'test' if self.trainer.testing else 'val'
             # Initialize userbuffer communicators.
             if self.initialize_ub:
                 self.initialize_ub_func()
@@ -898,7 +899,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if isinstance(self.model, list):
                 for model_module in self.model:
                     model_module.train()
-            self.validation_step_outputs.append(loss)
+            self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
             return loss
         except StopIteration:
             return
@@ -927,9 +928,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def on_test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
+    def on_test_epoch_end(self):
+        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
+        self.test_step_outputs.clear() # free memory
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()

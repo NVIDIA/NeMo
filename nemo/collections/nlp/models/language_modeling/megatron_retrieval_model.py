@@ -339,7 +339,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def on_validation_epoch_end(self):
         if len(self.validation_step_outputs) == 0:
-            return
+            return None
         averaged_loss = torch.stack(self.validation_step_outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
         # formula to compute the perplexity

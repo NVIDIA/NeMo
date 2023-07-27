@@ -382,11 +382,9 @@ class ASRWithTTSModel(ASRModel):
         """Validation epoch end hook, forward to ASR model"""
         return self.asr_model.on_validation_epoch_end()
 
-    def on_test_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+    def on_test_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """Test epoch end hook, forward to ASR model"""
-        return self.asr_model.on_test_epoch_end(outputs=outputs)
+        return self.asr_model.on_test_epoch_end()
 
     def val_dataloader(self):
         """Get valudation dataloader from ASR model"""
