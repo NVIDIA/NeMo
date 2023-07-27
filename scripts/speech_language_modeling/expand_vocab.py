@@ -99,7 +99,7 @@ def build_tokenizer(args: argparse.Namespace):
             merges_file=args.merge_file,
             sentencepiece_legacy=args.sentencepiece_legacy,
             num_sentinel_tokens=args.num_sentinel_tokens,
-            expand_tokens_dataset_type="ul2",
+            expand_tokens_dataset_type="audio",
         )
     )
 

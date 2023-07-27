@@ -80,7 +80,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         # Update Tokenizer Config
         gpt_cfg.tokenizer.sentencepiece_legacy = True
         gpt_cfg.tokenizer.expand_tokens_dataset_type = "audio"      # is there any better name? 
-        
+        gpt_cfg.tokenizer.num_sentinel_tokens = 1000
+
         # Update Dataset Config
         gpt_cfg.data = cfg.model.data
         
