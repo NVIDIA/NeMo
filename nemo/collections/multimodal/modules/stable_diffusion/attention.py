@@ -38,8 +38,8 @@ def check_cuda():
 
 
 try:
-    from flash_attn import flash_attn_varlen_kvpacked_func as flash_attn_unpadded_kvpacked_func
-    from flash_attn import flash_attn_varlen_qkvpacked_func as flash_attn_unpadded_qkvpacked_func
+    from flash_attn import flash_attn_varlen_kvpacked_func
+    from flash_attn import flash_attn_varlen_qkvpacked_func
 
     import torch.nn as nn
     from flash_attn.bert_padding import unpad_input, pad_input
@@ -81,7 +81,7 @@ try:
                     max_s = seqlen
                     cu_seqlens = torch.arange(0, (batch_size + 1) * seqlen, step=seqlen, dtype=torch.int32,
                                             device=qkv.device)
-                    output = flash_attn_unpadded_qkvpacked_func(
+                    output = flash_attn_varlen_qkvpacked_func(
                         qkv, cu_seqlens, max_s, self.dropout_p if self.training else 0.0,
                         softmax_scale=self.softmax_scale, causal=causal
                     )
@@ -91,7 +91,7 @@ try:
                     x = rearrange(qkv, 'b s three h d -> b s (three h d)')
                     x_unpad, indices, cu_seqlens, max_s = unpad_input(x, key_padding_mask)
                     x_unpad = rearrange(x_unpad, 'nnz (three h d) -> nnz three h d', three=3, h=nheads)
-                    output_unpad = flash_attn_unpadded_qkvpacked_func(
+                    output_unpad = flash_attn_varlen_qkvpacked_func(
                         x_unpad, cu_seqlens, max_s, self.dropout_p if self.training else 0.0,
                         softmax_scale=self.softmax_scale, causal=causal
                     )
@@ -100,7 +100,7 @@ try:
                                     'b s (h d) -> b s h d', h=nheads)
             else:
                 assert max_s is not None
-                output = flash_attn_unpadded_qkvpacked_func(
+                output = flash_attn_varlen_qkvpacked_func(
                     qkv, cu_seqlens, max_s, self.dropout_p if self.training else 0.0,
                     softmax_scale=self.softmax_scale, causal=causal
                 )
@@ -111,7 +111,7 @@ try:
     print("FlashAttention Installed")
 
     # Disable TorchDynamo on FlashAttention
-    flash_attn_unpadded_kvpacked_func = disable(flash_attn_unpadded_kvpacked_func)
+    flash_attn_varlen_kvpacked_func = disable(flash_attn_varlen_kvpacked_func)
     FlashAttention.forward = disable(FlashAttention.forward)
 except ImportError:
     flash_attn_installed = False
@@ -340,7 +340,7 @@ class CrossAttention(nn.Module):
             cu_seqlens_q = torch.arange(0, (b + 1) * s_q, step=s_q, dtype=torch.int32, device=q.device)
             cu_seqlens_k = torch.arange(0, (b + 1) * s_kv, step=s_kv, dtype=torch.int32, device=kv.device)
 
-            out = flash_attn_unpadded_kvpacked_func(q, kv, cu_seqlens_q, cu_seqlens_k, s_q, s_kv, 0.0, self.scale)
+            out = flash_attn_varlen_kvpacked_func(q, kv, cu_seqlens_q, cu_seqlens_k, s_q, s_kv, 0.0, self.scale)
 
             out = out.view(b, s_q, hd)
 
