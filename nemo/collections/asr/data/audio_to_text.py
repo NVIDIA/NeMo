@@ -16,7 +16,7 @@ import json
 import math
 import multiprocessing
 import os
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union
 
 import braceexpand
 import numpy as np
@@ -50,7 +50,33 @@ __all__ = [
 ]
 
 
-def _speech_collate_fn(batch, pad_id):
+class AudioTextBatch(NamedTuple):
+    audio_signal: torch.Tensor
+    audio_signal_length: torch.Tensor
+    transcripts: torch.Tensor
+    transcripts_length: torch.Tensor
+
+
+class AudioTextBatchWithSampleId(NamedTuple):
+    audio_signal: torch.Tensor
+    audio_signal_length: torch.Tensor
+    transcripts: torch.Tensor
+    transcripts_length: torch.Tensor
+    sample_ids: torch.Tensor
+
+
+class AudioTextBatchWithSpeakerId(NamedTuple):
+    audio_signal: torch.Tensor
+    audio_signal_length: torch.Tensor
+    transcripts: torch.Tensor
+    transcripts_length: torch.Tensor
+    sample_ids: torch.Tensor
+    speaker_ids: torch.Tensor
+
+
+def _speech_collate_fn(
+    batch, pad_id
+) -> Union[AudioTextBatch, AudioTextBatchWithSampleId, AudioTextBatchWithSpeakerId]:
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -59,13 +85,16 @@ def _speech_collate_fn(batch, pad_id):
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
     packed_batch = list(zip(*batch))
-    if len(packed_batch) == 5:
+    speaker_ids = None
+    if len(packed_batch) == 6:
+        _, audio_lengths, _, tokens_lengths, sample_ids, speaker_ids = packed_batch
+    elif len(packed_batch) == 5:
         _, audio_lengths, _, tokens_lengths, sample_ids = packed_batch
     elif len(packed_batch) == 4:
         sample_ids = None
         _, audio_lengths, _, tokens_lengths = packed_batch
     else:
-        raise ValueError("Expects 4 or 5 tensors in the batch!")
+        raise ValueError("Expects 4, 5 or 6  tensors in the batch!")
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -74,10 +103,7 @@ def _speech_collate_fn(batch, pad_id):
 
     audio_signal, tokens = [], []
     for b in batch:
-        if len(b) == 5:
-            sig, sig_len, tokens_i, tokens_i_len, _ = b
-        else:
-            sig, sig_len, tokens_i, tokens_i_len = b
+        sig, sig_len, tokens_i, tokens_i_len, *_ = b
         if has_audio:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -97,11 +123,17 @@ def _speech_collate_fn(batch, pad_id):
         audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
+    if speaker_ids is not None:
+        sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
+        speaker_ids = torch.tensor(speaker_ids, dtype=torch.int32)
+        return AudioTextBatchWithSpeakerId(
+            audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids, speaker_ids
+        )
     if sample_ids is None:
-        return audio_signal, audio_lengths, tokens, tokens_lengths
+        return AudioTextBatch(audio_signal, audio_lengths, tokens, tokens_lengths)
     else:
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
-        return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
+        return AudioTextBatch(audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids)
 
 
 class ASRManifestProcessor:
@@ -388,6 +420,30 @@ def shard_manifests_if_needed(
     return manifest_filepaths
 
 
+class AudioTextItem(NamedTuple):
+    audio_signal: torch.Tensor
+    audio_signal_length: torch.Tensor
+    transcripts: torch.Tensor
+    transcripts_length: torch.Tensor
+
+
+class AudioTextItemWithSampleId(NamedTuple):
+    audio_signal: torch.Tensor
+    audio_signal_length: torch.Tensor
+    transcripts: torch.Tensor
+    transcripts_length: torch.Tensor
+    sample_id: int
+
+
+class AudioTextItemWithSpeakerId(NamedTuple):
+    audio_signal: torch.Tensor
+    audio_signal_length: torch.Tensor
+    transcripts: torch.Tensor
+    transcripts_length: torch.Tensor
+    sample_id: int
+    speaker_id: int
+
+
 class _AudioTextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
@@ -424,6 +480,7 @@ class _AudioTextDataset(Dataset):
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            'speaker_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -442,6 +499,7 @@ class _AudioTextDataset(Dataset):
         pad_id: int = 0,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        return_speaker_id: bool = False,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -463,11 +521,12 @@ class _AudioTextDataset(Dataset):
         self.trim = trim
         self.return_sample_id = return_sample_id
         self.channel_selector = channel_selector
+        self.return_speaker_id = return_speaker_id
 
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> Union[AudioTextItem, AudioTextItemWithSampleId, AudioTextItemWithSpeakerId]:
         sample = self.manifest_processor.collection[index]
         offset = sample.offset
 
@@ -486,10 +545,14 @@ class _AudioTextDataset(Dataset):
 
         t, tl = self.manifest_processor.process_text_by_sample(sample=sample)
 
-        if self.return_sample_id:
-            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
+        if self.return_speaker_id:
+            output = AudioTextItemWithSpeakerId(
+                f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index, speaker_id=sample.speaker
+            )
+        elif self.return_sample_id:
+            output = AudioTextItemWithSampleId(f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index)
         else:
-            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+            output = AudioTextItem(f, fl, torch.tensor(t).long(), torch.tensor(tl).long())
 
         return output
 
@@ -543,6 +606,7 @@ class AudioToCharDataset(_AudioTextDataset):
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            'speaker_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -565,6 +629,7 @@ class AudioToCharDataset(_AudioTextDataset):
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        return_speaker_id: bool = False,
     ):
         self.labels = labels
 
@@ -587,6 +652,7 @@ class AudioToCharDataset(_AudioTextDataset):
             pad_id=pad_id,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            return_speaker_id=return_speaker_id,
         )
 
 
@@ -637,6 +703,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            'speaker_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -653,6 +720,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        return_speaker_id: bool = False,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -702,6 +770,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             trim=trim,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            return_speaker_id=return_speaker_id,
         )
 
 
