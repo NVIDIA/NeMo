@@ -326,6 +326,8 @@ class GPTDataset(Dataset):
         self.create_inputs = any([self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss])
         self.cached_inputs = False
         self.eos_id = tokenizer.eos_id
+        self.pad_id = tokenizer.pad_id
+        self.vocab_size = tokenizer.vocab_size
         self.no_seqlen_plus_one_input_tokens = cfg.data.get('no_seqlen_plus_one_input_tokens', False)
         self.add_extra_token = 1
         if self.no_seqlen_plus_one_input_tokens:
@@ -373,7 +375,6 @@ class GPTDataset(Dataset):
         return self.sample_idx.shape[0] - 1
 
     def _get_text(self, idx: int) -> np.ndarray:
-
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
         # Start and end documents and offsets.
@@ -396,29 +397,50 @@ class GPTDataset(Dataset):
             sample_list.append(
                 self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + self.add_extra_token)
             )
-            sample = np.concatenate(sample_list)
-        if len(sample) != (self.seq_length + self.add_extra_token):
+            sample = np.concatenate(sample_list, axis=-1)
+        is_speech = sample.ndim == 2
+        sample_len = len(sample)
+        if is_speech:
+            sample_len = sample.shape[1]
+        if sample_len != (self.seq_length + self.add_extra_token):
             logging.info(
-                F' > WARNING: Got sample of length: {len(sample)} for sequence length={self.seq_length+self.add_extra_token}, padding the sample to match sequence length'
+                F' > WARNING: Got sample of length: {sample_len} for sequence length={self.seq_length+self.add_extra_token}, padding the sample to match sequence length'
             )
             sample = np.array(sample, dtype=np.int64)
-            sample = np.pad(
-                sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1
-            )
+            if is_speech:
+                sample = np.pad(
+                    sample, ((0,0),(0, self.seq_length + self.add_extra_token - sample_len)), mode='constant', constant_values=-1
+                )
+            else:
+                sample = np.pad(
+                    sample, (0, self.seq_length + self.add_extra_token - sample_len), mode='constant', constant_values=-1
+                )
         return sample.astype(np.int64)
 
     def __getitem__(self, idx):
         text = torch.from_numpy(self._get_text(idx))
+        is_speech = text.dim() == 2
         if self.add_extra_token:
-            tokens = text[:-1].contiguous()
-            labels = text[1:].contiguous()
+            if is_speech:
+                for l in range(text.shape[0]):
+                    text[l] += self.vocab_size + 1024*l
+                tokens = text[:,:-1].contiguous()
+                labels = text[:,1:].contiguous()
+            else:
+                tokens = text[:-1].contiguous()
+                labels = text[1:].contiguous()
         else:
+            if is_speech:
+                raise NotImplementedError()
             tokens = text
             labels = torch.roll(text, shifts=-1, dims=0)
             labels[-1] = -1
         if self.create_inputs or not self.cached_inputs:
+            tokens_1d = tokens
+            if is_speech:
+                tokens_1d = tokens[0]
             attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-                tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+                tokens_1d, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
             )
             if not self.create_inputs:
                 self.cached_attention_mask = attention_mask
@@ -429,7 +451,19 @@ class GPTDataset(Dataset):
             attention_mask = self.cached_attention_mask
             loss_mask = self.cached_loss_mask
             position_ids = self.cached_position_ids
-        loss_mask[labels == -1] = 0.0
+
+        def pad_text_to_speech_dims(text_tensor, pad_id):
+            token_len = text_tensor.shape[0]
+            empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+            return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
+
+        if is_speech:
+            loss_mask[labels[0] == -1] = 0.0
+        else:
+            loss_mask[labels == -1] = 0.0
+        if not is_speech:
+            tokens = pad_text_to_speech_dims(tokens, 0 if not self.pad_id else self.pad_id)
+            labels = pad_text_to_speech_dims(labels, 0 if not self.pad_id else self.pad_id)
         tokens[tokens == -1] = 0
         labels[labels == -1] = 0
 
@@ -440,11 +474,12 @@ class GPTDataset(Dataset):
             loss_mask = torch.zeros_like(loss_mask)
 
         return {
-            'tokens': tokens,
-            'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
+            'tokens': tokens,  # 2d
+            'labels': labels,  # 2d
+            'attention_mask': attention_mask,  # 2d
+            'loss_mask': loss_mask,  # 1d
+            'position_ids': position_ids,  # 1d
+            "speech_mask": loss_mask if is_speech else torch.zeros(loss_mask.shape),  # 1d
         }
 
 

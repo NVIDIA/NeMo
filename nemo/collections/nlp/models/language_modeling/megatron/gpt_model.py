@@ -113,8 +113,13 @@ def post_language_model_processing(
         # [s b h] -> [b s h]
         return output.transpose(0, 1).contiguous()
     else:
-        # [b s] -> [s b]
-        labels = labels.transpose(0, 1).contiguous()
+        if labels.dim() == 2:
+            # [b, s] -> [s, b]
+            labels = labels.transpose(0, 1).contiguous()
+        elif labels.dim() == 3:
+            # [b, c, s] -> [c, s, b]
+            # c = 8 for now
+            labels = labels.permute(1, 2, 0).contiguous()
 
         loss = 0
         if fp16_lm_cross_entropy:
@@ -122,15 +127,18 @@ def post_language_model_processing(
             assert output.dtype == torch.half
             loss += vocab_parallel_cross_entropy(output, labels)
         else:
-            loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
-            # import ipdb; ipdb.set_trace()
-            # print(f"-1: {loss}")
-            for i in range(speech_layers):
-                loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+            if labels.dim() == 2:
+                loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
+            elif labels.dim() == 3:
+                loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
                 # import ipdb; ipdb.set_trace()
-                # print(f"{i}: {loss}")
-                # logging.debug(f"token_loss_{i}: {tokens_loss}")
-                # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
+                # print(f"-1: {loss}")
+                for i in range(speech_layers):
+                    loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                    # import ipdb; ipdb.set_trace()
+                    # print(f"{i}: {loss}")
+                    # logging.debug(f"token_loss_{i}: {tokens_loss}")
+                    # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
         # [s b] -> [b, s]
         loss = loss.transpose(0, 1).contiguous()

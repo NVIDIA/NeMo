@@ -739,14 +739,17 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
+            # import ipdb; ipdb.set_trace()
             encoder_input = None
             if enc_input_ids.dim() > 2:
                 for i in range(enc_input_ids.size()[1]):
                     cur = self.embedding(enc_input_ids[:, i, :], enc_position_ids, token_type_ids=token_type_ids)
+                    # import ipdb; ipdb.set_trace()
                     if encoder_input is None:
                         encoder_input = cur
                     else:
-                        encoder_input = encoder_input + cur
+                        include_channel_flag = (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float()
+                        encoder_input = encoder_input + cur * include_channel_flag.unsqueeze(-1).unsqueeze(0)
             else:
                 # Should be text tokens
                 encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)

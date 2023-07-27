@@ -59,6 +59,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -71,7 +72,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import parallel_state, tensor_parallel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     # TODO @tmoon: Use once available in Megatron-LM
@@ -1312,3 +1313,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
+
+    def update_for_speech(self):
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        # Update embedding tables
+        word_embedding = base_module.language_model.embedding.word_embeddings
+        old_token_size = word_embedding.num_embeddings
+        new_embeddings = tensor_parallel.VocabParallelEmbedding(
+            num_embeddings=old_token_size + 8*1024,  #TODO
+            embedding_dim=word_embedding.embedding_dim
+        )
+        new_weight = new_embeddings.weight.clone()
+        new_weight[:old_token_size, :] = word_embedding.weight.clone()
+        new_weight = torch.nn.Parameter(new_weight)
+        new_embeddings.weight = new_weight
+        self.word_embedding = new_embeddings
+        del new_embeddings
+        del new_weight
+        base_module.language_model.embedding.word_embeddings = self.word_embedding
+
+        # TODO: hardcodes
+        hidden_size = base_module.hidden_size
+        base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
