@@ -724,7 +724,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         return averaged_outputs
-    
+
     def validation_epoch_end(self, outputs):
         averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="val")
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
