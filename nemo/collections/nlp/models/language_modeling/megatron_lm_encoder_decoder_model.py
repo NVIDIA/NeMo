@@ -348,7 +348,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 loss_mean = torch.tensor(0.0).cuda()
 
-        return loss_mean
+        return {"loss": loss_mean}
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -362,7 +362,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)["loss"]
 
         if self.with_distributed_adam:
             # synchronize asynchronous grad reductions
@@ -700,37 +700,43 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         return self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
-    def validation_epoch_end(self, outputs):
+    def _test_validation_epoch_end(self, outputs, prefix):
+        """
+        Shared logging for validation and test
+        """
         # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
         if len(outputs) == 0:
             logging.warning("validation_epoch_end: outputs is empty")
             return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(outputs).mean()
+            averaged_outputs = {k: torch.stack([x[k] for x in outputs]).mean() for k in outputs[0].keys()}
         else:
-            averaged_loss = torch.tensor(0.0).cuda()
+            averaged_outputs = {}
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        for k, v in averaged_outputs.items():
+            torch.distributed.broadcast(v, get_last_rank())
+            n = f'{prefix}_{k}'
+            # log only '*_loss' values in progress bar
+            self.log(n, v, prog_bar=(n.endswith("_loss")), rank_zero_only=True, batch_size=1)
+
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
 
-        return averaged_loss
+        return averaged_outputs
+    
+    def validation_epoch_end(self, outputs):
+        averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="val")
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+        return averaged_outputs
 
     def test_step(self, dataloader_iter, batch_idx):
         return self.validation_step(dataloader_iter, batch_idx)
 
     def test_epoch_end(self, outputs):
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(outputs).mean()
-        else:
-            averaged_loss = torch.tensor(0.0).cuda()
+        averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="test")
 
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         return averaged_loss
 
     def loss_func(self, loss_mask, tokens_loss):
