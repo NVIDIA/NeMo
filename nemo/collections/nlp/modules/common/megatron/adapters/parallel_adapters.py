@@ -143,6 +143,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 self.layer_norm = nn.LayerNorm(ln_features)
             else:
                 raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
+        else:
+            self.layer_norm = None
 
         if dropout > 0.0:
             self.dropout = nn.Dropout(dropout)
@@ -368,11 +370,15 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         dim_position_embeddings: int = 1024,
         position_embedding_strategy: Optional[str] = "add",
     ):
+        self.position_embeddings = None
+        self.mlp = None
         self.position_embedding_strategy = position_embedding_strategy
-        assert self.position_embedding_strategy in ["add", "concat", None]
+        assert self.position_embedding_strategy in ["add", "concat", "mlpconcat", None]
         if self.position_embedding_strategy == "concat":
             in_features += dim_position_embeddings
-        if self.position_embedding_strategy == "add":
+        elif self.position_embedding_strategy == "mlpconcat":
+            in_features += dim_position_embeddings
+        elif self.position_embedding_strategy == "add":
             assert (
                 in_features == dim_position_embeddings
             ), "adapter input feature size should match position emb size to add"
@@ -390,19 +396,31 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         )
         if self.position_embedding_strategy:
             self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
+        if self.position_embedding_strategy == "mlpconcat":
+            self.mlp = torch.nn.Sequential(torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False), 
+                                            torch.nn.GELU(), 
+                                            torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False))
         self.register_buffer("position_id", torch.LongTensor([1]), persistent=False)
 
     def set_position(self, position_id):
         self.position_id *= position_id
 
-    def tie_weights(self, position_id, linear_in, linear_out, position_embeddings=None, layer_norm=None):
+    def tie_weights(self, position_id, adapter):
+
         self.set_position(position_id)
-        self.linear_in.weight = linear_in.weight
-        self.linear_out.weight = linear_out.weight
-        if position_embeddings is not None:
-            self.position_embeddings.weight = position_embeddings.weight
-        if layer_norm is not None:
-            self.layer_norm.weight = layer_norm.weight
+        if self.linear_in:
+            self.linear_in.weight = adapter.linear_in.weight
+        if self.linear_out:
+            self.linear_out.weight = adapter.linear_out.weight
+        if self.layer_norm:
+            self.layer_norm.weight = adapter.layer_norm.weight
+            self.layer_norm.bias = adapter.layer_norm.bias
+        if self.mlp:
+            self.mlp[0].weight = adapter.mlp[0].weight
+            self.mlp[2].weight = adapter.mlp[2].weight
+        if self.position_embeddings:
+            self.position_embeddings.weight = adapter.position_embeddings.weight
+        
         return True
 
     def forward(self, x):
@@ -412,8 +430,12 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             if self.position_embedding_strategy == "add":
                 pos = pos.expand_as(x)
                 x = x + pos
-            else:
+            elif self.position_embedding_strategy == "concat":
                 pos = pos.expand(x.shape[0], x.shape[1], pos.shape[2])
+                x = torch.cat((x, pos), dim=2)
+            elif self.position_embedding_strategy == "mlpconcat":
+                pos = pos.expand(x.shape[0], x.shape[1], pos.shape[2])
+                pos = self.mlp(pos)
                 x = torch.cat((x, pos), dim=2)
 
         if self.norm_position == 'pre':

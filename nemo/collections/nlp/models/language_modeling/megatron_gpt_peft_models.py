@@ -260,7 +260,7 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 else:
                     lnorm = None
                 adapter_l.tie_weights(
-                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, adapter_0.position_embeddings, lnorm,
+                    pos_idx, adapter_0
                 )
                 pos_idx += 1
 
@@ -499,6 +499,10 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
             dim_position_embeddings = cfg.hidden_size
         elif position_embedding_strategy == "concat":
             dim_position_embeddings = lora_cfg.adapter_dim
+        elif position_embedding_strategy == "mlpconcat":
+            dim_position_embeddings = lora_cfg.adapter_dim
+        else:
+            raise RuntimeError("Unknown position embedding strategy for tied weights")
 
         adapter_cfg = LoraKQVAdapterWeightTyingConfig(
             in_features=cfg.hidden_size,
@@ -543,6 +547,5 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 if adapter_0.position_embedding_strategy:
                     position_embeddings_0 = adapter_0.position_embeddings
                 adapter_l.tie_weights(
-                    pos_idx, adapter_0.linear_in, adapter_0.linear_out, position_embeddings_0,
-                )
+                    pos_idx, adapter_0)
                 pos_idx += 1
