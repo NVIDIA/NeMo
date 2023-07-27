@@ -30,13 +30,16 @@ class RotaryEmbedding(nn.Module):
         Args:
 
             dim (int): rotary embedding dimension
+            max_seq_len (int): initial max_seq_len from max_position_embeddings
             scaling_type (str): linear or dynamic
-            scaling_factor (int): if not None, discrete positions will be interpolated by this factor via the trick in https://arxiv.org/abs/2306.15595.
+                linear - https://arxiv.org/abs/2306.15595
+                dynamic - https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/
+            scaling_factor (int): if not None, we will do scaling trick on position embedding
         """
         super().__init__()
         self.base = 10000
         self.dim = dim
-        self.max_position_embedding = max_seq_len
+        self.max_position_embeddings = max_seq_len
         self.max_seq_len_cached = max_seq_len
         self.scaling_type = scaling_type
         self.scaling_factor = scaling_factor
@@ -44,21 +47,22 @@ class RotaryEmbedding(nn.Module):
         
         inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / self.dim))
         self.register_buffer('inv_freq', inv_freq)
-
+ 
     def forward(self, max_seq_len, offset=0):
-        if max_seq_len > self.max_seq_len_cached:
-            self.max_seq_len_cached = max_seq_len
-            
-        seq = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device) + offset
+        
+        seq = torch.arange(max(max_seq_len, self.max_seq_len_cached), device=self.inv_freq.device) + offset
         
         if self.scaling_factor is not None:
-            if self.scaling_type == 'dynamic' and self.max_seq_len_cached > self.max_position_embedding:
-                base = self.base * ((self.scaling_factor * self.max_seq_len_cached / self.max_position_embedding) - (self.scaling_factor - 1)) ** (self.dim / (self.dim-2))
-                inv_freq = 1.0 / (base ** (torch.arange(0, self.dim, 2).float().to(self.inv_freq.device) / self.dim))
+            if self.scaling_type == 'dynamic' and max_seq_len > self.max_seq_len_cached:
+                base = self.base * ((self.scaling_factor * max_seq_len / self.max_position_embeddings) - (self.scaling_factor - 1)) ** (self.dim / (self.dim-2))
+                inv_freq = 1.0 / (base ** (torch.arange(0, self.dim, 2, device=self.inv_freq.device).type(self.inv_freq.dtype) / self.dim))
                 self.register_buffer("inv_freq", inv_freq)
-            elif self.scaling_type == 'linear':
+                
+            if self.scaling_type == 'linear':
                 seq = seq.type_as(self.inv_freq)
                 seq *= 1 / self.scaling_factor
+                
+        self.max_seq_len_cached = max(max_seq_len, self.max_seq_len_cached)
                 
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
