@@ -30,6 +30,7 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
 
@@ -46,9 +47,10 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         if trainer is not None:
             self.world_size = trainer.world_size
 
-        super(EncDecRNNTModel, self).__init__(cfg=cfg, trainer=trainer)
+        self.dataset_type = self.DatasetType(cfg.dataset_type)  # setup before super
+        if cfg.encoder.feat_in <= 0:
+            cfg.encoder.feat_in = cfg.speaker_embeddign_dim + cfg.text_embedding_dim
 
-        self.dataset_type = self.DatasetType(cfg.dataset_type)
         # Setup the tokenizer
         self.tokenizer: TokenizerSpec
 
@@ -57,17 +59,20 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
             vocabulary = self.tokenizer.tokenizer.get_vocab()
             vocabulary_size = len(vocabulary)
         elif self.dataset_type == self.DatasetType.TTS:
-            raise NotImplementedError
+            raise NotImplementedError("TTS Dataset support is not implemented yet")
         else:
             raise NotImplementedError(f"Unsupported dataset type {self.dataset_type}")
 
         with open_dict(cfg.decoder):
             cfg.decoder.vocab_size = 1024  # encodec, TODO: read from config
 
+        super(EncDecRNNTModel, self).__init__(cfg=cfg, trainer=trainer)
+
         self.text_embeddings = nn.Embedding(vocabulary_size, cfg.text_embedding_dim)
         self.encodec_model: nn.Module = EncodecModel.from_pretrained(
             "facebook/encodec_24khz"
         )  # TODO: store config, load weights
+        self.speaker_embeddings = nn.Embedding(self.cfg.n_speakers, self.cfg.speaker_embedding_dim)
 
         # Initialize components
         self.preprocessor = EncDecRNNTModel.from_config_dict(self.cfg.preprocessor)
@@ -148,8 +153,16 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
     def change_vocabulary(self, *args, **kwargs):
         raise NotImplementedError
 
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "transcript": NeuralType(('B', 'T'), LabelsType()),
+            "transcript_len": NeuralType(tuple('B'), LengthsType()),
+            "speaker_ids": NeuralType(tuple('B'), LengthsType()),  # TODO: speaker type???
+        }
+
     @typecheck()
-    def forward(self, transcript: torch.Tensor, transcript_len: torch.Tensor):
+    def forward(self, transcript: torch.Tensor, transcript_len: torch.Tensor, speaker_ids: torch.Tensor):
         """
         Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
         and this method only performs the first step - forward of the acoustic model.
@@ -184,6 +197,9 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         #         input_signal=input_signal, length=input_signal_length,
         #     )
         embed_transcript = self.text_embeddings(transcript).transpose(1, 2)
+        batch_size, text_length = transcript.shape[0], transcript.shape[1]
+        embed_speakers = self.speaker_embeddings(speaker_ids).unsqueeze(-1).expand(-1, -1, text_length)
+        embed_transcript = torch.cat((embed_transcript, embed_speakers), 1)
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
@@ -202,7 +218,9 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
 
         # signal, signal_len, transcript, transcript_len = batch
 
-        encoded, encoded_len = self.forward(transcript=batch.transcripts, transcript_len=batch.transcripts_length)
+        encoded, encoded_len = self.forward(
+            transcript=batch.transcripts, transcript_len=batch.transcripts_length, speaker_ids=batch.speaker_ids
+        )
         with torch.no_grad():
             if self.encodec_model.training:
                 self.encodec_model.eval()
@@ -327,7 +345,9 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
             raise NotImplementedError("Unsupported batch type")
         # signal, signal_len, transcript, transcript_len = batch
 
-        encoded, encoded_len = self.forward(transcript=batch.transcripts, transcript_len=batch.transcripts_length)
+        encoded, encoded_len = self.forward(
+            transcript=batch.transcripts, transcript_len=batch.transcripts_length, speaker_ids=batch.speaker_ids
+        )
         with torch.no_grad():
             if self.encodec_model.training:
                 self.encodec_model.eval()
