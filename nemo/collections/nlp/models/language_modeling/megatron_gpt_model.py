@@ -883,6 +883,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of the iterator
         try:
             # Initialize userbuffer communicators.
             if self.initialize_ub:

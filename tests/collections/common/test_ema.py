@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os.path
-from typing import Any, Dict, Union, Optional
+from typing import Any, Dict, Union
 
 import pytest
 import pytorch_lightning as pl

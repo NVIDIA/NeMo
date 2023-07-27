@@ -147,12 +147,8 @@ class HeteronymClassificationModel(NLPModel):
 
         return loss
 
-    def on_validation_epoch_end(self, split="val"):
-        """
-        Args:
-            outputs: list of individual outputs of each test step.
-            split: dataset split name: "val" or "test"
-        """
+    def on_validation_epoch_end(self):
+        split = "test" if self.trainer.testing else "val"      
         if split == 'val':
             avg_loss = torch.stack([x[f'{split}_loss'] for x in self.validation_step_outputs]).mean()
         elif split == 'test':
@@ -201,7 +197,7 @@ class HeteronymClassificationModel(NLPModel):
         Args:
             outputs: list of individual outputs of each test step.
         """
-        return self.on_validation_epoch_end("test")
+        return self.on_validation_epoch_end()
 
     def set_wordid_to_phonemes(self, wordid_to_phonemes_file: str):
         if wordid_to_phonemes_file is None or not os.path.exists(wordid_to_phonemes_file):

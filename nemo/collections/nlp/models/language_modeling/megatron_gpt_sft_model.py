@@ -187,7 +187,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # If setting val and test dataloaders via this method, create self.validation_step_outputs and self.test_step_outputs
         if type(self._validation_dl) == list and len(self._validation_dl) > 1:
             for _ in range(len(self._validation_dl)):
-                self.validation_step_outputs.append([])
+                self.validation_step_outputs_sft.append([])
 
         if type(self._test_dl) == list and len(self._test_dl) > 1: 
             for _ in range(len(self._test_dl)):
@@ -386,7 +386,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         loss = super().validation_step(dataloader_iter, batch_idx)
         # loss can be None as super().validation_step returns None when dataloader_iter is exhausted
         # which can lead to error, adding check to prevent it
-        if not loss == None: # Ensure its not None
+        if not loss is None: # Ensure its not None
             outputs = {
                 'loss': loss,
                 'preds': None,
@@ -593,6 +593,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             if averaged_metric is not None:
                 self.log(f"test_{self.test_metric_name}", averaged_metric)
 
+        # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
         if hasattr(self, "_train_ds"):

@@ -20,7 +20,6 @@ from typing import Any, Optional
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 

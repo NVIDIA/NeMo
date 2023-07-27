@@ -17,7 +17,6 @@ from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (

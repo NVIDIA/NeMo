@@ -167,7 +167,7 @@ model:
 
   test_ds:
     prefix: test
-    ds_item: ["test"] 
+    ds_item: ["test"]
     batch_size: 8
     shuffle: false
     num_workers: 3

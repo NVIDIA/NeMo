@@ -128,15 +128,20 @@ class DialogueNearestNeighbourModel(NLPModel):
         return loss
 
     def multi_test_epoch_end(self, outputs, dataloader_idx):
-        return self.on_test_epoch_end()
+        return self.on_validation_epoch_end()
 
     def on_validation_epoch_end(self):
         """
         Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
         """
-        output_preds = torch.cat([output['preds'] for output in self.validation_step_outputs], dim=0)
-        output_labels = torch.cat([output['labels'] for output in self.validation_step_outputs], dim=0)
-        inputs = torch.cat([output['inputs'] for output in self.validation_step_outputs], dim=0)
+        prefix = "test" if self.trainer.testing else "val"
+        if prefix == "val":
+            outputs = self.validation_step_outputs
+        else:
+            outputs = self.test_step_outputs
+        output_preds = torch.cat([output['preds'] for output in outputs], dim=0)
+        output_labels = torch.cat([output['labels'] for output in outputs], dim=0)
+        inputs = torch.cat([output['inputs'] for output in outputs], dim=0)
 
         decoded_preds = self.tokenizer.tokenizer.batch_decode(output_preds, skip_special_tokens=True)
         decoded_labels = self.tokenizer.tokenizer.batch_decode(output_labels, skip_special_tokens=True)
@@ -178,57 +183,7 @@ class DialogueNearestNeighbourModel(NLPModel):
         self.log('unfied_accuracy', label_acc * 100)
 
         self.classification_report.reset()
-        self.validation_step_outputs.clear()  # free memory
-
-    def on_test_epoch_end(self):
-        """
-        Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
-        """
-        output_preds = torch.cat([output['preds'] for output in self.test_step_outputs], dim=0)
-        output_labels = torch.cat([output['labels'] for output in self.test_step_outputs], dim=0)
-        inputs = torch.cat([output['inputs'] for output in self.test_step_outputs], dim=0)
-
-        decoded_preds = self.tokenizer.tokenizer.batch_decode(output_preds, skip_special_tokens=True)
-        decoded_labels = self.tokenizer.tokenizer.batch_decode(output_labels, skip_special_tokens=True)
-        decoded_inputs = self.tokenizer.tokenizer.batch_decode(inputs, skip_special_tokens=True)
-
-        prompt_len = len(self.cfg.dataset.prompt_template.strip())
-        predicted_labels = [i[prompt_len:].strip() for i in decoded_preds]
-        ground_truth_labels = [i[prompt_len:].strip() for i in decoded_labels]
-
-        os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
-        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl")
-
-        DialogueGenerationMetrics.save_predictions(
-            filename, predicted_labels, ground_truth_labels, decoded_inputs,
-        )
-
-        label_to_ids = {label: idx for idx, label in enumerate(list(set(predicted_labels + ground_truth_labels)))}
-        self.classification_report = ClassificationReport(
-            num_classes=len(label_to_ids), mode='micro', label_ids=label_to_ids, dist_sync_on_step=True
-        ).to(output_preds[0].device)
-
-        predicted_label_ids = torch.tensor([label_to_ids[label] for label in predicted_labels]).to(
-            output_preds[0].device
-        )
-        ground_truth_label_ids = torch.tensor([label_to_ids[label] for label in ground_truth_labels]).to(
-            output_preds[0].device
-        )
-
-        tp, fn, fp, _ = self.classification_report(predicted_label_ids, ground_truth_label_ids)
-
-        precision, recall, f1, report = self.classification_report.compute()
-        label_acc = np.mean([int(predicted_labels[i] == ground_truth_labels[i]) for i in range(len(predicted_labels))])
-
-        logging.info(report)
-
-        self.log('unified_precision', precision)
-        self.log('unified_f1', f1)
-        self.log('unified_recall', recall)
-        self.log('unfied_accuracy', label_acc * 100)
-
-        self.classification_report.reset()
-        self.test_step_outputs.clear()  # free memory
+        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config:

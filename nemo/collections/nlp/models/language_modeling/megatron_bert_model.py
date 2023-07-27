@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
@@ -424,6 +423,7 @@ class MegatronBertModel(MegatronBaseModel):
     def validation_step(self, dataloader_iter, batch_idx):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
         try:
+            prefix = "test" if self.trainer.testing else "val"
             if self.cfg.data.dataloader_type == "LDDL":
                 seq_length = dataloader_iter.iterator.get_seqlen()
                 tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -452,7 +452,7 @@ class MegatronBertModel(MegatronBaseModel):
                 loss_mean = torch.tensor([0.0]).cuda()
 
             loss = loss_mean[0]
-            self.validation_step_outputs.append(loss)
+            self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
             return loss
         except StopIteration:
             return
@@ -471,8 +471,8 @@ class MegatronBertModel(MegatronBaseModel):
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def on_test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
+    def on_test_epoch_end(self):
+        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, sentence_order, output_tensor):
