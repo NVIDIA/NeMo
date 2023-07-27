@@ -1270,6 +1270,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for index, module in enumerate(self.get_gpt_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                     parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                 # TODO: do we need this?
                 # when using interleaved, model is GPTModel, so we need to remove the 'model.' prefix
                 # checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
@@ -1277,7 +1278,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 #     key.replace('model.', ''): checkpoint_state_dict.pop(key)
                 #     for key in list(checkpoint_state_dict.keys())
                 # }
-                checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                else:
+                    checkpoint_state_dict = checkpoint['state_dict']
+                # TODO: checkpoint_state_dict has model. but module does not
+                checkpoint_state_dict = {
+                    key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                    for key in list(checkpoint_state_dict.keys())
+                }
                 module.load_state_dict(checkpoint_state_dict, strict=True)
 
             # reset virtual pipeline model parallel rank

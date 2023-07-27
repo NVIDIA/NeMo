@@ -16,7 +16,6 @@ from calendar import c
 import itertools
 from operator import is_
 import os
-from pyexpat import model
 import shutil
 import tempfile
 from collections import defaultdict
