@@ -276,7 +276,7 @@ def generate_overlap_vad_seq(
         overlap_out_dir = out_dir
     else:
         overlap_out_dir = os.path.join(
-            frame_pred_dir, "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
+            frame_pred_dir, "overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
         )
 
     if not os.path.exists(overlap_out_dir):
@@ -1051,11 +1051,11 @@ def plot(
     else:
         label = None
 
-    if label:
+    if label is not None:
         ax2.plot(np.arange(len_pred) * unit_frame_len, label, 'r', label='label')
-    if pred_snippet:
+    if pred_snippet is not None:
         ax2.plot(np.arange(len_pred) * unit_frame_len, pred_snippet, 'b', label='pred')
-    if frame_snippet:
+    if frame_snippet is not None:
         ax2.plot(np.arange(len_pred) * unit_frame_len, frame_snippet, 'g--', label='speech prob')
 
     ax2.tick_params(axis='y', labelcolor='r')
