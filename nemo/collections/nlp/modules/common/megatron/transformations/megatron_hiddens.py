@@ -115,9 +115,17 @@ def get_hiddens_module(cfg=None):
                 raise KeyError(f"Missing 'cls_name' in hidden transform {name}")
 
             cls_name = cls_kwargs.pop("cls_name")
+            # add name based on dictionary if not given in conf
+            if "name" not in cls_kwargs:
+                cls_kwargs["name"] = name
             if cls_name not in _TRANSFORM_CLASS_REGISTRY:
                 raise KeyError(f"Unknown hidden transform {cls_name}, available: {_TRANSFORM_CLASS_REGISTRY.keys()}")
-            cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+            try:
+                cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+            except Exception as e:
+                logging.error(f"Failed to build hidden transform {name} with cfg={cur_cfg}")
+                raise e
+                
             hidden_transforms.append(cur_transform)
             logging.info(f"Added transform {name} with cfg={cur_cfg}")
 
@@ -134,9 +142,16 @@ def get_hiddens_module(cfg=None):
                 raise KeyError(f"Missing 'cls_name' in hidden loss {name}")
 
             cls_name = cls_kwargs.pop("cls_name")
+            # add name based on dictionary if not given in conf
+            if "name" not in cls_kwargs:
+                cls_kwargs["name"] = name
             if cls_name not in _LOSS_CLASS_REGISTRY:
                 raise KeyError(f"Unknown hidden loss {cls_name}, available: {_LOSS_CLASS_REGISTRY.keys()}")
-            cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+            try:
+                cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+            except Exception as e:
+                logging.error(f"Failed to build hidden loss {name} with cfg={cur_cfg}")
+                raise e
             hidden_loss_transforms.append(cur_loss)
             logging.info(f"Added loss {name} with cfg={cur_cfg}")
 
@@ -201,13 +216,14 @@ class MegatronHiddensModule(torch.nn.Module):
 
         # fail here reporting all duplicate output names
         if duplicate_names:
-            raise ValueError(f"Hidden transforms have duplicate outputs {{names: [duplicates]}} = {duplicate_names}")
+            raise ValueError(f"Hidden transforms have duplicate outputs {{name: [duplicate outputs]}} = {duplicate_names}")
 
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
         loss_inputs = set(itertools.chain(*[lt.input_names for lt in self.hidden_loss_transforms]))
         if not loss_inputs.issubset(hidden_outputs):
+            loss_inputs_dict = {lt.name: lt.input_names for lt in self.hidden_loss_transforms}
             raise ValueError(
-                f"Loss transforms inputs = {loss_inputs - hidden_outputs} are not supported by hidden transforms with hidden_outputs = {hidden_outputs}"
+                f"Loss transforms inputs = {loss_inputs - hidden_outputs} are not supported by hidden transforms with hidden_outputs = {hidden_outputs}, expected inputs per loss = {loss_inputs_dict}"
             )
 
     @functools.cached_property
