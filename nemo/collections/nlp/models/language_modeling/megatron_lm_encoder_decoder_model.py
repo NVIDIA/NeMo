@@ -737,7 +737,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def test_epoch_end(self, outputs):
         averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="test")
 
-        return averaged_loss
+        return averaged_outputs
 
     def loss_func(self, loss_mask, tokens_loss):
         """
