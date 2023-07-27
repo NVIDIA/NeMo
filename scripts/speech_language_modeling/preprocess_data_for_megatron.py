@@ -197,10 +197,16 @@ class AudioEncoder(object):
         return flat_codes
     
     def process(self, file_path):
-        """load npz file from filepath
+        """load pt/npz file from filepath
         """
-        codes = np.load(file_path)
-        codes = codes["codes"]  # [n_codebooks, n_frames]  
+        if file_path.endswith(".npz"):
+            codes = np.load(file_path)
+            codes = codes["codes"]  # [n_codebooks, n_frames]  
+        elif file_path.endswith(".pt"):
+            codes = torch.load(file_path, map_location='cpu')
+            codes = codes.to(torch.int32).squeeze(0).numpy()  # [n_codebooks, n_frames]
+        else:
+            raise ValueError(f"file_path must be either .npz or .pt, got {file_path}")
         
         # if n_codebooks_to_use is greater than the number of codebooks in the file, raise error
         if self.args.n_codebooks_to_use is not None and self.args.n_codebooks_to_use > codes.shape[0]:
@@ -268,12 +274,12 @@ class AudioTextEncoder(object):
             if key == "text":
                 text = data[key]
                 doc_ids = self.text_encoder.process(text)
-                processed = len(text)
+                processed = len(json_line)
 
-            if key == "audio":
+            if key == "audio_codes":
                 audio = data[key]
                 doc_ids = self.audio_encoder.process(audio)
-                processed = audio.size
+                processed = len(json_line)  # TODO: Not meaningful for audio data
 
             # paired audio text
             if key == "audio_text":
