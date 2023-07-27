@@ -328,7 +328,7 @@ class Worker(object):
 
 def main(
     batch_size=1,
-    host='batch-block1-10453',
+    host='localhost',
     input_file_name='input.jsonl',
     output_file_name='output.jsonl',
     port_num=1424,

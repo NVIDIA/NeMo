@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import copy
 import json
 import os
 import random
@@ -83,7 +84,7 @@ class TestGPTSFTChatDataset:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = tokenizer.ids_to_text(input_ids[mask].tolist())
@@ -105,7 +106,7 @@ class TestGPTSFTChatDataset:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = tokenizer.ids_to_text(input_ids[mask].tolist())
@@ -127,7 +128,7 @@ class TestGPTSFTChatDataset:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = tokenizer.ids_to_text(input_ids[mask].tolist())
@@ -149,7 +150,7 @@ class TestGPTSFTChatDataset:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = tokenizer.ids_to_text(input_ids[mask].tolist())
@@ -174,7 +175,7 @@ class TestGPTSFTChatDataset:
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = ids_to_text(tokenizer, input_ids[mask].tolist())
@@ -199,7 +200,7 @@ class TestGPTSFTChatDataset:
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = ids_to_text(tokenizer, input_ids[mask].tolist())
@@ -224,7 +225,7 @@ class TestGPTSFTChatDataset:
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = ids_to_text(tokenizer, input_ids[mask].tolist())
@@ -249,7 +250,7 @@ class TestGPTSFTChatDataset:
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
             d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d[0]
+            result = d._process_example(copy.deepcopy(data_points[0]))
             input_ids = result['input_ids']
             mask = result['mask']
             text = ids_to_text(tokenizer, input_ids[mask].tolist())
