@@ -49,7 +49,7 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
 
         self.dataset_type = self.DatasetType(cfg.dataset_type)  # setup before super
         if cfg.encoder.feat_in <= 0:
-            cfg.encoder.feat_in = cfg.speaker_embeddign_dim + cfg.text_embedding_dim
+            cfg.encoder.feat_in = cfg.speaker_embedding_dim + cfg.text_embedding_dim
 
         # Setup the tokenizer
         self.tokenizer: TokenizerSpec
