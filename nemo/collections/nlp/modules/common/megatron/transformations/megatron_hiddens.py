@@ -125,7 +125,7 @@ def get_hiddens_module(cfg=None):
             except Exception as e:
                 logging.error(f"Failed to build hidden transform {name} with cfg={cur_cfg}")
                 raise e
-                
+
             hidden_transforms.append(cur_transform)
             logging.info(f"Added transform {name} with cfg={cur_cfg}")
 
@@ -216,7 +216,9 @@ class MegatronHiddensModule(torch.nn.Module):
 
         # fail here reporting all duplicate output names
         if duplicate_names:
-            raise ValueError(f"Hidden transforms have duplicate outputs {{name: [duplicate outputs]}} = {duplicate_names}")
+            raise ValueError(
+                f"Hidden transforms have duplicate outputs {{name: [duplicate outputs]}} = {duplicate_names}"
+            )
 
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
         loss_inputs = set(itertools.chain(*[lt.input_names for lt in self.hidden_loss_transforms]))
