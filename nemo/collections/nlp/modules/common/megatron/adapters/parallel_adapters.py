@@ -397,9 +397,11 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         if self.position_embedding_strategy:
             self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
         if self.position_embedding_strategy == "mlpconcat":
-            self.mlp = torch.nn.Sequential(torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False), 
-                                            torch.nn.GELU(), 
-                                            torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False))
+            self.mlp = torch.nn.Sequential(
+                torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False),
+                torch.nn.GELU(),
+                torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False),
+            )
         self.register_buffer("position_id", torch.LongTensor([1]), persistent=False)
 
     def set_position(self, position_id):
@@ -420,7 +422,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             self.mlp[2].weight = adapter.mlp[2].weight
         if self.position_embeddings:
             self.position_embeddings.weight = adapter.position_embeddings.weight
-        
+
         return True
 
     def forward(self, x):
