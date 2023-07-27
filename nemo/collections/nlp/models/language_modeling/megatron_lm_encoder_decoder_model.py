@@ -362,7 +362,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)["loss"]
+        loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         if self.with_distributed_adam:
             # synchronize asynchronous grad reductions
@@ -386,14 +386,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-        torch.distributed.broadcast(loss_mean, get_last_rank())
+        for k, v in loss_dict.items():
+            torch.distributed.broadcast(v, get_last_rank())
+            n = f'reduced_train_{k}'
+            self.log(n, v, prog_bar=n.endswith("_loss"), rank_zero_only=True, batch_size=1)
 
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
@@ -407,7 +409,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             rank_zero_only=True,
             batch_size=1,
         )
-        return loss_mean
+        return loss_dict
 
     @property
     def max_decoder_seq_length(self) -> int:
@@ -556,7 +558,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["labels"],
             global_batch["enc_mask"],
             global_batch["dec_mask"],
-            # FIXME: should be enabled to allow hidden transformations/loss related data
             global_batch.get('data', None),
         ]
 
@@ -575,7 +576,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 lm_labels,
                 encoder_attn_mask,
                 decoder_attn_mask,
-                # FIXME: should be enabled to allow hidden transformations/loss related data
                 batch_data,
             ) = batch
 
@@ -586,7 +586,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_attn_mask,  # dec_attn_mask
                 None,  # token_type_ids
                 lm_labels,  # labels
-                # FIXME: should be enabled to allow hidden transformations/loss related data
                 batch_data,  # batch_data
             )
 
@@ -727,6 +726,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     
     def validation_epoch_end(self, outputs):
         averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="val")
+        # FIXME: do we need this? 'global_step' is logged in training_step
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         return averaged_outputs
@@ -1011,11 +1011,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            # FIXME: should be enabled to allow hidden transformations/loss related data
             batch_for_pipeline = [tokens_enc, enc_mask, batch_data]
             arg_names = ['enc_input_ids', 'enc_attn_mask', 'batch_data']
-            # batch_for_pipeline = [tokens_enc, enc_mask]
-            # arg_names = ['enc_input_ids', 'enc_attn_mask']
         else:
             if encoder_input is None:
                 raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
@@ -1196,11 +1193,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
             dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
-            # FIXME: should be enabled to allow hidden transformations/loss related data
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
-            # batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
-            # arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
