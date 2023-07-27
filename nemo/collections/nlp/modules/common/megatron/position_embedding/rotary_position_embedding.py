@@ -25,24 +25,41 @@ class RotaryEmbedding(nn.Module):
     Implements Rotary Position Embedding from https://arxiv.org/abs/2104.09864.
     """
 
-    def __init__(self, dim: int, seq_len_interpolation_factor: int = None):
+    def __init__(self, dim: int, max_seq_len: int, scaling_type: str = 'linear', scaling_factor: int = None):
         """
         Args:
 
             dim (int): rotary embedding dimension
-            seq_len_interpolation_factor (int): if not None, discrete positions will be interpolated
-            by this factor via the trick in https://arxiv.org/abs/2306.15595.
+            scaling_type (str): linear or dynamic
+            scaling_factor (int): if not None, discrete positions will be interpolated by this factor via the trick in https://arxiv.org/abs/2306.15595.
         """
         super().__init__()
-        self.seq_len_interpolation_factor = seq_len_interpolation_factor
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        self.base = 10000
+        self.dim = dim
+        self.max_position_embedding = max_seq_len
+        self.max_seq_len_cached = max_seq_len
+        self.scaling_type = scaling_type
+        self.scaling_factor = scaling_factor
+        assert self.scaling_type in ['linear', 'dynamic']
+        
+        inv_freq = 1.0 / (self.base ** (torch.arange(0, dim, 2).float() / self.dim))
         self.register_buffer('inv_freq', inv_freq)
 
     def forward(self, max_seq_len, offset=0):
-        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
-        if self.seq_len_interpolation_factor is not None:
-            seq = seq.type_as(self.inv_freq)
-            seq *= 1 / self.seq_len_interpolation_factor
+        if max_seq_len > self.max_seq_len_cached:
+            self.max_seq_len_cached = max_seq_len
+            
+        seq = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device) + offset
+        
+        if self.scaling_factor is not None:
+            if self.scaling_type == 'dynamic' and self.max_seq_len_cached > self.max_position_embedding:
+                base = self.base * ((self.scaling_factor * self.max_seq_len_cached / self.max_position_embedding) - (self.scaling_factor - 1)) ** (self.dim / (self.dim-2))
+                inv_freq = 1.0 / (base ** (torch.arange(0, self.dim, 2).float().to(self.inv_freq.device) / self.dim))
+                self.register_buffer("inv_freq", inv_freq)
+            elif self.scaling_type == 'linear':
+                seq = seq.type_as(self.inv_freq)
+                seq *= 1 / self.scaling_factor
+                
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
