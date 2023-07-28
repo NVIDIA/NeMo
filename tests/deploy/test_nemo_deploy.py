@@ -28,6 +28,15 @@ class TestNemoDeployment:
     temp_nemo_dir = "/opt/checkpoints/GPT-2B/"
     trt_llm_model_dir = "/opt/checkpoints/GPT-2B-TRT-LLM/"
 
+    def __init__(self):
+        self.test_data = {}
+
+        self.test_data["GPT-846M-base"] = {}
+        self.test_data["GPT-846M-base"]["checkpoint_location"] = "Selene"
+        self.test_data["GPT-846M-base"]["checkpoint_path"] = ""
+        self.test_data["GPT-846M-base"]["temp_nemo_dir"] = "/temp/GPT-846M-base/"
+        self.test_data["GPT-846M-base"]["trt_llm_model_dir"] = "/temp/GPT-846M-base/"
+
     def _download_nemo_checkpoint(self):
         if not Path(self.nemo_checkpoint_path).exists():
             print("File will be downloaded...")
