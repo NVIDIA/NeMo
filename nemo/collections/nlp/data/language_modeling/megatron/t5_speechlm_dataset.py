@@ -17,7 +17,7 @@ import copy
 
 import torch
 from tqdm.auto import tqdm
-from encodec import EncodecModel
+# from encodec import EncodecModel
 from pathlib import Path
 import numpy as np
 from typing import Callable, Dict, List, Optional, Union
