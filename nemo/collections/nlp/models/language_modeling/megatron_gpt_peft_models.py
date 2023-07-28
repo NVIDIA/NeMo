@@ -497,6 +497,8 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         dim_position_embeddings = 0
         if position_embedding_strategy == "add":
             dim_position_embeddings = cfg.hidden_size
+        elif position_embedding_strategy == "biasadd":
+            dim_position_embeddings = 3 * projection_size
         elif position_embedding_strategy == "concat":
             dim_position_embeddings = lora_cfg.adapter_dim
         elif position_embedding_strategy == "mlpconcat":
