@@ -15,7 +15,7 @@
 
 """Transformer."""
 from contextlib import nullcontext
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -863,7 +863,18 @@ class AutocastTransformerLayer(TransformerLayer):
         inference_params: Optional[Any] = None,
         is_first_microbatch: Optional[bool] = None,
         checkpoint_core_attention: Optional[bool] = False,
+        rotary_pos_emb: Optional[Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]] = None,
+        core_attention_bias_type: str = "no_bias",
+        core_attention_bias: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if rotary_pos_emb is not None:
+            # self attention pos_emb is (q, q)
+            self_attention_pos_emb = (rotary_pos_emb[0], rotary_pos_emb[0])
+            cross_attention_pos_emb = (rotary_pos_emb[1], rotary_pos_emb[2])
+        else:
+            self_attention_pos_emb = None
+            cross_attention_pos_emb = None
+
         if self.dtype == torch.float32:
             return super().forward(
                 hidden_states,
@@ -873,6 +884,10 @@ class AutocastTransformerLayer(TransformerLayer):
                 inference_params=inference_params,
                 is_first_microbatch=is_first_microbatch,
                 checkpoint_core_attention=checkpoint_core_attention,
+                # TE doens't support cross_attention_pos_emb for now
+                rotary_pos_emb=self_attention_pos_emb if self.layer_type == "encoder" else None,
+                core_attention_bias_type=core_attention_bias_type,
+                core_attention_bias=core_attention_bias,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -883,6 +898,10 @@ class AutocastTransformerLayer(TransformerLayer):
                 inference_params=inference_params,
                 is_first_microbatch=is_first_microbatch,
                 checkpoint_core_attention=checkpoint_core_attention,
+                # TE doens't support cross_attention_pos_emb for now
+                rotary_pos_emb=self_attention_pos_emb if self.layer_type == "encoder" else None,
+                core_attention_bias_type=core_attention_bias_type,
+                core_attention_bias=core_attention_bias,
             )
 
 
@@ -1243,10 +1262,30 @@ class ParallelTransformer(MegatronModule):
             if self.transformer_engine:
 
                 def custom_forward(*inputs):
-                    hidden_states = inputs[0]
-                    attention_mask = inputs[1]
-                    encoder_output = inputs[2]
-                    enc_dec_attn_mask = inputs[3]
+                    if len(inputs) == 9:
+                        hidden_states = inputs[0]
+                        attention_mask = inputs[1]
+                        encoder_output = inputs[2]
+                        enc_dec_attn_mask = inputs[3]
+                        rotary_pos_emb = (inputs[4], inputs[5], inputs[6])
+                        self_attention_relative_position_bias = inputs[7]
+                        cross_attention_relative_position_bias = inputs[8]
+                    elif len(inputs) == 10:
+                        hidden_states = (inputs[0], inputs[1])
+                        attention_mask = inputs[2]
+                        encoder_output = inputs[3]
+                        enc_dec_attn_mask = inputs[4]
+                        rotary_pos_emb = (inputs[5], inputs[6], inputs[7])
+                        self_attention_relative_position_bias = inputs[8]
+                        cross_attention_relative_position_bias = inputs[9]
+                    else:
+                        hidden_states = inputs[0]
+                        attention_mask = inputs[1]
+                        encoder_output = inputs[2]
+                        enc_dec_attn_mask = inputs[3]
+                        rotary_pos_emb = inputs[4]
+                        self_attention_relative_position_bias = inputs[5]
+                        cross_attention_relative_position_bias = inputs[6]
                     for index in range(start, end):
                         layer = self._get_layer(index)
                         hidden_states = layer(
@@ -1257,6 +1296,9 @@ class ParallelTransformer(MegatronModule):
                             inference_params=None,
                             is_first_microbatch=self.is_first_microbatch,
                             checkpoint_core_attention=False,
+                            rotary_pos_emb=rotary_pos_emb,
+                            core_attention_bias_type="no_bias" if self_attention_relative_position_bias is None else "post_scale_bias",
+                            core_attention_bias=self_attention_relative_position_bias,
                         )
 
                     return hidden_states
@@ -1540,6 +1582,9 @@ class ParallelTransformer(MegatronModule):
                                 inference_params=self.inference_params,
                                 is_first_microbatch=self.is_first_microbatch,
                                 checkpoint_core_attention=checkpoint_core_attention,
+                                rotary_pos_emb=rotary_pos_emb,
+                                core_attention_bias_type="no_bias" if self_attention_relative_position_bias is None else "post_scale_bias",
+                                core_attention_bias=self_attention_relative_position_bias,
                             )
                         else:
                             hidden_states = layer(
