@@ -109,7 +109,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         encoded, encoded_len = self.encoder(audio_signal=masked_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
 
-        return log_probs, encoded_len, masks, tokens
+        return log_probs, encoded_len, masks.detach(), tokens.detach()
 
     def training_step(self, batch, batch_idx):
         input_signal, input_signal_length, _, _ = batch

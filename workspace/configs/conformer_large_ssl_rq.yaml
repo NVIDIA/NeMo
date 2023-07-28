@@ -36,10 +36,10 @@ model:
     shuffle: true
     num_workers: 8
     pin_memory: true
-    use_start_end_token: true
+    use_start_end_token: false
     trim_silence: false
     max_duration: 16.7
-    min_duration: 8.0
+    min_duration: 4.0
     # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null

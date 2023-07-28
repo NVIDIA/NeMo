@@ -114,6 +114,7 @@ class RandomProjectionVectorQuantizer(NeuralModule):
         # (B, T, D) -> (B, T, num_books*code_dim)
         x = self.proj(input_signal)
 
+        # normalize each feature vector
         # (B, T, num_books*code_dim) -> (B, T, num_books, code_dim)
         x = F.normalize(x.view(B, T, self.num_books, self.code_dim), dim=-1)
 
