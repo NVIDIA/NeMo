@@ -189,7 +189,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     Megatron GPT pretraining
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer):
+    def __init__(self, cfg: DictConfig, trainer: Trainer, build_datasets_strategy=build_train_valid_test_datasets):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
@@ -202,6 +202,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
         super().__init__(cfg, trainer=trainer, no_lm_init=True)
+
+        self._build_datasets_strategy = build_train_valid_test_datasets
 
         self._validate_trainer()
 
@@ -953,7 +955,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+        self._train_ds, self._validation_ds, self._test_ds = self._build_datasets_strategy(
             cfg=self.cfg,
             trainer=self.trainer,
             data_prefix=self.cfg.data.data_prefix,
@@ -971,7 +973,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building GPT datasets.')
+        logging.info('Finished building GPT datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
 
