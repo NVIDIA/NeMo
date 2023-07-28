@@ -16,7 +16,7 @@ model:
 
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
-    from_pretrained: /sdxl_ckpts/stable-diffusion-xl-base-0.9/unet/diffusion_pytorch_model.bin
+    from_pretrained: /sdxl_ckpts/stable-diffusion-xl-base-1.0/unet/diffusion_pytorch_model.safetensors
     from_NeMo: False
     adm_in_channels: 2816
     num_classes: sequential
@@ -37,8 +37,8 @@ model:
     legacy: False
 
   first_stage_config:
-    _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
-    from_pretrained: /ckpts/vae.bin
+    _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper
+    from_pretrained: /sdxl_ckpts/stable-diffusion-xl-base-1.0/vae/diffusion_pytorch_model.safetensors
     embed_dim: 4
     monitor: val/rec_loss
     ddconfig:

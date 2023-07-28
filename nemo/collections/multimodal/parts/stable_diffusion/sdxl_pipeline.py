@@ -1,197 +1,432 @@
 from nemo.core.classes.common import Serialization
 from nemo.core.config import hydra_runner
 from typing import List, Optional, Tuple, Union
+from omegaconf import OmegaConf
 import torch
+import pathlib
+import numpy
+from PIL import Image
+from dataclasses import dataclass, asdict
 from tqdm import tqdm
+from enum import Enum
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import DiffusionEngine
-
-class StableDiffusionXL(Serialization):
-    def __init__(self, cfg):
-        super().__init__()
-        model = StableDiffusionXL.from_config_dict(cfg.model)
-        # self.device = torch.device('cuda') if cfg.device != 'cpu' else torch.device('cpu')
-        # self.vae = StableDiffusionXL.from_config_dict(cfg.model.first_stage_config).to(self.device)
-        # self.text_encoder = StableDiffusionXL.from_config_dict(cfg.model.text_encoder).to(self.device)
-        # self.text_encoder2 = StableDiffusionXL.from_config_dict(cfg.model.text_encoder2).to(self.device)
-        # self.unet = StableDiffusionXL.from_config_dict(cfg.model.unet_config).to(self.device)
-        # self.scheduler = StableDiffusionXL.from_config_dict(cfg.model.scheduler)
-        # self.vae_scale_factor = 2**(len(cfg.model.first_stage_config.ddconfig.ch_mult) - 1)
-        # self.num_channels_latents = cfg.model.unet_config.in_channels
-
-
-    def encode_prompt(self, prompt, num_images_per_prompt, do_classifier_free_guidance=True):
-        prompt_embeds = None
-        uncond_prompt_embeds = None
-
-        prompt_embeds_list = []
-        text_encoders = [self.text_encoder, self.text_encoder2]
-        if prompt is not None and isinstance(prompt, str):
-            batch_size = 1
-        elif prompt is not None and isinstance(promptm, list):
-            batch_size = len(prompt)
+from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import (
+    do_img2img,
+    do_sample,
+    Img2ImgDiscretizationWrapper
+)
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (
+    EulerEDMSampler,
+    HeunEDMSampler,
+    EulerAncestralSampler,
+    DPMPP2SAncestralSampler,
+    DPMPP2MSampler,
+    LinearMultistepSampler,
+)
+from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally, get_input_image_tensor
 
 
-        for text_encoder in text_encoders:
-            prompt_embeds = text_encoder.encode(prompt)
-
-            prompt_embed, pooled_prompt_embed = prompt_embeds
-
-            bs_embed, seq_len, _ = prompt_embed.shape
-            prompt_embed = prompt_embed.repeat(1, num_images_per_prompt, 1)
-            prompt_embed = prompt_embed.view(bs_embed * num_images_per_prompt, seq_len, -1)
-
-            prompt_embeds_list.append(prompt_embed)
-
-        prompt_embeds = torch.concat(prompt_embeds_list, dim = -1)
-
-        if do_classifier_free_guidance:
-            uc_prompt = ""
-            uncond_prompt_embeds_list = []
-            for text_encoder in text_encoders:
-                uncond_prompt_embeds = text_encoder.encode(uc_prompt)
-
-                uncond_prompt_embed, uncond_pooled_prompt_embed = uncond_prompt_embeds
+class ModelArchitecture(str, Enum):
+    SD_2_1 = "stable-diffusion-v2-1"
+    SD_2_1_768 = "stable-diffusion-v2-1-768"
+    SDXL_V0_9_BASE = "stable-diffusion-xl-v0-9-base"
+    SDXL_V0_9_REFINER = "stable-diffusion-xl-v0-9-refiner"
+    SDXL_V1_BASE = "stable-diffusion-xl-v1-base"
+    SDXL_V1_REFINER = "stable-diffusion-xl-v1-refiner"
 
 
-                seq_len = uncond_prompt_embed.shape[1]
-                uncond_prompt_embed = uncond_prompt_embed.repeat(1, num_images_per_prompt, 1)
-                uncond_prompt_embed = uncond_prompt_embed.view(
-                    batch_size * num_images_per_prompt, seq_len, -1
-                )
-                uncond_prompt_embeds_list.append(uncond_prompt_embed)
+class Sampler(str, Enum):
+    EULER_EDM = "EulerEDMSampler"
+    HEUN_EDM = "HeunEDMSampler"
+    EULER_ANCESTRAL = "EulerAncestralSampler"
+    DPMPP2S_ANCESTRAL = "DPMPP2SAncestralSampler"
+    DPMPP2M = "DPMPP2MSampler"
+    LINEAR_MULTISTEP = "LinearMultistepSampler"
 
-        uncond_prompt_embeds = torch.concat(uncond_prompt_embeds_list, dim = -1)
 
-        bs_embed = pooled_prompt_embed.shape[0]
-        pooled_prompt_embeds = pooled_prompt_embed.repeat(1, num_images_per_prompt).view(
-            bs_embed * num_images_per_prompt, -1
+class Discretization(str, Enum):
+    LEGACY_DDPM = "LegacyDDPMDiscretization"
+    EDM = "EDMDiscretization"
+
+
+class Guider(str, Enum):
+    VANILLA = "VanillaCFG"
+    IDENTITY = "IdentityGuider"
+
+
+class Thresholder(str, Enum):
+    NONE = "None"
+
+
+
+
+
+@dataclass
+class SamplingParams:
+    width: int = 1024
+    height: int = 1024
+    steps: int = 50
+    sampler: Sampler = Sampler.DPMPP2M
+    discretization: Discretization = Discretization.LEGACY_DDPM
+    guider: Guider = Guider.VANILLA
+    thresholder: Thresholder = Thresholder.NONE
+    scale: float = 6.0
+    aesthetic_score: float = 5.0
+    negative_aesthetic_score: float = 5.0
+    img2img_strength: float = 1.0
+    orig_width: int = 1024
+    orig_height: int = 1024
+    crop_coords_top: int = 0
+    crop_coords_left: int = 0
+    sigma_min: float = 0.0292
+    sigma_max: float = 14.6146
+    rho: float = 3.0
+    s_churn: float = 0.0
+    s_tmin: float = 0.0
+    s_tmax: float = 999.0
+    s_noise: float = 1.0
+    eta: float = 1.0
+    order: int = 4
+
+
+@dataclass
+class SamplingSpec:
+    width: int
+    height: int
+    channels: int
+    factor: int
+    is_legacy: bool
+    config: str
+    ckpt: str
+    is_guided: bool
+
+model_specs = {
+    ModelArchitecture.SDXL_V0_9_BASE: SamplingSpec(
+        height=1024,
+        width=1024,
+        channels=4,
+        factor=8,
+        is_legacy=False,
+        config="sd_xl_base.yaml",
+        ckpt="sd_xl_base_0.9.safetensors",
+        is_guided=True,
+    ),
+    ModelArchitecture.SDXL_V0_9_REFINER: SamplingSpec(
+        height=1024,
+        width=1024,
+        channels=4,
+        factor=8,
+        is_legacy=True,
+        config="sd_xl_refiner.yaml",
+        ckpt="sd_xl_refiner_0.9.safetensors",
+        is_guided=True,
+    ),
+    ModelArchitecture.SDXL_V1_BASE: SamplingSpec(
+        height=1024,
+        width=1024,
+        channels=4,
+        factor=8,
+        is_legacy=False,
+        config="sd_xl_base.yaml",
+        ckpt="sd_xl_base_1.0.safetensors",
+        is_guided=True,
+    ),
+    ModelArchitecture.SDXL_V1_REFINER: SamplingSpec(
+        height=1024,
+        width=1024,
+        channels=4,
+        factor=8,
+        is_legacy=True,
+        config="sd_xl_refiner.yaml",
+        ckpt="sd_xl_refiner_1.0.safetensors",
+        is_guided=True,
+    ),
+}
+
+
+class SamplingPipeline:
+    def __init__(
+        self,
+        model_id: ModelArchitecture,
+        model_path="checkpoints",
+        config_path="/opt/NeMo/examples/multimodal/generative/stable_diffusion/conf/",
+        device="cuda",
+        use_fp16=True,
+    ) -> None:
+        if model_id not in model_specs:
+            raise ValueError(f"Model {model_id} not supported")
+        self.model_id = model_id
+        self.specs = model_specs[self.model_id]
+        self.config = str(pathlib.Path(config_path, self.specs.config))
+        self.ckpt = str(pathlib.Path(model_path, self.specs.ckpt))
+        self.device = device
+        config = OmegaConf.load(self.config)
+        self.model = DiffusionEngine(config.model).to(self.device)
+        # self.model = self._load_model(device=device, use_fp16=use_fp16)
+
+    # def _load_model(self, device="cuda", use_fp16=True):
+    #     config = OmegaConf.load(self.config)
+    #     model = load_model_from_config(config, self.ckpt)
+    #     if model is None:
+    #         raise ValueError(f"Model {self.model_id} could not be loaded")
+    #     model.to(device)
+    #     if use_fp16:
+    #         model.conditioner.half()
+    #         model.model.half()
+    #     return model
+
+    def text_to_image(
+        self,
+        params: SamplingParams,
+        prompt: str,
+        negative_prompt: str = "",
+        samples: int = 1,
+        return_latents: bool = False,
+    ):
+        sampler = get_sampler_config(params)
+        value_dict = asdict(params)
+        value_dict["prompt"] = prompt
+        value_dict["negative_prompt"] = negative_prompt
+        value_dict["target_width"] = params.width
+        value_dict["target_height"] = params.height
+        return do_sample(
+            self.model,
+            sampler,
+            value_dict,
+            samples,
+            params.height,
+            params.width,
+            self.specs.channels,
+            self.specs.factor,
+            force_uc_zero_embeddings=["txt"] if not self.specs.is_legacy else [],
+            return_latents=return_latents,
+            filter=None,
         )
-        uncond_pooled_prompt_embeds = uncond_pooled_prompt_embed.repeat(1, num_images_per_prompt).view(
-            bs_embed * num_images_per_prompt, -1
-        )
 
-        return prompt_embeds, uncond_prompt_embeds, pooled_prompt_embeds, uncond_pooled_prompt_embeds
+    def image_to_image(
+        self,
+        params: SamplingParams,
+        image,
+        prompt: str,
+        negative_prompt: str = "",
+        samples: int = 1,
+        return_latents: bool = False,
+    ):
+        sampler = get_sampler_config(params)
 
-    def rescale_noise_cfg(self, noise_cfg, noise_pred_text, guidance_rescale=0.0):
-        """
-        Rescale `noise_cfg` according to `guidance_rescale`. Based on findings of [Common Diffusion Noise Schedules and
-        Sample Steps are Flawed](https://arxiv.org/pdf/2305.08891.pdf). See Section 3.4
-        """
-        std_text = noise_pred_text.std(dim=list(range(1, noise_pred_text.ndim)), keepdim=True)
-        std_cfg = noise_cfg.std(dim=list(range(1, noise_cfg.ndim)), keepdim=True)
-        # rescale the results from guidance (fixes overexposure)
-        noise_pred_rescaled = noise_cfg * (std_text / std_cfg)
-        # mix with the original results from guidance by factor guidance_rescale to avoid "plain looking" images
-        noise_cfg = guidance_rescale * noise_pred_rescaled + (1 - guidance_rescale) * noise_cfg
-        return noise_cfg
-
-    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, device, generator, latents=None):
-        shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
-        if isinstance(generator, list) and len(generator) != batch_size:
-            raise ValueError(
-                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
-                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
+        if params.img2img_strength < 1.0:
+            sampler.discretization = Img2ImgDiscretizationWrapper(
+                sampler.discretization,
+                strength=params.img2img_strength,
             )
+        height, width = image.shape[2], image.shape[3]
+        value_dict = asdict(params)
+        value_dict["prompt"] = prompt
+        value_dict["negative_prompt"] = negative_prompt
+        value_dict["target_width"] = width
+        value_dict["target_height"] = height
+        return do_img2img(
+            image,
+            self.model,
+            sampler,
+            value_dict,
+            samples,
+            force_uc_zero_embeddings=["txt"] if not self.specs.is_legacy else [],
+            return_latents=return_latents,
+            filter=None,
+        )
 
-        if latents is None:
-            latents = torch.randn(shape, generator=generator, device=device, dtype=dtype)
+    def refiner(
+        self,
+        params: SamplingParams,
+        image,
+        prompt: str,
+        negative_prompt: Optional[str] = None,
+        samples: int = 1,
+        return_latents: bool = False,
+    ):
+        sampler = get_sampler_config(params)
+        value_dict = {
+            "orig_width": image.shape[3] * 8,
+            "orig_height": image.shape[2] * 8,
+            "target_width": image.shape[3] * 8,
+            "target_height": image.shape[2] * 8,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "crop_coords_top": 0,
+            "crop_coords_left": 0,
+            "aesthetic_score": 6.0,
+            "negative_aesthetic_score": 2.5,
+        }
+
+        return do_img2img(
+            image,
+            self.model,
+            sampler,
+            value_dict,
+            samples,
+            skip_encode=True,
+            return_latents=return_latents,
+            filter=None,
+        )
+
+
+def get_guider_config(params: SamplingParams):
+    if params.guider == Guider.IDENTITY:
+        guider_config = {
+            "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.guiders.IdentityGuider"
+        }
+    elif params.guider == Guider.VANILLA:
+        scale = params.scale
+
+        thresholder = params.thresholder
+
+        if thresholder == Thresholder.NONE:
+            dyn_thresh_config = {
+                "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling_utils.NoDynamicThresholding"
+            }
         else:
-            latents = latents.to(device)
+            raise NotImplementedError
 
-        # scale the initial noise by the standard deviation required by the scheduler
-        latents = latents * self.scheduler.init_noise_sigma
-        return latents
+        guider_config = {
+            "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.guiders.VanillaCFG",
+            "params": {"scale": scale, "dyn_thresh_config": dyn_thresh_config},
+        }
+    else:
+        raise NotImplementedError
+    return guider_config
 
-    def _get_add_time_ids(self, original_size, crops_coords_top_left, target_size, dtype):
-        add_time_ids = list(original_size + crops_coords_top_left + target_size)
 
-        passed_add_embed_dim = (
-                self.unet.config.addition_time_embed_dim * len(add_time_ids) + self.text_encoder2.projection_dim
+def get_discretization_config(params: SamplingParams):
+    if params.discretization == Discretization.LEGACY_DDPM:
+        discretization_config = {
+            "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.discretizer.LegacyDDPMDiscretization",
+        }
+    elif params.discretization == Discretization.EDM:
+        discretization_config = {
+            "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.discretizer.EDMDiscretization",
+            "params": {
+                "sigma_min": params.sigma_min,
+                "sigma_max": params.sigma_max,
+                "rho": params.rho,
+            },
+        }
+    else:
+        raise ValueError(f"unknown discretization {params.discretization}")
+    return discretization_config
+
+
+
+def get_sampler_config(params: SamplingParams):
+    discretization_config = get_discretization_config(params)
+    guider_config = get_guider_config(params)
+    sampler = None
+    if params.sampler == Sampler.EULER_EDM:
+        return EulerEDMSampler(
+            num_steps=params.steps,
+            discretization_config=discretization_config,
+            guider_config=guider_config,
+            s_churn=params.s_churn,
+            s_tmin=params.s_tmin,
+            s_tmax=params.s_tmax,
+            s_noise=params.s_noise,
+            verbose=True,
         )
-        expected_add_embed_dim = self.unet.add_embedding.linear_1.in_features
-
-        if expected_add_embed_dim != passed_add_embed_dim:
-            raise ValueError(
-                f"Model expects an added time embedding vector of length {expected_add_embed_dim}, but a vector of {passed_add_embed_dim} was created. The model has an incorrect config. Please check `unet.config.time_embedding_type` and `text_encoder_2.config.projection_dim`."
-            )
-
-        add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
-        return add_time_ids
-
-    def __call__(self, prompt: Union[str, List[str]] = None,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        num_inference_steps: int = 50,
-        guidance_scale: float = 5.0,
-        num_images_per_prompt: Optional[int] = 1,
-        eta: float = 0.0,
-        generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-        output_type: Optional[str] = "pil"):
-
-        if prompt is not None and isinstance(prompt, str):
-            batch_size = 1
-        elif prompt is not None and isinstance(prompt, list):
-            batch_size = len(prompt)
-
-        height = height
-        width = width
-        do_classifier_free_guidance = (guidance_scale > 1.0)
-
-        generator = None
-
-        prompt_embeds, uncond_prompt_embeds, pooled_prompt_embeds, uncond_pooled_prompt_embeds = self.encode_prompt(
-            prompt,
-            num_images_per_prompt = num_images_per_prompt,
-            do_classifier_free_guidance = do_classifier_free_guidance)
-
-        self.scheduler.set_timesteps(num_inference_steps, device = self.device)
-        timesteps = self.scheduler.timesteps
-
-        num_channels_latents = self.num_channels_latents
-        latents = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            num_channels_latents,
-            height,
-            width,
-            prompt_embeds.dtype,
-            self.device,
-            generator,
+    if params.sampler == Sampler.HEUN_EDM:
+        return HeunEDMSampler(
+            num_steps=params.steps,
+            discretization_config=discretization_config,
+            guider_config=guider_config,
+            s_churn=params.s_churn,
+            s_tmin=params.s_tmin,
+            s_tmax=params.s_tmax,
+            s_noise=params.s_noise,
+            verbose=True,
+        )
+    if params.sampler == Sampler.EULER_ANCESTRAL:
+        return EulerAncestralSampler(
+            num_steps=params.steps,
+            discretization_config=discretization_config,
+            guider_config=guider_config,
+            eta=params.eta,
+            s_noise=params.s_noise,
+            verbose=True,
+        )
+    if params.sampler == Sampler.DPMPP2S_ANCESTRAL:
+        return DPMPP2SAncestralSampler(
+            num_steps=params.steps,
+            discretization_config=discretization_config,
+            guider_config=guider_config,
+            eta=params.eta,
+            s_noise=params.s_noise,
+            verbose=True,
+        )
+    if params.sampler == Sampler.DPMPP2M:
+        return DPMPP2MSampler(
+            num_steps=params.steps,
+            discretization_config=discretization_config,
+            guider_config=guider_config,
+            verbose=True,
+        )
+    if params.sampler == Sampler.LINEAR_MULTISTEP:
+        return LinearMultistepSampler(
+            num_steps=params.steps,
+            discretization_config=discretization_config,
+            guider_config=guider_config,
+            order=params.order,
+            verbose=True,
         )
 
-        iterator = tqdm(timesteps, desc='Decoding image', total=num_inference_steps)
-        for i, t in enumerate(iterator):
-            latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-            latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-
-            noise_pred = self.unet(
-                latent_model_input,
-                t
-            )
-
-            if do_classifier_free_guidance:
-                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
-            if do_classifier_free_guidance and guidance_rescale > 0.0:
-                # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
-                noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
-
-            latents = self.scheduler.step(noise_pred, t, latents, eta = eta)
-
-        if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae_scaling_factor, return_dict=False)[0]
-        else:
-            image = latents
-
-        return image
+    raise ValueError(f"unknown sampler {params.sampler}!")
 
 
+def main():
 
+    use_init_image = False
+    class TestInference:
+        def create_init_image(self, h, w):
+            image_array = numpy.random.rand(h, w, 3) * 255
+            image = Image.fromarray(image_array.astype("uint8")).convert("RGB")
+            return get_input_image_tensor(image)
 
-@hydra_runner(config_path='/opt/NeMo/examples/multimodal/generative/stable_diffusion/conf', config_name='sdxl_infer')
-def main(cfg):
-    x = DiffusionEngine(cfg.model)
-    import pdb;pdb.set_trace();
+    test_inference = TestInference()
+    base_pipeline = SamplingPipeline(ModelArchitecture.SDXL_V1_BASE)
+    refiner_pipeline = SamplingPipeline(ModelArchitecture.SDXL_V1_REFINER)
+
+    if use_init_image:
+        output = base_pipeline.image_to_image(
+            params=SamplingParams(sampler=Sampler.DPMPP2M.value, steps=10),
+            image=test_inference.create_init_image(
+                base_pipeline.specs.height, base_pipeline.specs.width
+            ),
+            prompt="A professional photograph of an astronaut riding a pig",
+            negative_prompt="",
+            samples=1,
+            return_latents=True,
+        )
+    else:
+        output = base_pipeline.text_to_image(
+            params=SamplingParams(sampler=Sampler.DPMPP2M.value, steps=10),
+            prompt="A professional photograph of an astronaut riding a pig",
+            negative_prompt="",
+            samples=1,
+            return_latents=True,
+        )
+
+    assert isinstance(output, (tuple, list))
+    samples, samples_z = output
+    assert samples is not None
+    assert samples_z is not None
+
+    output = refiner_pipeline.refiner(
+        params=SamplingParams(sampler=Sampler.DPMPP2M.value, steps=10),
+        image=samples_z,
+        prompt="A professional photograph of an astronaut riding a pig",
+        negative_prompt="",
+        samples=1,
+    )
+    perform_save_locally('./',output)
+
 
 if __name__ == "__main__":
     main()

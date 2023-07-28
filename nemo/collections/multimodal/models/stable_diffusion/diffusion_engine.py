@@ -25,7 +25,7 @@ UNCONDITIONAL_CONFIG = {
     "params": {"emb_models": []},
 }
 
-class DiffusionEngine(Serialization):
+class DiffusionEngine(pl.LightningModule, Serialization):
     def __init__(
         self, cfg
     ):
@@ -70,10 +70,10 @@ class DiffusionEngine(Serialization):
             else None
         )
 
-        # self.use_ema = use_ema
-        # if self.use_ema:
-        #     self.model_ema = LitEma(self.model, decay=ema_decay_rate)
-        #     print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+        self.use_ema = False # TODO use_ema need to switch to NeMo style
+        if self.use_ema:
+            self.model_ema = LitEma(self.model, decay=ema_decay_rate)
+            print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
 
         self.scale_factor = cfg.scale_factor
         self.disable_first_stage_autocast = cfg.disable_first_stage_autocast

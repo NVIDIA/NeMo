@@ -863,7 +863,11 @@ class UNetModel(nn.Module):
                 state_dict = torch.load(from_pretrained, map_location='cpu')
                 missing_key, _, _, _ = self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
             else:
-                state_dict = load_state_dict(from_pretrained)
+                if from_pretrained.endswith('safetensors'):
+                    from safetensors.torch import load_file as load_safetensors
+                    state_dict = load_safetensors(from_pretrained)
+                else:
+                    state_dict = load_state_dict(from_pretrained)
                 if 'state_dict' in state_dict.keys():
                     state_dict = state_dict['state_dict']
                 missing_key, _, _, _ = self._load_pretrained_model(state_dict)

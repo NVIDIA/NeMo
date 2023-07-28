@@ -335,8 +335,18 @@ class AutoencoderKL(pl.LightningModule):
         from diffusers.modeling_utils import load_state_dict
 
         if from_pretrained is not None:
-            state_dict = load_state_dict(from_pretrained)
-            self._load_pretrained_model(state_dict)
+            if from_pretrained.endswith('safetensors'):
+                from safetensors.torch import load_file as load_safetensors
+                state_dict = load_safetensors(from_pretrained)
+            else:
+                state_dict = load_state_dict(from_pretrained)
+            missing_key, unexpected_key, _, _ = self._load_pretrained_model(state_dict)
+            if len(missing_key) > 0:
+                print(
+                    'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                )
+                print(f'Missing:{missing_key}')
+                print(f'Unexpected:{unexpected_key}')
 
         # CUDA graph captured sub-modules
         self.capture_cudagraph_iters = capture_cudagraph_iters
@@ -417,7 +427,7 @@ class AutoencoderKL(pl.LightningModule):
                         del state_dict[checkpoint_key]
             return mismatched_keys
 
-        if state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512]):
+        if 'encoder.mid.attn_1.q.weight' in loaded_keys and (state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])):
             for key in [
                 'encoder.mid.attn_1.q.weight',
                 'decoder.mid.attn_1.q.weight',
@@ -429,7 +439,6 @@ class AutoencoderKL(pl.LightningModule):
                 'decoder.mid.attn_1.proj_out.weight',
             ]:
                 state_dict[key] = state_dict[key].unsqueeze(2).unsqueeze(3)
-
         if state_dict is not None:
             # Whole checkpoint
             mismatched_keys = _find_mismatched_keys(
@@ -661,6 +670,10 @@ class AutoencoderKL(pl.LightningModule):
         x = 2.0 * (x - x.min()) / (x.max() - x.min()) - 1.0
         return x
 
+
+class AutoencoderKLInferenceWrapper(AutoencoderKL):
+    def encode(self, x):
+        return super().encode(x).sample()
 
 class IdentityFirstStage(torch.nn.Module):
     def __init__(self, *args, vq_interface=False, **kwargs):
