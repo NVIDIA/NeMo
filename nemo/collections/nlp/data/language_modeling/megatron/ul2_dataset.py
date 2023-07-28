@@ -346,9 +346,10 @@ class UL2Dataset(T5Dataset):
             # Call T5's build training sample for regular short span masking.
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
             target_seq_length = (
-                self._get_worst_case_seq_length(
-                    masking_prob=self.masked_lm_prob, min_span_length=1, seq_length=seq_length
-                )
+                # self._get_worst_case_seq_length(
+                #     masking_prob=self.masked_lm_prob, min_span_length=1, seq_length=seq_length
+                # )
+                seq_length - int(self.masked_lm_prob * seq_length) - 1
                 if decoder_only
                 else seq_length
             )
@@ -676,7 +677,7 @@ class UGPTDataset(UL2Dataset):
 
         # Override MAX_SEQ_LENGTH_DELTA for GPT which doesnt need the addition of 2 tokens
         self.original_MAX_SEQ_LENGTH_DELTA = self.MAX_SEQ_LENGTH_DELTA
-        self.MAX_SEQ_LENGTH_DELTA = 0
+        # self.MAX_SEQ_LENGTH_DELTA = 0
 
         super().__init__(
             cfg=cfg,
@@ -732,8 +733,6 @@ class UGPTDataset(UL2Dataset):
         ), f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length} for masking type {example["masking_type"]}'
         inputs = tokens[:-1]
         labels = tokens[1:]
-
-        # print("inputs", len(inputs))
 
         if len(inputs) < self.max_seq_length:
             inputs = np.concatenate([inputs, [self.tokenizer.pad_id] * (self.max_seq_length - len(inputs))])
