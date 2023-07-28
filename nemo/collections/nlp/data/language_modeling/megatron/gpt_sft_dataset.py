@@ -156,8 +156,10 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         output = example[self.label_key]
         inference_peft_weights = {}
+        inference_peft_source = None
         if self.inference_peft_weight_key in example:
             rank_keys = example[self.inference_peft_weight_key].keys()
+            inference_peft_source = example[self.inference_peft_weight_key]["0"]
             for k in rank_keys:
                 inference_peft_weights[k] = torch.load(example[self.inference_peft_weight_key][k], map_location='cpu')
 
@@ -241,6 +243,7 @@ class GPTSFTDataset(Dataset):
             'context_ids': context_ids,
             'context_length': len(context_ids),
             self.inference_peft_weight_key: inference_peft_weights,
+            "inference_peft_source": inference_peft_source
         }
 
         return processed_example
@@ -298,7 +301,6 @@ class GPTSFTDataset(Dataset):
             if i[self.inference_peft_weight_key][r][w].shape != max_sized_weight:
                 a = i[self.inference_peft_weight_key][r][w]
                 z = torch.zeros(max_sized_weight).type_as(a)
-                print(a.shape, "going to be converted to", z.shape)
                 z[: a.shape[0], : a.shape[1]] = a
                 i[self.inference_peft_weight_key][r][w] = z
         return True
@@ -306,15 +308,20 @@ class GPTSFTDataset(Dataset):
     def collage_inference_peft_weights(self, batch):
         rank_keys = list(batch[0][self.inference_peft_weight_key].keys())
         weight_keys = list(batch[0][self.inference_peft_weight_key][rank_keys[0]])
+        peft_sources = set([i["inference_peft_source"] for i in batch])
         collated_keys = {}
-        for w in weight_keys:
-            for r in rank_keys:
-                self.pad_and_concat(batch, r, w)
+        if len(peft_sources) > 1:
+            for w in weight_keys:
+                for r in rank_keys:
+                    self.pad_and_concat(batch, r, w)
         for r in rank_keys:
             for w in weight_keys:
-                collated_inference_peft_weights = torch.cat(
-                    [item[self.inference_peft_weight_key][r][w].unsqueeze(0) for item in batch], dim=0
-                )
+                if len(peft_sources) > 1:
+                    collated_inference_peft_weights = torch.cat(
+                        [item[self.inference_peft_weight_key][r][w].unsqueeze(0) for item in batch], dim=0
+                    )
+                else:
+                    collated_inference_peft_weights = batch[0][self.inference_peft_weight_key][r][w]
                 collated_keys[r] = collated_keys.get(r, {})
                 collated_keys[r][w] = collated_keys[r].get(w, {})
                 collated_keys[r][w] = collated_inference_peft_weights
