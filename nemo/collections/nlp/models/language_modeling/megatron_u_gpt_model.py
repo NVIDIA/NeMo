@@ -271,8 +271,8 @@ class MegatronUGPTModel(MegatronGPTModel):
     #                 op=torch.distributed.ReduceOp.AVG
     #             )
 
-    def setup(self, stage=None):
-        super().setup(stage)
+    # def setup(self, stage=None):
+    #     super().setup(stage)
         # Resize the model embedding layer.
         # self._resize_model_embeddings_broadcast()
         # Maybe resize the output layer if using untied embeddings and output weights.
