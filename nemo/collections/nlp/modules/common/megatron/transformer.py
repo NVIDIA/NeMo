@@ -1297,7 +1297,9 @@ class ParallelTransformer(MegatronModule):
                             is_first_microbatch=self.is_first_microbatch,
                             checkpoint_core_attention=False,
                             rotary_pos_emb=rotary_pos_emb,
-                            core_attention_bias_type="no_bias" if self_attention_relative_position_bias is None else "post_scale_bias",
+                            core_attention_bias_type="no_bias"
+                            if self_attention_relative_position_bias is None
+                            else "post_scale_bias",
                             core_attention_bias=self_attention_relative_position_bias,
                         )
 
@@ -1583,7 +1585,9 @@ class ParallelTransformer(MegatronModule):
                                 is_first_microbatch=self.is_first_microbatch,
                                 checkpoint_core_attention=checkpoint_core_attention,
                                 rotary_pos_emb=rotary_pos_emb,
-                                core_attention_bias_type="no_bias" if self_attention_relative_position_bias is None else "post_scale_bias",
+                                core_attention_bias_type="no_bias"
+                                if self_attention_relative_position_bias is None
+                                else "post_scale_bias",
                                 core_attention_bias=self_attention_relative_position_bias,
                             )
                         else:
