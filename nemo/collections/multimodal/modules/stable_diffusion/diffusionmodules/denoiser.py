@@ -6,9 +6,8 @@ from nemo.core.classes import Serialization
 class Denoiser(nn.Module, Serialization):
     def __init__(self, weighting_config, scaling_config):
         super().__init__()
-
-        self.weighting = Denoiser.from_config_dict(weighting_config)
-        self.scaling = Denoiser.from_config_dict(scaling_config)
+        self.weighting = weighting_config
+        self.scaling = scaling_config
 
     def possibly_quantize_sigma(self, sigma):
         return sigma
@@ -40,7 +39,7 @@ class DiscreteDenoiser(Denoiser):
         flip=True,
     ):
         super().__init__(weighting_config, scaling_config)
-        sigmas = instantiate_from_config(discretization_config)(
+        sigmas = discretization_config(
             num_idx, do_append_zero=do_append_zero, flip=flip
         )
         self.register_buffer("sigmas", sigmas)

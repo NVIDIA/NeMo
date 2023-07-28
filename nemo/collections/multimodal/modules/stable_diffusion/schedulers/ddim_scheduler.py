@@ -1,7 +1,10 @@
 from typing import List, Optional, Tuple, Union
+from abc import ABC
+import numpy as np
+import torch
 
 
-class DDIMScheduler:
+class DDIMScheduler(ABC):
     """
     Denoising diffusion implicit models is a scheduler that extends the denoising procedure introduced in denoising
     diffusion probabilistic models (DDPMs) with non-Markovian guidance.
@@ -57,6 +60,7 @@ class DDIMScheduler:
             [`--offset_noise`](https://github.com/huggingface/diffusers/blob/74fd735eb073eb1d774b1ab4154a0876eb82f055/examples/dreambooth/train_dreambooth.py#L506).
     """
 
+    order=1
     def __init__(
         self,
         num_train_timesteps: int = 1000,
@@ -75,6 +79,20 @@ class DDIMScheduler:
         timestep_spacing: str = "leading",
         rescale_betas_zero_snr: bool = False,
     ):
+        self.num_train_timesteps = num_train_timesteps
+        self.beta_start = beta_start
+        self.beta_end = beta_end
+        self.beta_schedule = beta_schedule
+        self.trained_betas = trained_betas
+        self.clip_sample = clip_sample
+        self.steps_offset = steps_offset
+        self.prediction_type = prediction_type
+        self.thresholding = thresholding
+        self.dynamic_thresholding_ratio = dynamic_thresholding_ratio
+        self.clip_sample_range = clip_sample_range
+        self.sample_max_value = sample_max_value
+        self.timestep_spacing = timestep_spacing
+
         if trained_betas is not None:
             self.betas = torch.tensor(trained_betas, dtype=torch.float32)
         elif beta_schedule == "linear":
@@ -156,9 +174,9 @@ class DDIMScheduler:
 
         abs_sample = sample.abs()  # "a certain percentile absolute pixel value"
 
-        s = torch.quantile(abs_sample, self.config.dynamic_thresholding_ratio, dim=1)
+        s = torch.quantile(abs_sample, self.dynamic_thresholding_ratio, dim=1)
         s = torch.clamp(
-            s, min=1, max=self.config.sample_max_value
+            s, min=1, max=self.sample_max_value
         )  # When clamped to min=1, equivalent to standard clipping to [-1, 1]
 
         s = s.unsqueeze(1)  # (batch_size, 1) because clamp will broadcast along dim=0
@@ -178,38 +196,38 @@ class DDIMScheduler:
                 the number of diffusion steps used when generating samples with a pre-trained model.
         """
 
-        if num_inference_steps > self.config.num_train_timesteps:
+        if num_inference_steps > self.num_train_timesteps:
             raise ValueError(
-                f"`num_inference_steps`: {num_inference_steps} cannot be larger than `self.config.train_timesteps`:"
-                f" {self.config.num_train_timesteps} as the unet model trained with this scheduler can only handle"
-                f" maximal {self.config.num_train_timesteps} timesteps."
+                f"`num_inference_steps`: {num_inference_steps} cannot be larger than `self.train_timesteps`:"
+                f" {self.num_train_timesteps} as the unet model trained with this scheduler can only handle"
+                f" maximal {self.num_train_timesteps} timesteps."
             )
 
         self.num_inference_steps = num_inference_steps
 
         # "linspace", "leading", "trailing" corresponds to annotation of Table 2. of https://arxiv.org/abs/2305.08891
-        if self.config.timestep_spacing == "linspace":
+        if self.timestep_spacing == "linspace":
             timesteps = (
-                np.linspace(0, self.config.num_train_timesteps - 1, num_inference_steps)
+                np.linspace(0, self.num_train_timesteps - 1, num_inference_steps)
                 .round()[::-1]
                 .copy()
                 .astype(np.int64)
             )
-        elif self.config.timestep_spacing == "leading":
-            step_ratio = self.config.num_train_timesteps // self.num_inference_steps
+        elif self.timestep_spacing == "leading":
+            step_ratio = self.num_train_timesteps // self.num_inference_steps
             # creates integer timesteps by multiplying by ratio
             # casting to int to avoid issues when num_inference_step is power of 3
             timesteps = (np.arange(0, num_inference_steps) * step_ratio).round()[::-1].copy().astype(np.int64)
-            timesteps += self.config.steps_offset
-        elif self.config.timestep_spacing == "trailing":
-            step_ratio = self.config.num_train_timesteps / self.num_inference_steps
+            timesteps += self.steps_offset
+        elif self.timestep_spacing == "trailing":
+            step_ratio = self.num_train_timesteps / self.num_inference_steps
             # creates integer timesteps by multiplying by ratio
             # casting to int to avoid issues when num_inference_step is power of 3
-            timesteps = np.round(np.arange(self.config.num_train_timesteps, 0, -step_ratio)).astype(np.int64)
+            timesteps = np.round(np.arange(self.num_train_timesteps, 0, -step_ratio)).astype(np.int64)
             timesteps -= 1
         else:
             raise ValueError(
-                f"{self.config.timestep_spacing} is not supported. Please make sure to choose one of 'leading' or 'trailing'."
+                f"{self.timestep_spacing} is not supported. Please make sure to choose one of 'leading' or 'trailing'."
             )
 
         self.timesteps = torch.from_numpy(timesteps).to(device)
@@ -223,8 +241,7 @@ class DDIMScheduler:
         use_clipped_model_output: bool = False,
         generator=None,
         variance_noise: Optional[torch.FloatTensor] = None,
-        return_dict: bool = True,
-    ) -> Union[DDIMSchedulerOutput, Tuple]:
+    ):
         """
         Predict the sample at the previous timestep by reversing the SDE. Core function to propagate the diffusion
         process from the learned model outputs (most often the predicted noise).
@@ -237,7 +254,7 @@ class DDIMScheduler:
             eta (`float`): weight of noise for added noise in diffusion step.
             use_clipped_model_output (`bool`): if `True`, compute "corrected" `model_output` from the clipped
                 predicted original sample. Necessary because predicted original sample is clipped to [-1, 1] when
-                `self.config.clip_sample` is `True`. If no clipping has happened, "corrected" `model_output` would
+                `self.clip_sample` is `True`. If no clipping has happened, "corrected" `model_output` would
                 coincide with the one provided as input and `use_clipped_model_output` will have not effect.
             generator: random number generator.
             variance_noise (`torch.FloatTensor`): instead of generating noise for the variance using `generator`, we
@@ -268,7 +285,7 @@ class DDIMScheduler:
         # - pred_prev_sample -> "x_t-1"
 
         # 1. get previous step value (=t-1)
-        prev_timestep = timestep - self.config.num_train_timesteps // self.num_inference_steps
+        prev_timestep = timestep - self.num_train_timesteps // self.num_inference_steps
 
         # 2. compute alphas, betas
         alpha_prod_t = self.alphas_cumprod[timestep]
@@ -278,27 +295,27 @@ class DDIMScheduler:
 
         # 3. compute predicted original sample from predicted noise also called
         # "predicted x_0" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
-        if self.config.prediction_type == "epsilon":
+        if self.prediction_type == "epsilon":
             pred_original_sample = (sample - beta_prod_t ** (0.5) * model_output) / alpha_prod_t ** (0.5)
             pred_epsilon = model_output
-        elif self.config.prediction_type == "sample":
+        elif self.prediction_type == "sample":
             pred_original_sample = model_output
             pred_epsilon = (sample - alpha_prod_t ** (0.5) * pred_original_sample) / beta_prod_t ** (0.5)
-        elif self.config.prediction_type == "v_prediction":
+        elif self.prediction_type == "v_prediction":
             pred_original_sample = (alpha_prod_t**0.5) * sample - (beta_prod_t**0.5) * model_output
             pred_epsilon = (alpha_prod_t**0.5) * model_output + (beta_prod_t**0.5) * sample
         else:
             raise ValueError(
-                f"prediction_type given as {self.config.prediction_type} must be one of `epsilon`, `sample`, or"
+                f"prediction_type given as {self.prediction_type} must be one of `epsilon`, `sample`, or"
                 " `v_prediction`"
             )
 
         # 4. Clip or threshold "predicted x_0"
-        if self.config.thresholding:
+        if self.thresholding:
             pred_original_sample = self._threshold_sample(pred_original_sample)
-        elif self.config.clip_sample:
+        elif self.clip_sample:
             pred_original_sample = pred_original_sample.clamp(
-                -self.config.clip_sample_range, self.config.clip_sample_range
+                -self.clip_sample_range, self.clip_sample_range
             )
 
         # 5. compute variance: "sigma_t(η)" -> see formula (16)
@@ -331,10 +348,8 @@ class DDIMScheduler:
 
             prev_sample = prev_sample + variance
 
-        if not return_dict:
-            return (prev_sample,)
+        return (prev_sample,)
 
-        return DDIMSchedulerOutput(prev_sample=prev_sample, pred_original_sample=pred_original_sample)
 
     # Copied from diffusers.schedulers.scheduling_ddpm.DDPMScheduler.add_noise
     def add_noise(
@@ -382,4 +397,4 @@ class DDIMScheduler:
         return velocity
 
     def __len__(self):
-        return self.config.num_train_timesteps
+        return self.num_train_timesteps
