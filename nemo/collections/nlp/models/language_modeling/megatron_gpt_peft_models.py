@@ -259,9 +259,7 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
                     lnorm = adapter_0.layer_norm
                 else:
                     lnorm = None
-                adapter_l.tie_weights(
-                    pos_idx, adapter_0
-                )
+                adapter_l.tie_weights(pos_idx, adapter_0)
                 pos_idx += 1
 
 
@@ -548,6 +546,5 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
                 position_embeddings_0 = None
                 if adapter_0.position_embedding_strategy:
                     position_embeddings_0 = adapter_0.position_embeddings
-                adapter_l.tie_weights(
-                    pos_idx, adapter_0)
+                adapter_l.tie_weights(pos_idx, adapter_0)
                 pos_idx += 1
