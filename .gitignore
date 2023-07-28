@@ -180,3 +180,4 @@ examples/neural_graphs/*.yml
 nemo_experiments/
 
 draco*
+nemo_debug/
