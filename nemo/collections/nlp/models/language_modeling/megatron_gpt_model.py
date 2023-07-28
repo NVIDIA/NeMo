@@ -1090,7 +1090,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
-        if self.cfg.get('transformer_engine', False):
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
 
     def setup_training_data(self, cfg):
@@ -1237,11 +1237,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """ This should be called after model parallel groups have been initialized
             and only needs to be called when using Transformer Engine.
         """
-        if isinstance(self.model, list):
-            for module in self.model:
-                self._set_tp_groups(module)
-        else:
-            self._set_tp_groups(self.model)
+        for module in self.get_gpt_module_list():
+            """Set TP group
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_tensor_parallel_group"):
+                    tp_group = parallel_state.get_tensor_model_parallel_group()
+                    child.set_tensor_parallel_group(tp_group)
 
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
