@@ -103,9 +103,7 @@ class TestNemoDeployment:
         self.test_data["GPT-843M-base"] = {}
         self.test_data["GPT-843M-base"]["location"] = "Selene"
         self.test_data["GPT-843M-base"]["trt_llm_model_dir"] = "/tmp/GPT-843M-base/trt_llm_model/"
-        self.test_data["GPT-843M-base"]["checkpoint"] = ("/lustre/fsw/adlr/adlr-nlp/mpatwary/checkpoints/gpt3/"
-                                                         "share-checkpoints/gpt3-843m-multi-1.1t-gtc-llr/nemo-version/"
-                                                         "megatron_converted_843m_tp1_pp1.nemo")
+        self.test_data["GPT-843M-base"]["checkpoint"] = ("/opt/checkpoints/GPT-843M-base/megatron_converted_843m_tp1_pp1.nemo")
 
         self.test_data["GPT-2B-HF-base"] = {}
         self.test_data["GPT-2B-HF-base"]["location"] = "HF"
@@ -118,23 +116,17 @@ class TestNemoDeployment:
         self.test_data["GPT-2B-base"] = {}
         self.test_data["GPT-2B-base"]["location"] = "Selene"
         self.test_data["GPT-2B-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-base/trt_llm_model/"
-        self.test_data["GPT-2B-base"]["checkpoint"] = ("/lustre/fsw/adlr/adlr-nlp/mpatwary/checkpoints/gpt3/"
-                                                       "share-checkpoints/gpt3-2b-multi-1.1t-gtc/nemo-version/"
-                                                       "megatron_converted_2b_tp1_pp1.nemo")
+        self.test_data["GPT-2B-base"]["checkpoint"] = ("/opt/checkpoints/GPT-2B-base/megatron_converted_2b_tp1_pp1.nemo")
 
         self.test_data["GPT-8B-base"] = {}
         self.test_data["GPT-8B-base"]["location"] = "Selene"
         self.test_data["GPT-8B-base"]["trt_llm_model_dir"] = "/tmp/GPT-8B-base/trt_llm_model/"
-        self.test_data["GPT-8B-base"]["checkpoint"] = ("/lustre/fsw/adlr/adlr-nlp/mpatwary/checkpoints/gpt3/"
-                                                       "share-checkpoints/gpt3-8b-multi-1.1t-gtc/nemo-version/"
-                                                       "megatron_converted_8b_tp4_pp1.nemo")
+        self.test_data["GPT-8B-base"]["checkpoint"] = ("/opt/checkpoints/GPT-8B-base/megatron_converted_8b_tp4_pp1.nemo")
 
         self.test_data["GPT-43B-base"] = {}
         self.test_data["GPT-43B-base"]["location"] = "Selene"
         self.test_data["GPT-43B-base"]["trt_llm_model_dir"] = "/tmp/GPT-43B-base/trt_llm_model/"
-        self.test_data["GPT-43B-base"]["checkpoint"] = ("/lustre/fsw/adlr/adlr-nlp/mpatwary/checkpoints/gpt3/"
-                                                        "share-checkpoints/gpt3-43b-multi-1.1t-gtc/nemo-version/"
-                                                        "megatron_converted_43b_tp8_pp1.nemo")
+        self.test_data["GPT-43B-base"]["checkpoint"] = ("/opt/checkpoints/GPT-43B-base/megatron_converted_43b_tp8_pp1.nemo")
 
     def _download_nemo_checkpoint(self, checkpoint_link, checkpoint_dir, checkpoint_path):
         if not Path(checkpoint_path).exists():
