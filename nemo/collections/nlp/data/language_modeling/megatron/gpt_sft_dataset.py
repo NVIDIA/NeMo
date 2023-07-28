@@ -243,7 +243,7 @@ class GPTSFTDataset(Dataset):
             'context_ids': context_ids,
             'context_length': len(context_ids),
             self.inference_peft_weight_key: inference_peft_weights,
-            "inference_peft_source": inference_peft_source
+            "inference_peft_source": inference_peft_source,
         }
 
         return processed_example
