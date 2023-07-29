@@ -20,6 +20,7 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils import logging
 
 
 class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):

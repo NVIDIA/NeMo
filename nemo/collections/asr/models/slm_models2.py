@@ -2,6 +2,7 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -114,6 +115,9 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         return log_probs, encoded_len, masks.detach(), tokens.detach()
 
     def training_step(self, batch, batch_idx):
+        print(
+            f"gpu id: {dist.get_rank()}, trainer.num_training_batches: {self.trainer.num_training_batches}", flush=True
+        )
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
@@ -135,6 +139,7 @@ class SelfSupervisedRandomQuantizationModel(SpeechEncDecSelfSupervisedModel):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        print(f"gpu id: {dist.get_rank()}, trainer.num_val_batches: {self.trainer.num_val_batches}")
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
