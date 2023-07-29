@@ -52,7 +52,7 @@ class TestNemoDeployment:
 
                 nm.stop()
             else:
-                print("Model {0} could not be found at this location {1}", model_name, model_info["checkpoint"])
+                print("Model {0} could not be found at this location {1}".format(model_name, model_info["checkpoint"]))
 
 
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
@@ -92,7 +92,7 @@ class TestNemoDeployment:
 
                 nm.stop()
             else:
-                print("Model {0} could not be found at this location {1}", model_name, model_info["checkpoint"])
+                print("Model {0} could not be found at this location {1}".format(model_name, model_info["checkpoint"]))
 
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
         assert no_error, "At least one model couldn't be served successfully."
@@ -130,9 +130,9 @@ class TestNemoDeployment:
 
     def _download_nemo_checkpoint(self, checkpoint_link, checkpoint_dir, checkpoint_path):
         if not Path(checkpoint_path).exists():
-            print("Checkpoint: {0}, will be downloaded to {1}", checkpoint_link, checkpoint_path)
+            print("Checkpoint: {0}, will be downloaded to {1}".format(checkpoint_link, checkpoint_path))
             Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
             req.urlretrieve(checkpoint_link, checkpoint_path)
-            print("Checkpoint: {0}, download completed.", checkpoint_link)
+            print("Checkpoint: {0}, download completed.".format(checkpoint_link))
         else:
-            print("Checkpoint: {0}, has already been downloaded.", checkpoint_link)
+            print("Checkpoint: {0}, has already been downloaded.".format(checkpoint_link))
