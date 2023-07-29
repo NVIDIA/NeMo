@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import copy
 import json
 import os
 import random
@@ -50,7 +49,7 @@ def get_random_label():
     return ",".join([k + ":" + str(v) for k, v in zip(keys, values)])
 
 
-def create_data_points(mask_user, turn_num, records, temp_file, t2v):
+def create_data_points(mask_user, turn_num, records, temp_file, t2v, label=True):
     data_points = []
     with open(temp_file, 'w', encoding='utf-8') as f:
         for r in range(records):
@@ -64,7 +63,8 @@ def create_data_points(mask_user, turn_num, records, temp_file, t2v):
                 turn = {}
                 turn['from'] = 'User' if i % 2 == 0 else 'Assistant'
                 turn['value'] = get_random_sentence()
-                turn['label'] = get_random_label()
+                if label:
+                    turn['label'] = get_random_label()
                 turns.append(turn)
             f.write(json.dumps(record, ensure_ascii=False) + '\n')
             data_points.append(record)
@@ -81,19 +81,20 @@ class TestGPTSFTChatDataset:
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = tokenizer.ids_to_text(input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(1, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(1, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -102,19 +103,20 @@ class TestGPTSFTChatDataset:
         random.seed(3)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = tokenizer.ids_to_text(input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(2, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(2, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -123,19 +125,20 @@ class TestGPTSFTChatDataset:
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = tokenizer.ids_to_text(input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(1, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(1, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -144,19 +147,20 @@ class TestGPTSFTChatDataset:
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = tokenizer.ids_to_text(input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(0, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(0, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -165,7 +169,7 @@ class TestGPTSFTChatDataset:
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(
@@ -174,15 +178,16 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = ids_to_text(tokenizer, input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(1, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = ids_to_text(tokenizer, input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(1, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -191,7 +196,7 @@ class TestGPTSFTChatDataset:
         random.seed(3)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=False)
             tokenizer = get_nmt_tokenizer(
@@ -200,15 +205,16 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = ids_to_text(tokenizer, input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(2, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['value'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = ids_to_text(tokenizer, input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(2, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -217,7 +223,7 @@ class TestGPTSFTChatDataset:
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(True, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(
@@ -226,15 +232,16 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = ids_to_text(tokenizer, input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(1, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = ids_to_text(tokenizer, input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(1, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)
 
@@ -243,7 +250,7 @@ class TestGPTSFTChatDataset:
         random.seed(5)
         temp_file = '/tmp/test_file.jsonl'
         turn_num = 5
-        records = 1
+        records = 5
         try:
             data_points = create_data_points(False, turn_num, records, temp_file, t2v=True)
             tokenizer = get_nmt_tokenizer(
@@ -252,14 +259,59 @@ class TestGPTSFTChatDataset:
             tokenizer.add_special_tokens(
                 {'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']}
             )
-            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1)
-            result = d._process_example(copy.deepcopy(data_points[0]))
-            input_ids = result['input_ids']
-            mask = result['mask']
-            text = ids_to_text(tokenizer, input_ids[mask].tolist())
-            expected_text = ''
-            for i in range(0, turn_num, 2):
-                expected_text += data_points[0]['conversations'][i]['label'] + '\n' + '<extra_id_1>'
-            assert text == expected_text
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = ids_to_text(tokenizer, input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(0, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
+        finally:
+            os.remove(temp_file)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_user_nolabel(self):
+        random.seed(5)
+        temp_file = '/tmp/test_file.jsonl'
+        turn_num = 5
+        records = 5
+        try:
+            data_points = create_data_points(True, turn_num, records, temp_file, t2v=False, label=False)
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(1, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
+        finally:
+            os.remove(temp_file)
+
+    @pytest.mark.unit
+    def test_43B_tokenizer_mask_assistant_nolabel(self):
+        random.seed(3)
+        temp_file = '/tmp/test_file.jsonl'
+        turn_num = 5
+        records = 5
+        try:
+            data_points = create_data_points(False, turn_num, records, temp_file, t2v=False, label=False)
+            tokenizer = get_nmt_tokenizer(library='sentencepiece', tokenizer_model=TOKENIZER_FILE_43B)
+            d = GPTSFTChatDataset(temp_file, tokenizer, 4096, 1, index_mapping_dir='/tmp/', hf_dataset=True)
+            for i in range(len(d)):
+                result = d[i]
+                input_ids = result['input_ids']
+                mask = result['mask']
+                text = tokenizer.ids_to_text(input_ids[mask].tolist())
+                expected_text = ''
+                for j in range(2, turn_num, 2):
+                    expected_text += data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
+                assert text == expected_text
         finally:
             os.remove(temp_file)

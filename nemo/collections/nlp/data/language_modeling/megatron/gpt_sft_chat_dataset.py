@@ -115,6 +115,8 @@ def cannonical_form_formater(cannoical_form):
 def response_value_formater(label):
     if isinstance(label, str):
         return '<extra_id_2>' + label + '\n'
+    elif label is None:
+        return ''
     else:
         raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
 

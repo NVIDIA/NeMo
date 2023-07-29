@@ -18,3 +18,4 @@ rapidfuzz
 rouge_score
 sacrebleu[ja]
 sentence_transformers
+datasets
