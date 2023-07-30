@@ -15,20 +15,15 @@
 import gc
 import os
 import re
-import typing
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
-import numpy as np
-
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
-from pytriton.model_config import Tensor
-from pytriton.decorators import batch
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -38,18 +33,10 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-)
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.deploy.utils import typedict2tensor
-from nemo.deploy import ITritonDeployable
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -73,7 +60,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronBaseModel"]
 
 
-class MegatronBaseModel(NLPModel, ITritonDeployable):
+class MegatronBaseModel(NLPModel):
     """
     Megatron base class. All NeMo Megatron models inherit from this class.
 
@@ -619,87 +606,6 @@ class MegatronBaseModel(NLPModel, ITritonDeployable):
                 return True
             else:
                 return False
-
-    @property
-    def get_triton_input(self):
-        inputs = (
-                (
-                    Tensor(name="prompts", shape=(1,), dtype=bytes),
-                )
-                + typedict2tensor(LengthParam, overwrite_kwargs={"optional": True}, defaults=None)
-                + typedict2tensor(SamplingParam, overwrite_kwargs={"optional": True}, defaults=None)
-        )
-        return inputs
-
-    @property
-    def get_triton_output(self):
-        dt = None
-        if self.cfg['precision'] == 32:
-            dt = np.float32
-        elif self.cfg['precision'] == 16:
-            dt = np.float16
-        elif self.cfg['precision'] == 'bf16':
-            dt = np.float16
-        else:
-            raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
-
-        outputs = (
-                (
-                    Tensor(name="outputs", shape=(1,), dtype=dt),
-                )
-        )
-        return outputs
-
-    @batch
-    def triton_infer_fn(self, **inputs: np.ndarray):
-        def _str_ndarray2list(str_ndarray: np.ndarray) -> typing.List[str]:
-            str_ndarray = str_ndarray.astype("bytes")
-            str_ndarray = np.char.decode(str_ndarray, encoding="utf-8")
-            str_ndarray = str_ndarray.squeeze(axis=-1)
-            return str_ndarray.tolist()
-
-        self.eval()
-        prompts = _str_ndarray2list(inputs["prompts"])
-        ids = [self.tokenizer.text_to_ids(text) for text in prompts]
-        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
-
-        masks_and_position_ids = [
-            get_ltor_masks_and_position_ids(id_tensor, self.tokenizer.eos_id, False, False, False)
-            for id_tensor in id_tensors
-        ]
-
-        dt = None
-        if self.cfg['precision'] == 32:
-            dt = torch.float
-        elif self.cfg['precision'] == 16:
-            dt = torch.float16
-        elif self.cfg['precision'] == 'bf16':
-            dt = torch.bfloat16
-        else:
-            raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
-
-        output_tensors = []
-        with torch.no_grad():
-            for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
-                attn_mask, _, pos_ids = attn_mask_and_pos_ids
-                assert tokens.shape == pos_ids.shape
-                assert attn_mask.shape[2] == attn_mask.shape[3] == tokens.shape[1] == pos_ids.shape[1]
-                with torch.autocast('cuda', dtype=dt):
-                    output_tensor = self.forward(
-                        tokens=tokens.cuda(),
-                        text_position_ids=pos_ids.cuda(),
-                        attention_mask=attn_mask.cuda(),
-                        labels=None,
-                    )
-                output_tensor = output_tensor.cpu().detach()
-                if dt == torch.bfloat16:
-                    output_tensor = output_tensor.to(torch.float16)
-
-                # For now, only the last prompt's output will be sent back.
-                # output_tensors.append(output_tensor.numpy())
-                output_tensors = output_tensor.numpy()
-
-        return {"outputs": output_tensors}
 
     def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
         """Returns the total number of parameters across all model parallel groups."""

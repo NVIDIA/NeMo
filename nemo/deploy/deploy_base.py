@@ -64,6 +64,13 @@ class DeployBase(ABC):
             module_path, class_name = DeployBase.get_module_and_class(model_config.target)
             cls = getattr(importlib.import_module(module_path), class_name)
             self.model = cls.restore_from(restore_path=self.checkpoint_path, trainer=Trainer())
+            self.model.freeze()
+
+            # has to turn off activations_checkpoint_method for inference
+            try:
+                self.model.model.language_model.encoder.activations_checkpoint_method = None
+            except AttributeError:
+                pass
 
         if self.model is None:
             raise Exception("There is no model to deploy.")

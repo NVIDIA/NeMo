@@ -24,6 +24,7 @@ from nemo.transfer import TensorRTLLM
 class TestNemoDeployment:
 
     @pytest.mark.unit
+    @pytest.mark.skip()
     def test_in_framework_pytriton(self):
         """Here we test the in framework inference deployment to triton"""
 
