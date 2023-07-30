@@ -172,6 +172,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        num_kv_attention_heads=None,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -259,6 +260,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
                 use_flash_attention=use_flash_attention,
+                num_kv_attention_heads=num_kv_attention_heads,
             )
 
             if transformer_block_type == 'normformer':
@@ -333,6 +335,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
+                num_kv_attention_heads=num_kv_attention_heads,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -690,6 +693,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        num_kv_attention_heads=None,
     ):
         super(ParallelTransformerLayer, self).__init__(
             init_method=init_method,
@@ -733,6 +737,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             moe_frequency=moe_frequency,
             moe_dropout=moe_dropout,
             use_flash_attention=use_flash_attention,
+            num_kv_attention_heads=num_kv_attention_heads,
         )
 
         # Dtype for forward pass - ignore amp O2
@@ -950,6 +955,7 @@ class ParallelTransformer(MegatronModule):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        num_kv_attention_heads=None,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1064,6 +1070,8 @@ class ParallelTransformer(MegatronModule):
                 lt = layer_type
 
             if self.transformer_engine:
+                # @xiaohongli, to remove this assertion and add accordingly when transformer_engine supports GQA
+                assert num_kv_attention_heads is None or num_kv_attention_heads == num_attention_heads
                 return AutocastTransformerLayer(
                     hidden_size=hidden_size,
                     ffn_hidden_size=ffn_hidden_size,
@@ -1132,6 +1140,7 @@ class ParallelTransformer(MegatronModule):
                     moe_frequency=moe_frequency,
                     moe_dropout=moe_dropout,
                     use_flash_attention=use_flash_attention,
+                    num_kv_attention_heads=num_kv_attention_heads,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
