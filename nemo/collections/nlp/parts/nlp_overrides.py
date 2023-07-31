@@ -111,7 +111,7 @@ class NLPDDPStrategy(DDPStrategy):
             Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
-        if (hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2) or (
+        if (hasattr(self.model, 'megatron_amp_O2') and self.model.megatron_amp_O2) or (
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer

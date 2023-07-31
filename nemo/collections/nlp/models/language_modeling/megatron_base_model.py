@@ -72,7 +72,7 @@ class MegatronBaseModel(NLPModel):
       with O2 level optimizations and/or model parallelism.
     - Perform gradient clipping: `grad_clip_pl_default` triggers
       the PyTorch Lightning default implementation, `with_distributed_adam` triggers
-      the distributed optimizer's implementation, `megatron_amp_o2` triggers gradient clipping on the main grads,
+      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
       and otherwise gradient clipping is performed on the model grads.
 
     """
@@ -299,7 +299,7 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
             grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
         else:
-            if self.megatron_amp_o2:
+            if self.megatron_amp_O2:
                 # grep fp32 master parameters for gradient clipping
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
@@ -419,7 +419,7 @@ class MegatronBaseModel(NLPModel):
 
             # Match param allgather with model dtype
             model_dtype = torch.float32
-            if self.megatron_amp_o2 and hasattr(self, 'autocast_dtype'):
+            if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
                 model_dtype = self.autocast_dtype
             optim_kwargs['param_sync_dtype'] = model_dtype
 
@@ -438,7 +438,7 @@ class MegatronBaseModel(NLPModel):
         self.setup_optimization()
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
+        if self.megatron_amp_O2 and not self.with_distributed_adam and self._optimizer is not None:
             if self.cfg.precision == 'bf16':
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
