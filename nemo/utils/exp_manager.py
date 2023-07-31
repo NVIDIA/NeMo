@@ -35,6 +35,7 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.callbacks.progress import TQDMProgressBar
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -160,6 +161,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    disable_lightning_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
@@ -189,7 +191,7 @@ class TimingCallback(Callback):
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, batch_size=1)
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, batch_size=1, prog_bar=(name=="train_step_timing"))
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
@@ -215,7 +217,27 @@ class TimingCallback(Callback):
     def on_after_backward(self, trainer, pl_module):
         self._on_batch_end("train_backward_timing", pl_module)
 
+class CustomProgressBar(TQDMProgressBar):
+    def init_train_tqdm(self):
+        bar = super().init_train_tqdm()
+        bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+        return bar
+    
+    def init_validation_tqdm(self):
+        bar = super().init_validation_tqdm()
+        bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+        return bar
+    
+    def init_test_tqdm(self):
+        bar = super().init_test_tqdm()
+        bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+        return bar
 
+    def init_predict_tqdm(self):
+        bar = super().init_predict_tqdm()
+        bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+        return bar
+    
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
@@ -426,6 +448,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.log_step_timing:
         timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
+
+    if cfg.disable_lightning_step_timing:
+        # default refresh rate is 1
+        progressbar_callback = CustomProgressBar(refresh_rate=1)
+        trainer.callbacks.append(progressbar_callback)
 
     if cfg.ema.enable:
         ema_callback = EMA(
