@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from nemo.deploy import DeployPyTriton, NemoQuery
-from nemo.transfer import TensorRTLLM
+from nemo.export import TensorRTLLM
 
 
 class TestNemoDeployment:
@@ -76,7 +76,7 @@ class TestNemoDeployment:
                 test_at_least_one = True
                 Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
                 trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                trt_llm_exporter.transfer(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
+                trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
 
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name)
 
