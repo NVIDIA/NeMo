@@ -17,11 +17,9 @@ import queue
 import warnings
 from dataclasses import fields
 from functools import partial
-from turtle import pos
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
-from more_itertools import distribute
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -1375,6 +1373,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         activation = self.cfg.get('activation', 'gelu')
         # TODO: need to check which activation functions are supported in mcore
+        gated_linear_unit = activation.endswith('glu')
         activation_func = activation_to_func(activation)
 
         init_method_std = self.cfg.get('init_method_std', 0.02)
@@ -1407,7 +1406,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,  # not currently used in NeMo
             'add_bias_linear': add_bias_linear,
-            'gated_linear_unit': False,  # TODO: is this used in NeMo?
+            'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'init_method': init_method,
             'output_layer_init_method': output_layer_init_method,
