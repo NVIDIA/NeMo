@@ -151,7 +151,7 @@ class GPTSFTDataset(Dataset):
         example = self.indexed_dataset[idx]
         return self._process_example(example)
 
-    def _process_prompt(self, context, label, query):
+    def _process_prompt(self, context: str, label: str, query: str):
         """
         Combine context, label, and query string into a unifed string.
         """
@@ -185,7 +185,7 @@ class GPTSFTDataset(Dataset):
 
         return context_ids, answer_ids
 
-    def _process_truncation(self, context, label, query):
+    def _process_truncation(self, context: str, label: str, query: str):
         """
         Calculate total tokens and truncate context or label string.
         """
@@ -217,7 +217,7 @@ class GPTSFTDataset(Dataset):
 
         return context, label
 
-    def _process_example(self, example):
+    def _process_example(self, example: dict):
         """
         Create an example by concatenating text and answer.
         Truncation is carried out when needed, but it is performed only on the prompt side.
