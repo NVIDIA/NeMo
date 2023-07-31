@@ -23,7 +23,11 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.tts.losses.audio_codec_loss import AudioLoss, MultiResolutionMelLoss, RelativeFeatureMatchingLoss
+from nemo.collections.tts.losses.audio_codec_loss import (
+    MultiResolutionMelLoss,
+    RelativeFeatureMatchingLoss,
+    TimeDomainLoss,
+)
 from nemo.collections.tts.modules.common import GaussianDropout
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
@@ -68,13 +72,13 @@ class AudioCodecModel(ModelPT):
 
         mel_loss_dim = cfg.get("mel_loss_dim", 64)
         mel_loss_resolutions = cfg.mel_loss_resolutions
-        self.audio_loss_scale = cfg.get("audio_loss_scale", 0.1)
+        self.time_domain_loss_scale = cfg.get("time_domain_loss_scale", 1.0)
         self.mel_loss_scale = cfg.get("mel_loss_scale", 1.0)
         mel_loss_l1_scale = cfg.get("mel_loss_l1_scale", 1.0)
         self.gen_loss_scale = cfg.get("gen_loss_scale", 1.0)
         self.feature_loss_scale = cfg.get("feature_loss_scale", 1.0)
 
-        self.audio_loss_fn = AudioLoss()
+        self.time_domain_loss_fn = TimeDomainLoss()
         self.mel_loss_fn = MultiResolutionMelLoss(
             sample_rate=self.sample_rate,
             mel_dim=mel_loss_dim,
@@ -221,8 +225,8 @@ class AudioCodecModel(ModelPT):
             self.manual_backward(train_disc_loss)
             optim_disc.step()
 
-        loss_audio = self.audio_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
-        train_loss_audio = self.audio_loss_scale * loss_audio
+        loss_time_domain = self.time_domain_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        train_loss_time_domain = self.time_domain_loss_scale * loss_time_domain
 
         loss_mel = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         train_loss_mel = self.mel_loss_scale * loss_mel
@@ -235,7 +239,7 @@ class AudioCodecModel(ModelPT):
         loss_feature = self.feature_loss_fn(fmaps_real=fmaps_real, fmaps_gen=fmaps_gen)
         train_loss_feature = self.feature_loss_scale * loss_feature
 
-        loss_gen_all = train_loss_audio + train_loss_mel + train_loss_gen + train_loss_feature
+        loss_gen_all = train_loss_time_domain + train_loss_mel + train_loss_gen + train_loss_feature
         if commit_loss is not None:
             loss_gen_all += commit_loss
 
@@ -245,7 +249,7 @@ class AudioCodecModel(ModelPT):
         self.update_lr()
 
         metrics = {
-            "g_loss_audio": loss_audio,
+            "g_loss_time_domain": loss_time_domain,
             "g_loss_mel": loss_mel,
             "g_loss_gen": loss_gen,
             "g_loss_feature": loss_feature,
@@ -268,7 +272,7 @@ class AudioCodecModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, audio_gen, _ = self._process_batch(batch)
-        loss_audio = self.audio_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
+        loss_audio = self.time_domain_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         loss_mel = self.mel_loss_fn(audio_real=audio, audio_gen=audio_gen, audio_len=audio_len)
         metrics = {"val_loss": loss_audio + loss_mel, "val_loss_audio": loss_audio, "val_loss_mel": loss_mel}
         self.log_dict(metrics, on_epoch=True, sync_dist=True)

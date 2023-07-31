@@ -81,9 +81,9 @@ class MaskedMSELoss(MaskedLoss):
         super(MaskedMSELoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
 
 
-class AudioLoss(Loss):
+class TimeDomainLoss(Loss):
     def __init__(self):
-        super(AudioLoss, self).__init__()
+        super(TimeDomainLoss, self).__init__()
         self.loss_fn = MaskedMAELoss()
 
     @property

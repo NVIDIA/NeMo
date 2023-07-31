@@ -2,7 +2,7 @@
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-name: AudioCodec
+name: EnCodec
 
 max_epochs: ???
 # Adjust batch size based on GPU memory
@@ -35,6 +35,7 @@ model:
 
   sample_rate: ${sample_rate}
   samples_per_frame: ${samples_per_frame}
+  time_domain_loss_scale: 0.1
   # Probability of updating the discriminator during each training step
   disc_update_prob: 0.67
 
