@@ -279,11 +279,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         return state_dict
 
     def sharded_state_dict(self, model_sharded_state_dict=None):
-        assert model_sharded_state_dict is not None, f'{self.__class__.__name__}.state_dict_for_save_checkpoint requires passing model checkpoint with ShardedTensors'
+        assert (
+            model_sharded_state_dict is not None
+        ), f'{self.__class__.__name__}.state_dict_for_save_checkpoint requires passing model checkpoint with ShardedTensors'
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
-            model_sharded_state_dict,
-            chain.from_iterable(g['params'] for g in self.param_groups))
+            model_sharded_state_dict, chain.from_iterable(g['params'] for g in self.param_groups)
+        )
 
         # Convert state
         state_dict = self.state_dict(gather_on_root=False)
@@ -301,8 +303,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 self._fp32_optim.load_state_dict(state_dict['fp32_optim'])
                 del state_dict['fp32_optim']
                 for old_main_param, new_main_param in zip(
-                        self._fp32_optim_main_params.values(),
-                        state_dict['fp32_optim_fp32_params']
+                    self._fp32_optim_main_params.values(), state_dict['fp32_optim_fp32_params']
                 ):
                     old_main_param.copy_(new_main_param.detach())
                 del state_dict['fp32_optim_fp32_params']
@@ -328,11 +329,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     # Aggregate bucket states on cpu
                     setattr(bucket, field, torch.empty_like(field_tensor, device='cpu'))
 
-
         optim_state = state_dict['state']
-        assert optim_state['buckets'] == self.state['buckets'], \
-            'When loading from distributed checkpoint, buckets should be' \
-            ' wrapped with LocalNonpersitentObject'
+        assert optim_state['buckets'] == self.state['buckets'], (
+            'When loading from distributed checkpoint, buckets should be' ' wrapped with LocalNonpersitentObject'
+        )
 
         # TODO: maybe run consistency validation here
         # Copies relevant fragments data from checkpoint into the buckets.
@@ -351,7 +351,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     bucket.params_shard[slice(*fragment.shard_range)] = fragment_data['params_shard']
                     assert 'param_remainders_shard' not in fragment_data, fragment_data.keys()
                 else:
-                    assert bucket.params_shard is None, f'bucket.params_shard should be None, got: {bucket.params_shard}'
+                    assert (
+                        bucket.params_shard is None
+                    ), f'bucket.params_shard should be None, got: {bucket.params_shard}'
                     assert 'param_remainders_shard' in fragment_data, fragment_data.keys()
 
                 if 'param_remainders_shard' in fragment_data:
@@ -370,7 +372,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 field_tensor = getattr(bucket, field)
                 setattr(bucket, field, field_tensor.cuda() if field_tensor is not None else None)
 
-    def optim_state_to_sharding_state(self, optim_state_dict: StateDict, id_to_sharded_param_map: Dict[int, ShardedTensor]):
+    def optim_state_to_sharding_state(
+        self, optim_state_dict: StateDict, id_to_sharded_param_map: Dict[int, ShardedTensor]
+    ):
         """
         Wraps optimizer states with ShardedTensor based on model params ShardedTensors.
 
@@ -389,8 +393,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             if not isinstance(param_id, int):
                 continue
             fragments_local_data[param_id] = {
-                fragment_id: self.make_sharded_fragment_data(id_to_sharded_param_map[param_id], param_id,
-                                                             fragment, optim_state['buckets'][fragment.bucket_id])
+                fragment_id: self.make_sharded_fragment_data(
+                    id_to_sharded_param_map[param_id], param_id, fragment, optim_state['buckets'][fragment.bucket_id]
+                )
                 for fragment_id, fragment in enumerate(param_state['fragments'])
                 if fragment.in_local_shard
             }
@@ -410,9 +415,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         return optim_state_dict
 
-    def make_sharded_fragment_data(self, model_param: ShardedTensor, param_id: int,
-                                   fragment: DistributedFusedAdam.ParameterFragment,
-                                   bucket: DistributedFusedAdam.StateBucket) -> Dict[str, ShardedTensor]:
+    def make_sharded_fragment_data(
+        self,
+        model_param: ShardedTensor,
+        param_id: int,
+        fragment: DistributedFusedAdam.ParameterFragment,
+        bucket: DistributedFusedAdam.StateBucket,
+    ) -> Dict[str, ShardedTensor]:
         """
         Build a ShardedTensor for a given fragment.
 
@@ -451,10 +460,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             optim_param = field_val[slice(*fragment.shard_range)]
             if field == 'param_remainders_shard':
                 # Construct fp32 tensor from model BF16 params and INT16 remainders
-                optim_param = merge_fp32(
-                    model_param.data.view(-1)[slice(*fragment.shard_param_range)],
-                    optim_param
-                )
+                optim_param = merge_fp32(model_param.data.view(-1)[slice(*fragment.shard_param_range)], optim_param)
             assert len(model_param.replica_id) == 3, f'Expected replica_id format (TP, PP, DP), got: {replica_id}'
             replica_id = (*model_param.replica_id[:2], 0)
             fragment_local_data[field] = replace(
@@ -479,8 +485,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         fp32_state_dict = self._fp32_optim.state_dict()  # recompute after state init
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
-            model_sharded_state_dict,
-            self._fp32_optim_main_params.keys())
+            model_sharded_state_dict, self._fp32_optim_main_params.keys()
+        )
 
         def get_safe(param_id):
             try:
@@ -491,23 +497,24 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         # FP32 model params
         optim_state_dict['fp32_optim_fp32_params'] = [
-            make_sharded_optimizer_tensor(get_safe(param_id), fp32_param,
-                                          prefix=f'optimizer.state.fp32_from_fp16')
+            make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_from_fp16')
             for param_id, fp32_param in enumerate(optim_state_dict['fp32_optim_fp32_params'])
         ]
 
         # FP32 Optimizer state
-        optim_state_to_sharding_state(fp32_state_dict,
-                                      id_to_sharded_param_map,
-                                      exclude_keys=('step',))
+        optim_state_to_sharding_state(fp32_state_dict, id_to_sharded_param_map, exclude_keys=('step',))
 
         # Since this is a wrapped optimizer, we don't want to store hyperparameters
         # but they must be updated with `update_fp32_hyperparameters` before calling `load_state_dict`
         for group_idx in range(len(fp32_state_dict['param_groups'])):
             # unwrap LocalNonpersitentObject from 'params' ...
-            fp32_state_dict['param_groups'][group_idx]['params'] = fp32_state_dict['param_groups'][group_idx]['params'].obj
+            fp32_state_dict['param_groups'][group_idx]['params'] = fp32_state_dict['param_groups'][group_idx][
+                'params'
+            ].obj
             # ... and apply it to the whole group
-            fp32_state_dict['param_groups'][group_idx] = LocalNonpersitentObject(fp32_state_dict['param_groups'][group_idx])
+            fp32_state_dict['param_groups'][group_idx] = LocalNonpersitentObject(
+                fp32_state_dict['param_groups'][group_idx]
+            )
 
         optim_state_dict['fp32_optim'] = fp32_state_dict
 
