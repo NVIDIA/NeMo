@@ -1,0 +1,1 @@
+from nemo.collections.asr.modules.ssl_modules.quantizers import RandomProjectionVectorQuantizer
