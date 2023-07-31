@@ -134,7 +134,7 @@ def main(cfg) -> None:
             peft_model_cfg.apply_query_key_layer_scaling = cfg.model.get('apply_query_key_layer_scaling', True)
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
-        
+
         # Check dataset max_seq_legnth and max_position_embeddings size
         max_seq_length = cfg.model.data.test_ds.max_seq_length
         if (
@@ -145,7 +145,7 @@ def main(cfg) -> None:
                 f"Set dataset max_seq_length to max_position_embeddings {peft_model_cfg.max_position_embeddings} if using learned_absolute position embedding"
             )
             peft_model_cfg.data.test_ds.max_seq_length = peft_model_cfg.max_position_embeddings
-            
+
     with open_dict(cfg):
         # update the config with the trained model config
         # required for hydra interpolation to work inside cfg.inference
