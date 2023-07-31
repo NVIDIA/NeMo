@@ -1,6 +1,7 @@
 model:
   scale_factor: 0.13025
   disable_first_stage_autocast: True
+  is_legacy: False
 
   denoiser_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.denoiser.DiscreteDenoiser
@@ -35,6 +36,7 @@ model:
     image_size: 64 # unused
 #    spatial_transformer_attn_type: softmax  #note: only default softmax is supported now
     legacy: False
+    use_flash_attention: False
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper

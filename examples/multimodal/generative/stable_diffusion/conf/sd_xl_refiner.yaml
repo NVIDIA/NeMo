@@ -1,6 +1,7 @@
 model:
   scale_factor: 0.13025
   disable_first_stage_autocast: True
+  is_legacy: False
 
   denoiser_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.denoiser.DiscreteDenoiser

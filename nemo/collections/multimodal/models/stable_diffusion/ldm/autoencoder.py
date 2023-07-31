@@ -384,6 +384,10 @@ class AutoencoderKL(pl.LightningModule):
                 .replace('downsamplers.0', 'downsample')
                 .replace('conv_shortcut', 'nin_shortcut')
                 .replace('conv_norm_out', 'norm_out')
+                .replace('mid.attentions.0.to_q', 'mid.attn_1.q')
+                .replace('mid.attentions.0.to_v', 'mid.attn_1.v')
+                .replace('mid.attentions.0.to_k', 'mid.attn_1.k')
+                .replace('mid.attentions.0.to_out.0', 'mid.attn_1.proj_out')
             )
 
             mid_list = re.findall(p1, key_)

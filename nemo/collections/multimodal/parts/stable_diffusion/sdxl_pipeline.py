@@ -6,7 +6,6 @@ import torch
 import pathlib
 import numpy
 from PIL import Image
-from dataclasses import dataclass, asdict
 from tqdm import tqdm
 from enum import Enum
 from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import DiffusionEngine
@@ -26,165 +25,34 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampl
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally, get_input_image_tensor
 
 
-class ModelArchitecture(str, Enum):
-    SD_2_1 = "stable-diffusion-v2-1"
-    SD_2_1_768 = "stable-diffusion-v2-1-768"
-    SDXL_V0_9_BASE = "stable-diffusion-xl-v0-9-base"
-    SDXL_V0_9_REFINER = "stable-diffusion-xl-v0-9-refiner"
-    SDXL_V1_BASE = "stable-diffusion-xl-v1-base"
-    SDXL_V1_REFINER = "stable-diffusion-xl-v1-refiner"
-
-
-class Sampler(str, Enum):
-    EULER_EDM = "EulerEDMSampler"
-    HEUN_EDM = "HeunEDMSampler"
-    EULER_ANCESTRAL = "EulerAncestralSampler"
-    DPMPP2S_ANCESTRAL = "DPMPP2SAncestralSampler"
-    DPMPP2M = "DPMPP2MSampler"
-    LINEAR_MULTISTEP = "LinearMultistepSampler"
-
-
-class Discretization(str, Enum):
-    LEGACY_DDPM = "LegacyDDPMDiscretization"
-    EDM = "EDMDiscretization"
-
-
-class Guider(str, Enum):
-    VANILLA = "VanillaCFG"
-    IDENTITY = "IdentityGuider"
-
-
-class Thresholder(str, Enum):
-    NONE = "None"
-
-
-
-
-
-@dataclass
-class SamplingParams:
-    width: int = 1024
-    height: int = 1024
-    steps: int = 50
-    sampler: Sampler = Sampler.DPMPP2M
-    discretization: Discretization = Discretization.LEGACY_DDPM
-    guider: Guider = Guider.VANILLA
-    thresholder: Thresholder = Thresholder.NONE
-    scale: float = 6.0
-    aesthetic_score: float = 5.0
-    negative_aesthetic_score: float = 5.0
-    img2img_strength: float = 1.0
-    orig_width: int = 1024
-    orig_height: int = 1024
-    crop_coords_top: int = 0
-    crop_coords_left: int = 0
-    sigma_min: float = 0.0292
-    sigma_max: float = 14.6146
-    rho: float = 3.0
-    s_churn: float = 0.0
-    s_tmin: float = 0.0
-    s_tmax: float = 999.0
-    s_noise: float = 1.0
-    eta: float = 1.0
-    order: int = 4
-
-
-@dataclass
-class SamplingSpec:
-    width: int
-    height: int
-    channels: int
-    factor: int
-    is_legacy: bool
-    config: str
-    ckpt: str
-    is_guided: bool
-
-model_specs = {
-    ModelArchitecture.SDXL_V0_9_BASE: SamplingSpec(
-        height=1024,
-        width=1024,
-        channels=4,
-        factor=8,
-        is_legacy=False,
-        config="sd_xl_base.yaml",
-        ckpt="sd_xl_base_0.9.safetensors",
-        is_guided=True,
-    ),
-    ModelArchitecture.SDXL_V0_9_REFINER: SamplingSpec(
-        height=1024,
-        width=1024,
-        channels=4,
-        factor=8,
-        is_legacy=True,
-        config="sd_xl_refiner.yaml",
-        ckpt="sd_xl_refiner_0.9.safetensors",
-        is_guided=True,
-    ),
-    ModelArchitecture.SDXL_V1_BASE: SamplingSpec(
-        height=1024,
-        width=1024,
-        channels=4,
-        factor=8,
-        is_legacy=False,
-        config="sd_xl_base.yaml",
-        ckpt="sd_xl_base_1.0.safetensors",
-        is_guided=True,
-    ),
-    ModelArchitecture.SDXL_V1_REFINER: SamplingSpec(
-        height=1024,
-        width=1024,
-        channels=4,
-        factor=8,
-        is_legacy=True,
-        config="sd_xl_refiner.yaml",
-        ckpt="sd_xl_refiner_1.0.safetensors",
-        is_guided=True,
-    ),
-}
-
 
 class SamplingPipeline:
     def __init__(
         self,
-        model_id: ModelArchitecture,
-        model_path="checkpoints",
-        config_path="/opt/NeMo/examples/multimodal/generative/stable_diffusion/conf/",
+        config_path,
         device="cuda",
         use_fp16=True,
     ) -> None:
-        if model_id not in model_specs:
-            raise ValueError(f"Model {model_id} not supported")
-        self.model_id = model_id
-        self.specs = model_specs[self.model_id]
-        self.config = str(pathlib.Path(config_path, self.specs.config))
-        self.ckpt = str(pathlib.Path(model_path, self.specs.ckpt))
+        self.config = config_path
         self.device = device
-        config = OmegaConf.load(self.config)
-        self.model = DiffusionEngine(config.model).to(self.device)
-        # self.model = self._load_model(device=device, use_fp16=use_fp16)
+        self.config = OmegaConf.load(self.config)
+        self.model = DiffusionEngine(self.config.model).to(self.device)
+        if use_fp16:
+            model.conditioner.half()
+            model.model.half()
+        self.vae_scale_factor = 2 ** (len(self.config.model.first_stage_config.ddconfig.ch_mult) - 1)
 
-    # def _load_model(self, device="cuda", use_fp16=True):
-    #     config = OmegaConf.load(self.config)
-    #     model = load_model_from_config(config, self.ckpt)
-    #     if model is None:
-    #         raise ValueError(f"Model {self.model_id} could not be loaded")
-    #     model.to(device)
-    #     if use_fp16:
-    #         model.conditioner.half()
-    #         model.model.half()
-    #     return model
 
     def text_to_image(
         self,
-        params: SamplingParams,
+        params,
         prompt: str,
         negative_prompt: str = "",
         samples: int = 1,
         return_latents: bool = False,
     ):
         sampler = get_sampler_config(params)
-        value_dict = asdict(params)
+        value_dict = OmegaConf.to_container(params, resolve=True)
         value_dict["prompt"] = prompt
         value_dict["negative_prompt"] = negative_prompt
         value_dict["target_width"] = params.width
@@ -196,16 +64,16 @@ class SamplingPipeline:
             samples,
             params.height,
             params.width,
-            self.specs.channels,
-            self.specs.factor,
-            force_uc_zero_embeddings=["txt"] if not self.specs.is_legacy else [],
+            self.config.model.unet_config.in_channels,
+            self.vae_scale_factor,
+            force_uc_zero_embeddings=["txt"] if not self.config.model.is_legacy else [],
             return_latents=return_latents,
             filter=None,
         )
 
     def image_to_image(
         self,
-        params: SamplingParams,
+        params,
         image,
         prompt: str,
         negative_prompt: str = "",
@@ -220,7 +88,7 @@ class SamplingPipeline:
                 strength=params.img2img_strength,
             )
         height, width = image.shape[2], image.shape[3]
-        value_dict = asdict(params)
+        value_dict = OmegaConf.to_container(params, resolve=True)
         value_dict["prompt"] = prompt
         value_dict["negative_prompt"] = negative_prompt
         value_dict["target_width"] = width
@@ -231,14 +99,14 @@ class SamplingPipeline:
             sampler,
             value_dict,
             samples,
-            force_uc_zero_embeddings=["txt"] if not self.specs.is_legacy else [],
+            force_uc_zero_embeddings=["txt"] if not self.config.model.is_legacy else [],
             return_latents=return_latents,
             filter=None,
         )
 
     def refiner(
         self,
-        params: SamplingParams,
+        params,
         image,
         prompt: str,
         negative_prompt: Optional[str] = None,
@@ -246,6 +114,11 @@ class SamplingPipeline:
         return_latents: bool = False,
     ):
         sampler = get_sampler_config(params)
+        if params.img2img_strength < 1.0:
+            sampler.discretization = Img2ImgDiscretizationWrapper(
+                sampler.discretization,
+                strength=params.img2img_strength,
+            )
         value_dict = {
             "orig_width": image.shape[3] * 8,
             "orig_height": image.shape[2] * 8,
@@ -253,10 +126,10 @@ class SamplingPipeline:
             "target_height": image.shape[2] * 8,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
-            "crop_coords_top": 0,
-            "crop_coords_left": 0,
-            "aesthetic_score": 6.0,
-            "negative_aesthetic_score": 2.5,
+            "crop_coords_top": params.crop_coords_top,
+            "crop_coords_left": params.crop_coords_left,
+            "aesthetic_score": params.aesthetic_score,
+            "negative_aesthetic_score": params.negative_aesthetic_score,
         }
 
         return do_img2img(
@@ -271,17 +144,17 @@ class SamplingPipeline:
         )
 
 
-def get_guider_config(params: SamplingParams):
-    if params.guider == Guider.IDENTITY:
+def get_guider_config(params):
+    if params.guider == "IdentityGuider":
         guider_config = {
             "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.guiders.IdentityGuider"
         }
-    elif params.guider == Guider.VANILLA:
+    elif params.guider == "VanillaCFG":
         scale = params.scale
 
         thresholder = params.thresholder
 
-        if thresholder == Thresholder.NONE:
+        if thresholder == "None":
             dyn_thresh_config = {
                 "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling_utils.NoDynamicThresholding"
             }
@@ -297,12 +170,12 @@ def get_guider_config(params: SamplingParams):
     return guider_config
 
 
-def get_discretization_config(params: SamplingParams):
-    if params.discretization == Discretization.LEGACY_DDPM:
+def get_discretization_config(params):
+    if params.discretization == "LegacyDDPMDiscretization":
         discretization_config = {
             "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.discretizer.LegacyDDPMDiscretization",
         }
-    elif params.discretization == Discretization.EDM:
+    elif params.discretization == "EDMDiscretization":
         discretization_config = {
             "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.discretizer.EDMDiscretization",
             "params": {
@@ -317,11 +190,11 @@ def get_discretization_config(params: SamplingParams):
 
 
 
-def get_sampler_config(params: SamplingParams):
+def get_sampler_config(params):
     discretization_config = get_discretization_config(params)
     guider_config = get_guider_config(params)
     sampler = None
-    if params.sampler == Sampler.EULER_EDM:
+    if params.sampler == "EulerEDMSampler":
         return EulerEDMSampler(
             num_steps=params.steps,
             discretization_config=discretization_config,
@@ -332,7 +205,7 @@ def get_sampler_config(params: SamplingParams):
             s_noise=params.s_noise,
             verbose=True,
         )
-    if params.sampler == Sampler.HEUN_EDM:
+    if params.sampler == "HeunEDMSampler":
         return HeunEDMSampler(
             num_steps=params.steps,
             discretization_config=discretization_config,
@@ -343,7 +216,7 @@ def get_sampler_config(params: SamplingParams):
             s_noise=params.s_noise,
             verbose=True,
         )
-    if params.sampler == Sampler.EULER_ANCESTRAL:
+    if params.sampler == "EulerAncestralSampler":
         return EulerAncestralSampler(
             num_steps=params.steps,
             discretization_config=discretization_config,
@@ -352,7 +225,7 @@ def get_sampler_config(params: SamplingParams):
             s_noise=params.s_noise,
             verbose=True,
         )
-    if params.sampler == Sampler.DPMPP2S_ANCESTRAL:
+    if params.sampler == "DPMPP2SAncestralSampler":
         return DPMPP2SAncestralSampler(
             num_steps=params.steps,
             discretization_config=discretization_config,
@@ -361,14 +234,14 @@ def get_sampler_config(params: SamplingParams):
             s_noise=params.s_noise,
             verbose=True,
         )
-    if params.sampler == Sampler.DPMPP2M:
+    if params.sampler == "DPMPP2MSampler":
         return DPMPP2MSampler(
             num_steps=params.steps,
             discretization_config=discretization_config,
             guider_config=guider_config,
             verbose=True,
         )
-    if params.sampler == Sampler.LINEAR_MULTISTEP:
+    if params.sampler == "LinearMultistepSampler":
         return LinearMultistepSampler(
             num_steps=params.steps,
             discretization_config=discretization_config,
@@ -380,53 +253,3 @@ def get_sampler_config(params: SamplingParams):
     raise ValueError(f"unknown sampler {params.sampler}!")
 
 
-def main():
-
-    use_init_image = False
-    class TestInference:
-        def create_init_image(self, h, w):
-            image_array = numpy.random.rand(h, w, 3) * 255
-            image = Image.fromarray(image_array.astype("uint8")).convert("RGB")
-            return get_input_image_tensor(image)
-
-    test_inference = TestInference()
-    base_pipeline = SamplingPipeline(ModelArchitecture.SDXL_V1_BASE)
-    refiner_pipeline = SamplingPipeline(ModelArchitecture.SDXL_V1_REFINER)
-
-    if use_init_image:
-        output = base_pipeline.image_to_image(
-            params=SamplingParams(sampler=Sampler.DPMPP2M.value, steps=10),
-            image=test_inference.create_init_image(
-                base_pipeline.specs.height, base_pipeline.specs.width
-            ),
-            prompt="A professional photograph of an astronaut riding a pig",
-            negative_prompt="",
-            samples=1,
-            return_latents=True,
-        )
-    else:
-        output = base_pipeline.text_to_image(
-            params=SamplingParams(sampler=Sampler.DPMPP2M.value, steps=10),
-            prompt="A professional photograph of an astronaut riding a pig",
-            negative_prompt="",
-            samples=1,
-            return_latents=True,
-        )
-
-    assert isinstance(output, (tuple, list))
-    samples, samples_z = output
-    assert samples is not None
-    assert samples_z is not None
-
-    output = refiner_pipeline.refiner(
-        params=SamplingParams(sampler=Sampler.DPMPP2M.value, steps=10),
-        image=samples_z,
-        prompt="A professional photograph of an astronaut riding a pig",
-        negative_prompt="",
-        samples=1,
-    )
-    perform_save_locally('./',output)
-
-
-if __name__ == "__main__":
-    main()
