@@ -26,7 +26,7 @@ class NemoQuery:
         self.url = url
         self.model_name = model_name
 
-    def query_gpt(self, prompts, init_timeout=600.0, verbose=False):
+    def query_llm(self, prompts, init_timeout=600.0, verbose=False):
         log_level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(name)s: %(message)s")
         logger = logging.getLogger("nemo.client")

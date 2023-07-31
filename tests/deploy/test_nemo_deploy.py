@@ -45,7 +45,7 @@ class TestNemoDeployment:
                     nm.run()
                     nq = NemoQuery(url="localhost", model_name=model_name)
 
-                    output = nq.query_gpt(prompts=["hello, testing GPT inference"])
+                    output = nq.query_llm(prompts=["hello, testing GPT inference"])
                     print(output)
                 except:
                     print("Couldn't start the model.")
@@ -85,7 +85,7 @@ class TestNemoDeployment:
                     nm.run()
                     nq = NemoQuery(url="localhost", model_name=model_name)
 
-                    output = nq.query_gpt(prompts=["hello, testing GPT inference", "another GPT inference test?"])
+                    output = nq.query_llm(prompts=["hello, testing GPT inference", "another GPT inference test?"])
                     print(output)
                 except:
                     print("Couldn't start the model.")
