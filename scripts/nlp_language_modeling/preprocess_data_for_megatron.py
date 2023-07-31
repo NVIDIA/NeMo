@@ -14,25 +14,14 @@
 
 """Processing data for megatron pretraining.
 
-It can be used to convert the text data into indexed dataset for BERT, GPT, T5, RETRO models etc.
-
-
-Example script to preprocess the loose JSON file for BERT model
-
-```python
-python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
-    --input=PATH_TO_THE_RETRIEVAL_DB_LOOSE_JSON_FILE \
-    --json-keys=text \
-    --vocab-file=PATH_TO_VOCAB_FILE \
-    --dataset-impl=mmap \
-    --output-prefix=YOUR_DATA_PREFIX \
-    --tokenizer-library=megatron \
-    --tokenizer-type=BertWordPieceCase \
-    --split-sentences \
-    --workers=48
-```
+It can be used to convert the text data into indexed dataset for GPT models.
+For other models (BERT, T5, RETRO), refer to /scripts/nlp_language_modeling/preprocess_data_for_megatron.py
 
 Example script to preprocess the loose JSON file for GPT model
+
+Example json line:
+{"audio_codes": "path_to_audio_codes.npz", "text": "corresponding text"}
+npz file should contain a numpy array of shape [n_codebooks, n_frames] under the key "codes"
 
 ```python
 python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
@@ -45,40 +34,9 @@ python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --vocab-file=YOUR_VOCAB_FILE \
     --output-prefix=YOUR_DATA_PREFIX \
     --append-eod \
+    --flatten_audio_codebooks \
+    --n_codebooks_to_use=1 \
     --workers=48
-```
-
-Example script to preprocess the loose JSON file for retrieval DB Dataset
-
-```python
-python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
-    --input=PATH_TO_THE_RETRIEVAL_DB_LOOSE_JSON_FILE \
-    --json-keys=text \
-    --tokenizer-library=sentencepiece \
-    --dataset-impl=retmmap \
-    --tokenizer-model=tokenizer.model \
-    --output-prefix=retro_db \
-    --need-pad-id \
-    --append-eod \
-    --retrieval-db \
-    --chunk_size=64 \
-    --workers=64 
-```
-
-Example script to preprocess the JSON file for retrieval training dataset
-
-```python
-python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
-    --input=PATH_TO_THE_RETRIEVAL_TRAIN_VAL_TEST_LOOSE_JSON_FILE \
-    --json-keys=text \
-    --tokenizer-library=sentencepiece \
-    --dataset-impl=retmmap \
-    --tokenizer-model=tokenizer.model \
-    --output-prefix=retro_data \
-    --need-pad-id \
-    --append-eod \
-    --chunk_size=64 \
-    --workers=64 
 ```
 """
 
@@ -93,9 +51,12 @@ import time
 
 import ftfy
 import torch
+import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from pytorch_lightning import Trainer
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 
 try:
     import nltk
@@ -124,14 +85,22 @@ class IdentitySplitter(object):
 
 
 def get_tokenizer(args):
-    tokenizer = get_nmt_tokenizer(
-        library=args.tokenizer_library,
-        model_name=args.tokenizer_type,
-        tokenizer_model=args.tokenizer_model,
-        vocab_file=args.vocab_file,
-        merges_file=args.merge_file,
-        delimiter=args.delimiter,
-    )
+    if args.tokenizer_type == "t5":
+        trainer = Trainer()
+        frozen_model = MegatronT5Model.restore_from(
+            "/datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5.nemo",
+            trainer=trainer,
+        )
+        tokenizer = frozen_model.tokenizer
+    else:
+        tokenizer = get_nmt_tokenizer(
+            library=args.tokenizer_library,
+            model_name=args.tokenizer_type,
+            tokenizer_model=args.tokenizer_model,
+            vocab_file=args.vocab_file,
+            merges_file=args.merge_file,
+            delimiter=args.delimiter,
+        )
     if args.need_pad_id:
         if not hasattr(tokenizer, "pad_id"):
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -197,6 +166,64 @@ class Encoder(object):
         return ids, len(json_line)
 
 
+class AudioEncoder(object):
+    def __init__(self, args):
+        self.args = args
+
+    def initializer(self):
+        pass
+
+    def flatten_codebooks(self, codes):
+        """flatten codebooks
+        """
+        codes = codes.copy()
+        for n in range(1, codes.shape[0]):
+            codes[n, :] += self.codebook_size * n
+        flat_codes = codes.ravel("F")
+        return flat_codes
+    
+    def process(self, file_path):
+        """load npz file from filepath
+        """
+        codes = np.load(file_path)
+        codes = codes["codes"]  # [n_codebooks, n_frames]  
+        
+        # if n_codebooks_to_use is greater than the number of codebooks in the file, raise error
+        if self.args.n_codebooks_to_use is not None and self.args.n_codebooks_to_use > codes.shape[0]:
+            raise ValueError(
+                f"n_codebooks_to_use ({self.args.n_codebooks_to_use}) is greater than the number of codebooks in the file ({codes.shape[0]})."
+            )
+        
+        assert len(codes.shape) == 2, f"codes must be 2D, got {len(codes.shape)}"
+
+        if self.args.n_codebooks_to_use is not None:
+            codes = codes[:self.args.n_codebooks_to_use, :]
+
+        # if n_codebooks_to_use is only one, we need to add a dimension
+        if self.args.n_codebooks_to_use == 1:
+            codes = np.expand_dims(codes, axis=0)        # [N, T]
+        
+        # flatten
+        if self.args.flatten_audio_codebooks:
+            codes = self.flatten_codebooks(codes)      # [T]  
+        return codes    
+
+    def encode(self, json_line):
+        data = json.loads(json_line)
+        ids = {}
+        for key in self.args.json_keys:
+            audio = data[key]       # audio codes filepath
+            doc_ids = []
+
+            audio = self.process(audio)     # [T] or [N, T]
+            if len(audio) > 0:
+                doc_ids.append(audio)       # list of numpy arrays
+            if len(doc_ids) > 0 and self.args.append_eod and not self.args.flatten_audio_codebooks:
+                doc_ids[-1].append(Encoder.tokenizer.eos_id)
+            ids[key] = doc_ids
+        return ids, audio.size
+    
+
 def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
@@ -216,7 +243,7 @@ def get_args():
     group.add_argument(
         '--tokenizer-library',
         type=str,
-        required=True,
+        required=False,
         choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular'],
         help='What tokenizer library to use.',
     )
@@ -251,6 +278,12 @@ def get_args():
         help='If set, will preprocess all .json or .json.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
     )
     group.add_argument('--apply-ftfy', action='store_true', help='If set, will apply ftfy to the input text')
+    
+    # audio_codes related args
+    group = parser.add_argument_group(title='audio Tokenizer')
+    group.add_argument('--flatten_audio_codebooks', action='store_true', help='flatten audio codebooks')
+    group.add_argument('--n_codebooks_to_use', type=int, default=None, help='number of codebooks to use')
+    
     args = parser.parse_args()
     args.keep_empty = False
 
@@ -265,6 +298,14 @@ def get_args():
     args.vocab_extra_ids = 0
     # TODO: There are dependencies b/w libraries and model files / tokenizer type strings to check.
     assert args.tokenizer_type is not None or args.tokenizer_model is not None
+    
+    if args.dataset_impl == 'mmap':     # if you are not flattening use 'lazy' or 'cached' which use 'IndexedDatasetBuilder'
+        assert args.flatten_audio_codebooks, "mmap need --flatten_audio_codebooks flag"
+
+
+    if args.append_eod:
+        assert args.flatten_audio_codebooks, "add_eod need --flatten_audio_codebooks flag"    
+    
     return args
 
 
@@ -284,10 +325,7 @@ def main():
         assert os.path.exists(args.input), f'File does not exist: {args.input}'
         json_files = [args.input]
 
-    if nltk_available and args.split_sentences:
-        nltk.download("punkt", quiet=True)
-
-    encoder = Encoder(args)
+    encoder = AudioEncoder(args)
 
     if args.dataset_impl == 'retmmap':
         assert args.need_pad_id, "retmmap need --need_pad_id flag"

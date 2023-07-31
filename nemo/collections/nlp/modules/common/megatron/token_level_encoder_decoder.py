@@ -502,6 +502,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             for i in range(dec_input_ids.size()[1]):
                 # For text inputs, only include 1st channel embeddings. Zero-out others.
                 include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
+                print("dec size", dec_input_ids.size(), i)
+                print("Max min Token", torch.max(dec_input_ids[:, i, :]), torch.min(dec_input_ids[:, i, :]))
+                print("Emb Dim", self.decoder_embedding.word_embeddings.weight.size())
                 current = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
                 current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
                 if dec_input is None:

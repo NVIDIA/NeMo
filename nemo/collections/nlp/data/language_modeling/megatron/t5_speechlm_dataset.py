@@ -199,13 +199,17 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             # Get context, question and answer codes in a dict.
             input_dict = self._insert_data_in_template(input_example, prompt_template_fields, doc, answer_field)
             context_tokens = input_dict['context']
-
+            
             if self.mask_context_prob > 0:
                 context_tokens = self._mask_context_tokens(context_tokens, doc['context_type'])
 
             question_tokens = input_dict['question']
             # Get virtual tokens
             virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
+            
+            if len(context_tokens) == 1 and (not isinstance(context_tokens[0], int)) and context_tokens[0].dim() == 2:
+                if context_tokens[0].size()[1] > self.max_seq_length - len(question_tokens) - total_virtual_tokens - 3:
+                    context_tokens[0] = context_tokens[0][:, : self.max_seq_length - len(question_tokens) - total_virtual_tokens - 3]
 
             # a trick to align with the data format in t5 pretraining
             # new
@@ -225,7 +229,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             # Try to truncate input text to fit into the max sequence length
             # TODO(sugh) - adapt to speech tokens = context tokens
-            if len(context_tokens) > self.max_seq_length:
+            if len(context_tokens) + len(question_tokens) + total_virtual_tokens > self.max_seq_length:
                 context_tokens = self._truncate_input(
                     truncation_field, context_tokens, taskname, doc, total_virtual_tokens
                 )
@@ -233,11 +237,15 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             # get answer ids
             if answer_field in doc.keys():  # training and validation
                 answer_ids = self._get_tokens(doc, answer_field, doc[answer_field])
+                # if answer_ids is a torch tensor
+                if len(answer_ids) == 1 and (not isinstance(answer_ids[0], int)) and answer_ids[0].dim() == 2:
+                    if answer_ids[0].size()[1] > self.max_seq_length - 3:
+                        answer_ids[0] = answer_ids[0][:, : self.max_seq_length - 3]
 
                 if self.decoder_starts_with_pad:
                     answer_text_ids = [self.tokenizer.pad_id]
                 else:
-                    answer_text_ids = [self.tokenizer.pad_id]
+                    answer_text_ids = [self.tokenizer.bos_id]
                 # a trick to align with the data format in t5 pretraining
                 if self.add_sentinel_to_input:
                     answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
@@ -247,6 +255,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                     answer_text_ids += [self.tokenizer.eos_id]
                 else:
                     answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
+                
+                # print("answer_text_ids", answer_text_ids)
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if (

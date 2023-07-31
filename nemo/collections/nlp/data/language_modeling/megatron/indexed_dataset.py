@@ -244,6 +244,13 @@ class IndexedDataset(torch.utils.data.Dataset):
             sents = np.split(a, offsets[:-1])
             return sents
 
+    def get(self, idx, offset=0, length=512):
+        # print(f":{idx}|{offset}|{length}")
+        item = self[idx.item()]
+        # print(f":{idx}|{offset}|{length}|{item.shape}")
+        split = item[:,offset:offset+length]
+        return split
+
     def __len__(self):
         return self._len
 
@@ -312,6 +319,10 @@ class IndexedCachedDataset(IndexedDataset):
             for i in range(*idx.indices(len(self))):
                 sents.append(self[i])
             return sents
+
+    # def get(self, idx, offset=0, length=None):
+    #     item = self[idx]
+    #     import ipdb; ipdb.set_trace()
 
 
 class IndexedDatasetBuilder(object):
