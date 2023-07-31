@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import itertools
 import queue
 import warnings
@@ -57,6 +58,12 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+
+from pytriton.model_config import Tensor
+from pytriton.decorators import batch
+from nemo.deploy import ITritonDeployable
+from nemo.deploy.utils import str_ndarray2list, cast_output
+import numpy as np
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -184,7 +191,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         return ['logits']
 
 
-class MegatronGPTModel(MegatronBaseModel, TextGeneration):
+class MegatronGPTModel(MegatronBaseModel, TextGeneration, ITritonDeployable):
     """
     Megatron GPT pretraining
     """
@@ -1340,3 +1347,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
+
+    @property
+    def get_triton_input(self):
+        inputs = (Tensor(name="prompts", shape=(1,), dtype=bytes),)
+        return inputs
+
+    @property
+    def get_triton_output(self):
+        outputs = (Tensor(name="outputs", shape=(1,), dtype=bytes),)
+        return outputs
+
+    @batch
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        #os.environ["MASTER_ADDR"] = "localhost"
+        #os.environ["MASTER_PORT"] = "29500"
+        #torch.distributed.init_process_group("gloo", rank=0, world_size=1)
+        input_texts = str_ndarray2list(inputs.pop("prompts"))
+        output_texts = self.generate(inputs=input_texts, length_params=None, sampling_params=None)
+        output = cast_output(output_texts, np.bytes_)
+        return {"outputs": output}
