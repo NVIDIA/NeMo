@@ -883,26 +883,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of the iterator
-        try:
-            mode = 'test' if self.trainer.testing else 'val'
-            # Initialize userbuffer communicators.
-            if self.initialize_ub:
-                self.initialize_ub_func()
-
-            if isinstance(self.model, list):
-                for model_module in self.model:
-                    model_module.eval()
-
-            loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-
-            if isinstance(self.model, list):
-                for model_module in self.model:
-                    model_module.train()
-            self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
-            return loss
-        except StopIteration:
+        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter   
+        dataloader_iter, done = self._prefetch(dataloader_iter)
+        if done:
             return
+        mode = 'test' if self.trainer.testing else 'val'
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
+
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.eval()
+
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.train()
+        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+        return loss
+        # except StopIteration:
+        #     return
 
     def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():

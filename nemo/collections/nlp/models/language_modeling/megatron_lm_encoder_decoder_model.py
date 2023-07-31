@@ -664,24 +664,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            prefix = "test" if self.trainer.testing else "val"
-            loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-            if prefix == 'val':
-                if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-                    self.validation_step_outputs[dataloader_idx].append(loss)
-                else:
-                    self.validation_step_outputs.append(loss)
-            else:
-                if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-                    self.test_step_outputs[dataloader_idx].append(loss)
-                else:
-                    self.test_step_outputs.append(loss)
-
-            return loss
-        except StopIteration:
+        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely with PP rank 1 reaches the end of dataloader_iter
+        dataloader_iter, done = self._prefetch(dataloader_iter)
+        if done:
             return
+        prefix = "test" if self.trainer.testing else "val"
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        if prefix == 'val':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+
+        return loss
 
     def on_validation_epoch_end(self):
         # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
