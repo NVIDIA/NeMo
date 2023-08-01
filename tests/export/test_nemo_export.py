@@ -17,13 +17,13 @@ from pathlib import Path
 
 import pytest
 
-from nemo.transfer import TensorRTLLM
+from nemo.export import TensorRTLLM
 
 
-class TestNemoTransfer:
+class TestNemoExport:
 
     @pytest.mark.unit
-    def test_trt_llm_transfer(self):
+    def test_trt_llm_export(self):
         """Here we test the trt-llm transfer and infer function"""
 
         self._prep_test_data()
@@ -40,7 +40,7 @@ class TestNemoTransfer:
                 try:
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                    trt_llm_exporter.transfer(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
+                    trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
                     output = trt_llm_exporter.forward(["test1", "how about test 2"])
                     print("output: ", output)
                 except:
