@@ -16,9 +16,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from nemo.utils import logging
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
+from nemo.utils import logging
 
 try:
     from contextlib import nullcontext
@@ -29,15 +29,21 @@ except ImportError:
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
     parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
     parser.add_argument("--optimized", default=True, action="store_true", help="Use TRT-LLM for inference")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
-    parser.add_argument("--dtype", choices=["bf16", "fp16", "fp8", "int8"], default="bf16", type=str,
-                        help="dtype of the model on TensorRT-LLM")
+    parser.add_argument(
+        "--dtype",
+        choices=["bf16", "fp16", "fp8", "int8"],
+        default="bf16",
+        type=str,
+        help="dtype of the model on TensorRT-LLM",
+    )
     parser.add_argument("--verbose", default=False, help="Verbose level for logging, numeric")
 
     args = parser.parse_args(argv)
@@ -53,16 +59,26 @@ def nemo_deploy(argv):
 
     if args.optimized:
         if args.trt_llm_folder is None:
-            logging.info("/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
-                         "Please set this parameter if you'd like to use a path that has already"
-                         "included the TensorRT LLM model files.")
+            logging.info(
+                "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
+                "Please set this parameter if you'd like to use a path that has already"
+                "included the TensorRT LLM model files."
+            )
             Path("/tmp/trt_llm_model_dir/").mkdir(parents=True, exist_ok=True)
 
         trt_llm_exporter = TensorRTLLM(model_dir="/tmp/trt_llm_model_dir/")
         trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=1)
-        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=args.triton_model_name, triton_model_version=args.triton_model_version)
+        nm = DeployPyTriton(
+            model=trt_llm_exporter,
+            triton_model_name=args.triton_model_name,
+            triton_model_version=args.triton_model_version,
+        )
     else:
-        nm = DeployPyTriton(checkpoint_path=args.nemo_checkpoint, triton_model_name=args.triton_model_name, triton_model_version=args.triton_model_version)
+        nm = DeployPyTriton(
+            checkpoint_path=args.nemo_checkpoint,
+            triton_model_name=args.triton_model_name,
+            triton_model_version=args.triton_model_version,
+        )
 
     nm.deploy()
 
