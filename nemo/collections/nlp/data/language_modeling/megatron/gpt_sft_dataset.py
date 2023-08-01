@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import numpy as np
 import torch
@@ -38,7 +38,7 @@ class GPTSFTDataset(Dataset):
         sep_id: int = None,
         max_num_samples: int = None,
         seed: int = 1234,
-        context_keys: Union(List[str], str) = "text",
+        context_keys: Union[List[str], str] = "text",
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
@@ -170,6 +170,9 @@ class GPTSFTDataset(Dataset):
             #context = self.prompt_template[:]
             #for ct, c in zip(context_texts, self.context_key):
                 
+            context_positions = []
+            for ct in self.context_keys:
+                context_positions.append((self.prompt_template.find(ct) - 1, ct))
             original_contexts = contexts[:]  # copy all text from context fields
             context = self.prompt_template[:]  # copy the prompt template string
             context = context.replace(f'{{{self.label_key}}}', '') # remove the label from the content
