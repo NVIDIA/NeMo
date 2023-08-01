@@ -722,14 +722,12 @@ class LatentDiffusion(DDPM, Serialization):
         return_original_cond=False,
         bs=None,
     ):
+        x = super().get_input(batch, k)
+        if bs is not None:
+            x = x[:bs]
         if self.first_stage_key.endswith('encoded'):
-            gaussian_parameters = batch[self.first_stage_key]
-            encoder_posterior = DiagonalGaussianDistribution(gaussian_parameters)
+            encoder_posterior = batch[self.first_stage_key]
         else:
-            x = super().get_input(batch, k)
-            if bs is not None:
-                x = x[:bs]
-
             encoder_posterior = self.encode_first_stage(x)
         z = self.get_first_stage_encoding(encoder_posterior).detach()
 

@@ -271,10 +271,14 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
         freeze=True,
         layer="last",
         use_fp16=False,
+        cache_dir=None,
     ):
         super().__init__()
         assert layer in self.LAYERS
-        model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
+        print(f"Downloading clip with", arch, version, cache_dir)
+        model, _, _ = open_clip.create_model_and_transforms(
+            arch, device=torch.device("cpu"), pretrained=version, cache_dir=cache_dir,
+        )
         del model.visual
         self.model = model
 

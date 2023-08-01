@@ -82,12 +82,17 @@ def build_train_valid_precached_datasets(
     def tuple_to_dict(inp):
         for input in inp:
             out_dict = dict()
-            out_dict[model_cfg.first_stage_key] = torch.tensor(input['autoencoderkl_image'])
-            out_dict[model_cfg.cond_stage_key] = torch.tensor(input['clip-vit-large-patch14_text'])
+            out_dict[model_cfg.first_stage_key] = input[0]
+            out_dict[model_cfg.cond_stage_key] = input[1]
             yield out_dict
 
     def transform_fn(sample):
-        return sample['pickle']
+        latents, text = sample["npy"], sample["txt"]
+        latents = torch.from_numpy(latents)
+
+        # latents are of shape ([4, 64, 64])
+        text_transform = identical_transform
+        return latents, text_transform(text)
 
     train_data = WebDatasetCommon(
         dataset_cfg=data_cfg,

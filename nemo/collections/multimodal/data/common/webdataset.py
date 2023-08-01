@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
 import io
 import itertools
 import os
@@ -133,6 +134,10 @@ class WebDatasetCommon(NeMoIterableDataset):
             dataset_path = dataset_cfg.validation.dataset_path
             self.augmentations = dataset_cfg.validation.get("augmentations", None)
             self.filterings = dataset_cfg.validation.get("filterings", None)
+
+        # Need to expand as a glob pattern
+        if isinstance(dataset_path, str):
+            dataset_path = glob.glob(dataset_path)
 
         # wdinfo in a dict containing webdata information
         self.wdinfo = dict()
