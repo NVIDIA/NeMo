@@ -30,12 +30,14 @@ class DeployPyTriton(DeployBase):
     def __init__(
         self,
         triton_model_name: str,
+        triton_model_version: int = 1,
         checkpoint_path: str = None,
         model=None,
         max_batch_size: int = 128,
     ):
         super().__init__(
             triton_model_name=triton_model_name,
+            triton_model_version=triton_model_version,
             checkpoint_path=checkpoint_path,
             model=model,
             max_batch_size=max_batch_size,
@@ -48,6 +50,7 @@ class DeployPyTriton(DeployBase):
             self.triton = Triton()
             self.triton.bind(
                 model_name=self.triton_model_name,
+                model_version=self.triton_model_version,
                 infer_func=self.model.triton_infer_fn,
                 inputs=self.model.get_triton_input,
                 outputs=self.model.get_triton_output,

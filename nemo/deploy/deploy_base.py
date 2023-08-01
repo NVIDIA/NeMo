@@ -29,12 +29,14 @@ class DeployBase(ABC):
     def __init__(
         self,
         triton_model_name: str,
+        triton_model_version: int = 1,
         checkpoint_path: str = None,
         model=None,
         max_batch_size: int = 128,
     ):
         self.checkpoint_path = checkpoint_path
         self.triton_model_name = triton_model_name
+        self.triton_model_version = triton_model_version
         self.max_batch_size = max_batch_size
         self.model = model
         self.triton = None
