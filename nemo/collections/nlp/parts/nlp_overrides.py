@@ -27,24 +27,24 @@ import pytorch_lightning as pl
 import torch
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from omegaconf import OmegaConf
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.strategies.fully_sharded_native import DDPFullyShardedNativeStrategy
+from pytorch_lightning.strategies.strategy import Strategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
-from pytorch_lightning.core.optimizer import LightningOptimizer
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
-from torch.nn.parallel import DistributedDataParallel
+from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import StateDictType, OptimStateKeyType, FullStateDictConfig
-from torch.distributed.fsdp import BackwardPrefetch, MixedPrecision, ShardingStrategy
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.distributed.fsdp import MixedPrecision, OptimStateKeyType, ShardingStrategy, StateDictType
 from torch.distributed.fsdp.api import FullOptimStateDictConfig
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
@@ -315,8 +315,7 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
         self.fsdp_wrap_module = AutocastTransformerLayer if use_transformer_engine else ParallelTransformerLayer
         kwargs['auto_wrap_policy'] = functools.partial(
-            transformer_auto_wrap_policy,
-            transformer_layer_cls={self.fsdp_wrap_module}
+            transformer_auto_wrap_policy, transformer_layer_cls={self.fsdp_wrap_module}
         )
         # Set FSDP sharding strategy.
         fsdp_sharding_strategy = {
@@ -375,8 +374,9 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
             app_state = AppState()
             assert app_state.pipeline_model_parallel_size == 1, "FSDP does not support pipeline parallelism"
             if self.kwargs['sharding_strategy'] == ShardingStrategy.HYBRID_SHARD:
-                assert app_state.tensor_model_parallel_size == 1, \
-                    "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
+                assert (
+                    app_state.tensor_model_parallel_size == 1
+                ), "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
             init_model_parallel(app_state.global_rank, app_state.world_size)
             # Set the FSDP process group as DP process group
             self._process_group = parallel_state.get_data_parallel_group()
@@ -413,13 +413,9 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
         optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
         with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
             for optimizer, opt_state in zip(self.optimizers, optimizer_states):
-                opt_state = FSDP.rekey_optim_state_dict(
-                    opt_state, OptimStateKeyType.PARAM_NAME, self.model
-                )
+                opt_state = FSDP.rekey_optim_state_dict(opt_state, OptimStateKeyType.PARAM_NAME, self.model)
                 opt_state = FSDP.optim_state_dict_to_load(
-                    optim_state_dict=opt_state,
-                    model=self.model,
-                    optim=optimizer,
+                    optim_state_dict=opt_state, model=self.model, optim=optimizer,
                 )
                 optimizer.load_state_dict(opt_state)
                 _optimizer_to_device(optimizer, self.root_device)

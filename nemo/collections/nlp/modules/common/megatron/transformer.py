@@ -312,10 +312,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-            
+
             # FSDP: Pre-cast LN params to the training data type to match other params of the Transformer layer
             self.post_attention_layernorm = self.post_attention_layernorm.to(params_dtype)
-            
+
             if not bias and normalization not in ['layernorm', 'layernorm1p']:
                 remove_bias_from_layernorm(self.post_attention_layernorm)
 

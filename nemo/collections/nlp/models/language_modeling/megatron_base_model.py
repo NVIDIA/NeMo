@@ -577,9 +577,7 @@ class MegatronBaseModel(NLPModel):
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
             if self.cfg.get('fsdp', False):
-                logging.info(
-                    "When using FSDP, gradient accumulation cannot be fused to gradient computation."
-                )
+                logging.info("When using FSDP, gradient accumulation cannot be fused to gradient computation.")
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
             if not self.cfg.get('megatron_amp_O2', False):
@@ -596,7 +594,7 @@ class MegatronBaseModel(NLPModel):
             ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
                 'Make sure the number of model chunks is the same across all pipeline stages.'
             )
-        
+
         if self._cfg.get('use_cpu_initialization', False) and self.cfg.get('transformer_engine', False):
             raise ValueError('Transformer Engine does not support CPU model initialization.')
 
@@ -707,7 +705,7 @@ class MegatronBaseModel(NLPModel):
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
-    
+
     def configure_sharded_model(self):
         if self.use_fsdp:
             """ Top-evel FSDP model sharding """
