@@ -578,7 +578,7 @@ class MegatronBaseModel(NLPModel):
                     self.cfg.gradient_accumulation_fusion = False
             if self.cfg.get('fsdp', False):
                 logging.info(
-                    "When using FSDP, gradient accumulation done on a gradient shard, which is handled by FSDP runtime hook."
+                    "When using FSDP, gradient accumulation cannot be fused to gradient computation."
                 )
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
@@ -607,6 +607,9 @@ class MegatronBaseModel(NLPModel):
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+
+        if self.cfg.get('fsdp', False) and cfg.get('fp8', False):
+            raise ValueError('Torch FSDP does not support FP8.')
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
