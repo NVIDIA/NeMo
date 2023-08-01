@@ -5,7 +5,7 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: 32
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
@@ -85,14 +85,6 @@ model:
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
-  #  tokenizer:
-  #    library: 'huggingface'
-  #    type: 'hf-internal-testing/llama-tokenizer'
-  #    model: null
-  #    vocab_file: null
-  #    merge_file: null 
-  #    delimiter: null # only used for tabular tokenizer
-  #    sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
   tokenizer:
     library: 'sentencepiece'
     type: null
