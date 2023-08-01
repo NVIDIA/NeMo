@@ -35,7 +35,7 @@ class MegatronTrainerBuilder:
         if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
             scaler = None
             if self.cfg.trainer.precision == [16, '16', '16-mixed']:
-                scaler = self.grad_scaler()
+                scaler = self._grad_scaler()
                 plugin_precision = '16-mixed'
             else:
                 plugin_precision = 'bf16-mixed'

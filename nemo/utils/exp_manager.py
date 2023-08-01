@@ -35,6 +35,7 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -156,6 +157,7 @@ class ExpManagerConfig:
     create_early_stopping_callback: Optional[bool] = False
     early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
     create_preemption_callback: Optional[bool] = True
+    resume_from_checkpoint: Optional[str] = None
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
@@ -342,6 +344,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             )
         else:
             check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
+
+    if cfg.resume_from_checkpoint is not None:
+        trainer.ckpt_path = cfg.model.resume_from_checkpoint
+
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
+
+    trainer._checkpoint_connector = _CheckpointConnector(trainer)
 
     checkpoint_name = name
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
