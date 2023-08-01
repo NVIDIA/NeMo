@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -167,24 +167,24 @@ class GPTSFTDataset(Dataset):
                 f'{{{self.label_key}}}'
             )
             # Get the context by replacing only the input
-            #context = self.prompt_template[:]
-            #for ct, c in zip(context_texts, self.context_key):
-                
+            # context = self.prompt_template[:]
+            # for ct, c in zip(context_texts, self.context_key):
+
             context_positions = []
             for ct in self.context_keys:
                 context_positions.append((self.prompt_template.find(ct) - 1, ct))
             original_contexts = contexts[:]  # copy all text from context fields
             context = self.prompt_template[:]  # copy the prompt template string
-            context = context.replace(f'{{{self.label_key}}}', '') # remove the label from the content
+            context = context.replace(f'{{{self.label_key}}}', '')  # remove the label from the content
             for ct, ck in zip(contexts, self.context_keys):
-                context = context.replace(f'{{{ck}}}', ct) # replace each context key with the context text
+                context = context.replace(f'{{{ck}}}', ct)  # replace each context key with the context text
             context = context.strip(' ')
 
             # Replace the input and output placeholders with the actual input and output
             text = self.prompt_template[:]
             text = text.replace(f'{{{self.label_key}}}', output)
             for ct, ck in zip(original_contexts, self.context_keys):
-                text = text.replace(f'{{{ck}}}', ct) # replace each context key with the context text
+                text = text.replace(f'{{{ck}}}', ct)  # replace each context key with the context text
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
             text = context + '\n' + output
