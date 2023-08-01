@@ -35,7 +35,7 @@ def get_args(argv):
     parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
     parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
-    parser.add_argument("--optimized", default=True, action="store_true", help="Use TRT-LLM for inference")
+    parser.add_argument("--optimized", default="True", type=str, help="Use TRT-LLM for inference")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
     parser.add_argument(
         "--dtype",
@@ -57,7 +57,11 @@ def nemo_deploy(argv):
     logging.info("Logging level set to {}".format(loglevel))
     logging.info(args)
 
-    if args.optimized:
+    if args.dtype != "bf16":
+        logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM.")
+        return
+
+    if args.optimized == "True":
         if args.trt_llm_folder is None:
             logging.info(
                 "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
