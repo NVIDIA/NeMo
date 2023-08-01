@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 import torch
@@ -38,7 +38,7 @@ class GPTSFTDataset(Dataset):
         sep_id: int = None,
         max_num_samples: int = None,
         seed: int = 1234,
-        context_key: str = "text",
+        context_keys: Union(List[str], str) = "text",
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
@@ -81,7 +81,12 @@ class GPTSFTDataset(Dataset):
         self.sep_id = sep_id
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.context_key = context_key
+        if isinstance(context_keys, str):
+            self.context_keys = context_keys.split(',')
+        elif isinstance(context_keys, list):
+            self.context_keys = context_keys
+        else:
+            raise RuntimeError("context_key is invalid type")
         self.label_key = label_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
@@ -150,27 +155,33 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        context = example[self.context_key]
+        contexts = [example[c] for c in self.context_keys]
         output = example[self.label_key]
 
         if self.prompt_template is not None:
-            assert f'{{{self.context_key}}}' in self.prompt_template
+            for ck in self.context_keys:
+                assert f'{{{ck}}}' in self.prompt_template
             assert f'{{{self.label_key}}}' in self.prompt_template
             # Make sure that '{output}' always occurs at the end of the prompt template string
             assert self.prompt_template.index(f'{{{self.label_key}}}') == len(self.prompt_template) - len(
                 f'{{{self.label_key}}}'
             )
             # Get the context by replacing only the input
-            original_context = context
-            context = (
-                self.prompt_template.replace(f'{{{self.context_key}}}', context)
-                .replace(f'{{{self.label_key}}}', '')
-                .strip(' ')
-            )
+            #context = self.prompt_template[:]
+            #for ct, c in zip(context_texts, self.context_key):
+                
+            original_contexts = contexts[:]  # copy all text from context fields
+            context = self.prompt_template[:]  # copy the prompt template string
+            context = context.replace(f'{{{self.label_key}}}', '') # remove the label from the content
+            for ct, ck in zip(contexts, self.context_keys):
+                context = context.replace(f'{{{ck}}}', ct) # replace each context key with the context text
+            context = context.strip(' ')
+
             # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace(f'{{{self.context_key}}}', original_context).replace(
-                f'{{{self.label_key}}}', output
-            )
+            text = self.prompt_template[:]
+            text = text.replace(f'{{{self.label_key}}}', output)
+            for ct, ck in zip(original_contexts, self.context_keys):
+                text = text.replace(f'{{{ck}}}', ct) # replace each context key with the context text
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
             text = context + '\n' + output
