@@ -14,6 +14,7 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from nemo.utils import logging
 from nemo.deploy import DeployPyTriton, NemoQuery
@@ -30,11 +31,14 @@ def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
     )
-    parser.add_argument("--nemo_checkpoint", help="Source .nemo file")
-    parser.add_argument("--service_name", help="Name for the service")
-    parser.add_argument("--dtype", default="bf16", help="dtype of the model on TRT-LLM")
-    parser.add_argument("--optimized", action="store_true", help="Use TRT-LLM for inference")
-    parser.add_argument("--verbose", default=None, help="Verbose level for logging, numeric")
+    parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
+    parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
+    parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
+    parser.add_argument("--optimized", default=True, action="store_true", help="Use TRT-LLM for inference")
+    parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
+    parser.add_argument("--dtype", choices=["bf16", "fp16", "fp8", "int8"], default="bf16", type=str,
+                        help="dtype of the model on TensorRT-LLM")
+    parser.add_argument("--verbose", default=False, help="Verbose level for logging, numeric")
 
     args = parser.parse_args(argv)
     return args
@@ -43,25 +47,22 @@ def get_args(argv):
 def nemo_deploy(argv):
     args = get_args(argv)
     loglevel = logging.INFO
-    # assuming loglevel is bound to the string value obtained from the
-    # command line argument. Convert to upper case to allow the user to
-    # specify --log=DEBUG or --log=debug
-    if args.verbose is not None:
-        numeric_level = getattr(logging, args.verbose.upper(), None)
-        if not isinstance(numeric_level, int):
-            raise ValueError('Invalid log level: %s' % numeric_level)
-        loglevel = numeric_level
     logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
+    logging.info(args)
 
-    nm = None
     if args.optimized:
-        Path("/tmp/trt_llm_model_dir/").mkdir(parents=True, exist_ok=True)
+        if args.trt_llm_folder is None:
+            logging.info("/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
+                         "Please set this parameter if you'd like to use a path that has already"
+                         "included the TensorRT LLM model files.")
+            Path("/tmp/trt_llm_model_dir/").mkdir(parents=True, exist_ok=True)
+
         trt_llm_exporter = TensorRTLLM(model_dir="/tmp/trt_llm_model_dir/")
         trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=1)
-        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=args.service_name)
+        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=args.triton_model_name, triton_model_version=args.triton_model_version)
     else:
-        nm = DeployPyTriton(checkpoint_path=args.nemo_checkpoint, triton_model_name=args.service_name)
+        nm = DeployPyTriton(checkpoint_path=args.nemo_checkpoint, triton_model_name=args.triton_model_name, triton_model_version=args.triton_model_version)
 
     nm.deploy()
 
