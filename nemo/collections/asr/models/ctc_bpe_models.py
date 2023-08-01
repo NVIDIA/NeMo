@@ -106,7 +106,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             return dataset
 
         shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
         if hasattr(dataset, 'collate_fn'):
@@ -610,6 +610,13 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             pretrained_model_name="stt_en_fastconformer_ctc_xlarge",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_ctc_xlarge",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_ctc_xlarge/versions/1.20.0/files/stt_en_fastconformer_ctc_xlarge.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_fastconformer_ctc_xxlarge",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_ctc_xxlarge",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_ctc_xxlarge/versions/1.20.1/files/stt_en_fastconformer_ctc_xxlarge.nemo",
         )
         results.append(model)
 

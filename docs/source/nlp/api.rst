@@ -124,7 +124,7 @@ Datasets
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset
     :show-inheritance: 
 
-.. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTChatDataset
+.. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset.GPTSFTChatDataset
     :show-inheritance: 
 
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.retro_dataset.RETRODataset
@@ -140,3 +140,13 @@ Datasets
 .. autoclass:: nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset.UL2Dataset
     :show-inheritance: 
 
+Exportable Model Classes
+-------------------------
+
+.. autoclass:: nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTExportableModel
+    :show-inheritance: 
+
+.. toctree::
+   :maxdepth: 1
+
+   megatron_onnx_export

@@ -35,6 +35,7 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
+from nemo.utils.cast_utils import cast_all
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
@@ -174,7 +175,11 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
@@ -847,6 +852,8 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         self.eval_loop_cnt = 0
         self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
         super().__init__(cfg=cfg, trainer=trainer)
+        self.decoder.output_types = self.output_types
+        self.decoder.output_types_for_export = self.output_types
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
@@ -1144,3 +1151,43 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         labels = labels.gather(dim=0, index=idx.view(-1))
 
         return logits, labels
+
+    def forward_for_export(
+        self, input, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+    ):
+        """
+        This forward is used when we need to export the model to ONNX format.
+        Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+        Args:
+            input: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps.
+            length: Vector of length B, that contains the individual lengths of the audio sequences.
+            cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
+            cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers
+                N is the number of such layers which need caching, B is batch size, H is the hidden size of activations,
+                and T is the length of the cache
+
+        Returns:
+            the output of the model
+        """
+        enc_fun = getattr(self.input_module, 'forward_for_export', self.input_module.forward)
+        if cache_last_channel is None:
+            encoder_output = enc_fun(audio_signal=input, length=length)
+            if isinstance(encoder_output, tuple):
+                encoder_output = encoder_output[0]
+        else:
+            encoder_output, length, cache_last_channel, cache_last_time, cache_last_channel_len = enc_fun(
+                audio_signal=input,
+                length=length,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_len=cache_last_channel_len,
+            )
+
+        dec_fun = getattr(self.output_module, 'forward_for_export', self.output_module.forward)
+        ret = dec_fun(hidden_states=encoder_output.transpose(1, 2))
+        if isinstance(ret, tuple):
+            ret = ret[0]
+        if cache_last_channel is not None:
+            ret = (ret, length, cache_last_channel, cache_last_time, cache_last_channel_len)
+        return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)

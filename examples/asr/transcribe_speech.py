@@ -130,6 +130,8 @@ class TranscriptionConfig:
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
+    # set to True if need to return full alignment information
+    preserve_alignment: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -151,8 +153,10 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
-    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Joint RNNT/CTC models
+    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
+    # att_context_size can be set for cache-aware streaming models with multiple look-aheads
+    att_context_size: Optional[list] = None
 
     # Use this for model-specific changes before transcription
     model_change: ModelChangeConfig = ModelChangeConfig()
@@ -230,6 +234,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
     compute_langs = cfg.compute_langs
+    # has to be True if timestamps are required
+    preserve_alignment = True if cfg.compute_timestamps else cfg.preserve_alignment
 
     # Check whether model and decoder type match
     if isinstance(asr_model, EncDecCTCModel):
@@ -242,6 +248,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if cfg.decoder_type and cfg.decoder_type != 'rnnt':
             raise ValueError('RNNT model only support rnnt decoding!')
 
+    if cfg.decoder_type and hasattr(asr_model.encoder, 'set_default_att_context_size'):
+        asr_model.encoder.set_default_att_context_size(cfg.att_context_size)
+
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         if cfg.decoder_type is not None:
@@ -252,7 +261,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
             decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
             if 'preserve_alignments' in decoding_cfg:
-                decoding_cfg.preserve_alignments = cfg.compute_timestamps
+                decoding_cfg.preserve_alignments = preserve_alignment
             if 'compute_langs' in decoding_cfg:
                 decoding_cfg.compute_langs = cfg.compute_langs
             if hasattr(asr_model, 'cur_decoder'):
@@ -265,9 +274,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
-
             if 'preserve_alignments' in cfg.rnnt_decoding:
-                cfg.rnnt_decoding.preserve_alignments = cfg.compute_timestamps
+                cfg.rnnt_decoding.preserve_alignments = preserve_alignment
 
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
