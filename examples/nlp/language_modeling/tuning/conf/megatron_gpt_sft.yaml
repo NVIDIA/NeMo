@@ -96,7 +96,6 @@ model:
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       context_key: 'input'
       label_key: 'output'
-      query_key: null # This key is used when context is too long, and we first want to truncate context and then append query to it.
       add_eos: True
       add_sep: False
       add_bos: False
