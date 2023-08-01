@@ -739,7 +739,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
-            # import ipdb; ipdb.set_trace()
             encoder_input = None
             if enc_input_ids.dim() > 2:
                 for i in range(enc_input_ids.size()[1]):

@@ -10,9 +10,13 @@ class SimplestModule(torch.nn.Module):
     def forward(self, dec_hidden, dec_logits, layer_i, mask):
         layer_index_tensor = torch.tile(torch.tensor([layer_i], requires_grad=True, dtype=dec_hidden.dtype, device=dec_hidden.device), [*dec_hidden.shape[:-1],1])
         # dec_prediction = torch.argmax(dec_logits, dim=-1, keepdim=True)
-        out = torch.cat([dec_hidden, dec_logits, layer_index_tensor], dim=-1) * mask.T.unsqueeze(-1)
+        out = torch.cat([dec_hidden, dec_logits, layer_index_tensor], dim=-1)
+        if mask is not None:
+            out = out * mask.T.unsqueeze(-1)
         out = torch.nn.functional.relu(self.conv(out.transpose(1, 2)))
         out = self.norm(out.transpose(1, 2))
-        out = self.dropout(out) * mask.T.unsqueeze(-1)
+        out = self.dropout(out)
+        if mask is not None:
+            out = out * mask.T.unsqueeze(-1)
 
         return out

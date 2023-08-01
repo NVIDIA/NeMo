@@ -283,6 +283,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_end_step *= grad_accum_steps
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
+        # self.update_for_speech()
 
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
@@ -847,7 +848,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
+                return 0, {'logits': output_tensor[0], 'speech_logits': output_tensor[1]}
 
             return output_tensor, id_func
 
@@ -1094,6 +1095,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
     ) -> OutputType:
+        """
+        inputs can either be a list of string or a tuple
+        If list of string, will be tokenized in downstream func
+        If tuple, must be a tuple of (tokenized_ids, context_length)
+        """
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():

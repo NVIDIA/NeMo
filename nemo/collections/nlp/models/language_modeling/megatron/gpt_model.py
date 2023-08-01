@@ -90,7 +90,7 @@ def post_language_model_processing(
     speech_layers = 7
     last_layer_output = lm_output
     last_layer_logits = output[:,:,-1024:]
-    speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)
+    speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)  # [S, B, H, L]
     for i in range(speech_layers):
         last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
         # Need to check that the below line is correct
@@ -107,7 +107,8 @@ def post_language_model_processing(
 
     if labels is None:
         # [s b h] -> [b s h]
-        return output.transpose(0, 1).contiguous()
+        return [output.transpose(0, 1).contiguous(), speech_logits.transpose(0, 1).contiguous()]
+        # return output.transpose(0, 1).contiguous()
     else:
         if labels.dim() == 2:
             # [b, s] -> [s, b]
@@ -127,8 +128,6 @@ def post_language_model_processing(
                 loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
             elif labels.dim() == 3:
                 loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
-                # import ipdb; ipdb.set_trace()
-                # print(f"-1: {loss}")
                 for i in range(speech_layers):
                     loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
                     # import ipdb; ipdb.set_trace()
