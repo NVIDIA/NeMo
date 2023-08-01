@@ -32,6 +32,7 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/preprocess_audio.py \
     --num_workers=1 \
     --trim_config_path="<nemo_root_path>/examples/tts/conf/trim/energy.yaml" \
     --output_sample_rate=22050 \
+    --output_format=flac \
     --volume_level=0.95 \
     --min_duration=0.5 \
     --max_duration=20.0 \
@@ -99,7 +100,7 @@ def get_args():
     )
     parser.add_argument(
         "--output_format",
-        default="flac",
+        default="wav",
         type=str,
         help="If provided, format output audio will be saved as. If not provided, will keep original format.",
     )
