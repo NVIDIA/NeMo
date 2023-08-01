@@ -57,9 +57,12 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         Implement your own loss calculations. Must return "loss" key.
         loss shape - [B x S] for Batch, Sequence sizes
         batch_data - a dictionary of additional data that can be used to calculate loss
+        
+        Returns:
+            dict: a dictionary with loss and additional outputs (must include "loss" key)
+                  example: {"loss": 0.0}
         """
         raise NotImplementedError("Please implement loss calculations in child class")
-        # return {"loss": 0.0}
 
     def loss(self, inputs, batch_data=None):
         """A wrapper around custom _loss that adds a weighted loss and name to the output dict"""

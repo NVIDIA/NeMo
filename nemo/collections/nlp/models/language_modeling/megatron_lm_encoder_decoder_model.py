@@ -312,27 +312,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         return output_tensor
-
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    
+    def _execute_fwd_bwd_function(self, data_iterator, forward_only, tensor_shape, decoder_seq_length):
         """
-            Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        An auxiliary function that executes the fwd_bwd_step function and parse the returned values.
         """
-        # Get seq length of batch
-        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
-
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
+            data_iterator=data_iterator,
             model=[self.enc_dec_model],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             tensor_shape=tensor_shape,
-            decoder_seq_length=self.max_decoder_seq_length,
+            decoder_seq_length=decoder_seq_length,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
             enable_autocast=self.enable_autocast,
         )
 
@@ -349,6 +346,21 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 loss_mean = torch.tensor(0.0).cuda()
 
         return {"loss": loss_mean}
+    
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        """
+            Dataloader produces a global batch which is turned into a list of microbatches.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        """
+        # Get seq length of batch
+        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
+
+        return self._execute_fwd_bwd_function(
+            data_iterator=dataloader_iter, 
+            forward_only=forward_only, 
+            tensor_shape=tensor_shape, 
+            decoder_seq_length=self.max_decoder_seq_length,
+        )
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -966,6 +978,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc - encoder input tokens
         enc_mask - corresponding mask
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
+        batch_data - passed directly to all hidden transformations and losses. 
+                     Can be used to pass additional data like class label.
+                     Format is not defined and should match the expected format of the used hiddens modules.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
