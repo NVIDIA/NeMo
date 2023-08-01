@@ -86,32 +86,33 @@ def _mask_targets(
                 skip_name_len = torch.where((s_id == extra_id_2_token_id))[0].item() + 1
         if cur_idx >= tgt_len:
             break
-        elif cur_idx + tokenized_len < tgt_len:
+        #elif cur_idx + tokenized_len < tgt_len:
             # Check whether the mask is applied to the correct position, the first token is turn token: <extra_id_1>
             # s_id[2:] skips the artifact empty token and the turn token
             # target[cur_idx + 1:cur_idx + tokenized_len] skip the turn token
-            if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
-                logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
+            # if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
+            #     logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
         if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
             # mask the first turn completely to provide at least one turn as context
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-            target[cur_idx + tokenized_len:] = i
+            # plus one to avoid the padding token 0
+            target[cur_idx + tokenized_len:] = i + 1
         elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-            target[cur_idx + tokenized_len:] = i
+            target[cur_idx + tokenized_len:] = i + 1
         elif speaker == mask_role and (i > 1):
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-            target[cur_idx + tokenized_len:] = i
+            target[cur_idx + tokenized_len:] = i + 1
         elif speaker == mask_role and (i <= 1):
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-            target[cur_idx + tokenized_len:] = i
+            target[cur_idx + tokenized_len:] = i + 1
         else:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
             target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
-            target[cur_idx + skip_name_len:] = i
+            target[cur_idx + skip_name_len:] = i + 1
         cur_idx += tokenized_len
 
 

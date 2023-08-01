@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_contrasitve_chat_dataset import GPTContrastiveSFTChatDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -238,7 +239,16 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
             if self.cfg.data.get("chat", False):
-                dataset_cls = GPTSFTChatDataset
+                flag = self.cfg.data.get("chat", False)
+                if isinstance(flag, str):
+                    if flag == 'GPTSFTChatDataset':
+                        dataset_cls = GPTSFTChatDataset
+                    elif flag == "GPTContrastiveSFTChatDataset":
+                        dataset_cls = GPTContrastiveSFTChatDataset
+                    else:
+                        raise ValueError(f"Unknown chat dataset type {flag}")
+                else:
+                    dataset_cls = GPTSFTChatDataset
             else:
                 dataset_cls = GPTSFTDataset
             dataset = dataset_cls(
@@ -296,6 +306,47 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             return base_key + name
         else:
             return base_key + f"dataloader{dataloader_idx}"
+
+    def loss_func(self, loss_mask, output_tensor):
+        flag = self.cfg.data.get("chat", False)
+        if isinstance(flag, str) and flag == "GPTContrastiveSFTChatDataset":
+            # calculate the contrastive loss
+            length = loss_mask.shape[1]
+            loss_mask_contrastive = loss_mask.view(-1, 2, length)
+            output_tensor_contrastive = output_tensor.view(-1, 2, length)
+            batch_size = loss_mask_contrastive.shape[0]
+            losses = []
+            for bid in range(batch_size):
+                masked = loss_mask_contrastive[bid][loss_mask_contrastive[bid] >= 1]
+                min_val = masked.min().item()
+                max_val = masked.max().item()
+                for i in range(min_val, max_val + 1, 2):
+                    prefered = output_tensor_contrastive[bid][0][loss_mask_contrastive[bid][0] == i]
+                    not_prefered = output_tensor_contrastive[bid][1][loss_mask_contrastive[bid][1] == i]
+                    if len(prefered) == 0 or len(not_prefered) == 0:
+                        continue
+                    prefered = prefered.mean()
+                    not_prefered = not_prefered.mean()
+                    loss = -torch.nn.functional.logsigmoid(prefered - not_prefered).mean()
+                    losses.append(loss)
+            contrasitve_loss = torch.stack(losses).mean()
+            losses = output_tensor_contrastive.float()
+            loss_mask = (loss_mask > 0).view(-1).float()
+            loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+            if self.training:
+                self.log('train sft loss', loss, batch_size=1)
+                self.log('train contrastive loss', contrasitve_loss, batch_size=1)
+            else:
+                self.log('val sft loss', loss)
+                self.log('val contrastive loss', contrasitve_loss)
+            loss = loss + contrasitve_loss
+        else:
+            losses = output_tensor.float()
+            loss_mask = loss_mask.view(-1).float()
+            # TODO: add nemo version here
+            loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+
+        return loss
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)

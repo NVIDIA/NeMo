@@ -94,7 +94,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(1, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                    assert tokenizer.ids_to_text(input_ids[mask == j].tolist()) == expected_text
+                    assert tokenizer.ids_to_text(input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -118,7 +118,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(2, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                    assert tokenizer.ids_to_text(input_ids[mask == j].tolist()) == expected_text
+                    assert tokenizer.ids_to_text(input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
 
@@ -143,7 +143,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(1, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
-                    assert tokenizer.ids_to_text(input_ids[mask == j].tolist()) == expected_text
+                    assert tokenizer.ids_to_text(input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -167,7 +167,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(0, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
-                    assert tokenizer.ids_to_text(input_ids[mask == j].tolist()) == expected_text
+                    assert tokenizer.ids_to_text(input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -196,7 +196,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(1, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                    assert ids_to_text(tokenizer, input_ids[mask == j].tolist()) == expected_text
+                    assert ids_to_text(tokenizer, input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -225,7 +225,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(2, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                    assert ids_to_text(tokenizer, input_ids[mask == j].tolist()) == expected_text
+                    assert ids_to_text(tokenizer, input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -254,7 +254,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(1, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
-                    assert ids_to_text(tokenizer, input_ids[mask == j].tolist()) == expected_text
+                    assert ids_to_text(tokenizer, input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -283,7 +283,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(0, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['label'] + '\n' + '<extra_id_1>'
-                    assert ids_to_text(tokenizer, input_ids[mask == j].tolist()) == expected_text
+                    assert ids_to_text(tokenizer, input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -307,7 +307,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(1, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                    assert tokenizer.ids_to_text(input_ids[mask == j].tolist()) == expected_text
+                    assert tokenizer.ids_to_text(input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
@@ -331,7 +331,7 @@ class TestGPTContrastiveSFTChatDataset:
                 full_expected_text = ''
                 for j in range(2, turn_num, 2):
                     expected_text = data_points[i]['conversations'][j]['value'] + '\n' + '<extra_id_1>'
-                    assert tokenizer.ids_to_text(input_ids[mask == j].tolist()) == expected_text
+                    assert tokenizer.ids_to_text(input_ids[mask == j + 1].tolist()) == expected_text
                     full_expected_text += expected_text
                 assert text == full_expected_text
         finally:
