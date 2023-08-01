@@ -60,6 +60,8 @@ model:
   activations_checkpoint_num_layers: null # not used with 'selective'
   answer_only_loss: False # not used right now
   gradient_as_bucket_view: False
+  seq_len_interpolation_factor: null # if not None, seq_len_interpolation_factor will match the base model's value
+  use_flash_attention: null # if not None, will match the base model's value
 
   hidden_dropout: 0.0
   attention_dropout: 0.0
@@ -80,6 +82,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 4
+      memmap_workers: null
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -107,6 +110,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 4
+      memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -135,6 +139,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 4
+      memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
