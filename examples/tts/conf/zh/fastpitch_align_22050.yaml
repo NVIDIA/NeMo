@@ -29,12 +29,12 @@ highfreq: null
 window: hann
 
 # There are four candidates of `phoneme_dict_path` provided for Chinese as shown below,
-#     1) (default) 24-final Pinyin: "scripts/tts_dataset_files/zh/24finals/pinyin_dict_nv_22.10.txt",
+#     1) 24-final Pinyin: "scripts/tts_dataset_files/zh/24finals/pinyin_dict_nv_22.10.txt",
 #     2) IPA converted from 24-final Pinyin: "scripts/tts_dataset_files/zh/24finals/ipa_dict_nv23.05.txt",
 #     3) 36-final Pinyin: "scripts/tts_dataset_files/zh/36finals/pinyin_dict_nv23.05.txt",
-#     4) IPA converted from 36-final Pinyin: "scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
+#     4) (default) IPA converted from 36-final Pinyin: "scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
 # Suggest to choose IPA symbol set converted from 36-final Pinyin because better audio quality were observed.
-phoneme_dict_path: "scripts/tts_dataset_files/zh/24finals/pinyin_dict_nv_22.10.txt"
+phoneme_dict_path: "scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
 
 model:
   learn_alignment: true
