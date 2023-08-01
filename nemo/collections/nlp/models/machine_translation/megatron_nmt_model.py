@@ -304,9 +304,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         return self._execute_fwd_bwd_function(
-            data_iterator=data_iter, 
-            forward_only=forward_only, 
-            tensor_shape=tensor_shape, 
+            data_iterator=data_iter,
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
             decoder_seq_length=decoder_seq_length,
         )
 

@@ -312,7 +312,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         return output_tensor
-    
+
     def _execute_fwd_bwd_function(self, data_iterator, forward_only, tensor_shape, decoder_seq_length):
         """
         An auxiliary function that executes the fwd_bwd_step function and parse the returned values.
@@ -346,7 +346,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 loss_mean = torch.tensor(0.0).cuda()
 
         return {"loss": loss_mean}
-    
+
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -356,9 +356,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
 
         return self._execute_fwd_bwd_function(
-            data_iterator=dataloader_iter, 
-            forward_only=forward_only, 
-            tensor_shape=tensor_shape, 
+            data_iterator=dataloader_iter,
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
             decoder_seq_length=self.max_decoder_seq_length,
         )
 
