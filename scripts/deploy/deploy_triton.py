@@ -28,10 +28,10 @@ except ImportError:
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Export NeMo models to ONNX/Torchscript",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
     )
-    parser.add_argument("nemo_checkpoint", help="Source .nemo file")
-    parser.add_argument("service_name", help="Name for the service")
+    parser.add_argument("--nemo_checkpoint", help="Source .nemo file")
+    parser.add_argument("--service_name", help="Name for the service")
     parser.add_argument("--dtype", default="bf16", help="dtype of the model on TRT-LLM")
     parser.add_argument("--optimized", action="store_true", help="Use TRT-LLM for inference")
     parser.add_argument("--verbose", default=None, help="Verbose level for logging, numeric")
@@ -56,12 +56,11 @@ def nemo_deploy(argv):
 
     nm = None
     if args.optimized:
-        Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
-        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-        trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
-        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name)
+        Path("/tmp/trt_llm_model_dir/").mkdir(parents=True, exist_ok=True)
+        trt_llm_exporter = TensorRTLLM(model_dir="/tmp/trt_llm_model_dir/")
+        trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=1)
+        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=args.service_name)
     else:
-        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name)
         nm = DeployPyTriton(checkpoint_path=args.nemo_checkpoint, triton_model_name=args.service_name)
 
     nm.deploy()
