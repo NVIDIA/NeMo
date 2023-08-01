@@ -606,7 +606,7 @@ class MegatronBaseModel(NLPModel):
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
 
-        if self.cfg.get('fsdp', False) and cfg.get('fp8', False):
+        if self.cfg.get('fsdp', False) and self.cfg.get('fp8', False):
             raise ValueError('Torch FSDP does not support FP8.')
 
     def is_data_parallel_rank_zero(self):
