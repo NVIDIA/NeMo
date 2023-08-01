@@ -704,3 +704,17 @@ class MegatronBaseModel(NLPModel):
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
         torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
         return num_parameters_on_device, total_num_parameters
+    
+    def configure_sharded_model(self):
+        if self.use_fsdp:
+            """ Top-evel FSDP model sharding """
+            # Shard the top-level model with FSDP. We shard the strategy-unwrapped model not
+            # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
+            self.model = self.trainer.strategy._setup_model(self.model)
+            # Keep the master parameters in fp32.
+            # The prameters can be initialized in half-precision to save memory before sharding
+            self.model = self.model.float()
+            # Move model from CPU to GPU, which is to avoid out-of-memory carash before sharding.
+            # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
+            # In case of GPU-initialized model, this is no-op.
+            self.model = self.model.cuda(torch.cuda.current_device())

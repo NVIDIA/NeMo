@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Opti
 
 import pytorch_lightning as pl
 import torch
-from lightning_fabric.utilities.optimizer import _optimizers_to_device
+from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from omegaconf import OmegaConf
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
@@ -39,10 +39,14 @@ from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import DataFetcher
 from pytorch_lightning.utilities.model_helpers import is_overridden
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.nn.parallel import DistributedDataParallel
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import StateDictType, OptimStateKeyType, FullStateDictConfig
 from torch.distributed.fsdp import BackwardPrefetch, MixedPrecision, ShardingStrategy
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
-from torch.nn.parallel import DistributedDataParallel
+from torch.distributed.fsdp.api import FullOptimStateDictConfig
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
@@ -360,58 +364,14 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy):
         """
         super().setup_environment()
 
+        # Store the parameter attributes of unwrapped model. The attributes are on how the parameters are
+        # shared, which are used for the reduction of gradients and gradient norms.
+        self.store_param_attributes()
+
         # init model parallel if needed
         if not parallel_state.model_parallel_is_initialized():
             app_state = AppState()
             self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
-    def setup(self, trainer: "pl.Trainer") -> None:
-        """
-        We override `setup` function to apply FSDP-wrapping to the top-level model instead of lightening model.
-        This keeps the module hierarchy of flattened parameters not broken.
-        """
-        self.store_param_attributes()
-
-        assert self.accelerator is not None
-        self.accelerator.setup(trainer)
-        # share ddp pids to all processes
-        self._rank_0_will_call_children_scripts = self.broadcast(self._rank_0_will_call_children_scripts)
-
-        if trainer.state.fn == TrainerFn.FITTING and self._layer_sync:
-            assert self.model is not None
-            self.model = self._layer_sync.apply(self.model)
-
-        # we set the device so that optimizers can be created with distributed comms.
-        assert self.lightning_module is not None
-        self.lightning_module._device = self.root_device
-
-        assert isinstance(self.model, pl.LightningModule)
-
-        if is_overridden("configure_sharded_model", self.lightning_module):
-            rank_zero_info(
-                "You have overridden `LightningModule.configure_sharded_model` hook. It will assume that all the layers"
-                " are already wrapped for sharding and won't wrap the entire model using `FullyShardedDataParallel`."
-            )
-        else:
-            # Wrap the target top model with FSDP blocking instead of wrapping the lightening model
-            # This is to avoid losing the flattened parameter information at top-level modules, which
-            # are actually used in forward-backward functions.
-            self.model.model = self._setup_model(self.model.model)
-            # Keep the full precision master parameters
-            self.model = self.model.float()
-        self.model = _LightningModuleWrapperBase(self.model)
-
-        # Move model from CPU to GPU, which is to avoid out-of-memory carash before sharding.
-        # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
-        # In case of GPU-initialized model, this is no-op.
-        self.model = self.model.cuda(torch.cuda.current_device())
-
-        self.barrier()
-
-        self.setup_optimizers(trainer)
-        _optimizers_to_device(self.optimizers, self.root_device)
-
-        self.setup_precision_plugin()
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Initializes Megatron-LM model parallel if using model parallelism.
@@ -458,6 +418,95 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy):
                 # create MPI process group for UCX-based communication APIs
                 if app_state.init_mpi_proc_group:
                     torch.distributed.new_group(backend='mpi')
+
+    def lightning_module_state_dict(self) -> Dict[str, Any]:
+        """
+        Store the full model state dict
+        """
+        assert self.lightning_module is not None
+        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg):
+            state_dict = self.lightning_module.state_dict()
+        return state_dict
+
+    def optimizer_state(self, optimizer: torch.optim.Optimizer) -> Dict[str, torch.Tensor]:
+        """
+        Store the full optimizer state dict
+        """
+        if isinstance(optimizer, LightningOptimizer):
+            optimizer = optimizer._optimizer
+        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
+            optim_state_dict = FSDP.optim_state_dict(self.model, optimizer)
+        return optim_state_dict
+
+    def load_optimizer_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+        """
+        Re-key the full optimizer state dict to sharded optimizer state dict
+        """
+        optimizer_states = checkpoint["optimizer_states"]
+
+        state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
+        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
+            for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+                opt_state = FSDP.rekey_optim_state_dict(
+                    opt_state, OptimStateKeyType.PARAM_NAME, self.model
+                )
+                opt_state = FSDP.optim_state_dict_to_load(
+                    optim_state_dict=opt_state,
+                    model=self.model,
+                    optim=optimizer,
+                )
+                optimizer.load_state_dict(opt_state)
+                _optimizer_to_device(optimizer, self.root_device)
+
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+    ) -> None:
+        app_state = AppState()
+        # PTL override to accomodate model parallel checkpoints
+        filepath = inject_model_parallel_rank(filepath)
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+
+    def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+        # Release strict state dict matching when using Megatron AMP-O2 to skip matching
+        # half-precision module wrapper module.
+        # TODO: Refactor this to be more generic.
+        model_key = None
+        model_attr = None
+        if hasattr(self.lightning_module, 'model'):
+            model_key = 'model'
+            model_attr = self.lightning_module.model
+        elif hasattr(self.lightning_module, 'enc_dec_model'):
+            model_key = 'enc_dec_model'
+            model_attr = self.lightning_module.enc_dec_model
+        if model_key is not None:
+            if isinstance(model_attr, Float16Module):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+        self.lightning_module.load_state_dict(checkpoint["state_dict"])
+
+    def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
+        """ PTL override to accomodate model parallel checkpoints """
+        # TODO: move to CheckpointIO
+        torch.cuda.empty_cache()
+        checkpoint_path = inject_model_parallel_rank(checkpoint_path)
+        return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+    def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        app_state = AppState()
+        # PTL override to accomodate model parallel checkpoints
+        filepath = inject_model_parallel_rank(filepath)
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
+            logging.info(f'Removing checkpoint: {filepath}')
+            self.checkpoint_io.remove_checkpoint(filepath)
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
