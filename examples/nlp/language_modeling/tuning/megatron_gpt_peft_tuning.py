@@ -103,18 +103,6 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         peft_cls = _get_peft_scheme(cfg.model)
         gpt_cfg.target = f"{peft_cls.__module__}.{peft_cls.__name__}"
 
-        # Check dataset max_seq_legnth and max_position_embeddings size
-        max_seq_length = max(cfg.model.data.train_ds.max_seq_length, cfg.model.data.validation_ds.max_seq_length)
-        if (
-            gpt_cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
-            and max_seq_length > gpt_cfg.max_position_embeddings
-        ):
-            logging.warning(
-                f"Set dataset max_seq_length to max_position_embeddings {gpt_cfg.max_position_embeddings} if using learned_absolute position embedding"
-            )
-            gpt_cfg.data.train_ds.max_seq_length = gpt_cfg.max_position_embeddings
-            gpt_cfg.data.validation_ds.max_seq_length = gpt_cfg.max_position_embeddings
-
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:

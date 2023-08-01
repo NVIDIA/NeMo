@@ -148,9 +148,9 @@ class GPTSFTDataset(Dataset):
         example = self.indexed_dataset[idx]
         return self._process_example(example)
 
-    def _process_prompt(self, context: str, label: str, query: str):
+    def _process_prompt(self, context: str, label: str):
         """
-        Combine context, label, and query string into a unifed string.
+        Combine context and label string into a unifed string.
         """
         if self.prompt_template is not None:
             context_string = f'{{{self.context_key}}}'
@@ -159,7 +159,7 @@ class GPTSFTDataset(Dataset):
             assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
             assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
                 label_string
-            ), f'{{self.label_key}} must be at the end of prompt_template.'
+            ), f'{label_string} must be at the end of prompt_template.'
             original_context = context
             context = self.prompt_template.replace(context_string, context).replace(label_string, '').strip(' ')
             text = self.prompt_template.replace(context_string, original_context).replace(label_string, label)
@@ -174,12 +174,12 @@ class GPTSFTDataset(Dataset):
 
         return context_ids, answer_ids
 
-    def _process_truncation(self, context: str, label: str, query: str):
+    def _process_truncation(self, context: str, label: str):
         """
         Calculate total tokens and truncate context or label string.
         """
         origin_context, origin_label = context, label
-        context_ids, answer_ids = self._process_prompt(context, label, query)
+        context_ids, answer_ids = self._process_prompt(context, label)
         total_ids = (
             self.virtual_tokens
             + len(context_ids)
@@ -215,8 +215,8 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         label = example[self.label_key]
 
-        context, label = self._process_truncation(context, label, query)
-        context_ids, answer_ids = self._process_prompt(context, label, query)
+        context, label = self._process_truncation(context, label)
+        context_ids, answer_ids = self._process_prompt(context, label)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context

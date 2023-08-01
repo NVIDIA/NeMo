@@ -241,6 +241,16 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
 
+        # Check dataset max_seq_legnth and max_position_embeddings size
+        if (
+            self.cfg.model.get('position_embedding_type', None) in [None, 'learned_absolute']
+            and data_cfg.max_seq_length > self.cfg.model.max_position_embeddings
+        ):
+            logging.warning(
+                f"Set dataset max_seq_length to max_position_embeddings {self.cfg.model.max_position_embeddings} if using learned_absolute position embedding"
+            )
+            data_cfg.max_seq_length = self.cfg.model.max_position_embeddings
+            
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
             if self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset

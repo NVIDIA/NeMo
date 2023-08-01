@@ -75,18 +75,6 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         if cfg.model.get('seq_len_interpolation_factor', None) is not None:
             gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
 
-        # Check dataset max_seq_legnth and max_position_embeddings size
-        max_seq_length = max(cfg.model.data.train_ds.max_seq_length, cfg.model.data.validation_ds.max_seq_length)
-        if (
-            gpt_cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
-            and max_seq_length > gpt_cfg.max_position_embeddings
-        ):
-            logging.warning(
-                f"Set dataset max_seq_length to max_position_embeddings {gpt_cfg.max_position_embeddings} if using learned_absolute position embedding"
-            )
-            gpt_cfg.data.train_ds.max_seq_length = gpt_cfg.max_position_embeddings
-            gpt_cfg.data.validation_ds.max_seq_length = gpt_cfg.max_position_embeddings
-
         sft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 
