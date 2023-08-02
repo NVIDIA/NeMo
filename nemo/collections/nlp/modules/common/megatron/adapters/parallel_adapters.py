@@ -437,7 +437,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             if self.position_embedding_strategy == "add":
                 pos = pos.expand_as(x)
                 x = x + pos
-                
+
             elif self.position_embedding_strategy == "concat":
                 pos = pos.expand(x.shape[0], x.shape[1], pos.shape[2])
                 x = torch.cat((x, pos), dim=2)
