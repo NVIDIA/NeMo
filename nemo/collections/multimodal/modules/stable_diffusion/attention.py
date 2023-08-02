@@ -402,7 +402,6 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_out(x)
         x = x.transpose(1, 2).view(b, c, h, w)  # b (h w) c -> b c h w
-        x = x.contiguous()  # workaround for dynamo ddp bu
         if not self.use_linear:
             x = self.proj_out(x)
         return x + x_in
