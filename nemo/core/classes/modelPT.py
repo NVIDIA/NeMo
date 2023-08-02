@@ -1700,7 +1700,7 @@ class ModelPT(LightningModule, Model):
         """
 
         global_batch_idx = batch_idx / self._microbatch_to_global_batch
-        logging.info(f"Finished batch {global_batch_idx}")
+        logging.info(f"[HEARTBEAT] Finished batch {global_batch_idx}")
         sys.stdout.flush()
         sys.stderr.flush()
 
