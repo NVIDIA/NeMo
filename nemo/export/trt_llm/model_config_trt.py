@@ -34,6 +34,7 @@ def model_config_to_tensorrt_llm(
     paged_kv_cache: bool = False,
     enable_context_fmha: bool = True,
     enable_multi_block_mode: bool = False,
+    use_refit: bool = False,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -75,6 +76,7 @@ def model_config_to_tensorrt_llm(
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
+            use_refit=use_refit,
         )
         print(
             f"After Engine building rank {rank}, CPU RAM Used (GB):"

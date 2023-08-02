@@ -54,7 +54,11 @@ def split(v, tp_size, idx, dim=0):
 
 def get_tensor_parallel_group(tensor_parallel: int):
     """Returns the tensor_parallel_group config based on tensor_parallel."""
-    return None if tensor_parallel == 1 else list(range(tensor_parallel))
+    from mpi4py import MPI
+    mpi_rank = MPI.COMM_WORLD.Get_rank()
+    offset = mpi_rank - mpi_rank % tensor_parallel
+    tp_group = list(range(offset, offset + tensor_parallel))
+    return None if tensor_parallel == 1 else tp_group
 
 
 def get_tensor_from_dict(weights_dict: Dict[str, np.ndarray], name: str) -> np.array:
