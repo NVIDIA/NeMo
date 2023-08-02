@@ -356,12 +356,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
         )
 
-        return {
+        loss_dict = {
             'inputs': encoder_inputs,
             'translations': preds,
             'ground_truths': labels,
-            'loss': reduced_loss,
         }
+        
+        if isinstance(reduced_loss, dict):
+            loss_dict.update(reduced_loss)
+        else:
+            loss_dict['loss'] = reduced_loss
+            
+        return loss_dict
 
     def postprocess_outputs(self, outputs, tokenizer, processor):
         # Convert ids to lists.
