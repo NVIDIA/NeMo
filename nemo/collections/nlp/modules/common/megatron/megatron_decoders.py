@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """Transformer based language model."""
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerDecoderModule,
@@ -53,11 +55,11 @@ def get_decoder_model(
     post_process=True,
     init_method_std=0.02,
     use_cpu_initialization=False,
-    megatron_amp_O2=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
     ffn_dropout=0.0,
     precision=16,
+    params_dtype=torch.float16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
     activations_checkpoint_num_layers=1,
@@ -120,11 +122,11 @@ def get_decoder_model(
             pre_process=pre_process,
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
             precision=precision,
+            params_dtype=params_dtype,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -164,10 +166,10 @@ def get_decoder_model(
             pre_process=pre_process,
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
             precision=precision,
+            params_dtype=params_dtype,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,

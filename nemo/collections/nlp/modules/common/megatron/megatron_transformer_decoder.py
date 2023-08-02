@@ -14,6 +14,8 @@
 
 """Transformer based language model."""
 
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoder_module import MegatronDecoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -57,12 +59,12 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
         decoder_attn_mask_type=AttnMaskType.causal,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
         precision=16,
+        params_dtype=torch.float16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -123,6 +125,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             pre_process=self.pre_process,
             post_process=self.post_process,
             precision=precision,
+            params_dtype=params_dtype,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -132,7 +135,6 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             attention_dropout=attention_dropout,
             ffn_dropout=ffn_dropout,
             use_cpu_initialization=use_cpu_initialization,
-            megatron_amp_O2=megatron_amp_O2,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,

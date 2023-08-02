@@ -56,12 +56,12 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        megatron_amp_O2=False,
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
         precision=16,
+        params_dtype=torch.float16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -125,7 +125,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.ffn_dropout = ffn_dropout
         self.normalize_attention_scores = normalize_attention_scores
         self.megatron_legacy = megatron_legacy
-        self.megatron_amp_O2 = megatron_amp_O2
+        self.params_dtype = params_dtype
 
         assert self.num_self_attention_per_cross_attention >= 1
         assert self.hidden_steps >= 1
@@ -159,6 +159,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             pre_process=self.pre_process,
             post_process=False,  # This is to avoid the final layernorm and transpose.
             precision=self.precision,
+            params_dtype=self.params_dtype,
             fp32_residual_connection=self.fp32_residual_connection,
             activations_checkpoint_method=self.activations_checkpoint_method,
             activations_checkpoint_num_layers=self.activations_checkpoint_num_layers,
@@ -167,7 +168,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             attention_dropout=self.attention_dropout,
             ffn_dropout=self.ffn_dropout,
             use_cpu_initialization=self.use_cpu_initialization,
-            megatron_amp_O2=self.megatron_amp_O2,
             bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_add_fusion=self.bias_dropout_add_fusion,
             masked_softmax_fusion=self.masked_softmax_fusion,
@@ -199,6 +199,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             pre_process=self.pre_process,
             post_process=False,  # This is to avoid the final layernorm and transpose.
             precision=self.precision,
+            params_dtype=self.params_dtype,
             fp32_residual_connection=self.fp32_residual_connection,
             activations_checkpoint_method=self.activations_checkpoint_method,
             activations_checkpoint_num_layers=self.activations_checkpoint_num_layers,
@@ -207,7 +208,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             attention_dropout=self.attention_dropout,
             ffn_dropout=self.ffn_dropout,
             use_cpu_initialization=self.use_cpu_initialization,
-            megatron_amp_O2=self.megatron_amp_O2,
             bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_add_fusion=self.bias_dropout_add_fusion,
             masked_softmax_fusion=self.masked_softmax_fusion,

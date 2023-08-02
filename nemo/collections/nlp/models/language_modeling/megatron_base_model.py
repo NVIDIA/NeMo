@@ -34,6 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -709,6 +710,9 @@ class MegatronBaseModel(NLPModel):
     def configure_sharded_model(self):
         if self.use_fsdp:
             """ Top-evel FSDP model sharding """
+            # Cast the full model to initialization precision to match the precision among parameters.
+            params_dtype = utils_funcs.dtype_from_precision(self.cfg.precision, None)
+            self.model = self.model.to(params_dtype)
             # Shard the top-level model with FSDP. We shard the strategy-unwrapped model not
             # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
             self.model = self.trainer.strategy._setup_model(self.model)

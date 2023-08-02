@@ -226,9 +226,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             else:
                 self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
-            # FSDP: Pre-cast LN params to the training data type to match other params of the Transformer layer
-            self.input_layernorm = self.input_layernorm.to(params_dtype)
-
             # for architectures such as MPT, there is no bias term even on the layernorms
             # this code allows us to remove the bias terms from the layernorm module
             # so that we can support MPT. However, certain apex-based LNs don't support
@@ -289,8 +286,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
                 if not bias and normalization not in ['layernorm', 'layernorm1p']:
                     remove_bias_from_layernorm(self.post_attention_layernorm)
-                # FSDP: Pre-cast LN params to the training data type to match other params of the Transformer layer
-                self.post_attention_layernorm = self.post_attention_layernorm.to(params_dtype)
 
         if self.layer_type == LayerType.decoder_pre_mlp:
             # skip MLP and cross attention
@@ -312,9 +307,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-
-            # FSDP: Pre-cast LN params to the training data type to match other params of the Transformer layer
-            self.post_attention_layernorm = self.post_attention_layernorm.to(params_dtype)
 
             if not bias and normalization not in ['layernorm', 'layernorm1p']:
                 remove_bias_from_layernorm(self.post_attention_layernorm)

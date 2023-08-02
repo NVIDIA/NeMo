@@ -123,7 +123,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.num_chunked_cross_attention = len(dec_cross_attention)
         self.megatron_lm_compatible = megatron_lm_compatible
 
-        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        params_dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
             assert (
@@ -142,7 +142,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 embedding_dropout_prob=hidden_dropout,
                 position_embedding_type='learned_absolute' if add_position_embedding else '',
                 transpose_batch_sequence=False,
-                dtype=self.dtype,
+                params_dtype=params_dtype,
             )
             self._embedding_key = "embedding"
 
@@ -177,10 +177,10 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 else post_process,  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 precision=precision,
+                params_dtype=params_dtype,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -242,10 +242,10 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 post_process=False,  # no need for post process
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 precision=precision,
+                params_dtype=params_dtype,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -287,10 +287,10 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 post_process=post_process,
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
-                megatron_amp_O2=megatron_amp_O2,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 precision=precision,
+                params_dtype=params_dtype,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
