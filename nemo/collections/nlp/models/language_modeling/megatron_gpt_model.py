@@ -904,6 +904,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
+        strategy_params: Optional[dict] = None
     ) -> OutputType:
 
         # check whether the DDP is initialized
@@ -924,12 +925,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if sampling_params is None:
             sampling_params = get_default_sampling_params()
 
+        # set the default strategy params if it is None.
+        if strategy_params is None:
+            strategy_params = {}
+
         # set the default length params if it is None.
         # default do greedy sampling
         if length_params is None:
             length_params = get_default_length_params()
 
-        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params)
+        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **strategy_params)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
