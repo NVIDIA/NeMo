@@ -19,6 +19,7 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
 from nemo.core.classes import ModelPT, Serialization
 from abc import ABC, abstractclassmethod
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
+from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 
 UNCONDITIONAL_CONFIG = {
     "target": "sgm.modules.GeneralConditioner",
@@ -319,3 +320,402 @@ class DiffusionEngine(pl.LightningModule, Serialization):
             samples = self.decode_first_stage(samples)
             log["samples"] = samples
         return log
+
+
+
+class MegatronDiffusionEngine(MegatronMultimodalModel):
+    """Megatron LatentDiffusion Model."""
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        # this prevents base constructor from initializing tokenizer
+        self.tokenizer = None
+        super().__init__(cfg, trainer=trainer)
+
+        self._validate_trainer()
+
+        # megatron_amp_O2 is not yet supported in diffusion models
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+
+        self.model = self.model_provider_func()
+
+        self.conditioning_keys = []
+
+        if self.trainer.precision == 'bf16':
+            self.autocast_dtype = torch.bfloat16
+        elif int(self.trainer.precision) == 32:
+            self.autocast_dtype = torch.float
+        elif int(self.trainer.precision) == 16:
+            self.autocast_dtype = torch.half
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
+
+    def get_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
+        else:
+            return [self.model]
+
+    def model_provider_func(self, pre_process=True, post_process=True):
+        """Model depends on pipeline paralellism."""
+        model = DiffusionEngine(cfg=self.cfg)
+        return model
+
+    def forward(self, x, c, *args, **kwargs):
+        output_tensor = self.model(x, c, *args, **kwargs)
+        return output_tensor
+
+    @rank_zero_only
+    @torch.no_grad()
+    def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
+        if self.cfg.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0:
+            assert self.cfg.scale_factor == 1.0, 'rather not use custom rescaling and std-rescaling simultaneously'
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+            self.model.on_train_batch_start(batch, batch_idx)
+
+    def training_step(self, dataloader_iter, batch_idx):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            Batch should be a list of microbatches and those microbatches should on CPU.
+            Microbatches are then moved to GPU during the pipeline.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        tensor_shape = None  # Placeholder
+
+        # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
+        self._optimizer.zero_grad()
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=False,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
+        )
+
+        # losses_reduced_per_micro_batch is a list of dictionaries
+        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
+        # only the last stages of the pipeline return losses
+        loss_dict = {}
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            for key in losses_reduced_per_micro_batch[0]:
+                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.stack(loss_tensors_list)
+                loss_dict[key] = loss_tensor.mean()
+            loss_mean = loss_dict["train/loss"]
+        else:
+            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
+        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.allreduce_sequence_parallel_gradients()
+
+        if self.with_distributed_adam:
+            # gradients are reduced internally in distributed optimizer
+            pass
+        elif self.megatron_amp_O2:
+            # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            # if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+            #     # main grads are stored in the MainParamsOptimizer wrapper
+            #     self._optimizer.allreduce_main_grads()
+            self._optimizer.allreduce_main_grads()
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we all-reduce gradients after the pipeline
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale, batch_size=1)
+
+        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        return loss_mean
+
+    def backward(self, *args, **kwargs):
+        """ LightningModule hook to do backward.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            No need to call it here.
+        """
+        pass
+
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing as we are zeroing grads during the training_step.
+        """
+        pass
+
+    def _append_sequence_parallel_module_grads(self, module, grads):
+        """ Helper method for allreduce_sequence_parallel_gradients"""
+
+        for param in module.parameters():
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            if sequence_parallel_param and param.requires_grad:
+                if self.megatron_amp_O2:
+                    grad = param.main_grad
+                else:
+                    grad = param.grad
+                grads.append(grad.data)
+
+    def get_forward_output_and_loss_func(self):
+        def process_batch(batch):
+            """ Prepares the global batch for apex fwd/bwd functions.
+                Global batch is a list of micro batches.
+            """
+            # noise_map, condition
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+            if isinstance(batch[self.cfg.cond_stage_key], torch.Tensor):
+                # in the case of precached text embeddings, cond_stage is also a tensor
+                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(non_blocking=True)
+
+            # SD has more dedicated structure for encoding, so we enable autocasting here as well
+            with torch.cuda.amp.autocast(
+                self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
+            ):
+                x, c = self.model.get_input(batch, self.cfg.first_stage_key)
+
+            if not isinstance(c, dict):
+                return [x, c]
+
+            if len(self.conditioning_keys) == 0:
+                self.conditioning_keys = list(c.keys())
+            c_list = [c[key] for key in self.conditioning_keys]
+            return [x, *c_list]
+
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+            batch = process_batch(batch)
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            if len(self.conditioning_keys) == 0:
+                x, c = batch
+            else:
+                x = batch[0]
+                c = {}
+                for idx, key in enumerate(self.conditioning_keys):
+                    c[key] = batch[1 + idx]
+            loss, loss_dict = model(x, c)
+
+            def dummy(output_tensor):
+                return loss, loss_dict
+
+            # output_tensor, and a function to convert output_tensor to loss + loss_dict
+            return loss, dummy
+
+        return fwd_output_and_loss_func
+
+    def get_forward_output_only_func(self):
+        def fwd_output_only_func(batch, model):
+            raise NotImplementedError
+
+        return fwd_output_only_func
+
+    def validation_step(self, dataloader_iter, batch_idx):
+        tensor_shape = None  # Placeholder
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=[self.model],
+            num_microbatches=get_num_microbatches(),
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=True,
+        )
+
+        # only the last stages of the pipeline return losses
+        val_loss_dict = {}
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            for key in losses_reduced_per_micro_batch[0]:
+                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.stack(loss_tensors_list)
+                val_loss_dict[key] = loss_tensor.mean()
+
+        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+
+    def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
+        self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+
+        # log number of parameters
+        if isinstance(self.model, list):
+            num_parameters_on_device = sum(
+                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+            )
+        else:
+            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+
+        # to be summed across data parallel group
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(non_blocking=True)
+
+        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+
+        logging.info(
+            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
+            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
+            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
+            f'Total number of model parameters: {total_num_parameters:.2e}.'
+        )
+
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
+
+        # allowing restored models to optionally setup datasets
+        self.build_train_valid_test_datasets()
+
+        # Batch size need to be provided for webdatset
+        self._num_micro_batches = get_num_microbatches()
+        self._micro_batch_size = self.cfg.micro_batch_size
+
+        self.setup_training_data(self.cfg.data)
+        self.setup_validation_data(self.cfg.data)
+        self.setup_test_data(self.cfg.data)
+
+    def build_train_valid_test_datasets(self):
+        logging.info('Building datasets for Stable Diffusion...')
+        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+
+        if self.cfg.first_stage_key.endswith("encoded"):
+            self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
+                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
+            )
+        else:
+            self._train_ds, self._validation_ds = build_train_valid_datasets(
+                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
+            )
+        self._test_ds = None
+
+        if self._train_ds is not None:
+            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        if self._validation_ds is not None:
+            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+        if self._test_ds is not None:
+            logging.info(f'Length of test dataset: {len(self._test_ds)}')
+        logging.info(f'Finished building datasets for LatentDiffusion.')
+        return self._train_ds, self._validation_ds, self._test_ds
+
+    def setup_training_data(self, cfg):
+        if hasattr(self, '_train_ds') and self._train_ds is not None:
+            consumed_samples = self.compute_consumed_samples(0)
+            logging.info(
+                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+            )
+            self._train_dl = torch.utils.data.DataLoader(
+                self._train_ds,
+                batch_size=self._micro_batch_size,
+                num_workers=cfg.num_workers,
+                pin_memory=True,
+                drop_last=True,
+                persistent_workers=True,
+            )
+
+    def setup_validation_data(self, cfg):
+        if hasattr(self, '_validation_ds') and self._validation_ds is not None:
+            consumed_samples = 0
+            logging.info(
+                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+            )
+            self._validation_dl = torch.utils.data.DataLoader(
+                self._validation_ds,
+                batch_size=self._micro_batch_size,
+                num_workers=cfg.num_workers,
+                pin_memory=True,
+                drop_last=False,
+                persistent_workers=True,
+            )
+
+    def setup_test_data(self, cfg):
+        if hasattr(self, '_test_ds') and self._test_ds is not None:
+            consumed_samples = 0
+            logging.info(
+                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+            )
+            self._test_dl = torch.utils.data.DataLoader(
+                self._test_ds, batch_size=self._micro_batch_size, num_workers=cfg.num_workers, pin_memory=True,
+            )
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+            When using pipeline parallelism, we need the global batch to remain on the CPU,
+            since the memory overhead will be too high when using a large number of microbatches.
+            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """
+        return batch
+
+    def _validate_trainer(self):
+        """ Certain trainer configurations can break training.
+            Here we try to catch them and raise an error.
+        """
+        if self.trainer.accumulate_grad_batches > 1:
+            raise ValueError(
+                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+            )
+
+    @classmethod
+    def list_available_models(cls):
+        return None
+
+    def parameters(self):
+        if isinstance(self.model, list):
+            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+        else:
+            return self.model.parameters()
+
+    def save_to(self, save_path: str):
+        # Replace .nemo path in config for NeMo CLIP
+        cfg = self._cfg
+        if cfg.get('cond_stage_config').get('restore_from_path'):
+            with open_dict(cfg):
+                cfg.cond_stage_config.restore_from_path = None
+                cfg.cond_stage_config.cfg = self.model.cond_stage_model.cfg
+            self._cfg = cfg
+        super().save_to(save_path)
