@@ -492,8 +492,9 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
         position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
-        dim_position_embeddings = 0
-        if position_embedding_strategy == "add":
+        if position_embedding_strategy is None:
+            dim_position_embeddings = 0
+        elif position_embedding_strategy == "add":
             dim_position_embeddings = cfg.hidden_size
         elif position_embedding_strategy == "biasadd":
             dim_position_embeddings = 3 * projection_size
@@ -502,7 +503,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         elif position_embedding_strategy == "mlpconcat":
             dim_position_embeddings = lora_cfg.adapter_dim
         else:
-            raise RuntimeError("Unknown position embedding strategy for tied weights")
+            raise RuntimeError(f"Unknown position embedding strategy {position_embedding_strategy} for tied weights")
 
         adapter_cfg = LoraKQVAdapterWeightTyingConfig(
             in_features=cfg.hidden_size,
