@@ -32,6 +32,7 @@ from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
 
+from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
     clip_grad_norm_fp32,
@@ -244,6 +245,12 @@ class MegatronMultimodalModel(MultimodalModel):
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
 
+        if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
+            raise ImportError(
+                "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
+                "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
+            )
+
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
         super().__init__(cfg, trainer=trainer)
@@ -284,6 +291,7 @@ class MegatronMultimodalModel(MultimodalModel):
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size'),
             use_fp8=cfg.get('fp8', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -306,6 +314,14 @@ class MegatronMultimodalModel(MultimodalModel):
             "default_on_step": True,
             "default_on_epoch": False,
         }
+
+        self.gc_interval = cfg.get('gc_interval', 0)
+        assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
+        # If gc_interval > 0, memory garbage collection is manually controlled.
+        # The automatic garbage collector sould be disabled before training starts.
+        if self.gc_interval > 0:
+            gc.disable()
+            self.validation_global_step = 1
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -354,12 +370,31 @@ class MegatronMultimodalModel(MultimodalModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
             model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
+            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
+            use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=legacy,
         )
+
+        if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
+            tokens_list = omegaconf.OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_list})
+
+    def on_train_start(self) -> None:
+        super().on_train_start()
+        self.init_global_step = self.trainer.global_step
+
+    def on_validation_start(self) -> None:
+        super().on_validation_start()
+        if self.gc_interval > 0:
+            gc.collect()
+
+    def on_validation_end(self) -> None:
+        super().on_validation_end()
+        if self.gc_interval > 0:
+            gc.collect()
 
     def _build_vocab(self):
         """
@@ -385,18 +420,17 @@ class MegatronMultimodalModel(MultimodalModel):
         )
         return after
 
-    def on_train_start(self) -> None:
-        super().on_train_start()
-        self.init_global_step = self.trainer.global_step
-
-    def _get_parameters(self):
+    def get_parameters_with_grad(self):
         """
-        private method to load all the trainable parameters from optimizer param groups
+        Get all parameters with grad from optimizer param groups
         """
         params = []
         for param_group in self._optimizer_param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if (
+                    param.grad is not None
+                ):  # (@adithyare) adapter training with pp>1 can result in params with no grads
+                    params.append(param)
         return params
 
     def configure_gradient_clipping(self, *args, **kwargs):
@@ -420,9 +454,9 @@ class MegatronMultimodalModel(MultimodalModel):
         else:
             if self.megatron_amp_O2:
                 # grep fp32 master parameters for gradient clipping
-                parameters = self._optimizer.get_parameters()
+                parameters = self._optimizer.get_parameters_with_grad()
             else:
-                parameters = self._get_parameters()
+                parameters = self.get_parameters_with_grad()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
@@ -451,7 +485,7 @@ class MegatronMultimodalModel(MultimodalModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
-    def reduce_overlap_gradients(self):
+    def reduce_overlap_gradients(self, params=None):
         """Reduce grads if overlapped grad sync is enabled
 
         Used for pipeline parallelism with the distributed Adam
@@ -505,6 +539,17 @@ class MegatronMultimodalModel(MultimodalModel):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
+
+        if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
+            gc.collect()
+
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+        super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
+
+        if self.gc_interval > 0:
+            if self.validation_global_step % self.gc_interval == 0:
+                gc.collect()
+            self.validation_global_step += 1
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,

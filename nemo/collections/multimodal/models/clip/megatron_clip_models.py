@@ -187,6 +187,7 @@ class CLIPTextTransformer(MegatronModule):
             reduce_amax=model_cfg.get('reduce_amax', True),
             use_emha=model_cfg.use_emha,
             activation=model_cfg.get('activation', 'gelu'),
+            use_flash_attention=model_cfg.get('flash_attention', False),
         )
 
         self.initialize_word_embeddings(
@@ -364,6 +365,8 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
+        self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
     def get_module_list(self):
         if isinstance(self.model, list):
@@ -503,6 +506,8 @@ class MegatronCLIPModel(MegatronMultimodalModel):
             no_sync_func=no_sync_func,
             grad_sync_func=grad_sync_func,
             param_sync_func=param_sync_func,
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses

@@ -74,7 +74,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     assert cfg.model.restore_from_path is not None
-    megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
+    megatron_amp_O2 = cfg.model.get("megatron_amp_O2", False)
     with_distributed_adam = False
 
     plugins = []
@@ -94,7 +94,7 @@ def main(cfg) -> None:
                 if cfg.model.pipeline_model_parallel_size > 1
                 else True,  # turn off the grad scale for pipeline parallel LM model
             )
-        if megatron_amp_o2 and not with_distributed_adam:
+        if megatron_amp_O2 and not with_distributed_adam:
             plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
@@ -104,9 +104,17 @@ def main(cfg) -> None:
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
     if cfg.model.peft.restore_from_path:
-        peft_model_cfg = MegatronGPTPEFTModel.restore_from(
-            restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
-        )
+        if cfg.model.peft.restore_from_path.endswith(".nemo"):
+            peft_model_cfg = MegatronGPTPEFTModel.restore_from(
+                restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
+            )
+        elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
+            peft_model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
+            peft_model_cfg = OmegaConf.create(peft_model_cfg)
+            # extract dict inside cfg key and convert it to DictConfig
+            # this allows interpolation to work the same way as config from the .restore_from method
+        else:
+            raise RuntimeError("This script requires a .nemo peft model or path to hparams.yaml (and a ckpt path).")
     else:
         peft_model_cfg = MegatronGPTSFTModel.restore_from(
             restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
@@ -127,15 +135,27 @@ def main(cfg) -> None:
         cfg.inference.tokens_to_generate = peft_model_cfg.data.test_ds.tokens_to_generate
 
     if cfg.model.peft.restore_from_path:
-        save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
-        )
+        if cfg.model.peft.restore_from_path.endswith(".nemo"):
+            save_restore_connector = PEFTSaveRestoreConnector(
+                peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
+            )
+        else:
+            # attempting to load a ckpt peft model.
+            if cfg.model.peft.restore_from_ckpt_name:
+                ckpt_name = cfg.model.peft.restore_from_ckpt_name
+            else:
+                ckpt_name = "model_weights.ckpt"
+            save_restore_connector = PEFTSaveRestoreConnector(
+                peft_model_nemo_path=None,
+                peft_model_ckpt_path=cfg.model.peft.restore_from_path,
+                peft_model_ckpt_name=ckpt_name,
+            )
     else:
         save_restore_connector = NLPSaveRestoreConnector()
 
     if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-    model = NLPModel.restore_from(
+    model = MegatronGPTSFTModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=peft_model_cfg,
@@ -160,15 +180,17 @@ def main(cfg) -> None:
                 for batch in response:
                     batch_sentences = [s for s in batch['sentences']]
                     batch_tokens = [s for s in batch['tokens']]
-                    batch_logprob = [s.tolist() for s in batch['logprob']]
-                    for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
-                        if cfg.inference.get("verbose", False):
-                            d = {
-                                'sentence': s,
-                                'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)]),
-                            }
-                            f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
-                        else:
+                    if cfg.inference.compute_logprob:
+                        batch_logprob = [s.tolist() for s in batch['logprob']]
+                        for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
+                            if cfg.inference.get("verbose", False):
+                                d = {
+                                    'sentence': s,
+                                    'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)]),
+                                }
+                                f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
+                    else:
+                        for s in batch_sentences:
                             d = {'sentence': s}
                             f.write(json.dumps(d) + '\n')
             print("predictions saved to {}".format(cfg.inference.outfile_path))

@@ -54,6 +54,7 @@ from numba import jit, prange
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 HAVE_WANDB = True
 try:
@@ -484,6 +485,23 @@ def plot_spectrogram_to_numpy(spectrogram):
     return data
 
 
+def create_plot(data, x_axis, y_axis, output_filepath=None):
+    fig, ax = plt.subplots(figsize=(12, 3))
+    im = ax.imshow(data, aspect="auto", origin="lower", interpolation="none")
+    plt.colorbar(im, ax=ax)
+    plt.xlabel(x_axis)
+    plt.ylabel(y_axis)
+    plt.tight_layout()
+
+    if output_filepath:
+        plt.savefig(output_filepath, format="png")
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
 def plot_gate_outputs_to_numpy(gate_targets, gate_outputs):
     fig, ax = plt.subplots(figsize=(12, 3))
     ax.scatter(
@@ -808,3 +826,14 @@ def sample_tts_input(
             0, export_config["num_speakers"], (max_batch,), device=device, dtype=torch.int64
         )
     return inputs
+
+
+@deprecated(
+    explanation="But it will not be removed until a further notice. G2P object root directory "
+    "`nemo_text_processing.g2p` has been replaced with `nemo.collections.tts.g2p`. "
+    "Please use the latter instead as of NeMo 1.18.0."
+)
+def g2p_backward_compatible_support(g2p_target: str) -> str:
+    # for backward compatibility
+    g2p_target_new = g2p_target.replace("nemo_text_processing.g2p", "nemo.collections.tts.g2p")
+    return g2p_target_new

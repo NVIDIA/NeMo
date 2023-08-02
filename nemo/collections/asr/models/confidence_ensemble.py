@@ -86,9 +86,10 @@ def get_filtered_logprobs(hypothesis: Hypothesis, exclude_blank: bool) -> torch.
         filtered_logprobs = []
         for alignment in hypothesis.alignments:
             for align_elem in alignment:
-                if exclude_blank and align_elem[1].item() != align_elem[0].shape[-1] - 1:
+                if not exclude_blank:
                     filtered_logprobs.append(align_elem[0])
-                filtered_logprobs.append(align_elem[0])
+                elif align_elem[1].item() != align_elem[0].shape[-1] - 1:
+                    filtered_logprobs.append(align_elem[0])
         if not filtered_logprobs:  # for the edge-case of all blanks
             filtered_logprobs.append(align_elem[0])
         filtered_logprobs = torch.stack(filtered_logprobs)
@@ -101,8 +102,15 @@ def get_filtered_logprobs(hypothesis: Hypothesis, exclude_blank: bool) -> torch.
         if exclude_blank:  # filtering blanks
             labels = logprobs.argmax(dim=-1)
             filtered_logprobs = logprobs[labels != logprobs.shape[1] - 1]
+            if filtered_logprobs.shape[0] == 0:  # for the edge-case of all blanks
+                filtered_logprobs = logprobs[:1]
         else:
             filtered_logprobs = logprobs
+
+    # need to make sure logprobs are always normalized, so checking if they sum up to 1
+    if not torch.allclose(filtered_logprobs[0].exp().sum(), torch.tensor(1.0)):
+        filtered_logprobs = torch.log_softmax(filtered_logprobs, dim=1)
+
     return filtered_logprobs
 
 
@@ -136,6 +144,7 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
     conf_func = get_confidence_measure_bank()[conf_type]
 
     conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
+
     return conf_value
 
 
@@ -213,10 +222,6 @@ class ConfidenceEnsembleModel(ModelPT):
         with open_dict(decoding_cfg):
             decoding_cfg.temperature = self.cfg.temperature
             decoding_cfg.preserve_alignments = True
-            if 'confidence_cfg' in decoding_cfg:
-                decoding_cfg.confidence_cfg.preserve_frame_confidence = True
-            else:
-                decoding_cfg.confidence_cfg = ConfidenceConfig(preserve_frame_confidence=True)
 
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """Pass-through to the ensemble models.

@@ -23,6 +23,7 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
+from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -191,6 +192,8 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
+        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
+        self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
     def get_module_list(self):
         if isinstance(self.model, list):
@@ -323,6 +326,8 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             no_sync_func=no_sync_func,
             grad_sync_func=grad_sync_func,
             param_sync_func=param_sync_func,
+            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
+            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
         )
 
         # only the last stages of the pipeline return losses
@@ -349,6 +354,30 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
         return loss_mean, accuracy_mean
 
+    def initialize_ub_func(self):
+        raise NotImplementedError("userbuffer is not implemented!")
+        input_shape = [
+            self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
+            self.cfg.get('hidden_size'),
+        ]
+        ub_cfg_file_name = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        ub_cfgs = None
+        if ub_cfg_file_name is not None:
+            try:
+                import yaml
+
+                with open(ub_cfg_file_name, 'r') as ub_cfg_file:
+                    ub_cfgs = yaml.safe_load(ub_cfg_file)
+            except (ImportError, TypeError):
+                logging.error(f"Fail to read ub_tp_comm_overlap config file: {ub_cfg_file_name}.")
+        te_module.initialize_ub(
+            shape=input_shape,
+            tp_size=self.cfg.get('tensor_model_parallel_size'),
+            use_fp8=self.cfg.get('fp8'),
+            ub_cfgs=ub_cfgs,
+        )
+        self.initialize_ub = False
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -358,6 +387,9 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
@@ -515,6 +547,10 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
+
         loss, accuracy = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
         return loss, accuracy
 
