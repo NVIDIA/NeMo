@@ -122,6 +122,7 @@ def get_language_model(
     reduce_amax=True,
     use_emha=False,
     use_flash_attention=False,
+    output_size=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -198,6 +199,7 @@ def get_language_model(
         reduce_amax=reduce_amax,
         use_emha=use_emha,
         use_flash_attention=use_flash_attention,
+        output_size=output_size
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -505,6 +507,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         reduce_amax=True,
         use_emha=False,
         use_flash_attention=False,
+        output_size=None
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -526,6 +529,10 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
+        if output_size is None:
+            output_size = vocab_size
+        elif share_embeddings_and_output_weights and output_size!=vocab_size:
+            raise ValueError("share_embeddings_and_output_weights was True but output size != vocab size")
         if kv_channels is None:
 
             assert (
@@ -699,7 +706,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             if not self.share_embeddings_and_output_weights:
                 self.output_layer = tensor_parallel.ColumnParallelLinear(
                     self.hidden_size,
-                    self.vocab_size,
+                    output_size,
                     use_cpu_initialization=use_cpu_initialization,
                     params_dtype=self.dtype,
                     bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.

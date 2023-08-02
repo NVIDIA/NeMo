@@ -19,7 +19,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronSpeechGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -60,7 +60,9 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
         gpt_cfg.rampup_batch_size = cfg.model.rampup_batch_size  # Missing from older checkpoints?
-        sft_cls = MegatronGPTModel
+        gpt_cfg.override_vocab_size = cfg.model.override_vocab_size  # Missing from older checkpoints?
+        gpt_cfg.output_size = cfg.model.output_size  # Missing from older checkpoints?
+        sft_cls = MegatronSpeechGPTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
@@ -138,7 +140,7 @@ def main(cfg) -> None:
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-        gpt_cfg = MegatronGPTModel.restore_from(
+        gpt_cfg = MegatronSpeechGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             return_config=True,
@@ -146,8 +148,8 @@ def main(cfg) -> None:
             map_location="cpu"
         )
         # gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
-        model = load_from_nemo(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
-    model.update_for_speech()
+        model = load_from_nemo(MegatronSpeechGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+    # model.update_for_speech()
 
     trainer.fit(model)
 

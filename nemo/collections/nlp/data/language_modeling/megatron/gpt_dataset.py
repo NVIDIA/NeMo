@@ -422,10 +422,15 @@ class GPTDataset(Dataset):
         is_speech = text.dim() == 2
         if self.add_extra_token:
             if is_speech:
-                for l in range(text.shape[0]):
+                # labels on the 0th layer should be between vocab_size and vocab_size+1024
+                # labels on the 1st - 7th layers should be between [0, 1024)
+                # text on the 1st - 7th layers should be between [vocab_size+offset, vocab_size+offset+1024)
+                #  where the offset is 1024 * layer_i
+                text[0] += self.vocab_size
+                labels = text[:,1:].clone().contiguous()
+                for l in range(1, text.shape[0]):
                     text[l] += self.vocab_size + 1024*l
                 tokens = text[:,:-1].contiguous()
-                labels = text[:,1:].contiguous()
             else:
                 tokens = text[:-1].contiguous()
                 labels = text[1:].contiguous()
@@ -473,13 +478,16 @@ class GPTDataset(Dataset):
             logging.debug('Got negative index. Masking loss from this sample')
             loss_mask = torch.zeros_like(loss_mask)
 
+        speech_mask = loss_mask if is_speech else torch.zeros(loss_mask.shape)
+        # print(f"loss debug:\n tokens:{tokens[:10, :]}\n labels:{labels[:10, :]}\n speech_mask:{speech_mask[:10]}")
+
         return {
             'tokens': tokens,  # 2d
             'labels': labels,  # 2d
             'attention_mask': attention_mask,  # 2d
             'loss_mask': loss_mask,  # 1d
             'position_ids': position_ids,  # 1d
-            "speech_mask": loss_mask if is_speech else torch.zeros(loss_mask.shape),  # 1d
+            "speech_mask": speech_mask,  # 1d
         }
 
 

@@ -82,9 +82,10 @@ def post_language_model_processing(
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
+    # TODO: remove hardcode
     output = token_head(
         lm_output,
-        logit_weights[:-(num_speech_tokens-1024), :]
+        logit_weights[:256000+1024, :]
     )
 
     speech_layers = 7
@@ -206,6 +207,7 @@ class GPTModel(MegatronModule):
         reduce_amax=True,
         use_emha=False,
         use_flash_attention=False,
+        output_size=None
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -288,6 +290,7 @@ class GPTModel(MegatronModule):
             reduce_amax=reduce_amax,
             use_emha=use_emha,
             use_flash_attention=use_flash_attention,
+            output_size=output_size
         )
 
         if self.share_embeddings_and_output_weights:
@@ -339,10 +342,9 @@ class GPTModel(MegatronModule):
             return post_language_model_processing(
                 lm_output,
                 labels,
-                #jasoli: self.language_model.output_layer.weight needs to be words+1k
-                self.language_model.embedding.word_embeddings.weight,
-                # if not self.share_embeddings_and_output_weights
-                # else self.word_embeddings_weight(),
+                self.language_model.output_layer.weight
+                if not self.share_embeddings_and_output_weights
+                else self.word_embeddings_weight(),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,
