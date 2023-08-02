@@ -1367,8 +1367,6 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
 
     def model_provider_func(self, pre_process, post_process):
         """Very small override of base model so we can have different embedding and output layer size"""
-        print(f"ESTING: {self.cfg.get('override_vocab_size')}")
-        print(f"ESTING: {self.cfg.get('output_size')}")
         model = GPTModel(
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             output_size=self.cfg.get('output_size', self.padded_vocab_size),
