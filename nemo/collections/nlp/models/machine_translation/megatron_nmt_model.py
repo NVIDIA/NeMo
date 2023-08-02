@@ -361,12 +361,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             'translations': preds,
             'ground_truths': labels,
         }
-        
+
         if isinstance(reduced_loss, dict):
             loss_dict.update(reduced_loss)
         else:
             loss_dict['loss'] = reduced_loss
-            
+
         return loss_dict
 
     def postprocess_outputs(self, outputs, tokenizer, processor):
