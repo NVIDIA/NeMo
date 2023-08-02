@@ -40,6 +40,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
 
+
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -48,6 +49,14 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    import logging
+    from lddl.torch_mp import get_bert_pretrain_data_loader
+
+    HAVE_LDDL = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_LDDL = False
 
 try:
     from megatron.core import parallel_state
@@ -71,10 +80,10 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
         self.cfg = cfg
 
-        if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
+        if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
@@ -91,7 +100,7 @@ class MegatronBertModel(MegatronBaseModel):
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         self.enable_autocast = (
-            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
 
         # used in NVIDIA NGC PyTorch containers
@@ -110,7 +119,7 @@ class MegatronBertModel(MegatronBaseModel):
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
             self.model = self.model[0]
 
-        if self.megatron_amp_o2:
+        if self.megatron_amp_O2:
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
@@ -173,6 +182,7 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
         )
 
         return model
@@ -300,7 +310,12 @@ class MegatronBertModel(MegatronBaseModel):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        if self.cfg.data.dataloader_type == "LDDL":
+            # this is of type bert dataset
+            seq_length = dataloader_iter.iterator.loaders.get_seqlen()
+            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        else:
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -324,7 +339,10 @@ class MegatronBertModel(MegatronBaseModel):
             loss_tensor = torch.vstack(loss_tensors_list)
             loss_mean = loss_tensor.mean(axis=0)
         else:
-            loss_mean = torch.tensor([0.0, 0.0]).cuda()
+            if self.cfg.bert_binary_head == True:
+                loss_mean = torch.tensor([0.0, 0.0, 0.0]).cuda()
+            else:
+                loss_mean = torch.tensor([0.0, 0.0]).cuda()
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -335,7 +353,7 @@ class MegatronBertModel(MegatronBaseModel):
             # note: not necessary, but reduces performance degradation
             # from multiple simultaneous NCCL calls
             self._optimizer._finish_bucket_grad_sync()
-        elif self.megatron_amp_o2:
+        elif self.megatron_amp_O2:
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
                 self._optimizer.allreduce_main_grads()
@@ -396,7 +414,7 @@ class MegatronBertModel(MegatronBaseModel):
                     module = self.model
             if module.share_token_embeddings:
                 word_embeddings_weight = module.word_embeddings_weight()
-                if self.megatron_amp_o2:
+                if self.megatron_amp_O2:
                     # O2 recipe stores a "main" copy of weights and grads
                     grad = word_embeddings_weight.main_grad
                 else:
@@ -404,7 +422,12 @@ class MegatronBertModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def validation_step(self, dataloader_iter, batch_idx):
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+
+        if self.cfg.data.dataloader_type == "LDDL":
+            seq_length = dataloader_iter.iterator.get_seqlen()
+            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        else:
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -476,6 +499,95 @@ class MegatronBertModel(MegatronBaseModel):
             #     [lm_loss])
             # return loss, {'lm loss': averaged_losses[0]}
 
+    def build_LDDL_data(self, cfg):
+        if not HAVE_LDDL:
+            raise ImportError(
+                "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
+            )
+        logging.info(f'Starting building LDDL Dataloaders')
+        self._train_ds = None
+        self._validation_ds = None
+        self._test_ds = None
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
+        num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
+        global_batch_size_on_this_data_parallel_rank = num_micro_batches * self.cfg.micro_batch_size
+        samples_consumed_dploader = self.compute_consumed_samples(0) // data_parallel_size
+        # We run under the assumption that the datapath is the prefix if LDDL dataloader
+        train_lddl_data_path = self.cfg.data.data_prefix[0]
+        self._train_dl = get_bert_pretrain_data_loader(
+            train_lddl_data_path,
+            dp_rank=parallel_state.get_data_parallel_rank(),
+            local_rank=self.local_rank,
+            shuffle_buffer_size=16384,
+            shuffle_buffer_warmup_factor=16,
+            vocab_file=self.cfg.tokenizer.vocab_file,
+            data_loader_kwargs={
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
+                'num_workers': self.cfg.data.num_workers,
+                'prefetch_factor': 2,
+            },
+            mlm_probability=0.15,
+            base_seed=self.cfg.seed,
+            log_level=logging.CRITICAL,
+            log_dir="/tmp/log",
+            return_raw_samples=False,
+            start_epoch=0,
+            sequence_length_alignment=8,
+            ignore_index=-1,
+            samples_seen=samples_consumed_dploader,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+        logging.info(f'Completed build train LDDL Dataloader')
+        if len(self.cfg.data.data_prefix) > 1:
+            val_lddl_data_path = self.cfg.data.data_prefix[1]
+            self._validation_dl = get_bert_pretrain_data_loader(
+                val_lddl_data_path,
+                dp_rank=parallel_state.get_data_parallel_rank(),
+                local_rank=self.local_rank,
+                shuffle_buffer_size=16384,
+                shuffle_buffer_warmup_factor=16,
+                vocab_file=self.cfg.tokenizer.vocab_file,
+                data_loader_kwargs={
+                    'batch_size': global_batch_size_on_this_data_parallel_rank,
+                    'num_workers': self.cfg.data.num_workers,
+                    'prefetch_factor': 2,
+                },
+                mlm_probability=0.15,
+                base_seed=self.cfg.seed,
+                log_level=logging.CRITICAL,
+                log_dir="/tmp/log",
+                return_raw_samples=False,
+                start_epoch=0,
+                sequence_length_alignment=8,
+                ignore_index=-1,
+                micro_batch_size=self.cfg.micro_batch_size,
+            )
+        if len(self.cfg.data.data_prefix) > 2:
+            test_lddl_data_path = self.cfg.data.data_prefix[2]
+            self._test_dl = get_bert_pretrain_data_loader(
+                test_lddl_data_path,
+                dp_rank=parallel_state.get_data_parallel_rank(),
+                local_rank=self.local_rank,
+                shuffle_buffer_size=16384,
+                shuffle_buffer_warmup_factor=16,
+                vocab_file=self.cfg.tokenizer.vocab_file,
+                data_loader_kwargs={
+                    'batch_size': global_batch_size_on_this_data_parallel_rank,
+                    'num_workers': self.cfg.data.num_workers,
+                    'prefetch_factor': 2,
+                },
+                mlm_probability=0.15,
+                base_seed=self.cfg.seed,
+                log_level=logging.CRITICAL,
+                log_dir="/tmp/log",
+                return_raw_samples=False,
+                start_epoch=0,
+                sequence_length_alignment=8,
+                ignore_index=-1,
+                micro_batch_size=self.cfg.micro_batch_size,
+            )
+        logging.info(f'Finished building LDDL Dataloaders')
+
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
@@ -543,7 +655,7 @@ class MegatronBertModel(MegatronBaseModel):
         for param in module.parameters():
             sequence_parallel_param = getattr(param, 'sequence_parallel', False)
             if sequence_parallel_param:
-                if self.megatron_amp_o2:
+                if self.megatron_amp_O2:
                     grad = param.main_grad
                 else:
                     grad = param.grad
@@ -581,10 +693,14 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
-            self.build_train_valid_test_datasets()
-            self.setup_training_data(self.cfg.data)
-            self.setup_validation_data(self.cfg.data)
-            self.setup_test_data(self.cfg.data)
+            if self.cfg.data.dataloader_type == "LDDL":
+                self.build_LDDL_data(self.cfg.data)
+                torch.distributed.barrier()
+            else:
+                self.build_train_valid_test_datasets()
+                self.setup_training_data(self.cfg.data)
+                self.setup_validation_data(self.cfg.data)
+                self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -748,7 +864,7 @@ class MegatronBertModel(MegatronBaseModel):
                         module = self.model
                     if module.share_token_embeddings:
                         param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                        param._disable_greedy_grad_copy = not self.megatron_amp_O2
                         param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     if isinstance(self.model, list):
@@ -757,20 +873,20 @@ class MegatronBertModel(MegatronBaseModel):
                         module = self.model
                     if module.share_token_embeddings:
                         param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                        param._disable_greedy_grad_copy = not self.megatron_amp_O2
                         param._disable_overlap_grad_sync = True
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             for param in self.parameters():
                 if getattr(param, 'sequence_parallel', False):
-                    param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    param._disable_greedy_grad_copy = not self.megatron_amp_O2
                     param._disable_overlap_grad_sync = True
 
             # sequence parallelism is enabled
             for param in self.parameters():
                 if getattr(param, 'sequence_parallel', False):
-                    param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    param._disable_greedy_grad_copy = not self.megatron_amp_O2
                     param._disable_overlap_grad_sync = True
 
             # Initialize parameter buckets for overlapped grad and param syncs

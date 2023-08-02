@@ -170,7 +170,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
 
     plugins = []
@@ -190,7 +190,7 @@ def main(cfg) -> None:
                 if cfg.model.pipeline_model_parallel_size > 1
                 else True,  # turn off the grad scale for pipeline parallel LM model
             )
-        if megatron_amp_o2 and not with_distributed_adam:
+        if megatron_amp_O2 and not with_distributed_adam:
             plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))

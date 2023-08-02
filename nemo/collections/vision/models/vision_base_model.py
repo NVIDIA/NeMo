@@ -28,6 +28,7 @@ from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
 
+from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
     clip_grad_norm_fp32,
@@ -165,17 +166,17 @@ class VisionModel(ModelPT, Exportable):
 class MegatronVisionModel(VisionModel):
     """
     Megatron vision base class
-    It does the following things:
-    1. Initialize the model parallel for nemo given the model parallel parameters.
-    2. Turn on all the nvidia optimizations.
-    3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. If using distributed optimizer, configure to be compatible with
-       O2-level optimizations and/or model parallelism.
-    5. Perform gradient clipping: `grad_clip_pl_default` triggers the
-       PyTorch Lightning default implementation, `with_distributed_adam`
-       triggers the distributed optimizer's implementation,
-       `megatron_amp_o2` triggers gradient clipping on the main grads,
-       and otherwise gradient clipping is performed on the model grads.
+
+    - Initialize the model parallel world for nemo.
+    - Turn on all of the nvidia optimizations.
+    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the
+      correct size for tensor model parallelism.
+    - If using distributed optimizer, configure to be compatible
+      with O2 level optimizations and/or model parallelism.
+    - Perform gradient clipping: `grad_clip_pl_default` triggers
+      the PyTorch Lightning default implementation, `with_distributed_adam` triggers
+      the distributed optimizer's implementation, `megatron_amp_O2` triggers gradient clipping on the main grads,
+      and otherwise gradient clipping is performed on the model grads.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -187,6 +188,12 @@ class MegatronVisionModel(VisionModel):
 
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+
+        if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
+            raise ImportError(
+                "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
+                "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
+            )
 
         super().__init__(cfg, trainer=trainer)
 
@@ -224,6 +231,7 @@ class MegatronVisionModel(VisionModel):
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size'),
             use_fp8=cfg.get('fp8', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
@@ -240,6 +248,14 @@ class MegatronVisionModel(VisionModel):
             "default_on_step": True,
             "default_on_epoch": False,
         }
+
+        self.gc_interval = cfg.get('gc_interval', 0)
+        assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
+        # If gc_interval > 0, memory garbage collection is manually controlled.
+        # The automatic garbage collector sould be disabled before training starts.
+        if self.gc_interval > 0:
+            gc.disable()
+            self.validation_global_step = 1
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -278,14 +294,27 @@ class MegatronVisionModel(VisionModel):
         super().on_train_start()
         self.init_global_step = self.trainer.global_step
 
-    def _get_parameters(self):
+    def on_validation_start(self) -> None:
+        super().on_validation_start()
+        if self.gc_interval > 0:
+            gc.collect()
+
+    def on_validation_end(self) -> None:
+        super().on_validation_end()
+        if self.gc_interval > 0:
+            gc.collect()
+
+    def get_parameters_with_grad(self):
         """
-        private method to load all the trainable parameters from optimizer param groups
+        Get all parameters with grad from optimizer param groups
         """
         params = []
         for param_group in self._optimizer_param_groups:
             for param in param_group['params']:
-                params.append(param)
+                if (
+                    param.grad is not None
+                ):  # (@adithyare) adapter training with pp>1 can result in params with no grads
+                    params.append(param)
         return params
 
     def configure_gradient_clipping(self, *args, **kwargs):
@@ -309,9 +338,9 @@ class MegatronVisionModel(VisionModel):
         else:
             if self.megatron_amp_O2:
                 # grep fp32 master parameters for gradient clipping
-                parameters = self._optimizer.get_parameters()
+                parameters = self._optimizer.get_parameters_with_grad()
             else:
-                parameters = self._get_parameters()
+                parameters = self.get_parameters_with_grad()
             grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
@@ -340,7 +369,7 @@ class MegatronVisionModel(VisionModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
-    def reduce_overlap_gradients(self):
+    def reduce_overlap_gradients(self, params=None):
         """Reduce grads if overlapped grad sync is enabled
 
         Used for pipeline parallelism with the distributed Adam
@@ -394,6 +423,17 @@ class MegatronVisionModel(VisionModel):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
+
+        if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
+            gc.collect()
+
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+        super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
+
+        if self.gc_interval > 0:
+            if self.validation_global_step % self.gc_interval == 0:
+                gc.collect()
+            self.validation_global_step += 1
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
@@ -572,6 +612,14 @@ class MegatronVisionModel(VisionModel):
             ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
                 'Make sure the number of model chunks is the same across all pipeline stages.'
             )
+
+        if self.cfg.get('ub_tp_comm_overlap', False):
+            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():

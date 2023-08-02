@@ -50,6 +50,7 @@ model:
   # model architecture
   encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
+  position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   num_layers: 12
   hidden_size: 768
   ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
@@ -133,7 +134,7 @@ model:
     seq_length: ${model.encoder_seq_length}
     skip_warmup: True
     num_workers: 0
-    dataloader_type: single # cyclic
+    dataloader_type: single  # cyclic, LDDL
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token
     eod_mask_loss: False # Mask loss for the end of document tokens

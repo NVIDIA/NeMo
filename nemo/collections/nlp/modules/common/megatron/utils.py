@@ -189,7 +189,9 @@ def average_losses_across_data_parallel_group(losses):
     return averaged_losses
 
 
-def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss):
+def get_ltor_masks_and_position_ids(
+    data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss, compute_attention_mask=True
+):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
@@ -200,9 +202,12 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
         att_mask_batch = micro_batch_size
     else:
         att_mask_batch = 1
-    attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
-        att_mask_batch, 1, seq_length, seq_length
-    )
+
+    attention_mask = None
+    if compute_attention_mask:
+        attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
+            att_mask_batch, 1, seq_length, seq_length
+        )
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -238,8 +243,9 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
                     position_ids[b, (i + 1) :] -= i + 1 - prev_index
                     prev_index = i + 1
 
-    # Convert attention mask to binary:
-    attention_mask = attention_mask < 0.5
+    if compute_attention_mask:
+        # Convert attention mask to binary:
+        attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
 
@@ -391,3 +397,16 @@ def get_iterator_k_split(batch: List[torch.Tensor], num_microbatches: int) -> It
         microbatches = [[elem[i] for elem in split_batch] for i in range(num_microbatches)]
 
     return itertools.chain(microbatches)
+
+
+def _cast_if_autocast_enabled(tensor):
+    if torch.is_autocast_enabled():
+        if isinstance(tensor, torch.Tensor):
+            if tensor.device.type == 'cuda':
+                dtype = torch.get_autocast_gpu_dtype()
+            elif tensor.device.type == 'cpu':
+                dtype = torch.get_autocast_cpu_dtype()
+            else:
+                raise NotImplementedError()
+            return tensor.to(dtype=dtype)
+    return tensor

@@ -62,6 +62,15 @@ def get_args(argv):
     )
     parser.add_argument("--device", default="cuda", help="Device to export for")
     parser.add_argument("--check-tolerance", type=float, default=0.01, help="tolerance for verification")
+    parser.add_argument(
+        "--export-config",
+        metavar="KEY=VALUE",
+        nargs='+',
+        help="Set a number of key-value pairs to model.export_config dictionary "
+        "(do not put spaces before or after the = sign). "
+        "Note that values are always treated as strings.",
+    )
+
     args = parser.parse_args(argv)
     return args
 
@@ -130,10 +139,18 @@ def nemo_export(argv):
         in_args["max_dim"] = args.max_dim
         max_dim = args.max_dim
 
-    if args.cache_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_cache_support"):
-        model.encoder.export_cache_support = True
-        logging.info("Caching support is enabled.")
-        model.encoder.setup_streaming_params()
+    if args.cache_support:
+        model.set_export_config({"cache_support": "True"})
+
+    if args.export_config:
+        kv = {}
+        for key_value in args.export_config:
+            lst = key_value.split("=")
+            if len(lst) != 2:
+                raise Exception("Use correct format for --export_config: k=v")
+            k, v = lst
+            kv[k] = v
+        model.set_export_config(kv)
 
     autocast = nullcontext
     if args.autocast:
@@ -158,7 +175,7 @@ def nemo_export(argv):
                 check_trace=check_trace,
                 check_tolerance=args.check_tolerance,
                 onnx_opset_version=args.onnx_opset,
-                verbose=args.verbose,
+                verbose=bool(args.verbose),
             )
 
     except Exception as e:

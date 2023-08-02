@@ -61,6 +61,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
+        sft_cls = MegatronGPTSFTModel
+        gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
@@ -130,7 +132,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
     plugins = []
     strategy = NLPDDPStrategy(
@@ -146,7 +148,7 @@ def main(cfg) -> None:
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
             )
-        if megatron_amp_o2 and not with_distributed_adam:
+        if megatron_amp_O2 and not with_distributed_adam:
             plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
@@ -167,6 +169,10 @@ def main(cfg) -> None:
 
     trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
 
+    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
+
     if cfg.model.restore_from_path:
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.model.restore_from_path):
@@ -177,6 +183,7 @@ def main(cfg) -> None:
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
+        gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
         model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)

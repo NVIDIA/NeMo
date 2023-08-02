@@ -302,6 +302,8 @@ class VitBackbone(MegatronModule):
             activations_checkpoint_granularity=model_cfg.activations_checkpoint_granularity,
             gradient_accumulation_fusion=model_cfg.gradient_accumulation_fusion,
             activation=model_cfg.get('activation', 'gelu'),
+            ub_tp_comm_overlap=model_cfg.get('ub_tp_comm_overlap', False),
+            use_flash_attention=model_cfg.get('use_flash_attention', False),
         )
 
     def set_input_tensor(self, input_tensor):

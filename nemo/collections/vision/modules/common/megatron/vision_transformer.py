@@ -129,6 +129,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
+        use_flash_attention=False,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -394,6 +395,8 @@ class ParallelVisionTransformer(ParallelTransformer):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
+        ub_tp_comm_overlap=False,
+        use_flash_attention=False,
     ):
         kwargs = locals()
         for key in ["self", "__class__"]:
@@ -452,6 +455,7 @@ class ParallelVisionTransformer(ParallelTransformer):
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
+                use_flash_attention=use_flash_attention,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
