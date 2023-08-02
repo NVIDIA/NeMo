@@ -87,6 +87,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.cfg = cfg
 
         self.load_frozen_model(cfg, trainer)
+        self.freeze_model = self.cfg.get('freeze_model', True)
         self.prompt_encoder = None
         self.tokenizer = self.frozen_model.tokenizer
 
@@ -223,8 +224,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """Freeze params of existing virtual prompts that should not be tuned further
         """
         # Make sure word embeddings are frozen
-        for params in self.word_embeddings.parameters():
-            params.requires_grad = False
+        if self.freeze_model:
+            for params in self.word_embeddings.parameters():
+                params.requires_grad = False
+        else:
+            for params in self.word_embeddings.parameters():
+                params.requires_grad = True
 
     def state_dict(self):
         """
@@ -262,8 +267,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         Only want virtual prompt params to be passed to the optimizer.
         """
         ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
+        if self.freeze_model:
+            for param in self.frozen_model.parameters():
+                param.requires_grad = False
 
         virtual_prompt_params = {'params': []}
 
@@ -290,11 +296,13 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        # @TODO(sugh) check this calculation
+        discrete_token_ids[(input_ids < 29184) & (input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+        # @TODO(sugh) check this calculation
+        virtual_token_locations = (input_ids < 29184) & (input_ids >= self.pseudo_token_ids_start)
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():

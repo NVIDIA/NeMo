@@ -35,7 +35,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
     def forward(ctx, vocab_parallel_logits, target, label_smoothing=0.0):
         if target.size()[0] != vocab_parallel_logits.size()[0]:
             target = target.permute(1, 0).contiguous()
-            print(f"Permuting target because arrangement of dimensions were not correct.")
 
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
