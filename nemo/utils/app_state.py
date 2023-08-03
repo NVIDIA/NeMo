@@ -381,6 +381,7 @@ class AppState(metaclass=Singleton):
         """
         self._context_parallel_size = size
 
+    @property
     def init_mpi_proc_group(self):
         """ Property sets the initialization of mpi process group.
             Returns:
