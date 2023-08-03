@@ -108,7 +108,7 @@ def perception_model_config():
     return model_config
 
 
-class TestASRWithTTSModel:
+class TestModularizedSpeechGPTModel:
     @pytest.mark.unit
     def test_init_and_train(
         self, llm_model_config, perception_model_config, trainer_config
