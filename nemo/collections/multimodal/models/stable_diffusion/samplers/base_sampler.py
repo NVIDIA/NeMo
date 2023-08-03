@@ -126,7 +126,8 @@ class AbstractBaseSampler(ABC):
         # sampling
         C, H, W = shape
         size = (batch_size, C, H, W)
-        print(f"Data shape for sampling is {size}, eta {eta}")
+        if verbose:
+            print(f"Data shape for sampling is {size}, eta {eta}")
 
         if self.sampler is Sampler.DPM:
             return self.dpm_sampling_fn(

@@ -108,7 +108,12 @@ def pipeline(model, cfg, verbose=True, rng=None):
         if isinstance(prompts, str):
             prompts = [prompts]
 
+        prompt_idx = 0
         for prompt in prompts:
+            if prompt_idx % 10 == 0:
+                print(f'Infer: {prompt_idx} / {len(prompts)}', flush=True)
+            prompt_idx += 1
+
             tic = time.perf_counter()
             tic_total = tic
             cond, u_cond = encode_prompt(model.cond_stage_model, prompt, unconditional_guidance_scale, batch_size)
