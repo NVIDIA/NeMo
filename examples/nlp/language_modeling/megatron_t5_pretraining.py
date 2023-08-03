@@ -34,11 +34,6 @@ def main(cfg) -> None:
     trainer = MegatronT5TrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    # update resume from checkpoint found by exp_manager
-    if cfg.model.resume_from_checkpoint is not None:
-        trainer.ckpt_path = cfg.model.resume_from_checkpoint
-    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision

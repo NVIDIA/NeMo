@@ -34,11 +34,7 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     trainer = MegatronBertTrainerBuilder(cfg).create_trainer()
-
     exp_manager(trainer, cfg.exp_manager)
-
-    # resume_from_checkpoint = uninject_model_parallel_rank(resume_from_checkpoint)
-    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
