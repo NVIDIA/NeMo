@@ -63,14 +63,17 @@ def nemo_deploy(argv):
 
     if args.optimized == "True":
         if args.trt_llm_folder is None:
+            trt_llm_path = "/tmp/trt_llm_model_dir/"
             logging.info(
                 "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
                 "Please set this parameter if you'd like to use a path that has already"
                 "included the TensorRT LLM model files."
             )
-            Path("/tmp/trt_llm_model_dir/").mkdir(parents=True, exist_ok=True)
+            Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
+        else:
+            trt_llm_path = args.trt_llm_folder
 
-        trt_llm_exporter = TensorRTLLM(model_dir="/tmp/trt_llm_model_dir/")
+        trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
         trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=1)
         nm = DeployPyTriton(
             model=trt_llm_exporter,
