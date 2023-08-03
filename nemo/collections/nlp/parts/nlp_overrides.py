@@ -32,6 +32,7 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.loops.fetchers import _DataFetcher
+from pytorch_lightning.trainer.states import TrainerFn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -94,6 +95,23 @@ class NLPDDPStrategy(DDPStrategy):
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
+
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
+        due to assumption in DDPStrategy class that the same model is replicated across GPUs
+        """
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING:
+            super().setup(trainer)
+        else:
+            assert self.accelerator is not None
+            self.accelerator.setup(trainer)
+
+            # move the model to the correct device
+            self.model_to_device()
+            self.setup_precision_plugin()
+            assert self.model is not None
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp

@@ -744,21 +744,20 @@ pipeline {
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=4"
-    //TODO: @athitten Skipping temporarily for hang (run_ci_meg_t5_ia3_pp_2.sh)
-            // sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
-                // --config-name=megatron_t5_ia3_inference \
-                // adapter_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
-                // language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
-                // trainer.devices=2 \
-                // data.num_workers=1 \
-                // tensor_model_parallel_size=1 \
-                // pipeline_model_parallel_size=2 \
-                // data.global_batch_size=2 \
-                // data.micro_batch_size=2 \
-                // data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                // pred_file_path='examples/ia3_tuning/test_tp1_pp2/preds.txt'"
-    //         sh "rm -rf examples/ia3_tuning/test_tp1_pp2.nemo"
-    //         sh "rm -rf examples/ia3_tuning/test_tp1_pp2"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
+                --config-name=megatron_t5_ia3_inference \
+                adapter_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                trainer.devices=2 \
+                data.num_workers=1 \
+                tensor_model_parallel_size=1 \
+                pipeline_model_parallel_size=2 \
+                data.global_batch_size=2 \
+                data.micro_batch_size=2 \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/ia3_tuning/test_tp1_pp2/preds.txt'"
+            sh "rm -rf examples/ia3_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf examples/ia3_tuning/test_tp1_pp2"
           }
         }
       }
@@ -3668,75 +3667,75 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
-    // TODO: @athitten Skipping temporarily due to Error: Using `dataloader_iter` in your step method is not supported with multiple dataloaders
-    // stage('L2: Megatron GPT Finetuning PP=2') {
-    //   when {
-    //     anyOf {
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps {
-    //     sh "python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
-    //     trainer.devices=2 \
-    //     trainer.log_every_n_steps=1 \
-    //     trainer.val_check_interval=2 \
-    //     +trainer.limit_val_batches=2 \
-    //     trainer.max_steps=3 \
-    //     trainer.precision=16 \
-    //     trainer.gradient_clip_val=1.0 \
-    //     exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
-    //     model.pipeline_model_parallel_size=2 \
-    //     model.tensor_model_parallel_size=1 \
-    //     model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-    //     model.optim.name=fused_adam \
-    //     model.optim.lr=2e-4 \
-    //     model.data.train_ds.micro_batch_size=1 \
-    //     model.data.train_ds.global_batch_size=4 \
-    //     model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-    //     model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
-    //     model.data.train_ds.num_workers=0 \
-    //     model.data.test_ds.micro_batch_size=1 \
-    //     model.data.test_ds.global_batch_size=4 \
-    //     model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-    //     model.data.test_ds.names=[quarel,trec] \
-    //     model.data.validation_ds.micro_batch_size=1 \
-    //     model.data.validation_ds.global_batch_size=4 \
-    //     model.data.validation_ds.num_workers=0 \
-    //     model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-    //     model.data.validation_ds.names=[quarel,trec]"
-    //     sh "python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
-    //     trainer.devices=2 \
-    //     trainer.log_every_n_steps=1 \
-    //     trainer.val_check_interval=2 \
-    //     +trainer.limit_val_batches=2 \
-    //     trainer.max_steps=3 \
-    //     trainer.precision=16 \
-    //     trainer.gradient_clip_val=1.0 \
-    //     exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
-    //     model.pipeline_model_parallel_size=2 \
-    //     model.tensor_model_parallel_size=1 \
-    //     model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-    //     model.optim.name=fused_adam \
-    //     model.optim.lr=2e-4 \
-    //     model.data.train_ds.micro_batch_size=1 \
-    //     model.data.train_ds.global_batch_size=4 \
-    //     model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-    //     model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
-    //     model.data.train_ds.num_workers=0 \
-    //     model.data.test_ds.micro_batch_size=1 \
-    //     model.data.test_ds.global_batch_size=4 \
-    //     model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-    //     model.data.test_ds.names=[quarel,trec] \
-    //     model.data.validation_ds.micro_batch_size=1 \
-    //     model.data.validation_ds.global_batch_size=4 \
-    //     model.data.validation_ds.num_workers=0 \
-    //     model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-    //     model.data.validation_ds.names=[quarel,trec]"
-    //     sh "rm -rf examples/nlp/language_modeling/gpt_sft_results"
-    //   }
-    // }
+    // @athitten Remove /home/TestData/nlp/megatron_sft/trec.jsonl for validation file until we have support for multiple dataloaders in lightning 2.0
+    stage('L2: Megatron GPT Finetuning PP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        +trainer.limit_val_batches=2 \
+        trainer.max_steps=3 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
+        model.pipeline_model_parallel_size=2 \
+        model.tensor_model_parallel_size=1 \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.data.train_ds.micro_batch_size=1 \
+        model.data.train_ds.global_batch_size=4 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
+        model.data.train_ds.num_workers=0 \
+        model.data.test_ds.micro_batch_size=1 \
+        model.data.test_ds.global_batch_size=4 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
+        model.data.test_ds.names=[quarel,trec] \
+        model.data.validation_ds.micro_batch_size=1 \
+        model.data.validation_ds.global_batch_size=4 \
+        model.data.validation_ds.num_workers=0 \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]"
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        +trainer.limit_val_batches=2 \
+        trainer.max_steps=3 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
+        model.pipeline_model_parallel_size=2 \
+        model.tensor_model_parallel_size=1 \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.data.train_ds.micro_batch_size=1 \
+        model.data.train_ds.global_batch_size=4 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
+        model.data.train_ds.num_workers=0 \
+        model.data.test_ds.micro_batch_size=1 \
+        model.data.test_ds.global_batch_size=4 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
+        model.data.test_ds.names=[quarel,trec] \
+        model.data.validation_ds.micro_batch_size=1 \
+        model.data.validation_ds.global_batch_size=4 \
+        model.data.validation_ds.num_workers=0 \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]"
+        sh "rm -rf examples/nlp/language_modeling/gpt_sft_results"
+      }
+    }
     stage('L2: Megatron GPT PEFT Lora PP=2') {
       when {
         anyOf {
