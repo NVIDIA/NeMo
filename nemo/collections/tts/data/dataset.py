@@ -1105,7 +1105,6 @@ class VocoderDataset(Dataset):
         self.trim = trim
 
     def _collate_fn(self, batch):
-
         audio_lengths = [audio_len for _, audio_len in batch]
         audio_signal = torch.zeros(len(batch), max(audio_lengths), dtype=torch.float)
 
