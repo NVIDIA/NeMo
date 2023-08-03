@@ -47,9 +47,9 @@ def main(cfg) -> None:
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         find_unused_parameters=False,
     )
-    if cfg.trainer.precision in [16, 'bf16', '16-mixed', 'bf16-mixed']:
+    if cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
         scaler = None
-        if cfg.trainer.precision == 16 or cfg.trainer.precision == '16-mixed':
+        if cfg.trainer.precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
                 init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
