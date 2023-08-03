@@ -502,9 +502,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             for i in range(dec_input_ids.size()[1]):
                 # For text inputs, only include 1st channel embeddings. Zero-out others.
                 include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
-                print("dec size", dec_input_ids.size(), i)
-                print("Max min Token", torch.max(dec_input_ids[:, i, :]), torch.min(dec_input_ids[:, i, :]))
-                print("Emb Dim", self.decoder_embedding.word_embeddings.weight.size())
                 current = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
                 current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
                 if dec_input is None:
@@ -680,19 +677,22 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         if labels.dim() == 2:
                             tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
                         elif labels.dim() == 3:
+                            # print("first layer labels", labels[0, :, :].shape, labels[0, :, :].min(), labels[0, :, :].max(), labels[0, 0, :5])
+                            # print("token logits", token_logits.shape, token_logits[0,0].argmax())
                             tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
                             logging.debug(f"token_loss: {tokens_loss}")
                             logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
                             for i in range(speech_layers):
                                 # What is labels[:7, :, :] if this is text? (It is all zeros)
-                                tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
+                                curr_codebook_loss = vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
+                                tokens_loss += curr_codebook_loss
                                 logging.debug(f"token_loss_{i}: {tokens_loss}")
                                 logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
-                    return tokens_loss
+                    return tokens_loss, [token_logits, speech_logits]
                 else:
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
@@ -705,32 +705,39 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 encoder_output = output
                 return encoder_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict(self):
         """For easy load when model is combined with other heads,
         add an extra key."""
 
         state_dict_ = {}
+        state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict()
+        state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict()
+        state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict()
+        state_dict_[self._tokens_head_key] = self.tokens_head.state_dict()
 
-        state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
-        state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
-        state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
-        state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
+        if hasattr(self, "speech_tokens_heads"):
+            state_dict_["speech_tokens_heads"] = self.speech_tokens_heads.state_dict()
 
+        if hasattr(self, "speech_residual_model_1"):
+            state_dict_["speech_residual_model_1"] = self.speech_residual_model_1.state_dict()
+            
+        if hasattr(self, "speech_residual_model_2"):
+            state_dict_["speech_residual_model_2"] = self.speech_residual_model_2.state_dict()
+        
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
+        self.encoder_embedding.load_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+        if hasattr(self, "speech_tokens_heads"):
+            self.speech_tokens_heads.load_state_dict(state_dict["speech_tokens_heads"], strict=strict)
+        if hasattr(self, "speech_residual_model_1"):
+            self.speech_residual_model_1.load_state_dict(state_dict["speech_residual_model_1"], strict=strict)
+        if hasattr(self, "speech_residual_model_2"):
+            self.speech_residual_model_2.load_state_dict(state_dict["speech_residual_model_2"], strict=strict)
+        
 

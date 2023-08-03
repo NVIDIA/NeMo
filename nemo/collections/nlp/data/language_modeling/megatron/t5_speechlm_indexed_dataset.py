@@ -314,7 +314,7 @@ class SpeechLM_T5dataset(Dataset):
         self.exchange_indices_distributed = cfg.data.get('exchange_indices_distributed', False)
         self.speech_offset = cfg.data.get('speech_offset', 29185)
         self.speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
-        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.3)
+        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.2)
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
 
@@ -328,7 +328,8 @@ class SpeechLM_T5dataset(Dataset):
         splits = self.indexed_dataset.sizes
         if isinstance(self.indexed_dataset, IndexedDataset):
             splits = self.indexed_dataset.sizes[1::2]
-
+        
+        self.num_samples = num_samples
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
             self.name,
@@ -352,7 +353,7 @@ class SpeechLM_T5dataset(Dataset):
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
         #    sample i --> [sample_idx[i], sample_idx[i+1])
-        return self.sample_idx.shape[0] - 1
+        return min(self.num_samples, self.sample_idx.shape[0] - 1)
 
     def _get_tokens(self, idx: int) -> np.ndarray:
 
@@ -428,16 +429,21 @@ class SpeechLM_T5dataset(Dataset):
         for _i in range(tokens.shape[0]):
             tokens[_i] = tokens[_i] + self.speech_offset + (_i * self.speech_codebook_size)
         
-        enc_input = tokens[:, 1:]
-        dec_input = tokens[:, :-1]
-        labels = tokens[:, 1:]
+        enc_input = tokens[:, 1:] * 1 # to avoid changing the original tensor
+        dec_input = tokens[:, :-1] * 1
+        labels = tokens[:, 1:] * 1
+        for _i in range(1, tokens.shape[0]):
+            # bring other layers back in range (0, 1024)
+            labels[_i] = labels[_i] - self.speech_offset - (_i * self.speech_codebook_size)
+            # dec_input[_i] = dec_input[_i] - self.speech_offset - (_i * self.speech_codebook_size)
 
         enc_input = self._mask_encoder_input(enc_input)
 
         # TODO add pad id condition as well for enc_input?
         enc_mask = (enc_input[0] != self.mask_id).long()
         dec_mask = (labels[0] != self.pad_id ).long()
-        loss_mask = (enc_input[0] == self.mask_id ).long()
+        # loss_mask = (enc_input[0] == self.mask_id ).long()
+        loss_mask = torch.ones_like(dec_mask)
 
         return {
             'enc_input': enc_input,
