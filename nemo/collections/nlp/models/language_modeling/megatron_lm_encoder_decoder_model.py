@@ -338,7 +338,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             mean_loss_dict = {}
             for k in losses_reduced_per_micro_batch[0].keys():
                 # average loss across micro batches
-                mean_loss_dict[k] = torch.stack([loss_reduced[k] for loss_reduced in losses_reduced_per_micro_batch]).mean()
+                mean_loss_dict[k] = torch.stack(
+                    [loss_reduced[k] for loss_reduced in losses_reduced_per_micro_batch]
+                ).mean()
         else:
             if forward_only:
                 loss_mean = []
