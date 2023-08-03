@@ -1120,7 +1120,11 @@ class VocoderDataset(Dataset):
         for i, sample in enumerate(batch):
             mel_signal[i].narrow(0, 0, sample[2].size(0)).copy_(sample[2])
 
-        return audio_signal, torch.tensor(audio_lengths, dtype=torch.long), mel_signal#torch.utils.data.dataloader.default_collate(batch)
+        return (
+            audio_signal,
+            torch.tensor(audio_lengths, dtype=torch.long),
+            mel_signal,
+        )  # torch.utils.data.dataloader.default_collate(batch)
 
     def __getitem__(self, index):
         sample = self.data[index]
