@@ -40,7 +40,6 @@ class RotaryEmbedding(nn.Module):
         self.base = 10000
         self.dim = dim
         self.max_position_embeddings = max_seq_len
-        self.max_seq_len_cached = max_seq_len
         self.scaling_type = scaling_type
         self.scaling_factor = scaling_factor
         assert self.scaling_type in ['linear', 'dynamic']
@@ -50,10 +49,10 @@ class RotaryEmbedding(nn.Module):
  
     def forward(self, max_seq_len, offset=0):
         
-        seq = torch.arange(max(max_seq_len, self.max_seq_len_cached), device=self.inv_freq.device) + offset
+        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         
         if self.scaling_factor is not None:
-            if self.scaling_type == 'dynamic' and max_seq_len > self.max_seq_len_cached:
+            if self.scaling_type == 'dynamic' and max_seq_len > self.max_position_embeddings:
                 base = self.base * ((self.scaling_factor * max_seq_len / self.max_position_embeddings) - (self.scaling_factor - 1)) ** (self.dim / (self.dim-2))
                 inv_freq = 1.0 / (base ** (torch.arange(0, self.dim, 2, device=self.inv_freq.device).type(self.inv_freq.dtype) / self.dim))
                 self.register_buffer("inv_freq", inv_freq)
@@ -61,8 +60,6 @@ class RotaryEmbedding(nn.Module):
             if self.scaling_type == 'linear':
                 seq = seq.type_as(self.inv_freq)
                 seq *= 1 / self.scaling_factor
-                
-        self.max_seq_len_cached = max(max_seq_len, self.max_seq_len_cached)
                 
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
