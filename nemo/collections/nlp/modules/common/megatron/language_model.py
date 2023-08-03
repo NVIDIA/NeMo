@@ -124,6 +124,7 @@ def get_language_model(
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
     seq_len_interpolation_factor=None,
+    context_parallel=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -202,6 +203,7 @@ def get_language_model(
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
+        context_parallel=context_parallel,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -511,6 +513,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        context_parallel=False,
     ):
         super(TransformerLanguageModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -531,6 +534,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
         self.sequence_parallel = sequence_parallel
+        self.context_parallel = context_parallel
         self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
         if kv_channels is None:
 
@@ -726,6 +730,19 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
         self.encoder.set_input_tensor(input_tensor[0])
 
+    def get_position_embedding_on_this_context_parallel_rank(self, position_embedding, seq_dim)
+        cp_size = parallel_state.get_context_parallel_world_size()
+        cp_rank = parallel_state.get_context_parallel_rank()
+        cp_idx = torch.tensor([cp_rank, (2*cp_size-cp_rank-1)], device=position_embedding.device)
+        position_embedding = position_embedding.view(
+            *position_embedding.shape[:seq_dim], 2*cp_size, -1, *position_embedding.shape[(seq_dim+1):]
+        )
+        position_embedding = position_embedding.index_select(seq_dim, cp_idx)
+        position_embedding = position_embedding.view(
+            *position_embedding.shape[:seq_dim], -1, *position_embedding.shape[(seq_dim+2):]
+        )
+        return position_embedding
+
     def forward(
         self,
         enc_input_ids,
@@ -779,10 +796,16 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             else:
                 enc_seq_length = encoder_input.size(0)
 
+        if self.context_parallel:
+            enc_seq_length = enc_seq_length * parallel_state.get_context_parallel_world_size()
+
         rotary_pos_emb = None
         encoder_self_attention_relative_position_bias = None
         if self.position_embedding_type == 'rope':
             rotary_pos_emb = self.rotary_pos_emb(enc_seq_length)
+
+            if self.context_parallel:
+                rotary_pos_emb = self.get_position_embedding_on_this_context_parallel_rank(rotary_pos_emb, 0)
         elif (
             self.position_embedding_type == 'alibi'
             or self.position_embedding_type == 'sandwich'
@@ -793,6 +816,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
             # causal attention bias: [1, head, 1, k]
             # non-causal attention bias: [1, head, q, k]
+
+            if self.context_parallel and encoder_self_attention_relative_position_bias.shape[-2] > 1:
+                encoder_self_attention_relative_position_bias = self.get_position_embedding_on_this_context_parallel_rank(
+                    encoder_self_attention_relative_position_bias, -2
+                )
 
         # encoder.
         if enc_hidden_states is None:
