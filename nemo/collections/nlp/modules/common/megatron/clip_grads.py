@@ -114,6 +114,11 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
                 grad_norm = torch.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
 
+        # NaN check at local grad norm
+        if total_norm.isnan():
+            global_rank = torch.distributed.get_rank()
+            print(f'Rank {global_rank}: Found NaN in local grad norm after the last micro-batch (after grad reduction).')
+
         # Sum across all model-parallel GPUs.
         torch.distributed.all_reduce(
             total_norm, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()

@@ -607,6 +607,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
 
+            global_rank = torch.distributed.get_rank()
+            for param in self.parameters():
+                grad_norm = torch.zeros([], device='cuda', dtype=torch.float32)
+                if getattr(param, 'grad', None) is not None:
+                    grad_norm += torch.linalg.norm(param.grad)
+                if getattr(param, 'main_grad', None) is not None:
+                    grad_norm += torch.linalg.norm(param.main_grad)
+                assert not grad_norm.isnan(), f'Rank {global_rank}: Found NaN in local grad norm after micro-batches'
+
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], output_tensor)
@@ -630,6 +639,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     )
                     return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
+                    # NaN check at local loss
+                    assert not loss_for_ub.isnan(), f'Rank {global_rank}: Found NaN in local loss'
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub, {'avg': reduced_loss}
 
