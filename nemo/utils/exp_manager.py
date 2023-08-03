@@ -140,6 +140,7 @@ class ExpManagerConfig:
     resume_if_exists: Optional[bool] = False
     resume_past_end: Optional[bool] = False
     resume_ignore_no_checkpoint: Optional[bool] = False
+    resume_from_checkpoint: Optional[str] = None
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
@@ -157,7 +158,6 @@ class ExpManagerConfig:
     create_early_stopping_callback: Optional[bool] = False
     early_stopping_callback_params: Optional[EarlyStoppingParams] = EarlyStoppingParams()
     create_preemption_callback: Optional[bool] = True
-    resume_from_checkpoint: Optional[str] = None
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
@@ -259,6 +259,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - resume_ignore_no_checkpoint (bool): exp_manager errors out if resume_if_exists is True and no checkpoint
                 could be found. This behaviour can be disabled, in which case exp_manager will print a message and
                 continue without restoring, by setting resume_ignore_no_checkpoint to True. Defaults to False.
+            - resume_from_checkpoint (str): Can be used to specify a path to a specific checkpoint file to load from. This will 
+                override any checkpoint found when resume_if_exists is True. Defaults to None.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
             - summary_writer_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
