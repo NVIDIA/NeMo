@@ -330,7 +330,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     loss = -torch.nn.functional.logsigmoid(prefered - not_prefered).mean()
                     losses.append(loss)
             contrasitve_loss = torch.stack(losses).mean()
-            losses = output_tensor_contrastive.float()
+            # only calculate the loss for the prefered one
+            losses = output_tensor_contrastive[:, 0].float()
+            loss_mask = loss_mask_contrastive[:, 0]
             loss_mask = (loss_mask > 0).view(-1).float()
             loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
             if self.training:

@@ -80,7 +80,12 @@ def _mask_targets(
                 # if contains the token <extra_id_2>
                 assert skip_name_len == torch.where((s_id == extra_id_2_token_id))[0].item()
                 # find new line token id 14
-                more_skip_len = torch.where((s_id[skip_name_len:] == new_line_token_id))[0][0].item() + 1
+                newline_loc = torch.where((s_id[skip_name_len:] == new_line_token_id))[0]
+                if len(newline_loc) == 0:
+                    # cannot find new line token, mask the whole turn
+                    target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
+                    continue
+                more_skip_len = newline_loc[0].item() + 1
                 skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
                 skip_name_len = torch.where((s_id == extra_id_2_token_id))[0].item() + 1
@@ -182,7 +187,8 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     data_type = None
     if 'type' in source:
         data_type = source['type']
-        assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
+        if data_type is not None:
+            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
     # add end signal and concatenate together
     conversation = source['system']
     if data_type is not None:
