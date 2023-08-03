@@ -237,7 +237,8 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     # mask = (target != IGNORE_INDEX).bool()
     # mask = (target <= 0).bool()
     assert (target < 0).sum().item() != 0, "mask is empty"
-    return dict(input_ids=input_ids, mask=target)
+    data_id = torch.LongTensor([source['id']]) if 'id' in source else None
+    return dict(input_ids=input_ids, mask=target, data_id=data_id)
 
 
 def _check_token_in_vocab(tokenizer, token):
@@ -280,6 +281,10 @@ class GPTContrastiveSFTChatDataset(GPTSFTDataset):
         return result
 
     def collate_fn(self, batch):
+        data_ids = [item['data_id'] for item in batch]
+        if data_ids[0] is not None:
+            for item in range(0, len(data_ids) // 2):
+                assert (data_ids[item * 2] == data_ids[item * 2 + 1]).item(), f"data id not match {data_ids}"
         input_ids = [item['input_ids'][:-1].tolist() for item in batch]
         labels = [item['input_ids'][1:].tolist() for item in batch]
         loss_mask = [item['mask'][1:].tolist() for item in batch]

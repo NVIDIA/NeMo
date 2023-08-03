@@ -238,8 +238,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
 
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
-            if self.cfg.data.get("chat", False):
-                flag = self.cfg.data.get("chat", False)
+            flag = self.cfg.data.get("chat", False)
+            if flag:
                 if isinstance(flag, str):
                     if flag == 'GPTSFTChatDataset':
                         dataset_cls = GPTSFTChatDataset
@@ -260,7 +260,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 add_eos=data_cfg.get('add_eos', True),
                 add_sep=data_cfg.get('add_sep', False),
                 sep_id=self.sep_id,
-                max_num_samples=num_samples[0],
+                max_num_samples=None if flag == 'GPTContrastiveSFTChatDataset' else num_samples[0],
                 seed=data_cfg.get('seed', 1234),
                 context_key=data_cfg.get('context_key', 'text'),
                 label_key=data_cfg.get('label_key', 'answer'),
