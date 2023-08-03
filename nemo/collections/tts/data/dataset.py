@@ -1105,8 +1105,6 @@ class VocoderDataset(Dataset):
         self.trim = trim
 
     def _collate_fn(self, batch):
-        if self.load_precomputed_mel:
-            return torch.utils.data.dataloader.default_collate(batch)
 
         audio_lengths = [audio_len for _, audio_len in batch]
         audio_signal = torch.zeros(len(batch), max(audio_lengths), dtype=torch.float)
@@ -1114,7 +1112,16 @@ class VocoderDataset(Dataset):
         for i, sample in enumerate(batch):
             audio_signal[i].narrow(0, 0, sample[0].size(0)).copy_(sample[0])
 
-        return audio_signal, torch.tensor(audio_lengths, dtype=torch.long)
+        if not self.load_precomputed_mel:
+            return audio_signal, torch.tensor(audio_lengths, dtype=torch.long)
+
+        ## For precomputed mels
+        sample_mel = batch[0][2]
+        mel_signal = torch.zeros(len(batch), sammple_mel.shape[0], sample_mel.shape[1], dtype=torch.float)
+        for i, sample in enumerate(batch):
+            mel_signal[i].narrow(0, 0, sample[2].size(0)).copy_(sample[2])
+
+        return audio_signal, torch.tensor(audio_lengths, dtype=torch.long), mel_signal#torch.utils.data.dataloader.default_collate(batch)
 
     def __getitem__(self, index):
         sample = self.data[index]
