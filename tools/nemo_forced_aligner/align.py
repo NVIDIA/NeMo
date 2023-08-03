@@ -110,7 +110,7 @@ class CTMFileConfig:
 @dataclass
 class ASSFileConfig:
     fontsize: int = 20
-    marginv: int = 20
+    vertical_alignment: str = "center"
     # if resegment_text_to_fill_space is True, the ASS files will use new segments
     # such that each segment will not take up more than (approximately) max_lines_per_segment
     # when the ASS file is applied to a video
@@ -182,6 +182,9 @@ def main(cfg: AlignmentConfig):
 
     if cfg.ctm_file_config.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
+
+    if cfg.ass_file_config.vertical_alignment not in ["top", "center", "bottom"]:
+        raise ValueError("cfg.ass_file_config.vertical_alignment must be one of 'top', 'center' or 'bottom'")
 
     for rgb_list in [
         cfg.ass_file_config.text_already_spoken_rgb,

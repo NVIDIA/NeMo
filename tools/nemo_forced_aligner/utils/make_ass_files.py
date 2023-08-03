@@ -32,6 +32,7 @@ PLAYERRESX = 384
 PLAYERRESY = 288
 MARGINL = 10
 MARGINR = 10
+MARGINV = 20
 
 
 def seconds_to_ass_format(seconds_float):
@@ -112,7 +113,7 @@ def resegment_utt_obj(utt_obj, ass_file_config):
     approx_chars_per_line = (PLAYERRESX - MARGINL - MARGINR) / (
         ass_file_config.fontsize * 0.6
     )  # assume chars 0.6 as wide as they are tall
-    approx_lines_per_segment = (PLAYERRESY - ass_file_config.marginv) / (
+    approx_lines_per_segment = (PLAYERRESY - MARGINV) / (
         ass_file_config.fontsize * 1.15
     )  # assume line spacing is 1.15
     if approx_lines_per_segment > ass_file_config.max_lines_per_segment:
@@ -188,12 +189,21 @@ def make_word_level_ass_file(
         "BorderStyle": "1",
         "Outline": "1",
         "Shadow": "0",
-        "Alignment": "2",
+        "Alignment": None,  # will specify below
         "MarginL": str(MARGINL),
         "MarginR": str(MARGINR),
-        "MarginV": str(ass_file_config.marginv),
+        "MarginV": str(MARGINV),
         "Encoding": "0",
     }
+
+    if ass_file_config.vertical_alignment == "top":
+        default_style_dict["Alignment"] = "8"  # text will be 'center-justified' and in the top of the screen
+    elif ass_file_config.vertical_alignment == "center":
+        default_style_dict["Alignment"] = "5"  # text will be 'center-justified' and in the middle of the screen
+    elif ass_file_config.vertical_alignment == "bottom":
+        default_style_dict["Alignment"] = "2"  # text will be 'center-justified' and in the bottom of the screen
+    else:
+        raise ValueError(f"got an unexpected value for ass_file_config.vertical_alignment")
 
     output_dir = os.path.join(output_dir_root, "ass", "words")
     os.makedirs(output_dir, exist_ok=True)
@@ -316,12 +326,21 @@ def make_token_level_ass_file(
         "BorderStyle": "1",
         "Outline": "1",
         "Shadow": "0",
-        "Alignment": "2",
+        "Alignment": None,  # will specify below
         "MarginL": str(MARGINL),
         "MarginR": str(MARGINR),
-        "MarginV": str(ass_file_config.marginv),
+        "MarginV": str(MARGINV),
         "Encoding": "0",
     }
+
+    if ass_file_config.vertical_alignment == "top":
+        default_style_dict["Alignment"] = "8"  # text will be 'center-justified' and in the top of the screen
+    elif ass_file_config.vertical_alignment == "center":
+        default_style_dict["Alignment"] = "5"  # text will be 'center-justified' and in the middle of the screen
+    elif ass_file_config.vertical_alignment == "bottom":
+        default_style_dict["Alignment"] = "2"  # text will be 'center-justified' and in the bottom of the screen
+    else:
+        raise ValueError(f"got an unexpected value for ass_file_config.vertical_alignment")
 
     output_dir = os.path.join(output_dir_root, "ass", "tokens")
     os.makedirs(output_dir, exist_ok=True)
