@@ -167,12 +167,6 @@ class GPTSFTDataset(Dataset):
                 f'{{{self.label_key}}}'
             )
             # Get the context by replacing only the input
-            # context = self.prompt_template[:]
-            # for ct, c in zip(context_texts, self.context_key):
-
-            context_positions = []
-            for ct in self.context_keys:
-                context_positions.append((self.prompt_template.find(ct) - 1, ct))
             original_contexts = contexts[:]  # copy all text from context fields
             context = self.prompt_template[:]  # copy the prompt template string
             context = context.replace(f'{{{self.label_key}}}', '')  # remove the label from the content
@@ -187,9 +181,9 @@ class GPTSFTDataset(Dataset):
                 text = text.replace(f'{{{ck}}}', ct)  # replace each context key with the context text
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = context + '\n' + output
+            text = '\n'.join(contexts) + '\n' + output
         elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = context + ' ' + output
+            text = ' '.join(contexts) + ' ' + output
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
