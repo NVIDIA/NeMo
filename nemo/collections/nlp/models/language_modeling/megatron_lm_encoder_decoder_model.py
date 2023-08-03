@@ -335,17 +335,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
+            mean_loss_dict = {}
+            for k in losses_reduced_per_micro_batch[0].keys():
+                # average loss across micro batches
+                mean_loss_dict[k] = torch.stack([loss_reduced[k] for loss_reduced in losses_reduced_per_micro_batch]).mean()
         else:
             if forward_only:
                 loss_mean = []
             else:
                 loss_mean = torch.tensor(0.0).cuda()
+            mean_loss_dict = {"loss": loss_mean}
 
-        return {"loss": loss_mean}
+        return mean_loss_dict
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
