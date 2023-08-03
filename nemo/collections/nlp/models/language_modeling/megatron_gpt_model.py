@@ -799,7 +799,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     val = val.view(*val.shape[0:seq_dim], 2*cp_size, val.shape[seq_dim]//(2*cp_size), *val.shape[(seq_dim+1):])
                     index = torch.tensor([cp_rank, (2*cp_size-cp_rank-1)], device=val.device)
                     val = val.index_select(seq_dim, index)
-                    val = val.view(*val.shape[0:seq_dim], len(index)*val.shape[seq_dim+1], *val.shape[(seq_dim+2):])
+                    val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim+2):])
                     batch[key] = val
 
         batch['loss_mask_sum'] = loss_mask_sum
@@ -955,7 +955,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask_sum  # sequence level nll
-        torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+        cp_size = self.cfg.get('context_parallel_size', 1)
+        if cp_size > 1:
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
 
     def build_train_valid_test_datasets(self):
@@ -1256,12 +1258,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             self._set_tp_groups(self.model)
 
-    def _set_cp_running(self, module):
+    def _set_cp_running(self, module, cp_stream):
         """ Helper method to set cp running for transformer engine"""
 
         if self.cfg.get('transformer_engine', False):
             logging.info(f'Setting up transformer engine modules for context parallelism.')
-            cp_stream = torch.cuda.Stream()
             if self.cfg.get('megatron_amp_O2', 'False'):
                 # when using O2 additional module key is added that casts the weights
                 for layer in module.module.language_model.encoder.layers:
@@ -1279,11 +1280,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """ This should be called after context parallel groups have been initialized
             and only needs to be called when using Transformer Engine.
         """
+        cp_size = self.cfg.get('context_parallel_size', 1)
+        if cp_size == 1:
+            return
+
+        cp_stream = torch.cuda.Stream()
+
         if isinstance(self.model, list):
             for module in self.model:
-                self._set_cp_running(module)
+                self._set_cp_running(module, cp_stream)
         else:
-            self._set_cp_running(self.model)
+            self._set_cp_running(self.model, cp_stream)
 
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
