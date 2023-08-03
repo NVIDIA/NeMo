@@ -3837,25 +3837,24 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             trainer.precision=16"
       }
     }
-    //TODO: @athitten Skipping temporarily due to infinte hang
-    // stage('L2: Megatron GPT Eval PP2') {
-    //   when {
-    //     anyOf {
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps {
-        // sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            // gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-            // server=False \
-            // tensor_model_parallel_size=1 \
-            // pipeline_model_parallel_size=2 \
-            // trainer.devices=2 \
-            // trainer.num_nodes=1"
-    //   }
-    // }
+    stage('L2: Megatron GPT Eval PP2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+            gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+            server=False \
+            tensor_model_parallel_size=1 \
+            pipeline_model_parallel_size=2 \
+            trainer.devices=2 \
+            trainer.num_nodes=1"
+      }
+    }
     stage('L2: Megatron GPT SFT Eval (inference seq len > training seq len)') {
       when {
         anyOf {
@@ -3985,18 +3984,17 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                  model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl'] \
                  model.global_batch_size=4"
              sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp"
-            //TODO: @athitten Skipping temporarily due to indefinite hang for part 2 eval
-            //  sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py \
-            //      virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo' \
-            //      gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
-            //      inference.greedy=True \
-            //      inference.add_BOS=False \
-            //      trainer.devices=2 \
-            //      pipeline_model_parallel_size=2 \
-            //      pred_file_path=/home/TestData/nlp/prompt_learning/p_tuning_test_pp_preds.txt \
-            //      data_paths=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
-    //          sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
-    //          sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp_preds.txt"
+             sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py \
+                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo' \
+                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                 inference.greedy=True \
+                 inference.add_BOS=False \
+                 trainer.devices=2 \
+                 pipeline_model_parallel_size=2 \
+                 pred_file_path=/home/TestData/nlp/prompt_learning/p_tuning_test_pp_preds.txt \
+                 data_paths=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
+             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
+             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp_preds.txt"
             }
           }
         }
