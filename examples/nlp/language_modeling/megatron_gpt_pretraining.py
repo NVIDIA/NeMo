@@ -34,8 +34,6 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
-    with open_dict(cfg):
-        cfg.exp_manager.resume_from_checkpoint = cfg.model.resume_from_checkpoint
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
