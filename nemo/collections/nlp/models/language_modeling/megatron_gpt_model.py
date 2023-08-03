@@ -76,6 +76,7 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core import InferenceParams
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -286,6 +287,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
 
+        self.inference_params = None
+
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [
@@ -320,6 +323,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             assert (
                 self.cfg.get('num_query_groups', None) is None
+                or self.cfg.get('num_query_groups', None) == self.cfg.get('num_attention_heads', None)
             ), "Group Query Attention is only supported in Megatron Core. Set 'mcore_gpt' to use GQA."
 
             model = GPTModel(
@@ -875,9 +879,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if attention_mask is not None:
                     attention_mask = attention_mask.cuda()
                     attention_mask = attention_mask[0:1]
+            if self.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0),
+                        max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
                 extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
+
+            
+            # Advance inference sequence offset.
+            if self.inference_params:
+                self.inference_params.sequence_len_offset += output_tensor.size(1)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
