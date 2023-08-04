@@ -36,7 +36,7 @@ mel_feature:
   hop_length: ${hop_length}
   mel_dim: 80
   lowfreq: 0
-  highfreq: 8000
+  highfreq: null
 
 pitch_feature:
   _target_: nemo.collections.tts.parts.preprocessing.features.PitchFeaturizer

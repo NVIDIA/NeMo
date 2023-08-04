@@ -16,7 +16,7 @@ log_dir: ???
 
 mel_dim: 80
 lowfreq: 0
-highfreq: 8000
+highfreq: null
 
 # Change these values depending on your sampling rate.
 sample_rate: 22050
