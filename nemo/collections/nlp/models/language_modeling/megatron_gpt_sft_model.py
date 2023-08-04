@@ -397,7 +397,19 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Meta data from dataset
         metadata = batch.pop('metadata')
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
-
+        
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        
+        # Skip the generation if the user wants to monitor the loss only
+        if metric_name == 'loss':
+            return {
+                'loss': loss,
+                'preds': None,
+                'labels': None,
+                'inputs': None, 
+                'metadata': None,
+            }
+        
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
         if self.get_inference_config() is None:
@@ -432,12 +444,18 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
         averaged_loss = []
         averaged_metric = []
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             loss = super().validation_epoch_end([x['loss'] for x in output])
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss)
             averaged_loss.append(loss)
+            
+            # Skip the rest of this loop if the user wants to monitor the loss only
+            if metric_name == 'loss':
+                continue
+            
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
             gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather_object(
@@ -473,35 +491,33 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                             deduplicated_outputs['metadata'].append(metadata)
 
             # Compute metric score
-            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
             metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
-            if metric_name != 'loss':
-                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = (
-                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-                )
-                if metric_label_key in deduplicated_outputs['metadata'][0]:
-                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
-                else:
-                    labels = deduplicated_outputs['labels']
+            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+            metric_fn = (
+                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            )
+            if metric_label_key in deduplicated_outputs['metadata'][0]:
+                labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+            else:
+                labels = deduplicated_outputs['labels']
 
-                for pred, label in zip(deduplicated_outputs['preds'], labels):
-                    _ = metric_fn(pred, label)
+            for pred, label in zip(deduplicated_outputs['preds'], labels):
+                _ = metric_fn(pred, label)
 
-                metric_result = metric_fn.compute()
+            metric_result = metric_fn.compute()
 
-                if metric_name == 'rouge':
-                    for k, v in metric_result.items():
-                        if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
-                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
-                    metric_result = metric_result['rouge1_fmeasure']
-                else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
-                    logging.info(f"{mode} {metric_name}: {metric_result.item()}")
+            if metric_name == 'rouge':
+                for k, v in metric_result.items():
+                    if 'fmeasure' in k:
+                        self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                        logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                metric_result = metric_result['rouge1_fmeasure']
+            else:
+                self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
-                metric_fn.reset()
-                averaged_metric.append(metric_result)
+            metric_fn.reset()
+            averaged_metric.append(metric_result)
 
             # Write predictions to file
             if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
