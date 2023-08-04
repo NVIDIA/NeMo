@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from datetime import datetime
 import hashlib
 import json
 import os
@@ -328,6 +329,11 @@ class MegatronMultimodalModel(MultimodalModel):
 
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+
+        # Support DLFW master container
+        if nvidia_torch_version == 'master':
+            nvidia_torch_version = datetime.now().strftime('%y.%m')
+
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
