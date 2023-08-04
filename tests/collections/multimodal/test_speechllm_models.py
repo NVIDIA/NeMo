@@ -36,6 +36,15 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
 )
 
 
+def setup_module():
+    # init model parallel needed for LLM loss
+    init_method = 'tcp://'
+    master_ip = 'localhost'
+    master_port = '6000'
+    init_method += master_ip + ':' + master_port
+    torch.distributed.init_process_group(backend='gloo', world_size=1, rank=0, init_method=init_method)
+    parallel_state.initialize_model_parallel(1, 1)
+
 @pytest.fixture
 def llm_model_config():
     this_test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -113,7 +122,6 @@ def perception_model_config():
     )
     return model_config
 
-
 class TestModularizedSpeechGPTModel:
     @pytest.mark.unit
     def test_init_and_train(
@@ -137,13 +145,6 @@ class TestModularizedSpeechGPTModel:
         trainer, llm_model_config.trainer = trainer_config
         model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
         model.cuda()
-        # init model parallel needed for LLM loss
-        init_method = 'tcp://'
-        master_ip = 'localhost'
-        master_port = '6000'
-        init_method += master_ip + ':' + master_port
-        torch.distributed.init_process_group(backend='gloo', world_size=1, rank=0, init_method=init_method)
-        parallel_state.initialize_model_parallel(1, 1)
 
         model.train()
         pl.seed_everything(1)
@@ -154,5 +155,24 @@ class TestModularizedSpeechGPTModel:
         batch = signal, signal_len, transcript, transcript_length
         loss_mean = model.training_step(batch, None)
         assert np.allclose(loss_mean.cpu().detach().numpy(), 5.1678314)
+
+    @pytest.mark.unit
+    def test_validation_step(
+        self, llm_model_config, perception_model_config, trainer_config
+    ):
+        llm_model_config.model.perception = perception_model_config
+        trainer, llm_model_config.trainer = trainer_config
+        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
+        model.cuda()
+
+        model.train()
+        pl.seed_everything(1)
+        signal = torch.randn(2, 64000)
+        signal_len = torch.from_numpy(np.array([64000, 64000]))
+        transcript = torch.randn(2, 4).int()
+        transcript_length = torch.from_numpy(np.array([3, 2]))
+        batch = signal, signal_len, transcript, transcript_length
+        loss_mean = model.validation_step(batch, None)
+        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 5.1694)
 
     # TODO(zhehuai): test ckpt restore
