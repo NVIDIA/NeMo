@@ -819,7 +819,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
 
             if self.context_parallel and encoder_self_attention_relative_position_bias.shape[-2] > 1:
                 encoder_self_attention_relative_position_bias = self.get_position_embedding_on_this_context_parallel_rank(
-                    encoder_self_attention_relative_position_bias, -2
+                    encoder_self_attention_relative_position_bias, 2
                 )
 
         # encoder.
