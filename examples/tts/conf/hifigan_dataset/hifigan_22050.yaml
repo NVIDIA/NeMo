@@ -24,7 +24,7 @@ win_length: 1024
 hop_length: 256
 upsample_rates: [8, 8, 2, 2]
 train_n_samples: 8192
-val_min_duration: 3.0
+val_min_duration_seconds: 3.0
 val_n_samples: 66048
 
 model:
@@ -85,7 +85,7 @@ model:
       _target_: nemo.collections.tts.data.vocoder_dataset.VocoderDataset
       sample_rate: ${sample_rate}
       n_samples: ${val_n_samples}
-      min_duration: ${val_min_duration}
+      min_duration: ${val_min_duration_seconds}
       max_duration: null
       dataset_meta: ${val_ds_meta}
 
