@@ -350,7 +350,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         unprocessed_enc_input = enc_input.clone()
         for _i in range(enc_input.shape[0]):
             mask_indices = (enc_input[_i] != 103).long()
-            unprocessed_enc_input[_i] = enc_input[_i] - 29185 - (_i * 1024)
+            unprocessed_enc_input[_i] = enc_input[_i] - 29184 - (_i * 1024)
             unprocessed_enc_input[_i] = unprocessed_enc_input[_i] * mask_indices
         
         return unprocessed_enc_input
@@ -390,7 +390,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                     speech_logits = debug_tensors[1]
                     token_logits_example = token_logits[:,0,:] * 1
                     speech_logits_example = speech_logits[:,0,:,:] * 1
-                    first_layer_tokens = token_logits_example.argmax(dim=1) - 29185
+                    first_layer_tokens = token_logits_example.argmax(dim=1) - 29184
                     outher_layer_tokens = []
                     for _i in range(speech_logits_example.shape[2]):
                         outher_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))

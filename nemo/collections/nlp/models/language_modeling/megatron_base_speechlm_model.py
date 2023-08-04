@@ -131,6 +131,7 @@ class MegatronSpeechLMBaseModel(MegatronBaseModel, TextGeneration):
         """
         self.frozen_model.enc_dec_model.load_state_dict(state_dict["frozen_model_enc_dec_model"], strict)
         self.word_embeddings.load_state_dict(state_dict["word_embeddings"], strict)
+        
     
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training

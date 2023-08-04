@@ -695,8 +695,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     return tokens_loss, [token_logits, speech_logits]
                 else:
                     # [s, b, h] -> [b, s, h]
-                    token_logits = token_logits.transpose(0, 1).contiguous()
-                    return token_logits
+                    token_logits = token_logits.transpose(0, 1).contiguous() #(b, s, 30208)
+                    print("token_logits", token_logits.shape, )
+                    first_layer_speech_logits = token_logits[:,:,29184:29184+1024].unsqueeze(-1) #(b, s, 1023, 1)
+                    # pad speech_logits with zeros to make it 1024
+                    # first_layer_speech_logits = torch.cat([first_layer_speech_logits, torch.zeros([*first_layer_speech_logits.shape[:-2], 1, 1], device=first_layer_speech_logits.device)], dim=-2) #(b, s, 1024, 1)
+                    speech_logits = speech_logits.transpose(0, 1).contiguous() #(b, s, 1024, 7)
+                    all_speech_logits = torch.cat([first_layer_speech_logits, speech_logits], dim=-1) #(b, s, 1024, 8)
+                    return all_speech_logits, [token_logits, speech_logits]
+                    # return token_logits, [token_logits, speech_logits]
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
@@ -728,7 +735,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
-
         self.encoder_embedding.load_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)

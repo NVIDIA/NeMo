@@ -312,9 +312,9 @@ class SpeechLM_T5dataset(Dataset):
             self.add_extra_token = 0
         self.shuffle_documents = cfg.data.get('shuffle_documents', True)
         self.exchange_indices_distributed = cfg.data.get('exchange_indices_distributed', False)
-        self.speech_offset = cfg.data.get('speech_offset', 29185)
+        self.speech_offset = cfg.data.get('speech_offset', 29184)
         self.speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
-        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.2)
+        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.3)
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
 
