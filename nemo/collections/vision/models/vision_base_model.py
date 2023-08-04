@@ -14,6 +14,7 @@
 
 import os
 import re
+from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import torch
@@ -262,6 +263,11 @@ class MegatronVisionModel(VisionModel):
 
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+
+        # Support DLFW master container
+        if nvidia_torch_version == 'master':
+            nvidia_torch_version = datetime.now().strftime('%y.%m')
+
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
