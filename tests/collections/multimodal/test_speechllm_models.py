@@ -138,6 +138,30 @@ class TestModularizedSpeechGPTModel:
             model.save_to(save_path)
 
     @pytest.mark.unit
+    def test_prepare_llm_input(
+        self, llm_model_config, perception_model_config, trainer_config
+    ):
+        llm_model_config.model.perception = perception_model_config
+        trainer, llm_model_config.trainer = trainer_config
+        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
+        model.cuda()
+
+        model.train()
+        pl.seed_everything(1)
+        signal = torch.randn(2, 64000).cuda()
+        signal_len = torch.from_numpy(np.array([64000, 64000])).cuda()
+        transcript = torch.arange(8).reshape(2, 4).int().cuda()
+        transcript_length = torch.from_numpy(np.array([3, 2])).cuda()
+        batch = signal, signal_len, transcript, transcript_length
+        encoder_input, attention_mask, labels, loss_mask, encoder_length = model.prepare_llm_input(batch)
+        assert encoder_input.shape == (40, 2, 1024)
+        assert np.allclose(encoder_input.sum().cpu().detach().numpy(), -788.436)
+        assert attention_mask.shape == (2, 1, 40, 40)
+        assert labels.shape == (2, 40)
+        assert np.allclose(loss_mask.sum(axis=1).cpu().numpy(), [2, 1])
+        assert np.allclose(encoder_length.cpu().numpy(), (39, 38))
+
+    @pytest.mark.unit
     def test_training_step(
         self, llm_model_config, perception_model_config, trainer_config
     ):
@@ -150,11 +174,11 @@ class TestModularizedSpeechGPTModel:
         pl.seed_everything(1)
         signal = torch.randn(2, 64000)
         signal_len = torch.from_numpy(np.array([64000, 64000]))
-        transcript = torch.randn(2, 4).int()
+        transcript = torch.arange(8).reshape(2, 4).int()
         transcript_length = torch.from_numpy(np.array([3, 2]))
         batch = signal, signal_len, transcript, transcript_length
         loss_mean = model.training_step(batch, None)
-        assert np.allclose(loss_mean.cpu().detach().numpy(), 5.1678314)
+        assert np.allclose(loss_mean.cpu().detach().numpy(), 7.757044)
 
     @pytest.mark.unit
     def test_validation_step(
@@ -169,10 +193,10 @@ class TestModularizedSpeechGPTModel:
         pl.seed_everything(1)
         signal = torch.randn(2, 64000)
         signal_len = torch.from_numpy(np.array([64000, 64000]))
-        transcript = torch.randn(2, 4).int()
+        transcript = torch.arange(8).reshape(2, 4).int()
         transcript_length = torch.from_numpy(np.array([3, 2]))
         batch = signal, signal_len, transcript, transcript_length
         loss_mean = model.validation_step(batch, None)
-        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 5.1694)
+        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 7.7556906)
 
     # TODO(zhehuai): test ckpt restore
