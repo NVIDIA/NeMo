@@ -163,58 +163,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         loss_mask = loss_mask.float()
         return input_ids, input_length, labels, loss_mask
 
-    def prepare_llm_input(self, input_embeds, input_length):
-        b = input_embeds.shape[0]
-        max_len = input_embeds.shape[1]
-
-        # Using causal attention mask for whole input
-        # TODO(zhehuai): use prefixlm instead for the audio embeddings
-        attention_mask = torch.tril(torch.ones((b, max_len, max_len))).view(
-            b, 1, max_len, max_len
-        )
-        # Convert attention mask from float to bool
-        attention_mask = attention_mask < 0.5
-        position_ids = build_position_ids(input_embeds[:, :, 0])
-
-        # Add position embeddings
-        if hasattr(
-            self.frozen_model.model.language_model.embedding, "position_embeddings"
-        ):
-            position_embeddings = (
-                self.frozen_model.model.language_model.embedding.position_embeddings(
-                    position_ids
-                )
-            )
-            input_embeds = input_embeds + position_embeddings
-        else:
-            input_embeds = input_embeds
-        encoder_input = input_embeds.transpose(0, 1).contiguous()
-        if self.cfg.get("sequence_parallel", False):
-            encoder_input = (
-                tensor_parallel.mappings.scatter_to_sequence_parallel_region(
-                    encoder_input
-                )
-            )
-
-        return encoder_input, attention_mask
-
-    def forward(
-        self,
-        audio_batch,
-        inference=True,
-        set_inference_key_value_memory=False,
-        inference_max_sequence_len=None,
-    ):
-        """Forward pass of the model.
-
-        We first prepend a fixed text instruction that briefly describes the
-        task to the audio embeddings. Then we prepend audio embeddings to
-        the label text tokens as the LLM input.
-        TODO(zhehuai): read text instruction from the SFT dataset, set loss_mask
-          accordingly, following pad_batch_and_build_loss_mask.
-        """
-
-        # concat the text embeddings and the audio embeddings together to form the input embeddings
+    def prepare_llm_input(self, audio_batch):
         def _concat_embs(embs1, emb1_lens, embs2, emb2_lens):
             concat_emb = []
             concat_len = []
@@ -293,10 +242,62 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         loss_mask = _shift_labels_by_emb_len(
             loss_mask, input_length, encoded_len, encoder_input.shape[1], pad_token=0
         )
-        encoder_input, attention_mask = self.prepare_llm_input(
-            encoder_input, encoder_length
+
+        b = encoder_input.shape[0]
+        max_len = encoder_input.shape[1]
+
+        # Using causal attention mask for whole input
+        # TODO(zhehuai): use prefixlm instead for the audio embeddings
+        attention_mask = torch.tril(torch.ones((b, max_len, max_len))).view(
+            b, 1, max_len, max_len
         )
-        encoder_length = encoder_length
+        # Convert attention mask from float to bool
+        attention_mask = attention_mask < 0.5
+        position_ids = build_position_ids(encoder_input[:, :, 0])
+
+        # Add position embeddings
+        if hasattr(
+            self.frozen_model.model.language_model.embedding, "position_embeddings"
+        ):
+            position_embeddings = (
+                self.frozen_model.model.language_model.embedding.position_embeddings(
+                    position_ids
+                )
+            )
+            encoder_input = encoder_input + position_embeddings
+        else:
+            encoder_input = encoder_input
+        encoder_input = encoder_input.transpose(0, 1).contiguous()
+        if self.cfg.get("sequence_parallel", False):
+            encoder_input = (
+                tensor_parallel.mappings.scatter_to_sequence_parallel_region(
+                    encoder_input
+                )
+            )
+
+        return encoder_input, attention_mask, labels, loss_mask, encoder_length
+
+    def forward(
+        self,
+        audio_batch,
+        inference=True,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+    ):
+        """Forward pass of the model.
+
+        We first prepend a fixed text instruction that briefly describes the
+        task to the audio embeddings. Then we prepend audio embeddings to
+        the label text tokens as the LLM input.
+        TODO(zhehuai): read text instruction from the SFT dataset, set loss_mask
+          accordingly, following pad_batch_and_build_loss_mask.
+        """
+
+        # concat the text embeddings and the audio embeddings together to form the input embeddings
+        
+        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(
+            audio_batch
+        )
         output = self.frozen_model.model(
             input_ids=None,
             position_ids=None,
