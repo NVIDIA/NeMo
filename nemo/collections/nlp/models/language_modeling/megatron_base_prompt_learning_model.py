@@ -141,7 +141,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         elif self.trainer.precision[0:2] == '16':
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, "32-true", 16, "16-mixed", "bf16", "bf16-mixed"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None

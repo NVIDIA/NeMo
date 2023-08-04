@@ -17,7 +17,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -74,7 +74,7 @@ def main(cfg) -> None:
         resume_from_checkpoint = trainer._checkpoint_connector._ckpt_path
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
-    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    trainer._checkpoint_connector = _CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):

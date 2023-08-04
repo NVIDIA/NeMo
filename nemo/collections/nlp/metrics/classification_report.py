@@ -36,8 +36,7 @@ class ClassificationReport(Metric):
             ...
             tp, fn, fp, _ = self.classification_report(preds, labels)
 
-            self.val_outputs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-            return self.val_outputs
+            return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
         def on_validation_epoch_end(self):
             ...
@@ -50,7 +49,6 @@ class ClassificationReport(Metric):
             self.log('precision', precision)
             self.log('f1', f1)
             self.log('recall', recall)
-            self.val_outputs.clear()  # free memory
 
     Args:
         num_classes: number of classes in the dataset
@@ -205,8 +203,7 @@ class MultiLabelClassificationReport(ClassificationReport):
             ...
             tp, fn, fp, _ = self.classification_report(preds, labels)
 
-            self.val_outputs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-            return self.val_outputs
+            return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
         def on_validation_epoch_end(self):
             ...
@@ -219,7 +216,6 @@ class MultiLabelClassificationReport(ClassificationReport):
             self.log('precision', precision)
             self.log('f1', f1)
             self.log('recall', recall)
-            self.val_outputs.clear()  # free memory
 
     Args:
         num_classes: number of classes in the dataset

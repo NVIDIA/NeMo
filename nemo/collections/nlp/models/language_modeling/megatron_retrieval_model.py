@@ -101,7 +101,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         elif int(self.cfg.precision) == 16:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
         self.model.model_type = ModelType.encoder_and_decoder
 
         self.enable_autocast = (

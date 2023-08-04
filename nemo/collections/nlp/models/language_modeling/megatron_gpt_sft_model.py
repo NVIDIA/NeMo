@@ -184,14 +184,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
-        # If setting val and test dataloaders via this method, create self.validation_step_outputs and self.test_step_outputs
+        # Raise error if using multiple dataloaders
         if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            for _ in range(len(self._validation_dl)):
-                self.validation_step_outputs_sft.append([])
+            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         if type(self._test_dl) == list and len(self._test_dl) > 1: 
-            for _ in range(len(self._test_dl)):
-                self.test_step_outputs.append([])
+            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -386,7 +384,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         loss = super().validation_step(dataloader_iter, batch_idx)
         # loss can be None as super().validation_step returns None when dataloader_iter is exhausted
         # which can lead to error, adding check to prevent it
-        if not loss is None: # Ensure its not None
+        if loss is not None: # Ensure its not None
             outputs = {
                 'loss': loss,
                 'preds': None,
@@ -502,7 +500,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
-            self.log(loss_log_key, loss)
+            self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
 
             # Skip the rest of this loop if the user wants to monitor the loss only.
@@ -586,7 +584,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
 
         if mode == 'validation':
-            self.log("validation_loss", averaged_loss)
+            self.log("validation_loss", averaged_loss, batch_size=1)
             if averaged_metric is not None:
                 self.log(f"validation_{self.val_metric_name}", averaged_metric)
         elif mode == 'test':
