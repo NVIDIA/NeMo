@@ -82,14 +82,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if hasattr(self.cfg.data, "validation_ds"):
             self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
             self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
-            # Used other keys from metadata to calulate metrics  
+            # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.validation_ds, "metric"):
                 self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
-            # Used other keys from metadata to calulate metrics 
+            # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.test_ds, "metric"):
                 self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
 
