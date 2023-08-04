@@ -1,4 +1,3 @@
-# TODO(zhehuai)
 name: modularized_speech_gpt
 
 trainer:
@@ -50,6 +49,7 @@ exp_manager:
 
 model:
   # LLM related stanza
+  precision: 16
   seed: 1234
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   # TODO(zhehuai): remove the following parameter which is not used
@@ -89,6 +89,7 @@ model:
   
   # TODO(zhehuai): audio related stanza
   perception: null
+  fixed_prompt_prefix: 'Can you transcribe the speech into a written format?'
 
   data:
     train_ds: [data/rte_train.jsonl,]
