@@ -157,7 +157,7 @@ model:
   sequence_parallel: False
 
   ## Transformer Engine
-  transformer_engine: False
+  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3 
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
