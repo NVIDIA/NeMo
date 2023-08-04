@@ -15,6 +15,7 @@
 import itertools
 import os
 from typing import Optional, Union, Dict
+from functools import partial
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -107,9 +108,9 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
             self.world_size = trainer.world_size
         fixed_prompt_prefix_str = cfg.get("fixed_prompt_prefix", None)
         if fixed_prompt_prefix_str is not None:
-            self.fixed_prompt_prefix = self.tokenizer.text_to_ids(
+            self.fixed_prompt_prefix = torch.Tensor(self.tokenizer.text_to_ids(
                 fixed_prompt_prefix_str
-            )
+            )).int().cuda()
         else:
             self.fixed_prompt_prefix = None
 
@@ -158,7 +159,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         b = labels.shape[0]
         max_len = labels.shape[1]
         # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
-        loss_mask = torch.arange(max_len).expand(b, max_len) < input_length.unsqueeze(1)
+        loss_mask = torch.arange(max_len).expand(b, max_len).cuda() < input_length.unsqueeze(1)
         loss_mask = loss_mask.float()
         return input_ids, input_length, labels, loss_mask
 
@@ -265,7 +266,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
             audio_batch
         )
 
-        if not self.frozen_model.model.pre_process():
+        if not self.frozen_model.model.pre_process:
             raise ValueError("Model does not have pre_process method defined.")
 
         # [b, t, c]
@@ -342,29 +343,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16 and hasattr(
-            self.trainer.precision_plugin.scaler, "_scale"
-        ):
-            loss_scale = self.trainer.precision_plugin.scaler._scale
-            if loss_scale is not None:
-                self.log("loss_scale", loss_scale, batch_size=1)
-
-        self.log(
-            "reduced_train_loss",
-            loss_mean,
-            prog_bar=True,
-            rank_zero_only=True,
-            batch_size=1,
-        )
-        lr = self._optimizer.param_groups[0]["lr"]
-        self.log("lr", lr, rank_zero_only=True, batch_size=1)
-        self.log(
-            "global_step",
-            self.trainer.global_step,
-            prog_bar=True,
-            rank_zero_only=True,
-            batch_size=1,
-        )
+        # TODO(zhehuai): add loss and step logging
         return loss_mean
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
@@ -378,7 +357,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         return {"loss": loss_mean}
 
     # dataset configuration
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    def _setup_dataloader_from_config(self, config: Optional[Dict], for_train=True):
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
             config=config,
             local_rank=self.local_rank,
@@ -399,23 +378,38 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
-        if hasattr(dataset, "collate_fn"):
-            collate_fn = dataset.collate_fn
-        elif hasattr(dataset.datasets[0], "collate_fn"):
-            # support datasets that are lists of entries
-            collate_fn = dataset.datasets[0].collate_fn
+        # TODO(zhehuai): test distributed dataloader and parallel_state
+        # Make distributed dataloader following build_virtual_prompt_dataset
+        rank = parallel_state.get_data_parallel_rank()
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+        )
+
+        batch_size=config["batch_size"]
+        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
+
+        if for_train:
+            if self.cfg.get("sequence_parallel", False):
+                collate_fn = partial(
+                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+                )
+            else:
+                collate_fn = partial(dataset.collate_fn, tp_workers=0)
         else:
-            # support datasets that are lists of lists
-            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+            collate_fn = dataset.inference_collate_fn
+        assert config.get("num_workers", 0) > 0, "(@adithyare and @eharper) We need this to make spawn=True to work."
 
         return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=config["batch_size"],
+            dataset,
             collate_fn=collate_fn,
-            drop_last=config.get("drop_last", False),
+            sampler=sampler,
+            batch_size=batch_size // data_parallel_size,
             shuffle=shuffle,
+            drop_last=config.get("drop_last", False),
             num_workers=config.get("num_workers", 0),
             pin_memory=config.get("pin_memory", False),
+            persistent_workers=True
         )
 
     def _setup_transcribe_dataloader(
@@ -462,7 +456,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
             dl_config["augmentor"] = config.get("augmentor")
 
         temporary_datalayer = self._setup_dataloader_from_config(
-            config=DictConfig(dl_config)
+            config=DictConfig(dl_config), for_train=False
         )
         return temporary_datalayer
 
@@ -488,7 +482,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         # preserve config
         self._update_dataset_config(dataset_name="train", config=train_data_config)
 
-        self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, for_train=True)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
@@ -538,7 +532,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         # preserve config
         self._update_dataset_config(dataset_name="validation", config=val_data_config)
 
-        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config, for_train=True)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         """
@@ -561,7 +555,7 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         # preserve config
         self._update_dataset_config(dataset_name="test", config=test_data_config)
 
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config, for_train=False)
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

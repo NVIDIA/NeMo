@@ -17,9 +17,12 @@ from pathlib import Path
 
 import pytest
 import os
+import numpy as np
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from megatron.core import parallel_state
 import pytorch_lightning as pl
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -55,9 +58,15 @@ def llm_model_config():
 @pytest.fixture
 def trainer_config():
     config_trainer = DictConfig({})
-    accelerator = "gpu" if torch.cuda.is_available() else "cpu"
+    
+    if torch.cuda.is_available():
+        accelerator = "gpu" 
+        torch.set_default_device('cuda')
+    else:
+        accelerator = "cpu"
     config_trainer.accelerator = accelerator
     config_trainer.devices = 1
+    config_trainer.num_nodes = 1
     config_trainer.max_epochs = 4
     config_trainer.val_check_interval = 1.0
 
@@ -73,10 +82,9 @@ def trainer_config():
     os.environ["WORLD_SIZE"] = "1"
 
     strategy = NLPDDPStrategy(
-        find_unused_parameters=False, no_ddp_communication_hook=True
     )
     plugins = [TorchElasticEnvironment()]
-    trainer = pl.Trainer(plugins=plugins, strategy=strategy, **config_trainer)
+    trainer = pl.Trainer(logger=None, plugins=plugins, strategy=strategy, **config_trainer)
     return trainer, config_trainer
 
 
@@ -89,11 +97,9 @@ def perception_model_config():
         "_target_": "nemo.collections.asr.modules.ConformerEncoder",
         "feat_in": 64,
         "n_layers": 8,
-        "d_model": 4,
+        "d_model": 64,
         "self_attention_model": "rel_pos_local_attn",
         "att_context_size": [128, 128],
-        "global_tokens": [0, 1, 4],
-        "global_tokens_spacing": [1, 4],
     }
 
     model_config = DictConfig(
@@ -102,7 +108,7 @@ def perception_model_config():
             "preprocessor": DictConfig(preprocessor),
             "encoder": DictConfig(encoder),
             "matcher": DictConfig(encoder),
-            "d_model": 512,
+            "d_model": 1024,
         }
     )
     return model_config
@@ -113,16 +119,40 @@ class TestModularizedSpeechGPTModel:
     def test_init_and_train(
         self, llm_model_config, perception_model_config, trainer_config
     ):
-        # TODO(zhehuai): update trainer
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
         model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
 
         assert isinstance(model.frozen_model, MegatronGPTModel)
-        # TODO(zhehuai): check ASR class
         with tempfile.TemporaryDirectory() as tmpdir:
             save_path = str(Path(tmpdir) / "model.nemo")
             model.train()
             model.save_to(save_path)
+
+    @pytest.mark.unit
+    def test_training_step(
+        self, llm_model_config, perception_model_config, trainer_config
+    ):
+        llm_model_config.model.perception = perception_model_config
+        trainer, llm_model_config.trainer = trainer_config
+        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
+        model.cuda()
+        # init model parallel needed for LLM loss
+        init_method = 'tcp://'
+        master_ip = 'localhost'
+        master_port = '6000'
+        init_method += master_ip + ':' + master_port
+        torch.distributed.init_process_group(backend='gloo', world_size=1, rank=0, init_method=init_method)
+        parallel_state.initialize_model_parallel(1, 1)
+
+        model.train()
+        pl.seed_everything(1)
+        signal = torch.randn(2, 64000)
+        signal_len = torch.from_numpy(np.array([64000, 64000]))
+        transcript = torch.randn(2, 4).int()
+        transcript_length = torch.from_numpy(np.array([3, 2]))
+        batch = signal, signal_len, transcript, transcript_length
+        loss_mean = model.training_step(batch, None)
+        assert np.allclose(loss_mean.cpu().detach().numpy(), 5.1678314)
 
     # TODO(zhehuai): test ckpt restore
