@@ -208,16 +208,15 @@ class GPTSFTDataset(Dataset):
             elif self.truncation_field == "context":
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
-
         input_ids = context_ids
         answer_start_idx = len(input_ids)
-        
+
         # Adds bos token in the start
         if self.add_bos:
             context_ids = [self.tokenizer.bos_id] + context_ids
             input_ids = [self.tokenizer.bos_id] + input_ids
             answer_start_idx += 1
-        
+
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             context_ids = context_ids + [self.sep_id]
@@ -231,10 +230,10 @@ class GPTSFTDataset(Dataset):
             input_ids = input_ids + [self.tokenizer.eos_id]
 
         assert len(input_ids) <= self.max_seq_length
-        
+
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
-        
+
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
@@ -292,7 +291,7 @@ class GPTSFTDataset(Dataset):
         answers = [item['answer_ids'] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
         metadata = [item['metadata'] for item in batch]
-        
+
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
