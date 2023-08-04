@@ -53,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel, InferenceParams
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -89,7 +89,11 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.init_model(cfg, trainer)
+
+        self.inference_params = None
+        
+        # init_model is called by parent class already.
+        # self.init_model(cfg, trainer)
 
     def init_model(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
@@ -138,7 +142,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 trainer=trainer,
                 save_restore_connector=save_restore_connector,
                 override_config_path=frozen_model_cfg,
-            ).to(dtype=self.autocast_dtype)
+            )#.to(dtype=self.autocast_dtype)
 
         self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
@@ -169,8 +173,10 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
         ]:
-
-            self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+            if self.frozen_model.mcore_gpt:
+                self.word_embeddings = self.frozen_model.model.embedding.word_embeddings
+            else:
+                self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
 
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
 
@@ -178,7 +184,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             if not self.tokenizer.legacy:
-                self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.pad_id])[0]
+                self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
                 self.tokenizer.bos_token = self.tokenizer.ids_to_tokens([self.tokenizer.bos_id])[0]
                 self.tokenizer.eos_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
                 self.tokenizer.legacy = True
@@ -249,6 +255,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         inference=True,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        inference_params=None,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -258,7 +265,12 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.first_stage_of_pipeline():
             input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
-            if hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
+            if self.frozen_model.mcore_gpt and hasattr(self.frozen_model.model.embedding, "position_embeddings"):
+                position_embeddings = self.frozen_model.model.embedding.position_embeddings(
+                    position_ids
+                )
+                encoder_input = input_embeds + position_embeddings
+            elif not self.frozen_model.mcore_gpt and hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
                 position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
                     position_ids
                 )
@@ -272,7 +284,16 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input = None
 
         # Call forward on GPT model with preprocessed embeddings
-        if self.autocast_dtype == torch.float32:
+        if self.frozen_model.mcore_gpt:
+            output = self.frozen_model.model(
+                input_ids=None,
+                position_ids=None,
+                decoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                inference_params=inference_params,
+            )
+        elif self.autocast_dtype == torch.float32:
             output = self.frozen_model.model(
                 input_ids=None,
                 position_ids=None,
@@ -485,6 +506,12 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
+    def setup(self, stage=None):
+        super().setup(stage)
+
+        if self.frozen_model.cfg.get('transformer_engine', False):
+            self.frozen_model.setup_transformer_engine_tp_groups()
+
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
@@ -667,10 +694,24 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             attention_mask = attention_mask.cuda()
             position_ids = position_ids.cuda()
             task_ids = task_ids.cuda()
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            if self.frozen_model.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0),
+                        max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
 
             output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+
+            # Advance inference sequence offset.
+            if self.inference_params:
+                self.inference_params.sequence_len_offset += output_tensor.size(1)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
