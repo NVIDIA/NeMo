@@ -903,8 +903,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 model_module.train()
         self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
         return loss
-        # except StopIteration:
-        #     return
 
     def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():

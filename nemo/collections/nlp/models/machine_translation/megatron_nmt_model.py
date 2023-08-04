@@ -546,6 +546,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 else:
                     self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, batch_size=1)
                     self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False, batch_size=1)
+            outputs[dataloader_idx].clear() # free memory
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
@@ -560,10 +561,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 micro_batch_size=self._cfg.train_ds.micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-        if mode == 'val':
-            self.validation_step_outputs.clear() # free memory
-        else:
-            self.test_step_outputs.clear() # free memory
 
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """

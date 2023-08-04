@@ -685,7 +685,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def on_validation_epoch_end(self):
         # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
-        if len(self.validation_step_outputs) == 0:
+        if not self.validation_step_outputs:
             logging.warning("validation_epoch_end: outputs is empty")
             return None
         if parallel_state.is_pipeline_last_stage():

@@ -443,7 +443,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return super().on_validation_epoch_start()
 
     def on_validation_epoch_end(self):
-        if len(self.validation_step_outputs) == 0:
+        if not self.validation_step_outputs:
             return
 
         if parallel_state.is_pipeline_last_stage():
