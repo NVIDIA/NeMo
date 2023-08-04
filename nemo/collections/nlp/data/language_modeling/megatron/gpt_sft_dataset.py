@@ -16,7 +16,7 @@ from typing import Optional
 
 import numpy as np
 import torch
-from datasets import load_dataset
+from datasets import load_dataset, Features, Value, Sequence
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
@@ -101,6 +101,8 @@ class GPTSFTDataset(Dataset):
         assert self.truncation_field in ["answer", "context"]
 
         if hf_dataset:
+            #dia_feature = Features({'system': Value(dtype='string', id=None), 'mask': Value(dtype='string', id=None), 'type': Value(dtype='string', id=None), 'id': Value(dtype='int64', id=None), 'conversations': Sequence(feature={'from': Value(dtype='string', id=None), 'value': Value(dtype='string', id=None), 'label': Value(dtype='string', id=None)})})
+
             self.indexed_dataset = load_dataset(
                 'json', data_files=file_path, cache_dir=index_mapping_dir, num_proc=memmap_workers, split='train'
             )

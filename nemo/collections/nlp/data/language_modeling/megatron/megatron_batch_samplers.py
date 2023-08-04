@@ -169,6 +169,23 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             yield indices
 
 
+class MegatronInOrderPretrainingBatchSampler(MegatronPretrainingBatchSampler):
+
+    def __iter__(self):
+        batch = []
+        # Last batch will be dropped if drop_last is not set False
+        for idx in range(self.consumed_samples, self.total_samples):
+            batch.append(idx)
+            if len(batch) == self._global_batch_size:
+                # start_idx, end_idx = self.get_start_end_idx()
+                indices = batch[self.data_parallel_rank * self._global_batch_size_on_this_data_parallel_rank: (self.data_parallel_rank + 1) * self._global_batch_size_on_this_data_parallel_rank]
+                assert len(indices) == self._global_batch_size_on_this_data_parallel_rank
+                yield indices
+                # yield batch[start_idx:end_idx]
+                batch = []
+        # always drop the last
+
+
 @experimental
 class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
 

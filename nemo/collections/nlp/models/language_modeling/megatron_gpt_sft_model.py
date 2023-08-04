@@ -30,6 +30,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_contrasitve_chat_d
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
+    MegatronInOrderPretrainingBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
@@ -331,9 +332,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     losses.append(loss)
             contrasitve_loss = torch.stack(losses).mean()
             # only calculate the loss for the prefered one
-            losses = output_tensor_contrastive[:, 0].float()
+            losses = output_tensor_contrastive[:, 0].float().contiguous()
             loss_mask = loss_mask_contrastive[:, 0]
-            loss_mask = (loss_mask > 0).view(-1).float()
+            loss_mask = (loss_mask > 0).view(-1).float().contiguous()
             loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
             if self.training:
                 self.log('train sft loss', loss, batch_size=1)
@@ -737,7 +738,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             collate_fn = dataset.collate_fn
 
-        batch_sampler = MegatronPretrainingBatchSampler(
+
+        flag = self.cfg.data.get("chat", False)
+        if flag and isinstance(flag, str) and flag == "GPTContrastiveSFTChatDataset":
+            sampler_cls = MegatronInOrderPretrainingBatchSampler
+        else:
+            sampler_cls = MegatronPretrainingBatchSampler 
+
+        batch_sampler = sampler_cls(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=data_cfg.micro_batch_size,
@@ -747,6 +755,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             drop_last=True,
             pad_samples_to_global_batch_size=False,
         )
+
         return torch.utils.data.DataLoader(
             dataset,
             batch_sampler=batch_sampler,
