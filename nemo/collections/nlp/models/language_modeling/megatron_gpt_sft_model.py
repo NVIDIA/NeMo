@@ -570,7 +570,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                         deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
                     )
                 torch.distributed.barrier()
-            outputs[dataloader_idx].clear() # free memory
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
@@ -823,11 +822,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
+        self.test_step_outputs.clear()
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
         #return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
         _ = self.inference_epoch_end(self.validation_step_outputs_sft, 'validation', self.cfg.data.validation_ds)
+        self.validation_step_outputs_sft.clear()
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         #return super().on_validation_epoch_end()
 

@@ -744,11 +744,9 @@ class CoreAttention(MegatronModule):
         self.precision = precision
         self.fp16 = False
         self.bf16 = False
-        # Check for first few chars to be '16' or 'bf16' as Precision can also be '16-mixed' or 'bf16-mixed' 
-        # along with 16 or bf16 in case of PTL >= 2.0 
-        if str(precision)[0:4] == 'bf16':
+        if precision in ['bf16', 'bf16-mixed']:
             self.bf16 = True
-        elif str(precision)[0:2] == '16':
+        elif precision in [16, '16', '16-mixed']:
             self.fp16 = True
         self.multi_query_attention = multi_query_attention
         self.position_embedding_type = position_embedding_type
