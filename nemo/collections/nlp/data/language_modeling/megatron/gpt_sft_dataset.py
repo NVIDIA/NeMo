@@ -181,9 +181,11 @@ class GPTSFTDataset(Dataset):
                 text = text.replace(f'{{{ck}}}', ct)  # replace each context key with the context text
 
         if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = '\n'.join(contexts) + '\n' + output
+            context = '\n'.join(contexts)
+            text = context + '\n' + output
         elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = ' '.join(contexts) + ' ' + output
+            context = ' '.join(contexts)
+            text = context + ' ' + output
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
