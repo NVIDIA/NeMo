@@ -342,10 +342,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     [loss_reduced[k] for loss_reduced in losses_reduced_per_micro_batch]
                 ).mean()
         else:
-            if forward_only:
-                loss_mean = []
-            else:
-                loss_mean = torch.tensor(0.0).cuda()
+            # if forward_only:
+            #     loss_mean = []
+            # else:
+            loss_mean = torch.tensor(0.0).cuda()
             mean_loss_dict = {"loss": loss_mean}
 
         return mean_loss_dict
@@ -573,7 +573,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["labels"],
             global_batch["enc_mask"],
             global_batch["dec_mask"],
-            global_batch.get('data', None),
+            # FIXME: remove me
+            # global_batch.get('data', None),
         ]
 
     def get_forward_output_and_loss_func(self):
@@ -591,7 +592,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 lm_labels,
                 encoder_attn_mask,
                 decoder_attn_mask,
-                batch_data,
+                # FIXME: remove me
+                # batch_data,
             ) = batch
 
             output = model(
@@ -601,7 +603,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_attn_mask,  # dec_attn_mask
                 None,  # token_type_ids
                 lm_labels,  # labels
-                batch_data,  # batch_data
+                # FIXME: remove me
+                # batch_data,  # batch_data
             )
 
             def loss_func(output_tensor):
@@ -722,11 +725,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if len(outputs) == 0:
             logging.warning("validation_epoch_end: outputs is empty")
             return
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            averaged_outputs = {k: torch.stack([x[k] for x in outputs]).mean() for k in outputs[0].keys()}
-        else:
-            averaged_outputs = {}
+
+        # only the last pipeline parallel stages return loss
+        averaged_outputs = {k: torch.stack([x[k] for x in outputs]).mean() for k in outputs[0].keys()}
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         for k, v in averaged_outputs.items():
@@ -734,8 +735,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             n = f'{prefix}_{k}'
             # log only '*_loss' values in progress bar
             self.log(n, v, prog_bar=(n.endswith("_loss")), rank_zero_only=True, batch_size=1)
-
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         return averaged_outputs
 
@@ -1029,8 +1028,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # build input arguments description
         if tokens_enc is not None:
-            batch_for_pipeline = [tokens_enc, enc_mask, batch_data]
-            arg_names = ['enc_input_ids', 'enc_attn_mask', 'batch_data']
+            batch_for_pipeline = [tokens_enc, enc_mask]
+            arg_names = ['enc_input_ids', 'enc_attn_mask']
+            # FIXME: remove me
+            # batch_for_pipeline = [tokens_enc, enc_mask, batch_data]
+            # arg_names = ['enc_input_ids', 'enc_attn_mask', 'batch_data']
         else:
             if encoder_input is None:
                 raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
@@ -1211,8 +1213,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
             dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
-            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
-            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
+            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+            # FIXME: remove me
+            # batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
+            # arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
