@@ -94,9 +94,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
         self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
         self.virtual_tokens = 0
-        # Create a different self.validation_step_outputs as we call val step of parent class(MegatronGPTModel) here, 
-        # that appends to self.validation_step_outputs leading to wrong values in self.validation_step_outputs
-        self.validation_step_outputs_sft = []
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -393,9 +390,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             }
             if mode == 'validation':
                 if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-                    self.validation_step_outputs_sft[dataloader_idx].append(outputs)
+                    # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                    self.validation_step_outputs[dataloader_idx][-1] = outputs
                 else:
-                    self.validation_step_outputs_sft.append(outputs)
+                    # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                    self.validation_step_outputs[-1] = outputs
             else:
                 if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
                     self.test_step_outputs[dataloader_idx].append(outputs)
@@ -403,67 +402,67 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     self.test_step_outputs.append(outputs) 
             return outputs
             # TODO (sandeepsub): Figure out the subsequent decode bits.
-            length_params: LengthParam = {
-                "min_length": 0,
-                "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
-            }
-            sampling_params: SamplingParam = {
-                "use_greedy": True,
-                "temperature": 1.0,
-                "top_k": 1,
-                "top_p": 0.94,
-                "repetition_penalty": 1.2,
-                "add_BOS": False,
-                "all_probs": False,
-                "compute_logprob": False,
-                "end_strings": ["<|endoftext|>"],
-            }
-            result = megatron_gpt_generate(
-                model=self,
-                inputs=(
-                    batch['tokens'].cuda(),
-                    (batch['context_lengths'] - 1).cuda(),
-                ),  # NOTE: We do -1 here to remove the space between context and response.
-                tokenizer=self.tokenizer,
-                sampling_params=sampling_params,
-                length_params=length_params,
-                check_sequence_parallel_and_checkpointing=False,  # We need to skip these checks since we'll manually enbale and disable checkpointing between training and validation.
-            )
+            # length_params: LengthParam = {
+            #     "min_length": 0,
+            #     "max_length": batch['tokens'].size(1) - batch['context_lengths'].max(),
+            # }
+            # sampling_params: SamplingParam = {
+            #     "use_greedy": True,
+            #     "temperature": 1.0,
+            #     "top_k": 1,
+            #     "top_p": 0.94,
+            #     "repetition_penalty": 1.2,
+            #     "add_BOS": False,
+            #     "all_probs": False,
+            #     "compute_logprob": False,
+            #     "end_strings": ["<|endoftext|>"],
+            # }
+            # result = megatron_gpt_generate(
+            #     model=self,
+            #     inputs=(
+            #         batch['tokens'].cuda(),
+            #         (batch['context_lengths'] - 1).cuda(),
+            #     ),  # NOTE: We do -1 here to remove the space between context and response.
+            #     tokenizer=self.tokenizer,
+            #     sampling_params=sampling_params,
+            #     length_params=length_params,
+            #     check_sequence_parallel_and_checkpointing=False,  # We need to skip these checks since we'll manually enbale and disable checkpointing between training and validation.
+            # )
 
-            preds_text = []
-            labels_text = []
-            input_text = []
-            for idx, item in enumerate(result['token_ids']):
-                pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1 :])
-                input = self.tokenizer.ids_to_text(item[: batch['context_lengths'][idx] - 1])
-                label = self.tokenizer.ids_to_text(batch['tokens'][idx][batch['context_lengths'][idx] :].tolist())
-                preds_text.append(pred.strip())
-                labels_text.append(label.strip())
-                input_text.append(input.strip())
+            # preds_text = []
+            # labels_text = []
+            # input_text = []
+            # for idx, item in enumerate(result['token_ids']):
+            #     pred = self.tokenizer.ids_to_text(item[batch['context_lengths'][idx] - 1 :])
+            #     input = self.tokenizer.ids_to_text(item[: batch['context_lengths'][idx] - 1])
+            #     label = self.tokenizer.ids_to_text(batch['tokens'][idx][batch['context_lengths'][idx] :].tolist())
+            #     preds_text.append(pred.strip())
+            #     labels_text.append(label.strip())
+            #     input_text.append(input.strip())
 
-            metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-            assert len(preds_text) == len(labels_text) == len(input_text)
-            for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
-                # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-                pred, label = self.cast_for_metric(
-                    pred=pred.strip(),
-                    label=label.strip(),
-                    metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                    class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None)
-                    if mode == 'validation'
-                    else self.cfg.data.test_ds.metric.get('class_labels', None),
-                    labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False)
-                    if mode == 'validation'
-                    else self.cfg.data.test_ds.metric.get('labels_are_strings', False),
-                )
-                _ = metric(pred, label)
+            # metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            # assert len(preds_text) == len(labels_text) == len(input_text)
+            # for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
+            #     # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+            #     pred, label = self.cast_for_metric(
+            #         pred=pred.strip(),
+            #         label=label.strip(),
+            #         metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
+            #         class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None)
+            #         if mode == 'validation'
+            #         else self.cfg.data.test_ds.metric.get('class_labels', None),
+            #         labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False)
+            #         if mode == 'validation'
+            #         else self.cfg.data.test_ds.metric.get('labels_are_strings', False),
+            #     )
+            #     _ = metric(pred, label)
 
-            return {
-                'loss': loss,
-                'preds': preds_text,
-                'labels': labels_text,
-                'inputs': input_text,
-            }
+            # return {
+            #     'loss': loss,
+            #     'preds': preds_text,
+            #     'labels': labels_text,
+            #     'inputs': input_text,
+            # }
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
@@ -570,7 +569,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                         deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
                     )
                 torch.distributed.barrier()
-
+            outputs[dataloader_idx].clear() # free memory
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 1 else None
@@ -822,13 +821,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
 
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
-        self.test_step_outputs.clear()
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
         #return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
-        _ = self.inference_epoch_end(self.validation_step_outputs_sft, 'validation', self.cfg.data.validation_ds)
-        self.validation_step_outputs_sft.clear()
+        _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         #return super().on_validation_epoch_end()
 
