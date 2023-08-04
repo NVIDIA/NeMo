@@ -397,7 +397,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Meta data from dataset
         metadata = batch.pop('metadata')
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
-        
+
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
         if self.get_inference_config() is None:
@@ -438,7 +438,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss)
             averaged_loss.append(loss)
-            
+
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
             gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather_object(
