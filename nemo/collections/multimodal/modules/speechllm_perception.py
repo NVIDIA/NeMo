@@ -67,7 +67,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "encoded": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded": NeuralType(("B", "T", "D"), AcousticEncodedRepresentation()),
                 "encoded_len": NeuralType(tuple("B"), LengthsType()),
             }
         )
@@ -87,6 +87,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         self.encoder = encoder
         self.spec_augmentation = spec_augment
         self.matcher = matcher
+        self.proj = nn.Linear(matcher.d_model, d_model)
         if freeze_encoder:
             for params in self.encoder.parameters():
                 params.requires_grad = False
@@ -136,8 +137,8 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         encoded, encoded_len = self.encoder(
             audio_signal=processed_signal, length=processed_signal_length
         )
-        encoded, encoded_len = self.matcher(
-            audio_signal=processed_signal, length=processed_signal_length
-        )
+        encoded, encoded_len = self.matcher(audio_signal=encoded, length=encoded_len)
+        # b, t, c
+        encoded = self.proj(encoded.transpose(1,2))
 
         return encoded, encoded_len
