@@ -130,8 +130,6 @@ def main(cfg) -> None:
         peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
         if peft_model_cfg.get("use_flash_attention", False):
             peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
-        if peft_model_cfg.get("apply_query_key_layer_scaling", False):
-            peft_model_cfg.apply_query_key_layer_scaling = cfg.model.get('apply_query_key_layer_scaling', True)
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
 
