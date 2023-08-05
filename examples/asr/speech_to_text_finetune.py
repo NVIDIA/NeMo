@@ -59,15 +59,16 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 
 """
 
+import os
+
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
-import os
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from pytorch_lightning.utilities import rank_zero_only
 
 
 @hydra_runner(config_path="conf/finetune", config_name="fintune_with_existing_tokenizer")
@@ -86,13 +87,13 @@ def main(cfg):
         return asr_model
 
     asr_model = get_model(cfg.init_from_pretrained_model)
-        
+
     # Setup Data
     asr_model.setup_training_data(cfg.model.train_ds)
     asr_model.setup_validation_data(cfg.model.validation_ds)
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         asr_model.setup_test_data(cfg.model.test_ds)
-    
+
     # Setup Optimizer
     asr_model.setup_optimization(cfg.model.optim)
 
