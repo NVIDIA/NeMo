@@ -198,19 +198,6 @@ class ModelPT(LightningModule, Model):
         # Setup nsys profiling if it has been enabled in the model config
         self._setup_nsys_profiling()
 
-    def _prefetch(self, iterator):
-        """Checks if the iterator still has elements to return.
-        Used in models using dataloader_iter to prefetch the next batch before fwd_bwd func
-        is called to avoid PP rank 2 from wait indefinitely to get outpits from PP 1
-        """
-        try:
-            element = next(iterator)
-        except StopIteration:
-            return iterator, True
-
-        # return a new iterator with the prefetched element reinserted at the front
-        return itertools.chain([element], iterator), False
-
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 

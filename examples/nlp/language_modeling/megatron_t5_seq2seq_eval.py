@@ -91,9 +91,9 @@ def main(cfg) -> None:
         else:
             plugin_precision = 'bf16-mixed'
         if megatron_amp_o2:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
-            plugins.append(MixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugins.append(MixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())

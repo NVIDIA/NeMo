@@ -134,6 +134,7 @@ class TextClassificationModel(NLPModel, Exportable):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
+        avg_loss = torch.tensor(0)
         if split == 'val':
             avg_loss = torch.stack([x[f'val_loss'] for x in self.validation_step_outputs]).mean()
             self.validation_step_outputs.clear()  # free memory
