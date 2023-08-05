@@ -206,10 +206,8 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
-    else:
-        resume_from_checkpoint = trainer._checkpoint_connector._ckpt_path
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+        trainer.ckpt_path = cfg.model.resume_from_checkpoint
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     trainer._checkpoint_connector = _CheckpointConnector(trainer)
 
@@ -229,7 +227,7 @@ def main(cfg) -> None:
         )
         base_model_cfg = _modify_config(base_model_cfg, cfg, add_cfg_to_tree=False)
         save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
+            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=trainer.ckpt_path
         )
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path

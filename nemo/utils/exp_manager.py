@@ -897,7 +897,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer._checkpoint_connector._ckpt_path or ""
+    checkpoint_callback.last_model_path = trainer.ckpt_path or ""
     if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
         checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)

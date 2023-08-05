@@ -106,7 +106,7 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
-    resume_from_checkpoint = trainer._checkpoint_connector._ckpt_path
+    resume_from_checkpoint = trainer.ckpt_path
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer._checkpoint_connector = _CheckpointConnector(trainer)

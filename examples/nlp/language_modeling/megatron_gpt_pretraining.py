@@ -74,11 +74,9 @@ def main(cfg) -> None:
 
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
-    else:
-        resume_from_checkpoint = trainer._checkpoint_connector._ckpt_path
+        trainer.ckpt_path =  cfg.model.resume_from_checkpoint
 
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     trainer._checkpoint_connector = _CheckpointConnector(trainer)
 

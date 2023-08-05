@@ -18,7 +18,7 @@ import tempfile
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -162,12 +162,11 @@ def main(cfg) -> None:
 
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
-    else:
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+        trainer.ckpt_path = cfg.model.resume_from_checkpoint
 
-    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
+
+    trainer._checkpoint_connector = _CheckpointConnector(trainer)
 
     if cfg.restore_from_path:
         save_restore_connector = NLPSaveRestoreConnector()
