@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import copy
 import inspect
-import itertools
 import os
 import uuid
 from abc import abstractmethod
