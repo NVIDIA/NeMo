@@ -432,6 +432,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
+        global_rank = torch.distributed.get_rank()
+        for param in self.parameters():
+            grad_norm = torch.zeros([], device='cuda', dtype=torch.float32)
+            if getattr(param, 'grad', None) is not None:
+                grad_norm += torch.linalg.norm(param.grad)
+            if getattr(param, 'main_grad', None) is not None:
+                grad_norm += torch.linalg.norm(param.main_grad)
+            assert not grad_norm.isnan(), f'Rank {global_rank}: Found NaN in local grad norm after the global-batch bprop'
+
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
