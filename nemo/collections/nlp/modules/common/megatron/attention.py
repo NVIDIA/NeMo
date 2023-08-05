@@ -1035,13 +1035,9 @@ class CoreAttention(MegatronModule):
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         
         if self.position_embedding_type == 'alibi':
-            if is_causal:
-                bias_type = 'vector'
-                assert len(attention_bias.size()) == 4
-            else:
-                bias_type = 'alibi'
-                attention_bias = attention_bias.squeeze()
-                assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
+            bias_type = 'alibi'
+            attention_bias = attention_bias.squeeze()
+            assert len(attention_bias.size()) == 1, 'Alibi bias should only contain head scales.'
         else:
             bias_type = 'matrix'
             assert len(attention_bias.size()) == 4
