@@ -80,7 +80,7 @@ def main(cfg):
 
     @rank_zero_only
     def get_model(name):
-        if os.path.isfile():
+        if os.path.isfile(name):
             asr_model = ASRModel.restore_from(name)
         else:
             asr_model = ASRModel.from_pretrained(name)
