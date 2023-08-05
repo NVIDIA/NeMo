@@ -330,17 +330,13 @@ class TestExpManager:
             {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert (
-            Path(test_trainer.ckpt_path).resolve() == checkpoint.resolve()
-        )
+        assert Path(test_trainer.ckpt_path).resolve() == checkpoint.resolve()
 
         # Succeed again and make sure that run_0 exists and previous log files were moved
         test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         exp_manager(test_trainer, {"resume_if_exists": True, "explicit_log_dir": str(log_dir)})
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert (
-            Path(test_trainer.ckpt_path).resolve() == checkpoint.resolve()
-        )
+        assert Path(test_trainer.ckpt_path).resolve() == checkpoint.resolve()
         prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0")
         assert prev_run_dir.exists()
         prev_log = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0" / "lightning_logs.txt")
@@ -373,10 +369,7 @@ class TestExpManager:
                 "explicit_log_dir": str(dirpath_log_dir),
             },
         )
-        assert (
-            Path(test_trainer.ckpt_path).resolve()
-            == dirpath_checkpoint.resolve()
-        )
+        assert Path(test_trainer.ckpt_path).resolve() == dirpath_checkpoint.resolve()
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_1(self, tmp_path):

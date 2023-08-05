@@ -241,8 +241,8 @@ class CTCG2PModel(G2PModel, ASRBPEMixin):
             if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
                 self.test_step_outputs[dataloader_idx].append(loss)
             else:
-                self.test_step_outputs.append(loss)            
-                
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):

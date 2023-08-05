@@ -546,7 +546,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 else:
                     self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, batch_size=1)
                     self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False, batch_size=1)
-            outputs[dataloader_idx].clear() # free memory
+            outputs[dataloader_idx].clear()  # free memory
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)

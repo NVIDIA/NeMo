@@ -185,7 +185,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if type(self._validation_dl) == list and len(self._validation_dl) > 1:
             raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
-        if type(self._test_dl) == list and len(self._test_dl) > 1: 
+        if type(self._test_dl) == list and len(self._test_dl) > 1:
             raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
@@ -381,7 +381,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         loss = super().validation_step(dataloader_iter, batch_idx)
         # loss can be None as super().validation_step returns None when dataloader_iter is exhausted
         # which can lead to error, adding check to prevent it
-        if loss is not None: # Ensure its not None
+        if loss is not None:  # Ensure its not None
             outputs = {
                 'loss': loss,
                 'preds': None,
@@ -399,7 +399,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
                     self.test_step_outputs[dataloader_idx].append(outputs)
                 else:
-                    self.test_step_outputs.append(outputs) 
+                    self.test_step_outputs.append(outputs)
             return outputs
             # TODO (sandeepsub): Figure out the subsequent decode bits.
             # length_params: LengthParam = {
@@ -478,10 +478,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
-            #loss = super().on_validation_epoch_end([x['loss'] for x in output])
+            # loss = super().on_validation_epoch_end([x['loss'] for x in output])
             loss_vals = [x['loss'] for x in output]
             if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss with their batch size
+                # only the last pipeline parallel stages return loss with their batch size
                 if self.cfg.data.get('validation_drop_last', True):
                     loss = torch.stack(loss_vals).mean()
                 else:
@@ -569,7 +569,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                         deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
                     )
                 torch.distributed.barrier()
-            outputs[dataloader_idx].clear() # free memory
+            outputs[dataloader_idx].clear()  # free memory
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 1 else None
@@ -822,12 +822,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
-        #return super().on_test_epoch_end()
+        # return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
         _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
-        #return super().on_validation_epoch_end()
+        # return super().on_validation_epoch_end()
 
     def on_train_epoch_start(self) -> None:
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()

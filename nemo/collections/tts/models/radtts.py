@@ -259,7 +259,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             dataformats='HWC',
         )
         self.log_train_images = True
-        self.validation_step_outputs.clear() # free memory
+        self.validation_step_outputs.clear()  # free memory
 
     def configure_optimizers(self):
         logging.info("Initializing %s optimizer" % (self.optim.name))

@@ -78,6 +78,7 @@ class ExampleModel(ModelPT):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean())
         self.validation_step_outputs.clear()  # free memory
 
+
 def instantiate_multinode_ddp_if_possible():
     num_gpus = torch.cuda.device_count()
     ## Change logger=None to logger=False to support PTL 2.0

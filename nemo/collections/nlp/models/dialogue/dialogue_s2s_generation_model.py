@@ -99,7 +99,7 @@ class DialogueS2SGenerationModel(NLPModel):
 
     def on_test_epoch_end(self):
         self.eval_epoch_end(self.test_step_outputs, mode='test')
-        self.test_step_outputs.clear() # free memory
+        self.test_step_outputs.clear()  # free memory
 
     def eval_epoch_end(self, outputs, mode='val'):
 

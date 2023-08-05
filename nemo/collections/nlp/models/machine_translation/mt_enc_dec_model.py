@@ -533,7 +533,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
                 getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
-            outputs[dataloader_idx].clear() # free memory
+            outputs[dataloader_idx].clear()  # free memory
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)

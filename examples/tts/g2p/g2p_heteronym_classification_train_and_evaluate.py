@@ -69,7 +69,7 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    model = None 
+    model = None
     if cfg.do_training:
         model = HeteronymClassificationModel(cfg=cfg.model, trainer=trainer)
         lr_logger = pl.callbacks.LearningRateMonitor()

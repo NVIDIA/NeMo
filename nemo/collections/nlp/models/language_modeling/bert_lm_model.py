@@ -195,7 +195,7 @@ class BERTLMModel(ModelPT):
             perplexity = self.validation_perplexity.compute()
             logging.info(f"evaluation perplexity {perplexity.cpu().item()}")
             self.log(f'val_loss', avg_loss)
-            self.validation_step_outputs.clear() #free memory
+            self.validation_step_outputs.clear()  # free memory
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (

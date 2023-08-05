@@ -139,7 +139,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
             )
         avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
         self.log('val_loss', avg_loss)
-        self.validation_step_outputs.clear() # free memory
+        self.validation_step_outputs.clear()  # free memory
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

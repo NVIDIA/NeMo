@@ -172,7 +172,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def on_train_epoch_start(self) -> None:
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
-        #self.on_validation_epoch_end()
+        # self.on_validation_epoch_end()
         return super().on_train_epoch_start()
 
     def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
@@ -369,7 +369,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
                     self.test_step_outputs[dataloader_idx].append(outputs)
                 else:
-                    self.test_step_outputs.append(outputs)            
+                    self.test_step_outputs.append(outputs)
             return outputs
         except StopIteration:
             return
@@ -423,7 +423,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             # Expand on_validation_epoch_end from parent class MegatronLMEncoderDecoderModel as it doesnt take arg outputs
-            #loss = super().validation_epoch_end([x['loss'] for x in output])
+            # loss = super().validation_epoch_end([x['loss'] for x in output])
             loss_vals = [x['loss'] for x in output]
             # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
             if len(loss_vals) == 0:
@@ -439,7 +439,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             torch.distributed.broadcast(loss, get_last_rank())
             self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1)
             self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
- 
+
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
@@ -527,7 +527,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
                     )
                 torch.distributed.barrier()
-            outputs[dataloader_idx].clear() #free memory
+            outputs[dataloader_idx].clear()  # free memory
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
@@ -581,7 +581,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def on_validation_epoch_end(self):
         _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
-        #return super().on_validation_epoch_end()
+        # return super().on_validation_epoch_end()
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
@@ -589,7 +589,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def on_test_epoch_end(self):
         _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
-        #return super().on_test_epoch_end()
+        # return super().on_test_epoch_end()
 
     def build_data_loader(
         self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,

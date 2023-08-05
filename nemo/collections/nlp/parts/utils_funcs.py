@@ -30,7 +30,7 @@ from nemo.utils import logging
 def dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Optional[bool]) -> torch.dtype:
     if megatron_amp_O2 is not None and megatron_amp_O2 is False:
         return torch.float32
-    
+
     if precision in ['bf16', 'bf16-mixed']:
         return torch.bfloat16
     elif precision in [16, '16', '16-mixed']:

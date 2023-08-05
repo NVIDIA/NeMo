@@ -602,7 +602,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             AccessMixin.reset_registry(self)
 
         return tensorboard_logs
-    
+
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         tensorboard_logs = self.validation_pass(batch, batch_idx, dataloader_idx)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:

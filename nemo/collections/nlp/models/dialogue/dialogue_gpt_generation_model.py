@@ -87,7 +87,7 @@ class DialogueGPTGenerationModel(NLPModel):
 
     def on_test_epoch_end(self):
         self.eval_epoch_end(self.test_step_outputs, mode='test')
-        self.test_step_outputs.clear () # free memory
+        self.test_step_outputs.clear()  # free memory
 
     def eval_epoch_end(self, outputs, mode='val'):
 
@@ -137,7 +137,7 @@ class DialogueGPTGenerationModel(NLPModel):
         loss = self.eval_step_helper(batch=batch, mode='test')
         self.test_step_outputs.append(loss)
         return loss
-    
+
     # for inference only
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
         # return self(batch)

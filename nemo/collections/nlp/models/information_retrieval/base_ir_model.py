@@ -168,7 +168,7 @@ class BaseIRModel(NLPModel):
             val_mrr = self.calculate_mean_reciprocal_rank(query2passages, query2rels)
 
         val_loss = torch.stack([x["val_loss"] for x in self.validation_step_outputs]).mean()
-        self.validation_step_outputs.clear() #free memory
+        self.validation_step_outputs.clear()  # free memory
         tensorboard_logs = {
             "val_mrr": val_mrr,
             "val_loss": val_loss,

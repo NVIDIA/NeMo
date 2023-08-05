@@ -404,7 +404,7 @@ class IntentSlotClassificationModel(NLPModel):
         if prefix == "val":
             outputs = self.validation_step_outputs
         else:
-            outputs = self.test_step_outputs        
+            outputs = self.test_step_outputs
         (
             unified_slot_precision,
             unified_slot_recall,

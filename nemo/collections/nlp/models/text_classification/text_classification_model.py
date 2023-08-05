@@ -108,7 +108,7 @@ class TextClassificationModel(NLPModel, Exportable):
             'lr': lr,
         }
 
-    def validation_step(self, batch, batch_idx, split = "val"):
+    def validation_step(self, batch, batch_idx, split="val"):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -136,10 +136,10 @@ class TextClassificationModel(NLPModel, Exportable):
         """
         if split == 'val':
             avg_loss = torch.stack([x[f'val_loss'] for x in self.validation_step_outputs]).mean()
-            self.validation_step_outputs.clear() #free memory
+            self.validation_step_outputs.clear()  # free memory
         elif split == 'test':
             avg_loss = torch.stack([x[f'test_loss'] for x in self.test_step_outputs]).mean()
-            self.test_step_outputs.clear() #free memory
+            self.test_step_outputs.clear()  # free memory
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()

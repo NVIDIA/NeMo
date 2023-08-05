@@ -108,13 +108,13 @@ class S2SQAModel(BaseQAModel):
             generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
                 self.validation_step_outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
             )
-            self.validation_step_outputs.clear() # free memory
+            self.validation_step_outputs.clear()  # free memory
         else:
             loss_terms = [x[f"{prefix}_loss"] for x in self.test_step_outputs]
             generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
                 self.test_step_outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
             )
-            self.test_step_outputs.clear() # free memory
+            self.test_step_outputs.clear()  # free memory
 
         avg_loss = torch.stack(loss_terms).mean()
 

@@ -192,7 +192,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             collate_fn=dataset.collate_fn,
         )
 
-    def validation_step(self, batch, batch_idx, split = 'val'):
+    def validation_step(self, batch, batch_idx, split='val'):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -303,7 +303,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         self.log('unfied_accuracy', label_acc * 100)
         self.log('val_loss', avg_loss, prog_bar=True)
 
-        self.validation_step_outputs.clear() #free memory
+        self.validation_step_outputs.clear()  # free memory
         self.classification_report.reset()
 
     def predict(

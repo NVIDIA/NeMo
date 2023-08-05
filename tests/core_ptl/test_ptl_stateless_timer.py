@@ -82,6 +82,7 @@ class ExampleModel(ModelPT):
         self.log("val_loss", torch.stack(self.validation_step_outputs).mean(), sync_dist=True)
         self.validation_step_outputs.clear()  # free memory
 
+
 class TestStatelessTimer:
     def setup_model(self):
         # Stateless timer for 3 seconds.

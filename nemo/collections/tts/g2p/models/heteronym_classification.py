@@ -148,7 +148,7 @@ class HeteronymClassificationModel(NLPModel):
         return loss
 
     def on_validation_epoch_end(self):
-        split = "test" if self.trainer.testing else "val"      
+        split = "test" if self.trainer.testing else "val"
         if split == 'val':
             avg_loss = torch.stack([x[f'{split}_loss'] for x in self.validation_step_outputs]).mean()
         elif split == 'test':
@@ -180,9 +180,9 @@ class HeteronymClassificationModel(NLPModel):
         self.classification_report.reset()
 
         if split == 'val':
-            self.validation_step_outputs.clear() # free memory
+            self.validation_step_outputs.clear()  # free memory
         elif split == 'test':
-            self.test_step_outputs.clear() 
+            self.test_step_outputs.clear()
 
     def test_step(self, batch, batch_idx):
         """

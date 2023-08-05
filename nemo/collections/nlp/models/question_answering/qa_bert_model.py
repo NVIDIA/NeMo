@@ -96,14 +96,14 @@ class BERTQAModel(BaseQAModel):
             unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in self.validation_step_outputs])
             start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in self.validation_step_outputs])
             end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in self.validation_step_outputs])
-            self.validation_step_outputs.clear() # free memory
+            self.validation_step_outputs.clear()  # free memory
         else:
             avg_loss = torch.stack([x[f'{prefix}_loss'] for x in self.test_step_outputs]).mean()
 
             unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in self.test_step_outputs])
             start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in self.test_step_outputs])
             end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in self.test_step_outputs])
-            self.test_step_outputs.clear() # free memory
+            self.test_step_outputs.clear()  # free memory
 
         all_unique_ids = []
         all_start_logits = []

@@ -300,15 +300,27 @@ class Tacotron2Model(SpectrogramGenerator):
                     break
             if isinstance(logger, TensorBoardLogger):
                 tacotron2_log_to_tb_func(
-                    logger, self.validation_step_outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                    logger,
+                    self.validation_step_outputs[0].values(),
+                    self.global_step,
+                    tag="val",
+                    log_images=True,
+                    add_audio=False,
                 )
             elif isinstance(logger, WandbLogger):
                 tacotron2_log_to_wandb_func(
-                    logger, self.validation_step_outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                    logger,
+                    self.validation_step_outputs[0].values(),
+                    self.global_step,
+                    tag="val",
+                    log_images=True,
+                    add_audio=False,
                 )
-        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()  # This reduces across batches, not workers!
+        avg_loss = torch.stack(
+            [x['val_loss'] for x in self.validation_step_outputs]
+        ).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss)
-        self.validation_step_outputs.clear() # free memory
+        self.validation_step_outputs.clear()  # free memory
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:

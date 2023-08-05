@@ -410,24 +410,22 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 preds_text.append(pred)
                 labels_text.append(label)
             if mode == 'val':
-                self.validation_step_outputs.append({
-                'loss': loss_mean,
-                'preds': preds_text,
-                'labels': labels_text,
-            })
+                self.validation_step_outputs.append(
+                    {'loss': loss_mean, 'preds': preds_text, 'labels': labels_text,}
+                )
             else:
-                self.test_step_outputs.append({
-                'loss': loss_mean,
-                'preds': preds_text,
-                'labels': labels_text,
-            })
+                self.test_step_outputs.append(
+                    {'loss': loss_mean, 'preds': preds_text, 'labels': labels_text,}
+                )
             return {
                 'loss': loss_mean,
                 'preds': preds_text,
                 'labels': labels_text,
             }
 
-        self.validation_step_outputs.append({'loss': loss_mean}) if mode == 'val' else self.test_step_outputs.append({'loss': loss_mean})
+        self.validation_step_outputs.append({'loss': loss_mean}) if mode == 'val' else self.test_step_outputs.append(
+            {'loss': loss_mean}
+        )
         return {'loss': loss_mean}
 
     def on_train_epoch_start(self) -> None:
@@ -495,7 +493,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
-        self.validation_step_outputs.clear() #free memory
+        self.validation_step_outputs.clear()  # free memory
 
     def test_step(self, dataloader_iter, batch_idx):
         return self.validation_step(dataloader_iter, batch_idx)
@@ -503,7 +501,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
-        self.test_step_outputs.clear() # free memory
+        self.test_step_outputs.clear()  # free memory
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):

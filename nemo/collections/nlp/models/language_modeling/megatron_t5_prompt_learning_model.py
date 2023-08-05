@@ -405,7 +405,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
 
-        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear() # free memory
+        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()  # free memory
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

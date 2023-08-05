@@ -590,7 +590,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
             self.log_train_images = True
-        self.validation_step_outputs.clear() # free memory)
+        self.validation_step_outputs.clear()  # free memory)
 
     def _setup_train_dataloader(self, cfg):
         phon_mode = contextlib.nullcontext()

@@ -696,7 +696,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.validation_step_outputs.clear() # free memory
+        self.validation_step_outputs.clear()  # free memory
         return averaged_loss
 
     def test_step(self, dataloader_iter, batch_idx):
@@ -712,7 +712,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.test_step_outputs.clear() # free memory
+        self.test_step_outputs.clear()  # free memory
         return averaged_loss
 
     def loss_func(self, loss_mask, tokens_loss):

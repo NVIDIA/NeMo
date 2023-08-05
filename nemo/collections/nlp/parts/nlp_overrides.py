@@ -19,20 +19,20 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union, Literal
+from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
+from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.loops.fetchers import _DataFetcher
-from pytorch_lightning.trainer.states import TrainerFn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -145,7 +145,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # this means that data parallel groups span multiple GPUs
                 # and are non-trivial
                 # TODO: for megatron-lm self.model is a list
-                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults 
+                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults
                 # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
                 # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
@@ -533,7 +533,10 @@ class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
     """
 
     def __init__(
-        self, precision: Literal["16-mixed", "bf16-mixed"], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+        self,
+        precision: Literal["16-mixed", "bf16-mixed"],
+        device: str,
+        scaler: Optional[torch.cuda.amp.GradScaler] = None,
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
         dtype = None

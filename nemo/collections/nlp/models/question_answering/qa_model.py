@@ -163,7 +163,7 @@ class QAModel(NLPModel):
         self.log(f'{prefix}_loss', avg_loss)
         self.log(f'{prefix}_exact_match', exact_match)
         self.log(f'{prefix}_f1', f1)
-        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear() # free memory
+        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()  # free memory
 
     def on_test_epoch_end(self):
         return self.on_validation_epoch_end()
