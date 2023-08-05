@@ -84,7 +84,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 
 def load_config(args, llama_config):
-    nemo_config = OmegaConf.load('/NeMo/examples/nlp/language_modeling/conf/megatron_llama_config.yaml').model
+    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')).model
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
     nemo_config.num_layers = int(llama_config['num_hidden_layers'])
     nemo_config.hidden_size = llama_config['hidden_size']
