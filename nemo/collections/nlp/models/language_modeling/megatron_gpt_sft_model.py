@@ -258,7 +258,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     'separate_prompt_and_response_with_newline', True
                 ),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
-                truncation_field=data_cfg.get('truncation_field', 'context'),
+                truncation_fields=data_cfg.get('truncation_field', 'text'),
                 pad_to_max_length=False,
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),

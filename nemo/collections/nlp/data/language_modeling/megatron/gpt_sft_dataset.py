@@ -21,6 +21,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 
 __all__ = ['GPTSFTDataset']
 
@@ -42,7 +43,7 @@ class GPTSFTDataset(Dataset):
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
-        truncation_field: str = "context",
+        truncation_fields: Union[List[str], str] = "text",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         index_mapping_dir: str = None,
         prompt_template: str = None,
@@ -62,11 +63,11 @@ class GPTSFTDataset(Dataset):
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         seed: int = 1234,
-        context_key: Key to use for the context in your JSONL file
+        context_keys: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
+        truncation_field: Field to use for truncation. (Options: keys in context_keys). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
@@ -83,14 +84,19 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         if isinstance(context_keys, str):
             self.context_keys = context_keys.split(',')
-        elif isinstance(context_keys, list):
+        elif isinstance(context_keys, list) or isinstance(context_keys, list):
             self.context_keys = context_keys
         else:
             raise RuntimeError("context_key is invalid type")
         self.label_key = label_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
-        self.truncation_field = truncation_field
+        if isinstance(truncation_fields, str):
+            self.truncation_fields = set(truncation_fields.split(','))
+        elif isinstance(truncation_fields, list):
+            self.truncation_fields = set(truncation_fields)
+        else:
+            raise RuntimeError("truncation_fields is invalid type")
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
@@ -99,7 +105,7 @@ class GPTSFTDataset(Dataset):
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        assert self.truncation_field in ["answer", "context"]
+        assert self.truncation_fields.issubset(self.context_keys), f'truncation_fields must in {self.context_keys}'
 
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[file_path],
@@ -148,16 +154,11 @@ class GPTSFTDataset(Dataset):
         assert idx < len(self.indexed_dataset)
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-
-    def _process_example(self, example):
+    
+    def _process_prompt(self, contexts: List[str], label: str):
         """
-        Create an example by concatenating text and answer.
-        Truncation is carried out when needed, but it is performed only on the prompt side.
-        BOS, EOS, and SEP, are added if specified.
+        Combine contexts and label string into a unifed string.
         """
-        contexts = [example[c] for c in self.context_keys]
-        output = example[self.label_key]
-
         if self.prompt_template is not None:
             for ck in self.context_keys:
                 assert f'{{{ck}}}' in self.prompt_template
@@ -176,65 +177,96 @@ class GPTSFTDataset(Dataset):
 
             # Replace the input and output placeholders with the actual input and output
             text = self.prompt_template[:]
-            text = text.replace(f'{{{self.label_key}}}', output)
+            text = text.replace(f'{{{self.label_key}}}', label)
             for ct, ck in zip(original_contexts, self.context_keys):
                 text = text.replace(f'{{{ck}}}', ct)  # replace each context key with the context text
 
-        if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+        elif self.separate_prompt_and_response_with_newline:
             context = '\n'.join(contexts)
-            text = context + '\n' + output
-        elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
+            text = context + '\n' + label
+            
+        else:
             context = ' '.join(contexts)
-            text = context + ' ' + output
+            text = context + ' ' + label
+            
+        context_ids = self.tokenizer.text_to_ids(context)
+        label_ids = self.tokenizer.text_to_ids(text)[len(context_ids) :]
+        
+        return context_ids, label_ids
+    
+    def _process_truncation(self, contexts: List[str], label: str):
+        """
+        Calculate total tokens and truncate contexts.
+        """
+        context_ids, label_ids = self._process_prompt(contexts, label)
+        total_ids = (
+            self.virtual_tokens
+            + len(context_ids)
+            + max(len(label_ids), self.tokens_to_generate)
+            + self.add_bos
+            + self.add_sep
+        )
+        # Only training need to consider eos token
+        if self.tokens_to_generate == 0:
+            total_ids += self.add_eos
+        
+        if total_ids > self.max_seq_length:
+            truncation_length_total = total_ids - self.max_seq_length
+            field_length = len(self.truncation_fields)
+            # Sorted equal divide length to each field
+            truncation_length_list = [truncation_length_total // field_length + (1 if i < truncation_length_total % field_length else 0) for i in range(field_length)[::-1]]
+            
+            for i, ck in enumerate(self.context_keys):
+                if ck in self.truncation_fields:
+                    context_ids = self.tokenizer.text_to_ids(contexts[i])
+                    truncation_length = truncation_length_list.pop()
+                    assert len(context_ids) >= truncation_length, f'{ck} is not long enough to truncate.'
+                    context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+                    contexts[i] = self.tokenizer.ids_to_text(context_ids)
+            
+        return contexts
+        
 
+    def _process_example(self, example):
+        """
+        Create an example by concatenating text and answer.
+        Truncation is carried out when needed, but it is performed only on the prompt side.
+        BOS, EOS, and SEP, are added if specified.
+        """
+        contexts = [example[c] for c in self.context_keys]
+        label = example[self.label_key]
+
+        contexts = self._process_truncation(contexts, label)
+        context_ids, label_ids = self._process_prompt(contexts, label)
+        
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
-            pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
-        else:
-            pre_pad = []
-        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context_ids) :]
+            context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
 
-        # for the long context cases, collate_fn includes self.tokens_to_generate for padding
-        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
-        if self.add_bos:
-            total_ids += 1
-        if self.add_sep:
-            total_ids += 1
-        if self.add_eos:
-            total_ids += 1
-
-        # If the total number of token is greater than the max, we will try to truncate the answer
-        if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            elif self.truncation_field == "context":
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-
-        if len(context_ids) > self.max_seq_length:
-            context_ids = context_ids[: self.max_seq_length]
-
-        assert len(context_ids) <= self.max_seq_length
         input_ids = context_ids
-
         answer_start_idx = len(input_ids)
+        
+        # Adds bos token in the start
+        if self.add_bos:
+            context_ids = [self.tokenizer.bos_id] + context_ids
+            input_ids = [self.tokenizer.bos_id] + input_ids
+            answer_start_idx += 1
+
         # Adds sep token between text/prompt and answer
         if self.add_sep:
+            context_ids = context_ids + [self.sep_id]
             input_ids = input_ids + [self.sep_id]
             answer_start_idx += 1
 
-        input_ids = input_ids + answer_ids
+        input_ids = input_ids + label_ids
 
-        if self.add_bos:
-            input_ids = [self.tokenizer.bos_id] + input_ids
-            answer_start_idx += 1
-        if self.add_eos:
+        # Only training need to consider eos token
+        if self.add_eos and self.tokens_to_generate == 0:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
-        if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
+        if len(input_ids) > self.max_seq_length:
+            logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
             input_ids = input_ids[: self.max_seq_length]
 
         processed_example = {
