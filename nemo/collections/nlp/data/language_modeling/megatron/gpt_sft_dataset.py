@@ -154,7 +154,7 @@ class GPTSFTDataset(Dataset):
         assert idx < len(self.indexed_dataset)
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-    
+
     def _process_prompt(self, contexts: List[str], label: str):
         """
         Combine contexts and label string into a unifed string.
@@ -184,16 +184,16 @@ class GPTSFTDataset(Dataset):
         elif self.separate_prompt_and_response_with_newline:
             context = '\n'.join(contexts)
             text = context + '\n' + label
-            
+
         else:
             context = ' '.join(contexts)
             text = context + ' ' + label
-            
+
         context_ids = self.tokenizer.text_to_ids(context)
         label_ids = self.tokenizer.text_to_ids(text)[len(context_ids) :]
-        
+
         return context_ids, label_ids
-    
+
     def _process_truncation(self, contexts: List[str], label: str):
         """
         Calculate total tokens and truncate contexts.
@@ -209,13 +209,16 @@ class GPTSFTDataset(Dataset):
         # Only training need to consider eos token
         if self.tokens_to_generate == 0:
             total_ids += self.add_eos
-        
+
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
             field_length = len(self.truncation_fields)
             # Sorted equal divide length to each field
-            truncation_length_list = [truncation_length_total // field_length + (1 if i < truncation_length_total % field_length else 0) for i in range(field_length)[::-1]]
-            
+            truncation_length_list = [
+                truncation_length_total // field_length + (1 if i < truncation_length_total % field_length else 0)
+                for i in range(field_length)[::-1]
+            ]
+
             for i, ck in enumerate(self.context_keys):
                 if ck in self.truncation_fields:
                     context_ids = self.tokenizer.text_to_ids(contexts[i])
@@ -223,9 +226,8 @@ class GPTSFTDataset(Dataset):
                     assert len(context_ids) >= truncation_length, f'{ck} is not long enough to truncate.'
                     context_ids = context_ids[: -min(truncation_length, len(context_ids))]
                     contexts[i] = self.tokenizer.ids_to_text(context_ids)
-            
+
         return contexts
-        
 
     def _process_example(self, example):
         """
@@ -238,7 +240,7 @@ class GPTSFTDataset(Dataset):
 
         contexts = self._process_truncation(contexts, label)
         context_ids, label_ids = self._process_prompt(contexts, label)
-        
+
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
@@ -246,7 +248,7 @@ class GPTSFTDataset(Dataset):
 
         input_ids = context_ids
         answer_start_idx = len(input_ids)
-        
+
         # Adds bos token in the start
         if self.add_bos:
             context_ids = [self.tokenizer.bos_id] + context_ids
