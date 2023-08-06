@@ -218,7 +218,9 @@ def fake_initialize_model_parallel(
     assert (
         world_size % (tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size) == 0
     ), f'world_size: {world_size} must be divisible by tensor_model_parallel_size: {tensor_model_parallel_size} times pipeline_model_parallel_size {pipeline_model_parallel_size} times context_parallel_size {context_parallel_size}'
-    data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size)
+    data_parallel_size = world_size // (
+        tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size
+    )
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
@@ -247,8 +249,12 @@ def fake_initialize_model_parallel(
     all_context_parallel_group_ranks = []
     for i in range(pipeline_model_parallel_size):
         for j in range(data_parallel_size):
-            start_rank = i * num_pipeline_model_parallel_groups + j * tensor_model_parallel_size * context_parallel_size
-            end_rank = i * num_pipeline_model_parallel_groups + (j + 1) * tensor_model_parallel_size * context_parallel_size
+            start_rank = (
+                i * num_pipeline_model_parallel_groups + j * tensor_model_parallel_size * context_parallel_size
+            )
+            end_rank = (
+                i * num_pipeline_model_parallel_groups + (j + 1) * tensor_model_parallel_size * context_parallel_size
+            )
             for k in range(tensor_model_parallel_size):
                 ranks = range(start_rank + k, end_rank, tensor_model_parallel_size)
                 all_context_parallel_group_ranks.append(list(ranks))
