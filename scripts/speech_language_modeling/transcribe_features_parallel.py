@@ -66,6 +66,7 @@ python transcribe_speech_parallel.py \
 
 
 import itertools
+import importlib
 import json
 import os
 from dataclasses import dataclass, is_dataclass
@@ -127,11 +128,19 @@ def match_train_config(predict_ds, train_ds):
         "pad_id",
     ]
 
+    cfg_name_remove_list = [
+        "max_utts",
+    ]
+
     if is_dataclass(predict_ds):
         predict_ds = OmegaConf.structured(predict_ds)
     for cfg_name in cfg_name_list:
         if hasattr(train_ds, cfg_name):
             setattr(predict_ds, cfg_name, getattr(train_ds, cfg_name))
+
+    for cfg_name in cfg_name_remove_list:
+        if hasattr(predict_ds, cfg_name):
+            delattr(predict_ds, cfg_name)
 
     return predict_ds
 
@@ -166,7 +175,7 @@ class FeaturePredictionWriter(BasePredictionWriter):
             item["audio_filepath"] = sample.audio_file
             item["duration"] = sample.duration
             item["text"] = sample.text_raw
-            item["feature_filepath"] = feature_filepath
+            item["audio_codes"] = feature_filepath
             self.outf.write(json.dumps(item) + "\n")
             self.samples_num += 1
         return
@@ -191,21 +200,24 @@ def main(cfg: ParallelTranscriptionConfig):
                 "Attempting to initialize from a pretrained model as the model name does not have the extension of .nemo or .ckpt"
             )
             model = ModelPT.from_pretrained(model_name=cfg.model_cfg.model, map_location="cpu")
+        trainer = ptl.Trainer(**cfg.trainer)
     else:
         # asr_model is just to get the dataloader facilities
-        asr_model = ASRModel.from_pretrained(model_name='stt_en_conformer_ctc_small', map_location="cpu")
+        dummy_trainer = ptl.Trainer(**cfg.trainer)
+        asr_model = ASRModel.from_pretrained(model_name='stt_en_conformer_ctc_small', trainer=dummy_trainer)
+        
+        # feat-ex model
         logging.info("Attempting to initialize from model_cfg.model")
-        model = FeatExWrapperModel(cfg.model_cfg.model)
+        trainer = ptl.Trainer(**cfg.trainer)
+        model = FeatExWrapperModel(cfg.model_cfg.model, trainer=trainer)
 
-    trainer = ptl.Trainer(**cfg.trainer)
-
+    # trainer = ptl.Trainer(**cfg.trainer)
     cfg.predict_ds.return_sample_id = True
     cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=asr_model.cfg.train_ds)
     data_loader = asr_model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.out_save_dir, exist_ok=True)
     os.makedirs(cfg.out_manifest_dir, exist_ok=True)
-    import pdb; pdb.set_trace()
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
     global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.out_manifest_dir, f"manifest_feature_{global_rank}.json")
