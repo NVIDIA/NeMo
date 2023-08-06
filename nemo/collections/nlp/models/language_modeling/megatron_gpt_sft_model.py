@@ -342,7 +342,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             else:
                 self.log('val sft loss', loss)
                 self.log('val contrastive loss', contrasitve_loss)
-            loss = loss + contrasitve_loss
+            sft_loss_weight = self.cfg.sft_loss_weight
+            loss = sft_loss_weight * loss + contrasitve_loss
         else:
             losses = output_tensor.float()
             loss_mask = loss_mask.view(-1).float()
