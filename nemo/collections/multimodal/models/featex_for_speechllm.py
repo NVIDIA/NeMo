@@ -58,19 +58,18 @@ class FeatExWrapperModel(ModelPT, AccessMixin):
     ):
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
         
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.preprocessor = ModelPT.from_config_dict(self._cfg.preprocessor)        # [B, D, T]
         self.encoder = ModelPT.from_config_dict(self._cfg.quantizer)
 
-        if self._cfg.quantizer.get('save_quantizer_params_path', None) is not None:
+        if (self._cfg.quantizer.get('init_path', None) is None) and (self._cfg.quantizer.get('save_quantizer_params_path', None) is not None):
             torch.save(self.encoder.state_dict(), self._cfg.quantizer.save_quantizer_params_path)
             # proj_matrix = self.encoder.proj.weight.detach().cpu().numpy()
             # codebooks = self.encoder.codebooks.detach().cpu().numpy()
             # np.savez(self._cfg.quantizer.save_quantizer_params_path, proj_matrix=proj_matrix, codebooks=codebooks)
-        import pdb; pdb.set_trace()
 
 
     def forward(self, input_signal=None, input_signal_length=None,):
