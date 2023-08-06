@@ -5,7 +5,7 @@ from torch import nn
 from nemo.core import NeuralModule
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import EncodedRepresentation, LabelsType, LossType, NeuralType, SpectrogramType, LengthsType
-
+from nemo.utils import logging
 
 class RandomProjectionVectorQuantizer(NeuralModule):
     DIST_FN_LIST = ["l2", "cosine"]
@@ -68,9 +68,8 @@ class RandomProjectionVectorQuantizer(NeuralModule):
         self.codebooks = nn.Parameter(codebooks, requires_grad=not freeze)
 
         if self.init_path is not None:
-            init_data = torch.load(self.init_path)
-            self.proj.weight.data = init_data["proj_matrix"]
-            self.codebooks.data = init_data["codebooks"]
+            self.load_state_dict(torch.load(self.init_path), strict=True)
+            logging.info(f"Loaded RQ params from {self.init_path}")
 
 
     @property
