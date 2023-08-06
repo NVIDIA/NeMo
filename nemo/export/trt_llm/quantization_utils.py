@@ -8,7 +8,7 @@ except Exception:
     from tensorrt_llm.layers import Linear as FP8Linear
     from tensorrt_llm.layers import RowLinear as FP8RowLinear
 
-from llm.quantization.layer import Int8SmoothQuantLinear, Int8SmoothQuantRowLinear
+from .quantization.layer import Int8SmoothQuantLinear, Int8SmoothQuantRowLinear
 
 from .model_config import (
     QUANTIZATION_FP8,
