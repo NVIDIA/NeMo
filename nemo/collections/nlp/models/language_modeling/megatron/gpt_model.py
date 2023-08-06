@@ -167,6 +167,7 @@ class GPTModel(MegatronModule):
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
+        encoder_attn_mask_type=AttnMaskType.causal,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -204,7 +205,7 @@ class GPTModel(MegatronModule):
             kv_channels=kv_channels,
             ffn_hidden_size=ffn_hidden_size,
             add_pooler=False,
-            encoder_attn_mask_type=AttnMaskType.causal,
+            encoder_attn_mask_type=encoder_attn_mask_type,
             init_method=init_method_normal(init_method_std),
             scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,

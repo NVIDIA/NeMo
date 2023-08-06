@@ -65,6 +65,8 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
     HAVE_APEX = False
 
@@ -309,6 +311,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
+
+        encoder_attn_mask_type_cfg = self.cfg.get('encoder_attn_mask_type', None)
+        encoder_attn_mask_type = {
+            'causal':  AttnMaskType.causal,
+            'padding': AttnMaskType.padding
+        }.get(encoder_attn_mask_type_cfg, AttnMaskType.causal)
+
         model = GPTModel(
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             hidden_size=self.cfg.hidden_size,
@@ -371,6 +380,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
             seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
+            encoder_attn_mask_type=encoder_attn_mask_type,
         )
 
         return model
