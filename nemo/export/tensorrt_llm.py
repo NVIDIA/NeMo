@@ -45,11 +45,8 @@ class TensorRTLLM(ITritonDeployable):
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
-            for f in folders:
-                if Path(os.path.join(self.model_dir, f)).is_dir():
-                    if f[-3:] == "gpu":
-                        self.tokenizer = get_tokenzier(os.path.join(self.model_dir, f))
-                        self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+            self.tokenizer = get_tokenzier(Path(self.model_dir))
+            self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
 
     def export(
         self,
@@ -99,11 +96,12 @@ class TensorRTLLM(ITritonDeployable):
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
-            input_tokens = self.tokenizer.encode(input_texts + "\n")
-            input_tokens = input_tokens * (int(input_len / len(input_tokens)) + 1)
-            input_text = self.tokenizer.decode(input_tokens[: input_len])
-            print(f"Overriding with dummy input: len {input_len}, text: {input_text}")
-            input_texts = [input_text]
+            if input_len > 0:
+                input_tokens = self.tokenizer.encode(input_texts + "\n")
+                input_tokens = input_tokens * (int(input_len / len(input_tokens)) + 1)
+                input_text = self.tokenizer.decode(input_tokens[: input_len])
+                print(f"Overriding with dummy input: len {input_len}, text: {input_text}")
+                input_texts = [input_text]
             return generate(input_texts, max_output_len, self.model)
 
     @property
