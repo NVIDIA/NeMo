@@ -1,27 +1,10 @@
 """
     Utilities for exporting a model to our custom format.
-    Reference impl: https://gitlab-master.nvidia.com/ftp/tekit/-/blob/main/examples/gpt/utils/convert.py
 """
-
-import typing
 
 import numpy as np
 import torch
-
-
-def torch2np(tensor: torch.Tensor, np_data_type: typing.Optional[np.dtype] = None):
-    tensor = tensor.cpu()
-    # numpy doesn't understand bfloat16, so we pretend it's int16
-    if np_data_type == np.int16:
-        tensor = tensor.to(torch.bfloat16).view(torch.int16)
-    elif tensor.dtype == torch.bfloat16:
-        tensor = tensor.to(torch.float32)
-
-    data = tensor.numpy()
-    if np_data_type is not None:
-        data = data.astype(np_data_type)
-
-    return data
+from tensorrt_llm._utils import torch_to_numpy
 
 
 def cpu_map_location(storage, loc):
@@ -67,8 +50,8 @@ def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
        - scale_y_accum_quant puts the GEMM result (XW) from accumulation range (int32)
          to quant range (int8) (used for CUBLAS) (T, C)
 
-     Note that we don't do anything special about row-parallel GEMM. Theoretically, we could have
-     per-GPU scaling factors too,
+     Note that we don't do anything special about row-parallel GEMM.
+     Theoretically, we could have per-GPU scaling factors too,
      but then the model would change depending on the number of GPUs used.
 
      For QKV projection, the behavior is special. Even if we have a single matrix to perform QKV projection,
@@ -78,7 +61,9 @@ def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
 
     # compute weight scaling factors for fp->int8 and int8->fp
     if is_qkv and not multi_query_mode:
-        scale_w_orig_quant_t = 127.0 / act_range["w"].reshape(3, -1).max(dim=-1, keepdims=True)[0].cpu().numpy()
+        scale_w_orig_quant_t = (
+            127.0 / act_range["w"].reshape(3, -1).max(dim=-1, keepdims=True)[0].cpu().numpy()
+        )
         scale_w_orig_quant_c = 127.0 / act_range["w"].reshape(3, -1).cpu().numpy()
     elif is_qkv and multi_query_mode:
         raise ValueError("Multi-query w/ int8 quant has not been supported yet")
@@ -158,21 +143,12 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
             save_val(vals[save_key], dir, f"{base_key}.{save_key}")
 
 
-def str_to_np_dtype(type_str):
-    convert_dict = {
-        "fp32": np.float32,
-        "fp16": np.float16,
-    }
-    dtype = convert_dict.get(type_str)
-    if dtype is None:
-        raise ValueError(f"{type_str} is an invalid storage type")
-    return dtype
-
-
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
 @torch.no_grad()
-def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config):
+def split_and_save_weight(
+    tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config
+):
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
     num_attention_heads = config.get("num_attention_heads", 0)
@@ -190,7 +166,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         vals = [val.T for val in vals]
     if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
         vals = [val + 1.0 for val in vals]
-    vals = [val.cpu().numpy().astype(storage_type) for val in vals]
+    vals = [torch_to_numpy(val.cpu().to(storage_type)) for val in vals]
 
     if (
         "input_layernorm.weight" in key
@@ -239,7 +215,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "attention.query_key_value.bias" in key:
-        hidden_dim = vals[0].shape[0]
         if local_dim is None:
             local_dim = vals[0].shape[-1] // 3
 
@@ -252,7 +227,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         else:
             if use_attention_nemo_shape:
                 head_num = num_attention_heads // tp_size
-                size_per_head = hidden_dim // num_attention_heads
+                size_per_head = local_dim // num_attention_heads
                 nemo_shape = (head_num, 3, size_per_head)
                 vals = [val.reshape(nemo_shape) for val in vals]
                 vals = [val.transpose(1, 0, 2) for val in vals]
