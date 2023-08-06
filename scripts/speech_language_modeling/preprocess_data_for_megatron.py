@@ -199,14 +199,25 @@ class AudioEncoder(object):
     def process(self, file_path):
         """load pt/npz file from filepath
         """
-        if file_path.endswith(".npz"):
-            codes = np.load(file_path)
-            codes = codes["codes"]  # [n_codebooks, n_frames]  
-        elif file_path.endswith(".pt"):
-            codes = torch.load(file_path, map_location='cpu')
-            codes = codes.to(torch.int32).squeeze(0).numpy()  # [n_codebooks, n_frames]
-        else:
-            raise ValueError(f"file_path must be either .npz or .pt, got {file_path}")
+
+        # sometime there is error in reading npz files
+        try:
+            if file_path.endswith(".npz"):
+                codes = np.load(file_path)
+                codes = codes["codes"]  # [n_codebooks, n_frames]
+            elif file_path.endswith(".pt"):
+                codes = torch.load(file_path, map_location='cpu')
+                codes = codes.to(torch.int32).squeeze(0).numpy()  # [n_codebooks, n_frames]
+            else:
+                raise ValueError(f"file_path must be either .npz or .pt, got {file_path}")
+        except:
+            print(f"Error in reading audio codes from {file_path}")
+            return []
+
+        # if semantic codes, expand dimension
+        # hack to make the assert below work, fix later
+        if len(codes.shape) == 1:
+            codes = np.expand_dims(codes, axis=0)  
         
         # if n_codebooks_to_use is greater than the number of codebooks in the file, raise error
         if self.args.n_codebooks_to_use is not None and self.args.n_codebooks_to_use > codes.shape[0]:
@@ -217,14 +228,14 @@ class AudioEncoder(object):
         assert len(codes.shape) == 2, f"codes must be 2D, got {len(codes.shape)}"
 
         if self.args.n_codebooks_to_use is not None:
-            codes = codes[:self.args.n_codebooks_to_use, :]    # [N, T]
+            codes = codes[:self.args.n_codebooks_to_use, :]    # [N, T] if you use [:N, :], you will get [N, T] even if N=1
         codes = np.squeeze(codes)  # remove the empty dimension if num_codebooks == 1
 
         if self.token_id_offset > 0:
             codes = codes + self.token_id_offset
         
         # flatten
-        if self.args.flatten_audio_codebooks:
+        if self.args.flatten_audio_codebooks and (self.args.n_codebooks_to_use > 1):
             codes = self.flatten_codebooks(codes)      # [T]  
         
         # pack it in right format append eod if needed
