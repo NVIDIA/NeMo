@@ -408,16 +408,40 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
         Re-key the full optimizer state dict to sharded optimizer state dict
         """
         optimizer_states = checkpoint["optimizer_states"]
-
         state_dic_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=False)
         optim_state_dic_cfg = FullOptimStateDictConfig(offload_to_cpu=True, rank0_only=False)
-        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
-            for optimizer, opt_state in zip(self.optimizers, optimizer_states):
-                opt_state = FSDP.rekey_optim_state_dict(opt_state, OptimStateKeyType.PARAM_NAME, self.model)
-                opt_state = FSDP.optim_state_dict_to_load(
-                    optim_state_dict=opt_state, model=self.model, optim=optimizer,
-                )
-                optimizer.load_state_dict(opt_state)
+
+        def get_osd(opt_state):
+            temp_opt_state = opt_state
+            while True:
+                if "state" in temp_opt_state:
+                    return temp_opt_state
+                assert isinstance(temp_opt_state, dict), "Fail to find optimizer state dict."
+                temp_opt_state = temp_opt_state[list(temp_opt_state.keys())[0]]
+
+        for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+            with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, state_dic_cfg, optim_state_dic_cfg):
+                full_osd = get_osd(opt_state)
+                if isinstance(list(full_osd["state"].keys())[0], int):
+                    try:
+                        # Optimizer state dict stored without FSDP
+                        with FSDP.summon_full_params(self.model, writeback=True, rank0_only=False):
+                            full_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
+                        sharded_osd = FSDP.shard_full_optim_state_dict(full_osd, self.model)
+                        sharded_osd = FSDP.optim_state_dict_to_load(
+                            optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
+                        )
+                    except Exception as e:
+                        print(f"Failed to load optimzier state dicts. Errored with {e}")
+                        exit(1)
+                else:
+                    # Optimizer state dict stored with FSDP
+                    sharded_osd = FSDP.rekey_optim_state_dict(full_osd, OptimStateKeyType.PARAM_NAME, self.model)
+                    sharded_osd = FSDP.optim_state_dict_to_load(
+                        optim_state_dict=sharded_osd, model=self.model, optim=optimizer,
+                    )
+
+                optimizer.load_state_dict(sharded_osd)
                 _optimizer_to_device(optimizer, self.root_device)
 
 
