@@ -131,26 +131,31 @@ def build_sdxl_train_valid_datasets(
     def tuple_to_dict(inp):
         for input in inp:
             out_dict = dict()
-            out_dict['images'] = input[0].permute(1, 2, 0)
+            out_dict['images'] = input[0]
             out_dict['captions'] = input[1]
             yield out_dict
 
     def AddOriginalImageSizeAsTupleAndCropToSquare(inp):
-        h, w = inp['images'].shape[0], inp['images'].shape[1]
-        inp['original_size_as_tuple'] = torch.tensor([h, w])
-        size = min(h, w)
-        delta_h = h - size
-        delta_w = w - size
-        assert not all(
-            [delta_h, delta_w]
-        )  # we assume that the image is already resized such that the smallest size is at the desired size. Thus, eiter delta_h or delta_w must be zero
-        top = np.random.randint(0, delta_h + 1)
-        left = np.random.randint(0, delta_w + 1)
-        inp['images'] = TT.functional.crop(
-            inp['images'], top=top, left=left, height=size, width=size
-        )
-        inp["crop_coords_top_left"] = torch.tensor([top, left])
-        return inp
+        for input in inp:
+            out_dict = dict()
+            out_dict['images'] = input[0]
+            out_dict['captions'] = input[1]
+            h, w = out_dict['images'].shape[1], out_dict['images'].shape[2]
+            out_dict['original_size_as_tuple'] = torch.tensor([h, w])
+            size = min(h, w)
+            out_dict['target_size_as_tuple'] = torch.tensor([size, size])
+            delta_h = h - size
+            delta_w = w - size
+            assert not all(
+                [delta_h, delta_w]
+            )  # we assume that the image is already resized such that the smallest size is at the desired size. Thus, eiter delta_h or delta_w must be zero
+            top = np.random.randint(0, delta_h + 1)
+            left = np.random.randint(0, delta_w + 1)
+            out_dict['images'] = TT.functional.crop(
+                out_dict['images'], top=top, left=left, height=size, width=size
+            )
+            out_dict["crop_coords_top_left"] = torch.tensor([top, left])
+            yield out_dict
 
 
     def transform_fn(sample):
@@ -166,7 +171,7 @@ def build_sdxl_train_valid_datasets(
         dataset_cfg=data_cfg,
         consumed_samples=consumed_samples,
         map_fn=transform_fn,
-        compose_fn=[tuple_to_dict, AddOriginalImageSizeAsTupleAndCropToSquare],
+        compose_fn=AddOriginalImageSizeAsTupleAndCropToSquare,
         filter_fn=filter_fn,
         is_train=True,
     )
