@@ -1,14 +1,31 @@
 # Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 
-import os
-import shutil
-from typing import Tuple
+import copy
+from typing import List, Tuple
 
-import torch.multiprocessing as mp
+import numpy as np
 import torch.nn as nn
+from tensorrt_llm._utils import str_dtype_to_trt
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
-from .tensorrt_llm_model import LMHeadModelBuilder
+from .decoder import build_decoder_layer_config
+from .model_config import (
+    LINEAR_COLUMN,
+    EmbeddingConfig,
+    LayernormConfig,
+    LinearConfig,
+    ModelConfig,
+)
+from .tensor_utils import split, torch_to_numpy_with_dtype
+
+
+def _arch_to_decoder_type(arch: str):
+    arch_to_type = {
+        "GPT2LMHeadModel": "gpt2",
+        "GPTJForCausalLM": "gptj",
+        "LlamaForCausalLM": "llama",
+    }
+    return arch_to_type.get(arch, "")
 
 
 def _check_model_compatibility(model: nn.Module) -> Tuple[bool, bool]:
@@ -33,120 +50,101 @@ def _check_model_compatibility(model: nn.Module) -> Tuple[bool, bool]:
             num_layer_norm += 1
 
     return (
-        1 <= num_embeddings and num_embeddings <= 2 and num_module_list == 1 and num_layer_norm == 1,
+        1 <= num_embeddings
+        and num_embeddings <= 2
+        and num_module_list == 1
+        and num_layer_norm == 1,
         num_embeddings > 1,
     )
 
 
-def _torch_to_tensorrt_llm_impl(
-    rank: int,
-    model: nn.Module,
-    engine_dir: str,
-    gpus: int = 1,
-    max_input_len=200,
-    max_output_len=200,
-    max_batch_size=1,
-    max_beam_width=1,
-    parallel_build=False,
-):
-    """The implmenetation of torch_to_tensorrt_llm for a single rank."""
+def _get_transformer_model(model: nn.Module) -> nn.Module:
+    """Returns the root module of the transformer model."""
     if hasattr(model, "transformer"):
         # This is a LMHead model
-        transformer = model.transformer
+        return model.transformer
     elif hasattr(model, "model"):
         # LLAMA
-        transformer = model.model
-    else:
-        transformer = model
-
-    compatible, has_positional_embedding = _check_model_compatibility(transformer)
-    assert compatible, f"model {transformer} not supported"
-
-    builder = LMHeadModelBuilder(rank=rank, tensor_parallel=gpus)
-    for name, module in transformer.named_children():
-        if type(module) == nn.Embedding:
-            if name != "wpe":
-                builder.add_vocab_embedding(module)
-            else:
-                assert has_positional_embedding
-                builder.add_positional_embedding(module)
-        if type(module) == nn.ModuleList:
-            builder.add_decoder_layers(module)
-        if type(module) in [nn.LayerNorm, LlamaRMSNorm]:
-            builder.add_final_layernorm(module)
-
-    if hasattr(model, "lm_head"):
-        builder.finalize(model.lm_head)
-    else:
-        builder.finalize()
-
-    builder.build(
-        output_dir=engine_dir,
-        max_input_len=max_input_len,
-        max_output_len=max_output_len,
-        max_batch_size=max_batch_size,
-        max_beam_width=max_beam_width,
-        parallel_build=parallel_build,
-    )
+        return model.model
+    return model
 
 
-def torch_to_tensorrt_llm(
+def torch_to_model_config(
     model: nn.Module,
-    engine_dir: str,
     gpus: int = 1,
-    max_input_len=200,
-    max_output_len=200,
-    max_batch_size=1,
-    max_beam_width=1,
-    parallel_build=False,
-):
-    """The API to convert a torch or huggingface model to tensorrt_llm.
+) -> List[ModelConfig]:
+    """The API to convert a torch or huggingface model to the ModelConfig format.
 
     The model has to be an LLM that we support for a successful conversion.
     (See examples/deploy/llm/README.md.)
     gpus: the number of inference gpus for multi gpu inferencing.
-    parallel_build: whether to build the multi gpu inference engine.
-      Parallel build reduces the build time but increase the system memory load.
-    """
-    if os.path.exists(engine_dir):
-        shutil.rmtree(engine_dir)
 
-    if gpus == 1:
-        _torch_to_tensorrt_llm_impl(
-            0,
-            model,
-            engine_dir,
-            gpus=1,
-            max_input_len=max_input_len,
-            max_output_len=max_output_len,
-            max_batch_size=max_batch_size,
-            max_beam_width=max_beam_width,
-        )
-    elif parallel_build:
-        mp.spawn(
-            _torch_to_tensorrt_llm_impl,
-            nprocs=gpus,
-            args=(
-                model,
-                engine_dir,
-                gpus,
-                max_input_len,
-                max_output_len,
-                max_batch_size,
-                max_beam_width,
-                parallel_build,
-            ),
-        )
-    else:
-        for rank in range(gpus):
-            _torch_to_tensorrt_llm_impl(
-                rank,
-                model,
-                engine_dir,
-                gpus=gpus,
-                max_input_len=max_input_len,
-                max_output_len=max_output_len,
-                max_batch_size=max_batch_size,
-                max_beam_width=max_beam_width,
-                parallel_build=parallel_build,
+    Returns:
+        The list of converted ModelConfig, one for each gpu.
+    """
+    transformer = _get_transformer_model(model)
+
+    compatible, has_positional_embedding = _check_model_compatibility(transformer)
+    assert compatible, f"model {transformer} not supported"
+
+    assert (
+        model.config.architectures and len(model.config.architectures) >= 1
+    ), f"Huggingface model config {model.config} does not have architectures"
+
+    model_config_template = ModelConfig()
+    model_config_template.dtype = "float16"
+    dtype = str_dtype_to_trt(model_config_template.dtype)
+
+    model_config_template.tensor_parallel = gpus
+
+    for name, module in transformer.named_children():
+        if type(module) == nn.Embedding:
+            if name != "wpe":
+                model_config_template.vocab_embedding = EmbeddingConfig.from_nn_module(
+                    module, dtype=dtype
+                )
+            else:
+                assert has_positional_embedding
+                model_config_template.positional_embedding = EmbeddingConfig.from_nn_module(
+                    module, dtype=dtype
+                )
+        if type(module) in [nn.LayerNorm, LlamaRMSNorm]:
+            model_config_template.final_layernorm = LayernormConfig.from_nn_module(
+                module, dtype=dtype
             )
+
+    model_configs = []
+    for i in range(gpus):
+        model_configs.append(copy.deepcopy(model_config_template))
+        model_configs[i].rank = i
+
+    decoder_type = _arch_to_decoder_type(model.config.architectures[0])
+    for name, module in transformer.named_children():
+        if type(module) == nn.ModuleList:
+            for layer in module:
+                for i in range(gpus):
+                    model_configs[i].layers.append(
+                        build_decoder_layer_config(
+                            layer, decoder_type, rank=i, tensor_parallel=gpus, dtype=dtype
+                        )
+                    )
+
+    if hasattr(model, "lm_head"):
+        lm_head_weight = torch_to_numpy_with_dtype(model.lm_head.weight, dtype=dtype)
+    else:
+        # We use wte weights if not provided.
+        lm_head_weight = model_configs[0].vocab_embedding.weight
+
+    if model_configs[0].vocab_size_padded != model_configs[0].vocab_size:
+        pad_width = model_configs[0].vocab_size_padded - model_configs[0].vocab_size
+        lm_head_weight = np.pad(
+            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
+        )
+
+    for i in range(gpus):
+        model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
+        model_configs[i].lm_head.weight = np.ascontiguousarray(
+            split(lm_head_weight, model_configs[i].tensor_parallel, model_configs[i].rank)
+        )
+
+    return model_configs

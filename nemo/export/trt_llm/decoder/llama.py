@@ -1,17 +1,21 @@
-import numpy as np
-import torch
-from tensorrt_llm.layers import Attention, AttentionMaskType, GatedMLP
+from typing import Optional
 
-from ..tensorrt_llm_utils import build_layernorm, split, torch_to_np
-from .decoder import DecoderLayer
+from tensorrt_llm.layers import Attention, AttentionMaskType, PositionEmbeddingType
+
+from ..model_config import (
+    LINEAR_COLUMN,
+    LINEAR_ROW,
+    AttentionConfig,
+    LayernormConfig,
+    LinearConfig,
+    MLPConfig,
+)
+from .decoder import DecoderLayer, DecoderLayerConfigBuilder
 
 
-class LLAMADecoderLayer(DecoderLayer):
+class LLAMADecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def hidden_act_fn(self, layer):
         return layer.mlp.act_fn
-
-    def infer_hidden_size(self, layer):
-        return layer.self_attn.hidden_size
 
     def infer_num_attention_heads(self, layer):
         return layer.self_attn.num_heads
@@ -19,9 +23,59 @@ class LLAMADecoderLayer(DecoderLayer):
     def infer_max_position_embeddings(self, layer):
         return layer.self_attn.max_position_embeddings
 
-    def build_input_layernorm(self, layer):
-        return build_layernorm(layer.input_layernorm, dtype=self.dtype)
+    def build_input_layernorm(self, layer) -> LayernormConfig:
+        return LayernormConfig.from_nn_module(layer.input_layernorm, dtype=self.dtype)
 
+    def build_attention(self, layer) -> AttentionConfig:
+        config = AttentionConfig()
+        config.qkv = LinearConfig.from_qkv_nn_modules(
+            [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj],
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
+        )
+
+        config.dense = LinearConfig.from_nn_module(
+            layer.self_attn.o_proj,
+            LINEAR_ROW,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
+        )
+
+        return config
+
+    def build_mlp(self, layer) -> MLPConfig:
+        config = MLPConfig()
+        config.fc = LinearConfig.from_nn_module(
+            layer.mlp.gate_proj,
+            LINEAR_COLUMN,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
+        )
+        config.proj = LinearConfig.from_nn_module(
+            layer.mlp.down_proj,
+            LINEAR_ROW,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
+        )
+        config.gate = LinearConfig.from_nn_module(
+            layer.mlp.up_proj,
+            LINEAR_COLUMN,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
+        )
+
+        return config
+
+    def build_post_layernorm(self, layer) -> Optional[LayernormConfig]:
+        return LayernormConfig.from_nn_module(layer.post_attention_layernorm, dtype=self.dtype)
+
+
+class LLAMADecoderLayer(DecoderLayer):
     def build_attention(self, layer):
         attention = Attention(
             self.hidden_size,
@@ -30,76 +84,13 @@ class LLAMADecoderLayer(DecoderLayer):
             dtype=self.dtype,
             attention_mask_type=AttentionMaskType.causal,
             bias=False,
-            position_embedding_type="rope",
+            position_embedding_type=PositionEmbeddingType.rope,
             neox_rotary_style=True,
+            multi_query_mode=False,
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,
         )
-
-        q_weight = layer.self_attn.q_proj.weight
-        k_weight = layer.self_attn.k_proj.weight
-        v_weight = layer.self_attn.v_proj.weight
-
-        qkv_weight = torch_to_np(torch.stack([q_weight, k_weight, v_weight]), dtype=self.dtype)
-
-        q_emb = qkv_weight.shape[1]
-        model_emb = qkv_weight.shape[2]
-        split_v = split(qkv_weight, self.tensor_parallel, self.rank, dim=1)
-        split_v = split_v.reshape(3 * (q_emb // self.tensor_parallel), model_emb)
-        attention.qkv.weight.value = np.ascontiguousarray(split_v)
-
-        attention.dense.weight.value = np.ascontiguousarray(
-            split(
-                torch_to_np(layer.self_attn.o_proj.weight, dtype=self.dtype),
-                self.tensor_parallel,
-                self.rank,
-                dim=1,
-            )
-        )
-
         return attention
-
-    def build_mlp(self, layer):
-        mlp_hidden_size = layer.mlp.gate_proj.out_features
-        mlp = GatedMLP(
-            hidden_size=self.hidden_size,
-            ffn_hidden_size=mlp_hidden_size,
-            hidden_act=self.hidden_act,
-            dtype=self.dtype,
-            bias=False,
-            tp_group=self.tp_group,
-            tp_size=self.tensor_parallel,
-        )
-
-        mlp.gate.weight.value = np.ascontiguousarray(
-            split(
-                torch_to_np(layer.mlp.up_proj.weight, dtype=self.dtype),
-                self.tensor_parallel,
-                self.rank,
-                dim=0,
-            )
-        )
-        mlp.proj.weight.value = np.ascontiguousarray(
-            split(
-                torch_to_np(layer.mlp.down_proj.weight, dtype=self.dtype),
-                self.tensor_parallel,
-                self.rank,
-                dim=1,
-            )
-        )
-        mlp.fc.weight.value = np.ascontiguousarray(
-            split(
-                torch_to_np(layer.mlp.gate_proj.weight, dtype=self.dtype),
-                self.tensor_parallel,
-                self.rank,
-                dim=0,
-            )
-        )
-
-        return mlp
-
-    def build_post_layernorm(self, layer):
-        return build_layernorm(layer.post_attention_layernorm, dtype=self.dtype)
 
     def post_attention_forward(self, residual, hidden_states, attention_output):
         hidden_states = residual + attention_output

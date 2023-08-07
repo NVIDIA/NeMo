@@ -6,9 +6,9 @@ import argparse
 import os
 import time
 
-import tensorrt as trt
 import tensorrt_llm
 import torch
+from tensorrt_llm._utils import str_dtype_to_trt
 from tensorrt_llm.builder import Builder
 from tensorrt_llm.logger import logger
 from tensorrt_llm.network import net_guard
@@ -32,29 +32,36 @@ def serialize_engine(engine, path):
     logger.info(f"Engine serialized. Total time: {t}")
 
 
-def build_or_refit_rank_engine(
+def build_rank_engine(
     tensorrt_llm_gpt,
     builder: Builder,
     builder_config: tensorrt_llm.builder.BuilderConfig,
     engine_name,
     rank,
     args,
-    refit_from=None,
 ):
     """
-    @brief: Build or refit the engine on the given rank, when refit_from is None, build one.
-     Otherwise, refit from the given engine.
-    @param rank: The rank to build or refit the engine.
+    @brief: Build the engine on the given rank.
+    @param rank: The rank to build the engine.
     @param args: The cmd line arguments.
-    @param refit_from: The engine to refit from or None
-    @return: The built or refitted engine.
+    @return: The built engine.
     """
-    # TODO: Handle quantizations here
-    # if args.use_smooth_quant:
-    #     tensorrt_llm_gpt = smooth_quantize(tensorrt_llm_gpt, args.quant_mode)
-    # elif args.use_weight_only:
-    #     tensorrt_llm_gpt = weight_only_quantize(tensorrt_llm_gpt,
-    #                                             args.quant_mode)
+    str_dtype_to_trt(args.dtype)
+
+    # TODO: Enable share_embedding_table
+    # # Decide if we can share the embedding table between
+    # # the lookup OP and the logits calculation OP
+    # share_embedding_table = False
+    # if args.use_lookup_plugin and args.model_dir is not None:
+    #     share_embedding_table = check_embedding_share(args.model_dir)
+    share_embedding_table = None
+
+    if share_embedding_table and (not args.use_gemm_plugin):
+        logger.warning(
+            "Sharing embedding tables between OPs requires using GEMM plugin. Otherwise, you might"
+            " fail to see the engine size reduction."
+        )
+
     # Module -> Network
     network = builder.create_network()
     network.trt_network.name = engine_name
@@ -71,38 +78,44 @@ def build_or_refit_rank_engine(
         network.plugin_config.set_context_fmha(ContextFMHAType.enabled_with_fp32_acc)
     if args.remove_input_padding:
         network.plugin_config.enable_remove_input_padding()
-
-    # Quantization plugins.
-    if args.use_smooth_quant:
-        network.plugin_config.set_smooth_quant_gemm_plugin(dtype=args.dtype)
-        network.plugin_config.set_layernorm_quantization_plugin(dtype=args.dtype)
-        # FIXME(nkorobov)
-        # See https://nvbugs/4164762
-        # See https://nvbugs/4174113
-        network.plugin_config.set_quantize_tensor_plugin()
-        network.plugin_config.set_quantize_per_token_plugin()
-    elif args.use_weight_only:
-        network.plugin_config.set_weight_only_quant_matmul_plugin(dtype="float16")
+    if args.paged_kv_cache:
+        network.plugin_config.enable_paged_kv_cache()
+    if args.use_inflight_batching:
+        network.plugin_config.set_inflight_batching_gpt_attention_plugin(
+            dtype=args.use_inflight_batching
+        )
 
     if args.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
+
+    if args.use_lookup_plugin:
+        # Use the plugin for the embedding parallelism and sharing
+        network.plugin_config.set_lookup_plugin(dtype=args.dtype)
+    assert not (
+        args.use_lookup_plugin and args.max_prompt_embedding_table_size > 0
+    ), "Lookup plugin isn't compatible with prompt tuning right now"
+
     with net_guard(network):
         # Prepare
         network.set_named_parameters(tensorrt_llm_gpt.named_parameters())
 
         # Forward
         inputs = tensorrt_llm_gpt.prepare_inputs(
-            args.max_batch_size, args.max_input_len, args.max_output_len, True, args.max_beam_width
+            args.max_batch_size,
+            args.max_input_len,
+            args.max_output_len,
+            True,
+            args.max_beam_width,
+            paged_kv_cache=args.paged_kv_cache,
+            tokens_per_block=args.tokens_per_block,
+            prompt_embedding_table_size=args.max_prompt_embedding_table_size,
         )
         tensorrt_llm_gpt(*inputs)
 
     engine = None
 
     # Network -> Engine
-    if refit_from is not None:
-        engine = builder.refit_engine(network, refit_from)
-    else:
-        engine = builder.build_engine(network, builder_config)
+    engine = builder.build_engine(network, builder_config)
     if rank == 0:
         config_path = os.path.join(args.output_dir, "config.json")
         builder.save_config(builder_config, config_path)
@@ -115,19 +128,9 @@ def _build_impl(rank, tensorrt_llm_model, args):
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    use_refit = args.world_size > 1 and trt.__version__ >= "8.6" and not args.parallel_build
-
-    # TRT folds weights into Myelin graph because network contains int8 tensor or Q/DQ nodes
-    # These folded weights can not be refitted
-    if args.use_smooth_quant:
-        use_refit = False
-
-    # when doing serializing build, all ranks shave one engine
-    apply_query_key_layer_scaling = False
     builder = Builder()
-
-    refit_from = None
     cache = None
+    apply_query_key_layer_scaling = False
     cur_rank = rank
 
     builder_config = builder.create_builder_config(
@@ -136,25 +139,29 @@ def _build_impl(rank, tensorrt_llm_model, args):
         timing_cache=args.timing_cache if cache is None else cache,
         tensor_parallel=args.world_size,  # TP only
         parallel_build=args.parallel_build,
-        num_layers=tensorrt_llm_model.num_layers,
-        num_heads=tensorrt_llm_model.num_attention_heads,
-        hidden_size=tensorrt_llm_model.hidden_size,
-        vocab_size=tensorrt_llm_model.vocab_size,
+        num_layers=tensorrt_llm_model._num_layers,
+        num_heads=tensorrt_llm_model._num_heads,
+        hidden_size=tensorrt_llm_model._hidden_size,
+        vocab_size=tensorrt_llm_model._vocab_size,
         hidden_act=tensorrt_llm_model.hidden_act,
         max_position_embeddings=tensorrt_llm_model.max_position_embeddings,
         apply_query_key_layer_scaling=apply_query_key_layer_scaling,
         max_batch_size=args.max_batch_size,
         max_input_len=args.max_input_len,
         max_output_len=args.max_output_len,
-        int8=(args.quant_mode.has_act_and_weight_quant() or args.quant_mode.has_int8_kv_cache()),
-        use_refit=use_refit,
+        int8="int8" in args.quantization,
         opt_level=args.builder_opt,
         multi_query_mode=args.multi_query_mode,
+        paged_kv_cache=args.paged_kv_cache,
+        tokens_per_block=args.tokens_per_block,
+        use_prompt_tuning=args.max_prompt_embedding_table_size > 0,
+        use_parallel_embedding=bool(args.use_lookup_plugin),
+        fp8="fp8" in args.quantization,
     )
 
     engine_name = get_engine_name(MODEL_NAME, args.dtype, args.world_size, cur_rank)
-    engine = build_or_refit_rank_engine(
-        tensorrt_llm_model, builder, builder_config, engine_name, cur_rank, args, refit_from
+    engine = build_rank_engine(
+        tensorrt_llm_model, builder, builder_config, engine_name, cur_rank, args
     )
     assert engine is not None, f"Failed to build engine for rank {cur_rank}"
 
@@ -162,9 +169,6 @@ def _build_impl(rank, tensorrt_llm_model, args):
         # Use in-memory timing cache for multiple builder passes.
         if not args.parallel_build:
             cache = builder_config.trt_builder_config.get_timing_cache()
-        # always refit from the first engine
-        if use_refit:
-            refit_from = engine
 
     serialize_engine(engine, os.path.join(args.output_dir, engine_name))
 
@@ -187,6 +191,7 @@ def build(
     parallel_build=False,
     gpus_per_node=1,
     output_dir="/tmp/ammo/",
+    quantization=None,
 ):
     args = argparse.Namespace()
     args.world_size = world_size
@@ -199,9 +204,9 @@ def build(
     args.max_beam_width = max_beam_width
     args.use_gpt_attention_plugin = dtype
     args.use_gemm_plugin = dtype
-    args.use_layernorm_plugin = dtype
+    args.use_layernorm_plugin = False
     args.parallel_build = parallel_build
-    args.enable_context_fmha = False
+    args.enable_context_fmha = True
     args.enable_context_fmha_fp32_acc = False
     args.gpus_per_node = gpus_per_node
     args.builder_opt = None
@@ -215,6 +220,12 @@ def build(
     args.per_token = False
     args.int8_kv_cache = False
     args.random_seed = None
+    args.paged_kv_cache = False
+    args.max_prompt_embedding_table_size = 0
+    args.use_inflight_batching = False
+    args.use_lookup_plugin = False
+    args.tokens_per_block = 64
+    args.quantization = quantization
 
     assert not (
         args.use_smooth_quant and args.use_weight_only
@@ -228,7 +239,6 @@ def build(
         args.quant_mode = QuantMode(0)
 
     if args.int8_kv_cache:
-        assert args.use_gpt_attention_plugin, "You have to use GPT attention plugin when int8 KV cache is set"
         args.quant_mode = args.quant_mode.set_int8_kv_cache()
 
     if args.random_seed is not None:

@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import os
-import pprint
 import shutil
 from pathlib import Path
-import typing
 
 import numpy as np
-import torch
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import str_ndarray2list, cast_output
 
-from .trt_llm.nemo_utils import get_model_config, get_tokenzier, nemo_decode, nemo_to_tensorrt_llm
+from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
+from .trt_llm.nemo_utils import nemo_to_model_config, get_tokenzier
+from .trt_llm.quantization_utils import naive_quantization
 from .trt_llm.tensorrt_llm_run import generate, load
 
 
@@ -39,7 +37,8 @@ class TensorRTLLM(ITritonDeployable):
         self.model_dir = model_dir
         self.model = None
         self.tokenizer = None
-        self._load()
+        self.n_gpus = None
+        # self._load()
 
     def _load(self):
         self.tokenizer = None
@@ -47,11 +46,8 @@ class TensorRTLLM(ITritonDeployable):
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
-            for f in folders:
-                if Path(os.path.join(self.model_dir, f)).is_dir():
-                    if f[-3:] == "gpu":
-                        self.tokenizer = get_tokenzier(os.path.join(self.model_dir, f))
-                        self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+            model_configs, self.tokenizer = nemo_to_model_config(self.model_dir, "gptnext", gpus=self.n_gpus)
+            self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
 
     def export(
         self,
@@ -61,6 +57,7 @@ class TensorRTLLM(ITritonDeployable):
         max_input_len=200,
         max_output_len=200,
         max_batch_size=32,
+        quantization=None,
     ):
         if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
             for files in os.listdir(self.model_dir):
@@ -77,29 +74,38 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        weights_dir, model_config, tokenizer = nemo_decode(
-            nemo_checkpoint_path, self.model_dir, tensor_parallelism=n_gpus
-        )
+        model_configs, self.tokenizer = nemo_to_model_config(nemo_checkpoint_path, "gptnext", gpus=n_gpus)
 
-        model_config = get_model_config(weights_dir)
-        nemo_to_tensorrt_llm(
-            weights_dir,
-            model_config,
+        for model_config in model_configs:
+            if quantization is not None:
+                naive_quantization(model_config, quantization)
+
+        model_config_to_tensorrt_llm(
+            model_configs,
             self.model_dir,
-            gpus=n_gpus,
+            n_gpus,
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
         )
 
-        self._load()
+        self.n_gpus = n_gpus
 
-    def forward(self, input_texts, max_output_len=200):
+        self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+        # self._load()
+
+    def forward(self, input_texts, input_len=0, max_output_len=200):
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
+            if input_len > 0:
+                input_tokens = self.tokenizer.encode(input_texts + "\n")
+                input_tokens = input_tokens * (int(input_len / len(input_tokens)) + 1)
+                input_text = self.tokenizer.decode(input_tokens[: input_len])
+                print(f"Overriding with dummy input: len {input_len}, text: {input_text}")
+                input_texts = [input_text]
             return generate(input_texts, max_output_len, self.model)
 
     @property
