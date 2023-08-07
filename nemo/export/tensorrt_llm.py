@@ -38,7 +38,7 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
         self.tokenizer = None
         self.n_gpus = None
-        # self._load()
+        self._load()
 
     def _load(self):
         self.tokenizer = None
@@ -46,8 +46,11 @@ class TensorRTLLM(ITritonDeployable):
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
-            self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
-            self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+            try:
+                self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
+                self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+            except:
+                raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
 
     def export(
         self,
