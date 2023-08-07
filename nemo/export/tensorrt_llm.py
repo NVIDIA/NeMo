@@ -38,7 +38,7 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
         self.tokenizer = None
         self.n_gpus = None
-        self._load()
+        # self._load()
 
     def _load(self):
         self.tokenizer = None
@@ -90,7 +90,9 @@ class TensorRTLLM(ITritonDeployable):
         )
 
         self.n_gpus = n_gpus
-        self._load()
+
+        self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+        # self._load()
 
     def forward(self, input_texts, input_len=0, max_output_len=200):
         if self.model is None:
