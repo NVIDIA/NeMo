@@ -220,6 +220,10 @@ def append_dims(x, target_dims):
         )
     return x[(...,) + (None,) * dims_to_append]
 
+def expand_dims_like(x, y):
+    while x.dim() != y.dim():
+        x = x.unsqueeze(-1)
+    return x
 
 def append_zero(x):
     return torch.cat([x, x.new_zeros([1])])
