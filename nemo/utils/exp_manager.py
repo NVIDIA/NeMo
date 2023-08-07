@@ -259,7 +259,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - resume_ignore_no_checkpoint (bool): exp_manager errors out if resume_if_exists is True and no checkpoint
                 could be found. This behaviour can be disabled, in which case exp_manager will print a message and
                 continue without restoring, by setting resume_ignore_no_checkpoint to True. Defaults to False.
-            - resume_from_checkpoint (str): Can be used to specify a path to a specific checkpoint file to load from. This will 
+            - resume_from_checkpoint (str): Can be used to specify a path to a specific checkpoint file to load from. This will
                 override any checkpoint found when resume_if_exists is True. Defaults to None.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
