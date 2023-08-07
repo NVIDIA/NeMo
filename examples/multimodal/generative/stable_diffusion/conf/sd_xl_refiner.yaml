@@ -38,38 +38,37 @@ model:
     legacy: False
 
   conditioner_config:
-    target: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.GeneralConditioner
-    params:
-      emb_models:
-        # crossattn and vector cond
-        - is_trainable: False
-          input_key: txt
-          target: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenOpenCLIPEmbedder2
-          params:
-            arch: ViT-bigG-14
-            version: laion2b_s39b_b160k
-            freeze: True
-            layer: penultimate
-            always_return_pooled: True
-            legacy: False
-            # vector cond
-        - is_trainable: False
-          input_key: original_size_as_tuple
-          target: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
-          params:
-            outdim: 256  # multiplied by two
-        # vector cond
-        - is_trainable: False
-          input_key: crop_coords_top_left
-          target: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
-          params:
-            outdim: 256  # multiplied by two
-        # vector cond
-        - is_trainable: False
-          input_key: aesthetic_score
-          target: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
-          params:
-            outdim: 256  # multiplied by one
+    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.GeneralConditioner
+    emb_models:
+      # crossattn and vector cond
+      - is_trainable: False
+        input_key: txt
+        emb_model:
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenOpenCLIPEmbedder2
+          arch: ViT-bigG-14
+          version: laion2b_s39b_b160k
+          freeze: True
+          layer: penultimate
+          always_return_pooled: True
+          legacy: False
+          # vector cond
+      - is_trainable: False
+        input_key: original_size_as_tuple
+        emb_model:
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
+          outdim: 256  # multiplied by two
+      # vector cond
+      - is_trainable: False
+        input_key: crop_coords_top_left
+        emb_model:
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
+          outdim: 256  # multiplied by two
+      # vector cond
+      - is_trainable: False
+        input_key: aesthetic_score
+        emb_model:
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
+          outdim: 256  # multiplied by one
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper
