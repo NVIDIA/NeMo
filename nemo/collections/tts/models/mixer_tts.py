@@ -33,7 +33,11 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_features, regulate_len
-from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, get_mask_from_lengths, g2p_backward_compatible_support
+from nemo.collections.tts.parts.utils.helpers import (
+    binarize_attention_parallel,
+    g2p_backward_compatible_support,
+    get_mask_from_lengths,
+)
 from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck

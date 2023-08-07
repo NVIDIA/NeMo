@@ -23,9 +23,9 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
 from nemo.collections.tts.parts.utils.loggers import TTSValLogger
-from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
@@ -236,11 +236,11 @@ class HifiGanModel(Vocoder, Exportable, TTSValLogger):
         loss_mel = F.l1_loss(audio_mel, audio_pred_mel)
 
         self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
-        
+
         # Perform bias denoising
         pred_denoised = self._bias_denoise(audio_pred, audio_mel).squeeze(1)
         pred_denoised_mel, _ = self.audio_to_melspec_precessor(pred_denoised, audio_len)
-        
+
         # Plot audio once per epoch
         if batch_idx == 0:
             # Prepare for logging

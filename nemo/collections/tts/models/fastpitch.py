@@ -601,7 +601,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         if self.validation_step_outputs[0]["energy_loss"] is not None:
             energy_loss = collect("energy_loss")
             self.log("val_energy_loss", energy_loss, sync_dist=True)
-            
+
         self.validation_step_outputs.clear()  # free memory
 
     def _setup_train_dataloader(self, cfg):

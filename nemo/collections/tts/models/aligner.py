@@ -23,7 +23,11 @@ from pytorch_lightning import Trainer
 from torch import nn
 
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.parts.utils.helpers import binarize_attention, get_mask_from_lengths, g2p_backward_compatible_support
+from nemo.collections.tts.parts.utils.helpers import (
+    binarize_attention,
+    g2p_backward_compatible_support,
+    get_mask_from_lengths,
+)
 from nemo.collections.tts.parts.utils.loggers import TTSValLogger
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
