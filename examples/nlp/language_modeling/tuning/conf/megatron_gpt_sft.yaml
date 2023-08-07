@@ -7,7 +7,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 9999
   max_steps: 20000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10 # frequency with which training steps are logged 
@@ -29,7 +29,7 @@ exp_manager:
     monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 2
     mode: max
-    save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below, 
+    save_nemo_on_train_end: False 
     filename: 'megatron_gpt_sft--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -60,12 +60,15 @@ model:
   activations_checkpoint_num_layers: null # not used with 'selective'
   answer_only_loss: False # not used right now
   gradient_as_bucket_view: False
+  seq_len_interpolation_factor: null # if not None, seq_len_interpolation_factor will match the base model's value
+  use_flash_attention: null # if not None, will match the base model's value
 
   hidden_dropout: 0.0
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
   data:
+    chat: False # whether use chatbot data or not
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names: 
@@ -79,6 +82,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 4
+      memmap_workers: null
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -98,6 +102,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
 
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
@@ -106,6 +111,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 4
+      memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -121,6 +127,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
 
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
@@ -134,6 +141,7 @@ model:
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
       num_workers: 4
+      memmap_workers: ${model.data.train_ds.memmap_workers}
       pin_memory: True
       max_seq_length: 2048
       min_seq_length: 1
@@ -149,6 +157,7 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
 
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']

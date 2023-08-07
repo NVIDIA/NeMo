@@ -769,9 +769,15 @@ class FrameBatchASR:
 
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            log_probs, encoded_len, predictions = self.asr_model(
-                processed_signal=feat_signal, processed_signal_length=feat_signal_len
-            )
+            forward_outs = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+
+            if len(forward_outs) == 2:  # hybrid ctc rnnt model
+                encoded, encoded_len = forward_outs
+                log_probs = self.asr_model.ctc_decoder(encoder_output=encoded)
+                predictions = log_probs.argmax(dim=-1, keepdim=False)
+            else:
+                log_probs, encoded_len, predictions = forward_outs
+
             preds = torch.unbind(predictions)
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
@@ -1367,9 +1373,10 @@ class CacheAwareStreamingAudioBuffer:
                 )
 
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.shift_size, list):
-                shift_size = self.streaming_cfg.shift_size[0]
                 if self.pad_and_drop_preencoded:
                     shift_size = self.streaming_cfg.shift_size[1]
+                else:
+                    shift_size = self.streaming_cfg.shift_size[0]
             else:
                 shift_size = (
                     self.streaming_cfg.shift_size[1]
@@ -1394,9 +1401,10 @@ class CacheAwareStreamingAudioBuffer:
             # if there is not enough frames to be used as the pre-encoding cache, zeros would be added
             zeros_pads = None
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
-                cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[0]
                 if self.pad_and_drop_preencoded:
                     cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[1]
+                else:
+                    cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[0]
                 cache_pre_encode = torch.zeros(
                     (audio_chunk.size(0), self.input_features, cache_pre_encode_num_frames),
                     device=audio_chunk.device,

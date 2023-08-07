@@ -24,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -113,7 +114,7 @@ class GPTModel(MegatronModule):
         num_layers,
         num_attention_heads,
         ffn_hidden_size,
-        apply_query_key_layer_scaling=True,
+        apply_query_key_layer_scaling=False,
         kv_channels=None,
         num_tokentypes=0,
         parallel_output=True,
@@ -123,6 +124,7 @@ class GPTModel(MegatronModule):
         use_scaled_init_method=True,
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
+        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
@@ -149,6 +151,7 @@ class GPTModel(MegatronModule):
         gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
+        megatron_legacy=False,
         onnx_safe=False,
         sequence_parallel=False,
         transformer_engine=False,
@@ -161,6 +164,9 @@ class GPTModel(MegatronModule):
         fp8_amax_compute_algo='most_recent',
         reduce_amax=True,
         use_emha=False,
+        ub_tp_comm_overlap=False,
+        use_flash_attention=False,
+        seq_len_interpolation_factor=None,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -171,6 +177,7 @@ class GPTModel(MegatronModule):
         self.sequence_parallel = sequence_parallel
         self.gradient_accumulation_fusion = gradient_accumulation_fusion
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
+        self.dtype = utils_funcs.dtype_from_precision(precision, megatron_amp_O2)
 
         if kv_channels is None:
             assert (
@@ -204,6 +211,7 @@ class GPTModel(MegatronModule):
             post_process=self.post_process,
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
+            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
@@ -228,6 +236,7 @@ class GPTModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
             transformer_engine=transformer_engine,
             fp8=fp8,
@@ -239,11 +248,17 @@ class GPTModel(MegatronModule):
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
             use_emha=use_emha,
+            ub_tp_comm_overlap=ub_tp_comm_overlap,
+            use_flash_attention=use_flash_attention,
+            seq_len_interpolation_factor=seq_len_interpolation_factor,
         )
 
         if self.share_embeddings_and_output_weights:
             self.initialize_word_embeddings(
-                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+                init_method=init_method_normal(init_method_std),
+                vocab_size=vocab_size,
+                hidden_size=hidden_size,
+                param_dtype=self.dtype,
             )
 
     def set_input_tensor(self, input_tensor):

@@ -6,7 +6,7 @@ init_method_std: 0.02 # Standard deviation of the zero mean normal distribution 
 hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
 attention_dropout: 0.1 # Dropout probability in the attention layer.
 ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
-position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative', 'alibi']
+position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative', 'alibi', 'kerple']
 relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
 relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
 relative_position_bias_self_attention_only: True # whether to only use relative position bias for self attention only.
@@ -37,3 +37,4 @@ normalize_attention_scores: True # Whether to scale the output Q * K^T by 1 / sq
 num_moe_experts: 1 # When >1, FFNs are changed to MoE layers
 moe_frequency: 1 # every Nth ffn layer will be made MoE 
 moe_dropout: 0.0 # Dropout value for MoE layers
+use_flash_attention: false # Use flash attention in self-attention module

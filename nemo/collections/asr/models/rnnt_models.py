@@ -28,7 +28,7 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDecodingConfig
-from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
@@ -39,7 +39,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, L
 from nemo.utils import logging
 
 
-class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
+class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
     """Base class for encoder decoder RNNT-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -71,8 +71,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Setup RNNT Loss
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
+        num_classes = self.joint.num_classes_with_blank - 1  # for standard RNNT and multi-blank
+
+        if loss_name == 'tdt':
+            num_classes = num_classes - self.joint.num_extra_outputs
+
         self.loss = RNNTLoss(
-            num_classes=self.joint.num_classes_with_blank - 1,
+            num_classes=num_classes,
             loss_name=loss_name,
             loss_kwargs=loss_kwargs,
             reduction=self.cfg.get("rnnt_reduction", "mean_batch"),
@@ -242,6 +247,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+
         # We will store transcriptions here
         hypotheses = []
         all_hypotheses = []
@@ -285,7 +291,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     config['augmentor'] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=True):
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
@@ -441,6 +447,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self.joint.temperature = decoding_cfg.get('temperature', 1.0)
+
         # Update config
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
@@ -467,7 +475,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             return dataset
 
         shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
         if hasattr(dataset, 'collate_fn'):
@@ -515,7 +523,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
@@ -947,6 +959,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     @property
     def decoder_joint(self):
         return RNNTDecoderJoint(self.decoder, self.joint)
+
+    def set_export_config(self, args):
+        if 'decoder_type' in args:
+            if hasattr(self, 'change_decoding_strategy'):
+                self.change_decoding_strategy(decoder_type=args['decoder_type'])
+            else:
+                raise Exception("Model does not have decoder type option")
+        super().set_export_config(args)
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:

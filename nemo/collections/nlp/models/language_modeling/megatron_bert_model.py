@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
@@ -40,6 +39,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
 
+
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -48,6 +48,14 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+try:
+    import logging
+    from lddl.torch_mp import get_bert_pretrain_data_loader
+
+    HAVE_LDDL = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_LDDL = False
 
 try:
     from megatron.core import parallel_state
@@ -81,14 +89,18 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._validate_trainer()
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+
+        self.enable_autocast = (
+            True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+        )
 
         # used in NVIDIA NGC PyTorch containers
         # buffer used during train_step for logging average loss over gradient accumulation steps
@@ -152,6 +164,7 @@ class MegatronBertModel(MegatronBaseModel):
             init_method_std=cfg.get('init_method_std', 0.02),
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
+            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
@@ -168,6 +181,7 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
         )
 
         return model
@@ -295,7 +309,12 @@ class MegatronBertModel(MegatronBaseModel):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        if self.cfg.data.dataloader_type == "LDDL":
+            # this is of type bert dataset
+            seq_length = dataloader_iter.iterator.loaders.get_seqlen()
+            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        else:
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -309,8 +328,9 @@ class MegatronBertModel(MegatronBaseModel):
             forward_only=False,
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
@@ -318,7 +338,10 @@ class MegatronBertModel(MegatronBaseModel):
             loss_tensor = torch.vstack(loss_tensors_list)
             loss_mean = loss_tensor.mean(axis=0)
         else:
-            loss_mean = torch.tensor([0.0, 0.0]).cuda()
+            if self.cfg.bert_binary_head == True:
+                loss_mean = torch.tensor([0.0, 0.0, 0.0]).cuda()
+            else:
+                loss_mean = torch.tensor([0.0, 0.0]).cuda()
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -398,7 +421,16 @@ class MegatronBertModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def validation_step(self, dataloader_iter, batch_idx):
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
+        dataloader_iter, done = self._prefetch(dataloader_iter)
+        if done:
+            return
+        prefix = "test" if self.trainer.testing else "val"
+        if self.cfg.data.dataloader_type == "LDDL":
+            seq_length = dataloader_iter.iterator.get_seqlen()
+            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        else:
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -411,6 +443,7 @@ class MegatronBertModel(MegatronBaseModel):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=self.enable_autocast,
         )
 
         if losses_reduced_per_micro_batch:
@@ -420,23 +453,26 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             loss_mean = torch.tensor([0.0]).cuda()
 
-        return loss_mean[0]
+        loss = loss_mean[0]
+        self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():
-            averaged_loss = torch.stack(outputs).mean()
+            averaged_loss = torch.stack(self.validation_step_outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
+    def on_test_epoch_end(self):
+        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, sentence_order, output_tensor):
@@ -468,6 +504,95 @@ class MegatronBertModel(MegatronBaseModel):
             # averaged_losses = average_losses_across_data_parallel_group(
             #     [lm_loss])
             # return loss, {'lm loss': averaged_losses[0]}
+
+    def build_LDDL_data(self, cfg):
+        if not HAVE_LDDL:
+            raise ImportError(
+                "LDDL was not found. Please see the LDDL README for installation instructions: https://github.com/NVIDIA/LDDL#installation."
+            )
+        logging.info(f'Starting building LDDL Dataloaders')
+        self._train_ds = None
+        self._validation_ds = None
+        self._test_ds = None
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
+        num_micro_batches = self.cfg.global_batch_size // (self.cfg.micro_batch_size * data_parallel_size)
+        global_batch_size_on_this_data_parallel_rank = num_micro_batches * self.cfg.micro_batch_size
+        samples_consumed_dploader = self.compute_consumed_samples(0) // data_parallel_size
+        # We run under the assumption that the datapath is the prefix if LDDL dataloader
+        train_lddl_data_path = self.cfg.data.data_prefix[0]
+        self._train_dl = get_bert_pretrain_data_loader(
+            train_lddl_data_path,
+            dp_rank=parallel_state.get_data_parallel_rank(),
+            local_rank=self.local_rank,
+            shuffle_buffer_size=16384,
+            shuffle_buffer_warmup_factor=16,
+            vocab_file=self.cfg.tokenizer.vocab_file,
+            data_loader_kwargs={
+                'batch_size': global_batch_size_on_this_data_parallel_rank,
+                'num_workers': self.cfg.data.num_workers,
+                'prefetch_factor': 2,
+            },
+            mlm_probability=0.15,
+            base_seed=self.cfg.seed,
+            log_level=logging.CRITICAL,
+            log_dir="/tmp/log",
+            return_raw_samples=False,
+            start_epoch=0,
+            sequence_length_alignment=8,
+            ignore_index=-1,
+            samples_seen=samples_consumed_dploader,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+        logging.info(f'Completed build train LDDL Dataloader')
+        if len(self.cfg.data.data_prefix) > 1:
+            val_lddl_data_path = self.cfg.data.data_prefix[1]
+            self._validation_dl = get_bert_pretrain_data_loader(
+                val_lddl_data_path,
+                dp_rank=parallel_state.get_data_parallel_rank(),
+                local_rank=self.local_rank,
+                shuffle_buffer_size=16384,
+                shuffle_buffer_warmup_factor=16,
+                vocab_file=self.cfg.tokenizer.vocab_file,
+                data_loader_kwargs={
+                    'batch_size': global_batch_size_on_this_data_parallel_rank,
+                    'num_workers': self.cfg.data.num_workers,
+                    'prefetch_factor': 2,
+                },
+                mlm_probability=0.15,
+                base_seed=self.cfg.seed,
+                log_level=logging.CRITICAL,
+                log_dir="/tmp/log",
+                return_raw_samples=False,
+                start_epoch=0,
+                sequence_length_alignment=8,
+                ignore_index=-1,
+                micro_batch_size=self.cfg.micro_batch_size,
+            )
+        if len(self.cfg.data.data_prefix) > 2:
+            test_lddl_data_path = self.cfg.data.data_prefix[2]
+            self._test_dl = get_bert_pretrain_data_loader(
+                test_lddl_data_path,
+                dp_rank=parallel_state.get_data_parallel_rank(),
+                local_rank=self.local_rank,
+                shuffle_buffer_size=16384,
+                shuffle_buffer_warmup_factor=16,
+                vocab_file=self.cfg.tokenizer.vocab_file,
+                data_loader_kwargs={
+                    'batch_size': global_batch_size_on_this_data_parallel_rank,
+                    'num_workers': self.cfg.data.num_workers,
+                    'prefetch_factor': 2,
+                },
+                mlm_probability=0.15,
+                base_seed=self.cfg.seed,
+                log_level=logging.CRITICAL,
+                log_dir="/tmp/log",
+                return_raw_samples=False,
+                start_epoch=0,
+                sequence_length_alignment=8,
+                ignore_index=-1,
+                micro_batch_size=self.cfg.micro_batch_size,
+            )
+        logging.info(f'Finished building LDDL Dataloaders')
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
@@ -561,7 +686,7 @@ class MegatronBertModel(MegatronBaseModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -574,10 +699,14 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
-            self.build_train_valid_test_datasets()
-            self.setup_training_data(self.cfg.data)
-            self.setup_validation_data(self.cfg.data)
-            self.setup_test_data(self.cfg.data)
+            if self.cfg.data.dataloader_type == "LDDL":
+                self.build_LDDL_data(self.cfg.data)
+                torch.distributed.barrier()
+            else:
+                self.build_train_valid_test_datasets()
+                self.setup_training_data(self.cfg.data)
+                self.setup_validation_data(self.cfg.data)
+                self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -643,7 +772,11 @@ class MegatronBertModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
     def setup_training_data(self, cfg):

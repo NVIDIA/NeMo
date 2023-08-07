@@ -41,6 +41,7 @@ Other flags that can be set
 1.   `--drop_duplicates` : Use this flag to drop rows that are exactly the same for both prompt and completion
 2.   `--split_train_validation` : Use this flag to split one file into separate train and validation files.
 3.   `--val_proportion 0.1`: Use a float (default 0.1) between 0 and 1 to control how much of the dataset to allocate to the validation set and the remaining for the train dataset.
+4.   `--short_context_model`: Use this flag to prepare data for use with models that have shorter context length of 2048 tokens (e.g. 5B and 20B models)
 
 What to expect
 
@@ -92,13 +93,8 @@ def recommend_hyperparameters(df, model=None):
     """
     Makes recommendations on the batch_size to use for training, based on the dataset size
     
-    All hyperparameters except batch_size, max_batch_size and max_seq_length are hardcoded based on API defaults for now
     """
     potential_batch_sizes = [2, 4, 8, 12, 16, 32, 64, 128]
-    bs = 2
-    for potential_bs in potential_batch_sizes:
-        if 0.002 * len(df) > potential_bs:
-            bs = potential_bs
 
     max_bs = 128
     if len(df) < 128:
@@ -106,6 +102,8 @@ def recommend_hyperparameters(df, model=None):
         for potential_bs in potential_batch_sizes:
             if potential_bs < len(df) * 0.9:
                 max_bs = potential_bs
+
+    bs = min(max_bs, 32)
 
     df_char_length = df.apply(lambda x: len(x.prompt) + len(x.completion), axis=1)
     length_by_chars = sorted(list(df_char_length))
@@ -400,6 +398,12 @@ if __name__ == "__main__":
     parser.add_argument("--drop_duplicates", "-dd", action="store_true")
     parser.add_argument("--split_train_validation", "-stv", action="store_true")
     parser.add_argument(
+        "--short_context_model",
+        "-scm",
+        action="store_true",
+        help="Specifies if using models with shorter context length of 2048 tokens e.g. 5B and 20B models",
+    )
+    parser.add_argument(
         "--val_proportion",
         "-vp",
         default=0.1,
@@ -412,8 +416,13 @@ if __name__ == "__main__":
     messages = []
     messages.append(str(args))
 
+    if args.short_context_model:
+        MAX_TOKEN_LENGTH = 2048
+    else:
+        MAX_TOKEN_LENGTH = 4096
+
     # every token is around 4 chars
-    MAX_TOTAL_CHAR_LENGTH = 4 * 2048
+    MAX_TOTAL_CHAR_LENGTH = 4 * MAX_TOKEN_LENGTH
 
     df, message = load_file_into_df(args.filename)
     messages.append(message)

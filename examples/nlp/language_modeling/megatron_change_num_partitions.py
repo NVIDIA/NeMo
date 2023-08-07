@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import os
+import tempfile
 from argparse import ArgumentParser
 from typing import Dict, List
 
 import torch
-from omegaconf import open_dict
+import torch.nn as nn
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -54,7 +56,21 @@ python megatron_change_num_partitions.py \
     --target_pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_split_rank=0 \
     --precision=bf16
-    
+
+# Megatron GPT + Virtual Pipeline parallelism
+
+python megatron_change_num_partitions.py \
+    --model_extracted_dir="<Directory of Pytorch Lightning ckpt folders>" \
+    --target_file="<Name of the target NeMo file>" \
+    --ckpt_name="<Name of a single Pytorch Lightning ckpt file inside the extracted dir>" \
+    --tensor_model_parallel_size=<TP SIZE> \
+    --target_tensor_model_parallel_size=<TARGET TP SIZE> \
+    --pipeline_model_parallel_size=<PP SIZE> \
+    --target_pipeline_model_parallel_size=<TARGET PP SIZE> \
+    --virtual_pipeline_model_parallel_size=<VP SIZE> \
+    --hparams_file="<Path to HPARAMS.yaml file>" \
+    --precision=bf16
+
 ### Only Tensor Parallelism conversion ###
 
 To the above commands, add the following argument: `--tp_conversion_only` 
@@ -99,13 +115,68 @@ model config.
 
 """
 
+
+def set_virtual_parallel_rank_safely(rank: int):
+    AppState().virtual_pipeline_model_parallel_rank = rank
+
+    try:
+        from megatron.core import parallel_state
+
+        parallel_state.set_virtual_pipeline_model_parallel_rank(rank)
+
+        if rank is None:
+            parallel_state.set_virtual_pipeline_model_parallel_world_size(None)
+
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("`megatron-core` not installed, cannot set virtual parallel rank !")
+
+
+#################
+### Utilities ###
+#################
+
+
+def force_cpu_model(cfg):
+    with open_dict(cfg):
+        # temporarily set to cpu
+        original_cpu_init = cfg.get('use_cpu_initialization', False)
+        if 'megatron_amp_O2' in cfg:
+            key = 'megatron_amp_O2'
+            original_amp_o2 = cfg.megatron_amp_O2
+        elif 'megatron_amp_02' in cfg:
+            key = 'megatron_amp_02'
+            original_amp_o2 = cfg.megatron_amp_02
+        else:
+            key, original_amp_o2 = None, None
+
+        # Set new values
+        cfg.use_cpu_initialization = True
+        if key is not None:
+            cfg[key] = False
+
+    # Setup restore dict
+    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
+    if key is not None:
+        restore_dict[key] = original_amp_o2
+
+    return cfg, restore_dict
+
+
+def restore_model_config(cfg, original_dict):
+    with open_dict(cfg):
+        for key, val in original_dict.items():
+            logging.info(f"Restoring model config key ({key}) from {cfg[key]} to original value of {val}")
+            cfg[key] = val
+    return cfg
+
+
 #################
 ### Utilities ###
 #################
 
 
 def compute_tp_splits(
-    param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy
+    param_name, param, partitions, global_idx, tp_size, pp_size, pp_rank, pp_split_rank, megatron_legacy, model_cfg
 ):
     """
     Function to compute the splits required for tensor-parallelism.
@@ -120,12 +191,15 @@ def compute_tp_splits(
         pp_rank: Int, pipeline-parallelism rank.
         pp_split_rank: Int, pipeline-parallelism split rank. This should be > 1 if TP is being used with EncDec models (T5)
         megatron_legacy: Bool, whether the model is a legacy Megatron model or not.
+        model_cfg: The model config as a OmegaConf DictConfig.
 
     Returns:
         List of torch tensors, each of which is a split of the current parameter.
     """
     # alias the global index to idx
     idx = global_idx
+
+    fast_glu_activation = str(model_cfg.get('activation', '')).lower() in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
 
     if param.shape == partitions[0][idx].shape:
         split = [partitions[0][idx].data] * tp_size
@@ -156,6 +230,15 @@ def compute_tp_splits(
             for i in range(tp_size):
                 tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 2, tp_size)])
                 split.append(tp_qkv)
+        elif 'dense_h_to_4h.weight' in param_name and fast_glu_activation:
+            # For Megatron GPT model with Fast Glu activation
+            # Handle gated linear units
+            # concat all the first halves ('W's) and all the second halves ('V's)
+            w_split, k_split = torch.chunk(partitions[0][idx].data, 2, dim=0)
+            w_split = torch.chunk(w_split, tp_size, dim=0)
+            k_split = torch.chunk(k_split, tp_size, dim=0)
+            split = [torch.cat(weights, dim=0) for weights in zip(w_split, k_split)]  # split per tp rank
+
         # Regular split for Megatron and NeMo-Megatron models.
         else:
             split = torch.split(partitions[0][idx].data, param.shape[0], dim=0)
@@ -163,7 +246,7 @@ def compute_tp_splits(
     return split
 
 
-def compute_tp_merge(idx, name, param, partitions_pp):
+def compute_tp_merge(idx, name, param, partitions_pp, model_cfg):
     """
     Function to compute the partition merge required for tensor-parallelism.
 
@@ -173,10 +256,13 @@ def compute_tp_merge(idx, name, param, partitions_pp):
         param: The parameter to be merged under TP 1 PP 1.
         partitions_pp: List of all TP partitions of the flattened parameter of the current model for a given PP rank
             (TP X PP Y). Indexed as partitions_pp[tp_rank][idx].
+        model_cfg: The model config as an OmegaConf DictConfig.
 
     Returns:
         The concatenated parameter for TP 1 PP 1.
     """
+    fast_glu_activation = str(model_cfg.get('activation', '')).lower() in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
+
     # Logic from original TP rank change
     if param.shape == partitions_pp[0][idx].shape:
         concated = partitions_pp[0][idx].data
@@ -184,6 +270,19 @@ def compute_tp_merge(idx, name, param, partitions_pp):
         concated = torch.cat([partitions_pp[i][idx].data for i in range(len(partitions_pp))], dim=-1)
     else:
         concated = torch.cat([partitions_pp[i][idx].data for i in range(len(partitions_pp))], dim=0)
+
+    # Logic for Fast Glu activation
+    if 'dense_h_to_4h.weight' in name and fast_glu_activation:
+        # concat all the first halves ('W's) and all the second halves ('V's)
+        wk_splits = []
+        for tpr in range(len(partitions_pp)):
+            wk_splits.append(torch.chunk(partitions_pp[tpr][idx].data, 2, dim=0))
+
+        w_split = torch.cat([w[0] for w in wk_splits], dim=0)
+        k_split = torch.cat([w[1] for w in wk_splits], dim=0)
+        concated = torch.cat([w_split, k_split], dim=0)
+
+    # Trim padding
     if concated.shape != param.shape:
         logging.info(
             f"Warning: Shape mismatch for parameter {name} required shape: {param.shape}, merged shape: {concated.shape}. Narrowing to match required size."
@@ -301,7 +400,16 @@ class GPTHandler:
 
             # Tensor Parallel Splitting
             split = compute_tp_splits(
-                param_name, param, partitions, idx, tp_size, pp_size, pp_rank, pp_split_rank, self.megatron_legacy
+                param_name,
+                param,
+                partitions,
+                idx,
+                tp_size,
+                pp_size,
+                pp_rank,
+                pp_split_rank,
+                self.megatron_legacy,
+                model.cfg,
             )
 
             splits.append(split)
@@ -419,7 +527,16 @@ class T5Handler:
 
             # Tensor Parallel Splitting
             split = compute_tp_splits(
-                param_name, param, partitions, idx, tp_size, pp_size, pp_rank, pp_split_rank, self.megatron_legacy
+                param_name,
+                param,
+                partitions,
+                idx,
+                tp_size,
+                pp_size,
+                pp_rank,
+                pp_split_rank,
+                self.megatron_legacy,
+                model.cfg,
             )
 
             splits.append(split)
@@ -445,12 +562,13 @@ class T5Handler:
                         param_name,
                         param,
                         partitions,
-                        0,
-                        tp_size,
-                        pp_size,
-                        pp_rank,
-                        pp_split_rank,
-                        self.megatron_legacy,
+                        global_idx=0,
+                        tp_size=tp_size,
+                        pp_size=pp_size,
+                        pp_rank=pp_rank,
+                        pp_split_rank=pp_split_rank,
+                        megatron_legacy=self.megatron_legacy,
+                        model_cfg=model.cfg,
                     )
                     splits.insert(self.intermediate_shared_embedding_location, split)
                     break
@@ -534,7 +652,7 @@ def merge_partition(model, partitions: Dict[int, List[List[torch.Tensor]]], writ
         )
 
         # Original TP rank change logic
-        concated = compute_tp_merge(idx, name, param, partitions_pp)
+        concated = compute_tp_merge(idx, name, param, partitions_pp, model.cfg)
 
         # Update the model parameter with the merged tensor
         param.data = concated
@@ -656,6 +774,7 @@ def split_tp_partition_only(model, partitions, tp_size, write_path=None, megatro
             pp_rank=0,
             pp_split_rank=0,
             megatron_legacy=megatron_legacy,
+            model_cfg=model.cfg,
         )
         splits.append(split)
         idx += 1
@@ -684,6 +803,12 @@ def main():
         '--target_pipeline_model_parallel_split_rank', type=int, default=0, help='PP rank to split for Enc-Dec models'
     )
     parser.add_argument(
+        '--virtual_pipeline_model_parallel_size', type=int, default=None, help='Virtual Pipeline parallelism size'
+    )
+    parser.add_argument(
+        '--ckpt_name', type=str, default=None, help='Checkpoint name to load from for Virtual Parallel'
+    )
+    parser.add_argument(
         "--model_class",
         type=str,
         default="nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel",
@@ -710,6 +835,7 @@ def main():
         default=None,
         help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
     )
+    parser.add_argument('--hparams_file', type=str, default=None, help='Path to hparams file from PTL training')
     parser.add_argument('--tp_conversion_only', action='store_true', help='Only convert TP model to TP model')
     parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to pre-extracted model directory')
 
@@ -746,6 +872,29 @@ def main():
     pp_size = args.pipeline_model_parallel_size
     tgt_pp_size = args.target_pipeline_model_parallel_size
     pipeline_model_parallel_split_rank = args.target_pipeline_model_parallel_split_rank
+    vp_size = args.virtual_pipeline_model_parallel_size
+    if vp_size is None:
+        vp_size = 1
+
+    convert_vp = vp_size > 1
+    if convert_vp:
+        from megatron.core import parallel_state
+
+        parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
+
+        hparams_filepath = args.hparams_file
+        if hparams_filepath is None:
+            logging.warning(
+                '\n\n\n!!!!!!!!!\n'
+                'You are converting a model with virtual pipeline parallelism enabled, \n'
+                'but have not passed `hparams_file` argument. \n'
+                'This will cause each ckpt file to be temporarily laoded onto GPU memory!\n\n'
+                'It is highly recommended to pass `hparams_file` argument to avoid this.\n'
+            )
+    else:
+        hparams_filepath = None
+
+    # Import the class of the model
     cls = model_utils.import_class_by_path(args.model_class)
 
     if args.model_file is None and args.model_extracted_dir is None:
@@ -781,10 +930,16 @@ def main():
         tgt_pp_size = 1
         pipeline_model_parallel_split_rank = 0
 
+    if vp_size is None or vp_size < 0:
+        vp_size = 1
+
     app_state = AppState()
     app_state.data_parallel_rank = 0
     app_state.pipeline_model_parallel_size = pp_size
     app_state.tensor_model_parallel_size = tp_size
+
+    if vp_size > 1:
+        app_state.virtual_pipeline_model_parallel_size = vp_size
     app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
 
     world_size = pp_size * tp_size  # pseudo world size for simulating load of a specific rank on a single gpu
@@ -792,86 +947,200 @@ def main():
     app_state.tensor_model_parallel_rank = 0
     app_state.pipeline_model_parallel_rank = 0
 
+    if vp_size > 1:
+        set_virtual_parallel_rank_safely(0)
+
     # If input model has TP > 1 or PP > 1
     # Reconstruct the model to have TP = 1 and PP = 1
     # Note that this is a forward loop that will process PP [0..N] TP [0..M] in sequential order.
     if tp_size > 1 or pp_size > 1:
-        partitions = {}
+        partitions = {}  # 3d list of VP x PP x TP
         model = None
-        for pp_rank in range(pp_size):
-            app_state.pipeline_model_parallel_rank = pp_rank
-            partitions[pp_rank] = []
 
-            for tp_rank in range(tp_size):
-                app_state.tensor_model_parallel_rank = tp_rank
+        # Build partitions structure
+        for vp_idx in range(vp_size):
+            partitions[vp_idx] = []  # Build first layer - VP
 
-                logging.info(f"Loading ------------ PP Rank: {pp_rank} TP Rank: {tp_rank}")
+            for pp_idx in range(pp_size):
+                # For each VP, build PP x TP holder
+                partitions[vp_idx].append({})
+                partitions[vp_idx][pp_idx] = []
 
-                # Override flag that forces Model to use AppState instead of Trainer
-                # to determine the world size, global and local rank
-                # Used for simulating load of a specific rank on a single gpu
-                os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
+        for vp_rank in range(vp_size):
+            if vp_size > 1:
+                set_virtual_parallel_rank_safely(vp_rank)
 
-                # Compute the global rank to load the correct subset of parameters
-                global_rank = pp_rank * tp_size + tp_rank
-
-                # Update AppState
-                app_state.world_size = world_size
-                app_state.global_rank = global_rank
-                app_state.local_rank = global_rank % num_gpu_per_node
-                app_state.pipeline_model_parallel_size = pp_size
-                app_state.tensor_model_parallel_size = tp_size
-                app_state.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
-                app_state.model_parallel_size = (
-                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
-                )
-
-                save_restore_connector = NLPSaveRestoreConnector()
-
-                if args.model_extracted_dir is not None:
-                    logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
-                    save_restore_connector.model_extracted_dir = args.model_extracted_dir
-
-                if args.model_file is not None:
-                    model_filepath = args.model_file
-                else:
-                    model_filepath = args.model_extracted_dir
-
-                model = cls.restore_from(
-                    restore_path=model_filepath,
-                    trainer=trainer,
-                    map_location=torch.device("cpu"),
-                    save_restore_connector=save_restore_connector,
-                )
-                model.to(dtype=dtype)
-
-                # Reset env flag
-                os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
-
-                logging.info(
-                    f"<<<<<<<< LOADED MODEL PP={pp_rank + 1} TP={tp_rank + 1} | "
-                    f"GLOBAL RANK = {global_rank} >>>>>>>>>"
-                )
-                params = [p for _, p in model.named_parameters()]
-                partitions[pp_rank].append(params)
-
-                # app_state is being updated incorrectly during restore
-                app_state.data_parallel_rank = 0
+            for pp_rank in range(pp_size):
                 app_state.pipeline_model_parallel_rank = pp_rank
-                app_state.tensor_model_parallel_rank = tp_rank
-                app_state.pipeline_model_parallel_size = pp_size
-                app_state.tensor_model_parallel_size = tp_size
-                app_state.model_parallel_size = (
-                    app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
-                )
+
+                for tp_rank in range(tp_size):
+                    app_state.tensor_model_parallel_rank = tp_rank
+
+                    logging.info(f"Loading ------------ PP Rank: {pp_rank} TP Rank: {tp_rank}")
+
+                    # Override flag that forces Model to use AppState instead of Trainer
+                    # to determine the world size, global and local rank
+                    # Used for simulating load of a specific rank on a single gpu
+                    os.environ[NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE] = "true"
+
+                    # Compute the global rank to load the correct subset of parameters
+                    global_rank = pp_rank * tp_size + tp_rank
+
+                    # Update AppState
+                    app_state.world_size = world_size
+                    app_state.global_rank = global_rank
+                    app_state.local_rank = global_rank % num_gpu_per_node
+                    app_state.pipeline_model_parallel_size = pp_size
+                    app_state.tensor_model_parallel_size = tp_size
+                    app_state.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
+                    app_state.model_parallel_size = (
+                        app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                    )
+
+                    if vp_size > 1:
+                        set_virtual_parallel_rank_safely(vp_rank)
+
+                    if vp_rank == 0:
+                        save_restore_connector = NLPSaveRestoreConnector()
+
+                        if args.model_extracted_dir is not None:
+                            logging.info(f"Using extracted model directory: {args.model_extracted_dir}")
+                            save_restore_connector.model_extracted_dir = args.model_extracted_dir
+
+                        if args.model_file is not None:
+                            model_filepath = args.model_file
+                        else:
+                            model_filepath = args.model_extracted_dir
+
+                        if vp_size == 1:
+
+                            # Get model config
+                            tmp_cfg = cls.restore_from(
+                                restore_path=model_filepath,
+                                trainer=trainer,
+                                map_location=torch.device("cpu"),
+                                save_restore_connector=save_restore_connector,
+                                return_config=True,
+                            )
+
+                            # Force model onto CPU
+                            tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+
+                            # Restore model
+                            model = cls.restore_from(
+                                restore_path=model_filepath,
+                                trainer=trainer,
+                                map_location=torch.device("cpu"),
+                                save_restore_connector=save_restore_connector,
+                                override_config_path=tmp_cfg,
+                            )
+                            model.freeze()
+
+                            # Restore model config
+                            restore_model_config(model.cfg, restore_dict)
+
+                        else:
+                            if args.ckpt_name is None:
+                                raise ValueError(
+                                    "For Virtual Parallel, ckpt name is required.\n"
+                                    "Please provide `--ckpt_name` argument."
+                                )
+
+                            # inject model parallel rank
+                            checkpoint_path = model_utils.inject_model_parallel_rank(
+                                os.path.join(model_filepath, args.ckpt_name)
+                            )
+
+                            vp_state_dict = torch.load(checkpoint_path, map_location="cpu")
+
+                            if hparams_filepath is not None:
+                                # Force the model onto CPU
+                                tmp_cfg = OmegaConf.load(hparams_filepath)
+                                tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+
+                                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.yml') as tmp:
+                                    OmegaConf.save(tmp_cfg, tmp, resolve=True)
+                                    tmp.seek(0)
+
+                                    model = cls.load_from_checkpoint(
+                                        checkpoint_path=checkpoint_path,
+                                        trainer=trainer,
+                                        map_location=torch.device("cpu"),
+                                        hparams_file=tmp.name,
+                                    )
+                                    model.freeze()
+
+                                    restore_model_config(model.cfg, restore_dict)
+
+                            else:
+                                model = cls.load_from_checkpoint(
+                                    checkpoint_path=checkpoint_path, trainer=trainer, map_location=torch.device("cpu"),
+                                )
+                                model.freeze()
+
+                        model.to(dtype=dtype)
+
+                        # Reset env flag
+                        os.environ.pop(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, None)
+
+                        logging.info(
+                            f"<<<<<<<< LOADED MODEL PP={pp_rank + 1} TP={tp_rank + 1} | "
+                            f"GLOBAL RANK = {global_rank} >>>>>>>>>"
+                        )
+
+                        # Save the parameters
+                        if vp_size == 1:
+                            params = [p for p in model.parameters()]
+                            partitions[vp_rank][pp_rank].append(params)  # vp_rank = 0
+
+                        else:
+                            vp_params_tmp = []
+                            for vp_idx in range(vp_size):
+                                set_virtual_parallel_rank_safely(vp_idx)
+                                vp_params = vp_state_dict[f'model{vp_idx}']
+                                model.model[vp_idx].module.load_state_dict(vp_params, strict=True)
+                                model.model[vp_idx].module.to('cpu')
+                                params = [p for p in model.model[vp_idx].module.parameters()]
+                                vp_params_tmp.append(params)
+                                # partitions[pp_rank][vp_idx].append(params)
+
+                            for vp_idx in range(vp_size):
+                                partitions[vp_idx][pp_rank].append(vp_params_tmp[vp_idx])
+
+                            del vp_params_tmp
+                            set_virtual_parallel_rank_safely(0)
+
+                        # app_state is being updated incorrectly during restore
+                        app_state.data_parallel_rank = 0
+                        app_state.pipeline_model_parallel_rank = pp_rank
+                        app_state.tensor_model_parallel_rank = tp_rank
+                        app_state.pipeline_model_parallel_size = pp_size
+                        app_state.tensor_model_parallel_size = tp_size
+                        app_state.model_parallel_size = (
+                            app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+                        )
+
+                        if vp_size > 1:
+                            app_state.virtual_pipeline_model_parallel_size = vp_size
+                            set_virtual_parallel_rank_safely(vp_rank)
 
         # Build a unified model with PP 1 TP 1
         with open_dict(model.cfg):
             model.cfg.tensor_model_parallel_size = 1
             model.cfg.pipeline_model_parallel_size = 1
+            model.cfg.virtual_pipeline_model_parallel_size = None
+
+        app_state.global_rank = 0
+        app_state.local_rank = 0
+        app_state.data_parallel_rank = 0
+        app_state.pipeline_model_parallel_rank = 0
         app_state.tensor_model_parallel_rank = 0
-        app_state.pipeline_model_parallel_size = 0
+        app_state.pipeline_model_parallel_size = 1
+        app_state.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
+
+        if vp_size > 1:
+            set_virtual_parallel_rank_safely(None)
 
         trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
 
@@ -881,25 +1150,99 @@ def main():
             if args.tokenizer_vocab_file is not None:
                 model.cfg.tokenizer.vocab_file = args.tokenizer_vocab_file
 
-            # temporarily
-            original_cpu_init = model.cfg.get('use_cpu_initialization', False)
-            original_amp_o2 = model.cfg.get('megatron_amp_O2', False)
-            model.cfg.use_cpu_initialization = True
-            model.cfg.megatron_amp_O2 = False
+            model.cfg, restore_dict = force_cpu_model(model.cfg)
 
-        model = cls(model.cfg, trainer)
+            # Remove Virtual Parallelism
+            model.cfg.virtual_pipeline_model_parallel_size = None
+
+        logging.info(f"<<<<<<<< Building TP 1 PP 1 base model >>>>>>>>>")
+        model = cls(model.cfg, trainer)  # type: nn.Module
+        model.freeze()
         model = model.to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
+
+        restore_model_config(model.cfg, restore_dict)
+
+        vp_param_count = 0
+        for vp in range(vp_size):
+            for pp in range(pp_size):
+                for tp in range(tp_size):
+                    vp_param_count += len(partitions[vp][pp][tp])
+
+        if vp_size > 1:
+            logging.debug(f"Total params in TP PP VP = 1 : {len(list(model.parameters()))}")
+            logging.debug(f"Total params in VP PP TP (og): {vp_param_count}")
+
+        # Flatten Virtual Pipeline
+        if vp_size == 1:
+            # unpack vp container, pack pp tp container
+            partitions = partitions[0]
+            partitions = {idx: val for idx, val in enumerate(partitions)}
+        else:
+            flat_partitions = {idx: [] for idx in range(pp_size)}
+
+            """
+            Under VP convention
+            Notation : 
+            Stage  = PP rank
+            Number = GPT model / layer index
+            Ignore TP - every PP has all TP corresponding to that PP
+            chunk_index = the physical index of any [] in the list. Ex idx = 2 in below map corresponds to [2: PP 0 VP 1]]
+
+
+            For a PP 2 VP 4 model with 8 GPT layers-
+
+            Indices
+            # Stage 0: [0:PP 0 VP 0]  [2:PP 0 VP 1]  [4:PP 0 VP 2]  [6:PP 0 VP 3]
+            # Stage 1: [1:PP 1 VP 0]  [3:PP 1 VP 1]  [5:PP 1 VP 2]  [7:PP 1 VP 3]
+
+            after conversion will become
+
+            # Stage 0: [0,1,2,3:PP 0]
+            # Stage 1: [4,5,6,7:PP 1]
+
+            """
+            pp_index = 0
+            chunk_counter = 0
+            tp_cache = [[] for _ in range(tp_size)]
+
+            for vp in range(vp_size):
+                for pp in range(pp_size):
+                    # Gather all TP under this VP PP combination.
+                    # We will accumulate TP parameters from multiple layers in this cache.
+                    for tp in range(tp_size):
+                        tp_cache[tp].extend(partitions[vp][pp][tp])
+
+                    # This counter indexes the global selection of a VP PP combination in the above map
+                    chunk_counter += 1
+
+                    # Log the mapping from old VP x PP to new PP index
+                    logging.info(f"VP Conversion - vp: {vp} pp: {pp} -> pp_idx: {pp_index}")
+
+                    # Every vp_size chunks, we can fill a new PP index in the flat_partitions
+                    if chunk_counter % vp_size == 0:
+                        flat_partitions[pp_index].extend(tp_cache)
+                        tp_cache = [[] for _ in range(tp_size)]
+                        pp_index += 1
+
+                        logging.debug(
+                            f"VP merge step: \n"
+                            f"vp: {vp} pp: {pp} pp_idx: {pp_index - 1} "
+                            f"len(flat_partitions): {len(flat_partitions[pp_index - 1])}"
+                        )
+
+            logging.debug(f"PP Size len(flat partitions) : {len(flat_partitions)}")
+            logging.debug(f"TP Size len(flat partitions[0]): {len(flat_partitions[0])}")
+            logging.debug(f"Layers  len(flat partitions[0][0]) : {len(flat_partitions[0][0])}")
+
+            partitions = flat_partitions
+            del tp_cache
 
         if tgt_tp_size > 1 or tgt_pp_size > 1:
             merge_partition(model, partitions)
         else:
             # Write out the PP 1 TP 1 model to disk
             merge_partition(model, partitions, args.target_file)
-
-        with open_dict(model.cfg):
-            model.cfg.use_cpu_initialization = original_cpu_init
-            model.cfg.megatron_amp_O2 = original_amp_o2
 
         # Empty cache memory of all parameters from all PP TP partitions
         partitions.clear()
@@ -919,6 +1262,16 @@ def main():
         else:
             model_filepath = args.model_extracted_dir
 
+        tmp_cfg = cls.restore_from(
+            restore_path=model_filepath,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            save_restore_connector=save_restore_connector,
+            return_config=True,
+        )
+
+        tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+
         model = cls.restore_from(
             restore_path=model_filepath,
             trainer=trainer,
@@ -926,6 +1279,8 @@ def main():
             save_restore_connector=save_restore_connector,
         )
         model.to(dtype=dtype)
+
+        restore_model_config(model.cfg, restore_dict)
 
     # If target model has TP > 1 or PP > 1
     if tgt_pp_size > 1 or tgt_tp_size > 1:
@@ -997,9 +1352,15 @@ def main():
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path
 
-            model = cls(model.cfg, trainer).to('cpu')
+            model.cfg, restore_dict = force_cpu_model(model.cfg)
+
+            model = cls(model.cfg, trainer)
+            model = model.to('cpu')
             model._save_restore_connector = NLPSaveRestoreConnector()
+            model.freeze()
             model.to(dtype=dtype)
+
+            restore_model_config(model.cfg, restore_dict)
 
             # Update global batch size
             if old_global_batch_size % new_global_batch_size != 0 or old_global_batch_size < new_global_batch_size:

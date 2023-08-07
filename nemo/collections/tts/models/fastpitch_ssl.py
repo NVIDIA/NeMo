@@ -259,7 +259,7 @@ class FastPitchModel_SSL(ModelPT, TTSValLogger):
 
         return val_out
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         collect = lambda key: torch.stack([x[key] for x in outputs]).mean()
         val_loss = collect("val_loss")
         mel_loss = collect("mel_loss")
