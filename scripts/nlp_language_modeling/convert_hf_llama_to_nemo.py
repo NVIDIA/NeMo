@@ -56,7 +56,7 @@ def get_args():
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--fast-swiglu", action="store_true", help="Enable fast swiglu by combining gate and up gemm")
-
+    parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
     return args
 
@@ -84,7 +84,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 
 def load_config(args, llama_config):
-    nemo_config = OmegaConf.load('/NeMo/examples/nlp/language_modeling/conf/megatron_llama_config.yaml').model
+    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')).model
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
     nemo_config.num_layers = int(llama_config['num_hidden_layers'])
     nemo_config.hidden_size = llama_config['hidden_size']
@@ -97,20 +97,34 @@ def load_config(args, llama_config):
         nemo_config.num_query_groups = llama_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
-    nemo_config.precision = 32                                # is this necessary?
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
-    nemo_config.tokenizer.tokenizer_model = llama_config['tokenizer_model'] # is this necessary?
-    nemo_config.micro_batch_size = 1                          # why?
-    nemo_config.global_batch_size = 2048                      # why?
 
     # print(nemo_config)
     return nemo_config
 
 
 def convert(args):
+    if args.precision in ["32", "16"]:
+        precision = int(float(args.precision))
+
+    if precision == "bf16":
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            precision = "bf16"
+        else:
+            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
+            precision = 16
+
+    if precision == 32:
+        dtype = torch.float32
+    elif precision == 16:
+        dtype = torch.float16
+    elif precision == "bf16":
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32  # fallback
 
     # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
-    trainer = Trainer(accelerator='cpu')
+    trainer = Trainer(accelerator='cpu', precision=args.precision)
     # checkpoint_path = megatron_lm_inject_model_parallel_rank(
     #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
     # )
@@ -228,6 +242,7 @@ def convert(args):
         # LayerNorm
         input_ln_weight = model.state_dict()[f'model.layers.{l}.input_layernorm.weight']
         if mcore_gpt:
+            # input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
             input_ln_base_name = f'model.decoder.layers.{l}.input_layernorm.weight'
         else:
             input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
@@ -235,6 +250,7 @@ def convert(args):
 
         post_attn_ln_weight = model.state_dict()[f'model.layers.{l}.post_attention_layernorm.weight']
         if mcore_gpt:
+            # post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
             post_attn_ln_base_name = f'model.decoder.layers.{l}.post_self_attn_layernorm.weight'
         else:
             post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
@@ -261,6 +277,7 @@ def convert(args):
     model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
+    model = model.to(dtype=dtype)
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
 
