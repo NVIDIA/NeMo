@@ -92,11 +92,12 @@ class GPTSFTDataset(Dataset):
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         if isinstance(truncation_fields, str):
-            self.truncation_fields = set(truncation_fields.split(','))
+            self.truncation_fields = truncation_fields.split(',')
         elif isinstance(truncation_fields, list):
-            self.truncation_fields = set(truncation_fields)
+            self.truncation_fields = truncation_fields
         else:
             raise RuntimeError("truncation_fields is invalid type")
+                        
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
@@ -105,7 +106,11 @@ class GPTSFTDataset(Dataset):
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        assert self.truncation_fields.issubset(self.context_keys), f'truncation_fields must in {self.context_keys}'
+            
+        # Previous models has self.truncation_fields = ['context'] and self.context_keys = ['input']
+        if len(self.truncation_fields) == 1 and len(self.context_keys) == 1 and self.truncation_fields[0] == 'context':
+            self.truncation_fields[0] = self.context_keys[0]
+        assert set(self.truncation_fields).issubset(self.context_keys), f'truncation_fields {self.truncation_fields} must in {self.context_keys}'
 
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[file_path],
