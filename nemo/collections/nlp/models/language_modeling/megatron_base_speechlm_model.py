@@ -243,37 +243,37 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 
         return state_dict_
 
-    def load_state_dict(self, state_dict, strict: bool = True):
-        """
-        Custom load state dict method that only loads prompt table and prompt encoder
-        parameters. Matching load method for this class' custom state dict method. 
-        """
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                if self.prompt_encoder is None:
-                    self.init_prompt_encoder()
-                self.prompt_encoder.load_state_dict(state_dict, strict)
-            else:
-                raise ValueError("invalid virtual prompt source")
+    # def load_state_dict(self, state_dict, strict: bool = True):
+    #     """
+    #     Custom load state dict method that only loads prompt table and prompt encoder
+    #     parameters. Matching load method for this class' custom state dict method. 
+    #     """
+    #     if self.first_stage_of_pipeline():
+    #         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+    #             if self.prompt_encoder is None:
+    #                 self.init_prompt_encoder()
+    #             self.prompt_encoder.load_state_dict(state_dict, strict)
+    #         else:
+    #             raise ValueError("invalid virtual prompt source")
 
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
+    # def setup_optimizer_param_groups(self):
+    #     """
+    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
+    #     Only want virtual prompt params to be passed to the optimizer.
+    #     """
+    #     ## Freeze frozen model
+    #     for param in self.frozen_model.parameters():
+    #         param.requires_grad = False
 
-        virtual_prompt_params = {'params': []}
+    #     virtual_prompt_params = {'params': []}
 
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-            else:
-                raise ValueError("Optimizer only supports Prompt Encoder.")
+    #     if self.first_stage_of_pipeline():
+    #         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+    #             virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+    #         else:
+    #             raise ValueError("Optimizer only supports Prompt Encoder.")
 
-        self._optimizer_param_groups = (virtual_prompt_params,)
+    #     self._optimizer_param_groups = (virtual_prompt_params,)
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """

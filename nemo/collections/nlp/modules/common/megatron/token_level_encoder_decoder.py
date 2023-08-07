@@ -636,7 +636,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
                         # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024 # 39168 = 30000 + 9168
                         # last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight()[(30000+1024*(i+1)):(30000+1024*(i+2)),:])
-                        # @TODO(sugh) check loss function and inputs to loss function
                         last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight())
                         last_layer_logits = last_layer_logits[:,:,(30000+1024*(i+1)):(30000+1024*(i+2))]
                         speech_logits[:,:,:,i] = last_layer_logits
@@ -657,7 +656,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels[0, :, :], label_smoothing)
                     else:
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
                         logging.debug(f"token_loss: {tokens_loss}")
@@ -667,6 +666,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         for i in range(speech_layers):
                             # What is labels[:7, :, :] if this is text?
                             # speech mask will make loss corresponding to Text = 0.
+                            labels[i+1, :, :] = (labels[i+1, :, :] - 30000 - (i+1)*1024).long()
                             tokens_loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
                             logging.debug(f"token_loss_{i}: {tokens_loss}")
                             logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")

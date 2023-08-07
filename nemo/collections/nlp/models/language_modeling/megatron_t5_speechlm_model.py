@@ -25,6 +25,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset im
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_base_speechlm_model import (
+    MegatronBaseSpeechLM,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -63,8 +66,8 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronT5SpeechLMModel']
 
-
-class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
+# MegatronBasePromptLearningModel):
+class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
 
@@ -103,7 +106,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         return False
 
     def forward(
-        self, virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, speech_mask=None, inference=False,
+        self, virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, speech_mask=None, inference=False,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -112,8 +115,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            # input_embeds = self.embed_input(input_ids, taskname_ids, inference)
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids, inference)
+            input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_and_question_tokens], taskname_ids, inference)
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -233,10 +235,10 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
-            virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
+            virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
 
             output_tensor, encoder_input = model(
-                virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=labels, speech_mask=speech_mask, inference=False,
+                virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=labels, speech_mask=speech_mask, inference=False,
             )
             output_tensor = output_tensor.contiguous()
 
@@ -348,7 +350,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
         return torch.cat(embedding_list, dim=1)
 
     def validation_step(self, batch, batch_idx, inference=False):
-        virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
+        virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
         # does not use dataloader_iter due to device placement issues arising from PTL
         mode = self.training
         self.eval()
@@ -358,7 +360,7 @@ class MegatronT5SpeechLMModel(MegatronBasePromptLearningModel):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, question_tokens, context_tokens], taskname_ids, inference)
+            input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_and_question_tokens], taskname_ids, inference)
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(

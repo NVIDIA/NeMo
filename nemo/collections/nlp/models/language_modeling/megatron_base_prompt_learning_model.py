@@ -231,55 +231,55 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             for params in self.word_embeddings.parameters():
                 params.requires_grad = True
 
-    def state_dict(self):
-        """
-        Custom state dict that only contains prompt table and prompt encoder parameters. 
-        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
-        are only in state dict for intermediate checkpoints saved during training. Final
-        nemo checkpoints at the end of training will contain prompt table parameters only. 
-        """
-        state_dict_ = {}
+    # def state_dict(self):
+    #     """
+    #     Custom state dict that only contains prompt table and prompt encoder parameters. 
+    #     No frozen model parameters are stored in the state dict. Prompt encoder parameters 
+    #     are only in state dict for intermediate checkpoints saved during training. Final
+    #     nemo checkpoints at the end of training will contain prompt table parameters only. 
+    #     """
+    #     state_dict_ = {}
 
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                state_dict_ = self.prompt_encoder.state_dict()
-            else:
-                raise ValueError("invalid virtual prompt source")
+    #     if self.first_stage_of_pipeline():
+    #         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+    #             state_dict_ = self.prompt_encoder.state_dict()
+    #         else:
+    #             raise ValueError("invalid virtual prompt source")
 
-        return state_dict_
+    #     return state_dict_
 
-    def load_state_dict(self, state_dict, strict: bool = True):
-        """
-        Custom load state dict method that only loads prompt table and prompt encoder
-        parameters. Matching load method for this class' custom state dict method. 
-        """
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                if self.prompt_encoder is None:
-                    self.init_prompt_encoder()
-                self.prompt_encoder.load_state_dict(state_dict, strict)
-            else:
-                raise ValueError("invalid virtual prompt source")
+    # def load_state_dict(self, state_dict, strict: bool = True):
+    #     """
+    #     Custom load state dict method that only loads prompt table and prompt encoder
+    #     parameters. Matching load method for this class' custom state dict method. 
+    #     """
+    #     if self.first_stage_of_pipeline():
+    #         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+    #             if self.prompt_encoder is None:
+    #                 self.init_prompt_encoder()
+    #             self.prompt_encoder.load_state_dict(state_dict, strict)
+    #         else:
+    #             raise ValueError("invalid virtual prompt source")
 
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        if self.freeze_model:
-            for param in self.frozen_model.parameters():
-                param.requires_grad = False
+    # def setup_optimizer_param_groups(self):
+    #     """
+    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
+    #     Only want virtual prompt params to be passed to the optimizer.
+    #     """
+    #     # Freeze frozen model
+    #     if self.freeze_model:
+    #         for param in self.frozen_model.parameters():
+    #             param.requires_grad = False
 
-        virtual_prompt_params = {'params': []}
+    #     virtual_prompt_params = {'params': []}
 
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-            else:
-                raise ValueError("Optimizer only supports Prompt Encoder.")
+    #     if self.first_stage_of_pipeline():
+    #         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+    #             virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+    #         else:
+    #             raise ValueError("Optimizer only supports Prompt Encoder.")
 
-        self._optimizer_param_groups = (virtual_prompt_params,)
+    #     self._optimizer_param_groups = (virtual_prompt_params,)
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """
@@ -296,13 +296,11 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
-        # @TODO(sugh) check this calculation
-        discrete_token_ids[(input_ids < 29184) & (input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
-        # @TODO(sugh) check this calculation
-        virtual_token_locations = (input_ids < 29184) & (input_ids >= self.pseudo_token_ids_start)
+        virtual_token_locations = (input_ids >= self.pseudo_token_ids_start)
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():
