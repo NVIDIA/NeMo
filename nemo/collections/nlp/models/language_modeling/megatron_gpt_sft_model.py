@@ -430,7 +430,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
         }
-        
+
         if mode == 'validation':
             if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
@@ -444,7 +444,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             else:
                 self.test_step_outputs[-1] = outputs
         return outputs
-        
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
