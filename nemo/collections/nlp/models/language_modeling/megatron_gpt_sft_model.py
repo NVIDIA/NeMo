@@ -39,6 +39,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_computeprob_response,
     megatron_gpt_generate,
 )
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
@@ -167,7 +168,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -187,6 +188,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
         if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+
+        # Raise error if using multiple dataloaders
+        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
+            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
+
+        if type(self._test_dl) == list and len(self._test_dl) > 1:
+            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -287,6 +295,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 memmap_workers=data_cfg.get(
                     'memmap_workers', None
                 ),  # used to set num. of workers to create the memmap index files
+                hf_dataset=data_cfg.get(
+                    'hf_dataset', False
+                ),  # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
             )
             datasets.append(dataset)
 
@@ -379,16 +390,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
-
-    def validation_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        try:
+            return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
+        except StopIteration:
+            return
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
-
-    def test_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         batch = next(dataloader_iter)
@@ -414,13 +423,28 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
 
-        return {
+        outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
             'labels': labels_text,  # [str]
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
         }
+        
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[-1] = outputs
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                self.test_step_outputs[-1] = outputs
+        return outputs
+        
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
@@ -434,9 +458,29 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         averaged_metric = []
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
-            loss = super().validation_epoch_end([x['loss'] for x in output])
+            # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
+            # loss = super().on_validation_epoch_end([x['loss'] for x in output])
+            loss_vals = [x['loss'] for x in output]
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss with their batch size
+                if self.cfg.data.get('validation_drop_last', True):
+                    loss = torch.stack(loss_vals).mean()
+                else:
+                    # Compute the avg loss by total_loss across all samples / total number of samples
+                    total_loss_and_total_samples = torch.vstack(loss_vals).sum(axis=0)
+                    avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+                    loss = avg_loss.type(torch.float32).cuda()
+            else:
+                loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(loss, get_last_rank())
+
+            self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
-            self.log(loss_log_key, loss)
+            self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
 
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
@@ -521,6 +565,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 )
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
+            outputs[dataloader_idx].clear()  # free memory
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
@@ -534,13 +579,35 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
 
         if mode == 'validation':
-            self.log("validation_loss", averaged_loss)
+            self.log("validation_loss", averaged_loss, batch_size=1)
             if averaged_metric is not None:
                 self.log(f"validation_{self.val_metric_name}", averaged_metric)
         elif mode == 'test':
             self.log("test_loss", averaged_loss)
             if averaged_metric is not None:
                 self.log(f"test_{self.test_metric_name}", averaged_metric)
+
+        # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
+        app_state = AppState()
+        self._restore_activation_checkpointing_args()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=data_cfg.global_batch_size,
+                micro_batch_size=data_cfg.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
         return averaged_loss, averaged_metric
 
@@ -770,37 +837,16 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return super().on_test_epoch_start()
 
     def on_test_epoch_end(self):
-        self.on_inference_epoch_end(self.cfg.data.test_ds)
-        return super().on_test_epoch_end()
+        _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
+        # Commenting as on_test_epoch_end was a no-op in PTL 1.9
+        # return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
-        self.on_inference_epoch_end(self.cfg.data.validation_ds)
-        return super().on_validation_epoch_end()
-
-    def on_inference_epoch_end(self, ds):
-        app_state = AppState()
-        self._restore_activation_checkpointing_args()
-        self._restore_sequence_parallelism_args()
-        if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=self.cfg.data.train_ds.global_batch_size,
-                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        # When running `trainer.validate()`, the training dataset is not available.
-        else:
-            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=ds.global_batch_size,
-                micro_batch_size=ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
+        _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
+        # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
+        # return super().on_validation_epoch_end()
 
     def on_train_epoch_start(self) -> None:
-        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
