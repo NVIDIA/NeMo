@@ -46,7 +46,7 @@ class TensorRTLLM(ITritonDeployable):
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
-            model_configs, self.tokenizer = nemo_to_model_config(self.model_dir, "gptnext", gpus=self.n_gpus)
+            self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
             self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
 
     def export(
@@ -74,7 +74,8 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        model_configs, self.tokenizer = nemo_to_model_config(nemo_checkpoint_path, "gptnext", gpus=n_gpus)
+        nemo_export_dir = os.path.join(self.model_dir, "/nemo/")
+        model_configs, self.tokenizer = nemo_to_model_config(in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir)
 
         for model_config in model_configs:
             if quantization is not None:
@@ -89,10 +90,9 @@ class TensorRTLLM(ITritonDeployable):
             max_batch_size=max_batch_size,
         )
 
-        self.n_gpus = n_gpus
-
-        self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
-        # self._load()
+        shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
+        shutil.rmtree(nemo_export_dir)
+        self._load()
 
     def forward(self, input_texts, input_len=0, max_output_len=200):
         if self.model is None:

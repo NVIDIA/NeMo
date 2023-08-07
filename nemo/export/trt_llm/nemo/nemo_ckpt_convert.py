@@ -159,11 +159,12 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
         config.write(config_file)
 
     # AMMO modification.
-    return out_dir, gpt_model_config, tokenizer
+    return gpt_model_config, tokenizer
 
 
 def create_out_dir(args):
-    out_dir = Path(args.out_dir) / f"{args.tensor_parallelism}-gpu/"
+    # AMMO modification.
+    out_dir = Path(args.out_dir)
     if not out_dir.exists():
         out_dir.mkdir(parents=True)
     return out_dir
