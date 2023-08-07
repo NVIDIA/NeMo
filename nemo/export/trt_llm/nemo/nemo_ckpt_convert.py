@@ -213,7 +213,8 @@ def copy_tokenizer_files(config, out_dir):
 
 def build_tokenizer(tokenizer_config: typing.Dict):
     if tokenizer_config["library"] == "sentencepiece":
-        tokenizer = T5Tokenizer(tokenizer_config["model"], extra_ids=0)
+        # Turn off legacy model by default: See https://github.com/huggingface/transformers/pull/24622
+        tokenizer = T5Tokenizer(tokenizer_config["model"], extra_ids=0, legacy=False)
     elif "GPT2" in tokenizer_config["type"]:
         tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
     else:
