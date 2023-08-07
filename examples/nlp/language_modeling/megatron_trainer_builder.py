@@ -41,13 +41,9 @@ class MegatronTrainerBuilder:
                 plugin_precision = 'bf16-mixed'
 
             if megatron_amp_o2 and not with_distributed_adam:
-                plugins.append(
-                    MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
-                )
+                plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
-                plugins.append(
-                    PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
-                )
+                plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
