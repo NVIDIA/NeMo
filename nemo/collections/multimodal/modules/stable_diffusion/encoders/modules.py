@@ -28,7 +28,8 @@ from transformers.models.clip.modeling_clip import CLIPTextTransformer
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     disabled_train,
     instantiate_from_config,
-    count_params
+    count_params,
+    expand_dims_like
 )
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
@@ -101,11 +102,12 @@ class GeneralConditioner(nn.Module):
     OUTPUT_DIM2KEYS = {2: "vector", 3: "crossattn", 4: "concat", 5: "concat"}
     KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
 
-    def __init__(self, emb_models: Union[List, ListConfig]):
+    def __init__(self, emb_models: List[ListConfig]):
         super().__init__()
         embedders = []
+
         for n, embconfig in enumerate(emb_models):
-            embedder = instantiate_from_config(embconfig)
+            embedder = embconfig['emb_model']
             assert isinstance(
                 embedder, AbstractEmbModel
             ), f"embedder model {embedder.__class__.__name__} has to inherit from AbstractEmbModel"
@@ -464,11 +466,12 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
     ):
         super().__init__()
         assert layer in self.LAYERS
+        self.device = device
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
         del model.visual
         self.model = model
 
-        self.device = device
+
         self.max_length = max_length
         if freeze:
             self.freeze()
@@ -752,10 +755,11 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
 class ConcatTimestepEmbedderND(AbstractEmbModel):
     """embeds each dimension independently and concatenates them"""
 
-    def __init__(self, outdim):
+    def __init__(self, outdim, device='cuda'):
         super().__init__()
         self.timestep = Timestep(outdim)
         self.outdim = outdim
+        self.device = device
 
     def forward(self, x):
         if x.ndim == 1:
@@ -765,6 +769,8 @@ class ConcatTimestepEmbedderND(AbstractEmbModel):
         x = rearrange(x, "b d -> (b d)")
         emb = self.timestep(x)
         emb = rearrange(emb, "(b d) d2 -> b (d d2)", b=b, d=dims, d2=self.outdim)
+        if self.device == 'cuda':
+            return emb.to(torch.cuda.current_device())
         return emb
 
 

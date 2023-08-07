@@ -10,7 +10,7 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims
 class StandardDiffusionLoss(nn.Module):
     def __init__(
         self,
-        sigma_sampler_config,
+        sigma_sampler,
         type="l2",
         offset_noise_level=0.0,
         batch2model_keys: Optional[Union[str, List[str], ListConfig]] = None,
@@ -19,7 +19,7 @@ class StandardDiffusionLoss(nn.Module):
 
         assert type in ["l2", "l1", "lpips"]
 
-        self.sigma_sampler = instantiate_from_config(sigma_sampler_config)
+        self.sigma_sampler = sigma_sampler
 
         self.type = type
         self.offset_noise_level = offset_noise_level

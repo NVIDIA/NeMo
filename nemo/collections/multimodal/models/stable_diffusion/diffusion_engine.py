@@ -3,9 +3,14 @@ from typing import Any, Dict, List, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import ListConfig, OmegaConf
+import torch.nn as nn
+from pytorch_lightning import Trainer
+from omegaconf import ListConfig, OmegaConf, DictConfig
 from safetensors.torch import load_file as load_safetensors
 from torch.optim.lr_scheduler import LambdaLR
+import hydra
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from torch._dynamo import optimize
 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     default,
@@ -15,18 +20,39 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     instantiate_from_config,
 )
 
-
+from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import build_sdxl_train_valid_datasets
+from pytorch_lightning.utilities.distributed import rank_zero_only
 from nemo.core.classes import ModelPT, Serialization
 from abc import ABC, abstractclassmethod
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
 from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
+from nemo.utils import logging
+
+try:
+    from apex import amp
+    from apex.transformer.enums import AttnMaskType
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 UNCONDITIONAL_CONFIG = {
     "target": "sgm.modules.GeneralConditioner",
     "params": {"emb_models": []},
 }
 
-class DiffusionEngine(pl.LightningModule, Serialization):
+class DiffusionEngine(nn.Module, Serialization):
     def __init__(
         self, cfg
     ):
@@ -42,34 +68,40 @@ class DiffusionEngine(pl.LightningModule, Serialization):
         network_wrapper = cfg.get('network_wrapper', None)
         compile_model = cfg.get('compile_model', False)
 
+
+        self.channels_last = cfg.get('channels_last', False)
         self.log_keys = cfg.get('log_keys', None)
-        self.input_key = cfg.get('input_key', 'jpg')
-        self.optimizer_config = default(
-            optimizer_config, {"target": "torch.optim.AdamW"}
-        )
-
-        model = DiffusionEngine.from_config_dict(unet_config)
-        self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(
-            model, compile_model=compile_model
-        )
-
-        self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
-        self.sampler = (
-            DiffusionEngine.from_config_dict(sampler_config)
-            if sampler_config is not None
-            else None
-        )
-        self.conditioner = instantiate_from_config(
-            default(conditioner_config, UNCONDITIONAL_CONFIG)
-        )
-        self.scheduler_config = scheduler_config
-        self._init_first_stage(first_stage_config)
+        self.input_key = cfg.get('input_key', 'images')
 
         self.loss_fn = (
             DiffusionEngine.from_config_dict(loss_fn_config)
             if loss_fn_config is not None
             else None
         )
+
+        model = DiffusionEngine.from_config_dict(unet_config)
+        self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(
+            model, compile_model=compile_model
+        )
+        if cfg.get('inductor', False):
+            self.model = optimize("inductor")(self.model)
+
+
+        self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
+        self.sampler = (
+            instantiate_from_config(sampler_config)
+            if sampler_config is not None
+            else None
+        )
+
+        self.conditioner = DiffusionEngine.from_config_dict(
+            default(conditioner_config, UNCONDITIONAL_CONFIG)
+        )
+        self.scheduler_config = scheduler_config
+        self._init_first_stage(first_stage_config)
+        self.model_type = None
+
+        self.rng=torch.Generator(device=torch.cuda.current_device(),)
 
         self.use_ema = False # TODO use_ema need to switch to NeMo style
         if self.use_ema:
@@ -79,30 +111,11 @@ class DiffusionEngine(pl.LightningModule, Serialization):
         self.scale_factor = cfg.scale_factor
         self.disable_first_stage_autocast = cfg.disable_first_stage_autocast
         self.no_cond_log = cfg.get('no_cond_log', False)
-        ckpt_path = cfg.get('ckpt_path', None)
 
-        if ckpt_path is not None:
-            self.init_from_ckpt(ckpt_path)
 
-    def init_from_ckpt(
-        self,
-        path: str,
-    ) -> None:
-        if path.endswith("ckpt"):
-            sd = torch.load(path, map_location="cpu")["state_dict"]
-        elif path.endswith("safetensors"):
-            sd = load_safetensors(path)
-        else:
-            raise NotImplementedError
-
-        missing, unexpected = self.load_state_dict(sd, strict=False)
-        print(
-            f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys"
-        )
-        if len(missing) > 0:
-            print(f"Missing Keys: {missing}")
-        if len(unexpected) > 0:
-            print(f"Unexpected Keys: {unexpected}")
+        if self.channels_last:
+            self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
+            self.model = self.model.to(memory_format=torch.channels_last)
 
     def _init_first_stage(self, config):
         model = DiffusionEngine.from_config_dict(config).eval()
@@ -133,7 +146,8 @@ class DiffusionEngine(pl.LightningModule, Serialization):
     def forward(self, x, batch):
         loss = self.loss_fn(self.model, self.denoiser, self.conditioner, x, batch)
         loss_mean = loss.mean()
-        loss_dict = {"loss": loss_mean}
+        log_prefix = 'train' if self.training else 'val'
+        loss_dict = {f"{log_prefix}/loss": loss_mean}
         return loss_mean, loss_dict
 
     def shared_step(self, batch: Dict) -> Any:
@@ -271,6 +285,12 @@ class DiffusionEngine(pl.LightningModule, Serialization):
                 log[embedder.input_key] = xc
         return log
 
+
+    def set_input_tensor(self, input_tensor):
+        """See megatron.model.transformer.set_input_tensor()"""
+        # only required for pipeline parallelism
+        pass
+
     @torch.no_grad()
     def log_images(
         self,
@@ -324,7 +344,7 @@ class DiffusionEngine(pl.LightningModule, Serialization):
 
 
 class MegatronDiffusionEngine(MegatronMultimodalModel):
-    """Megatron LatentDiffusion Model."""
+    """Megatron DiffusionEngine Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
@@ -393,7 +413,6 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         tensor_shape = None  # Placeholder
-
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
@@ -497,38 +516,25 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             """ Prepares the global batch for apex fwd/bwd functions.
                 Global batch is a list of micro batches.
             """
-            # noise_map, condition
-            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
-            if isinstance(batch[self.cfg.cond_stage_key], torch.Tensor):
-                # in the case of precached text embeddings, cond_stage is also a tensor
-                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(non_blocking=True)
-
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
-                x, c = self.model.get_input(batch, self.cfg.first_stage_key)
+                # if self.model.channels_last:
+                #     x = batch[self.model.input_key].cuda(non_blocking=True)
+                x = batch[self.model.input_key].cuda(non_blocking=True)
+                x = self.model.encode_first_stage(x)
+                batch['global_step'] = self.trainer.global_step
 
-            if not isinstance(c, dict):
-                return [x, c]
-
-            if len(self.conditioning_keys) == 0:
-                self.conditioning_keys = list(c.keys())
-            c_list = [c[key] for key in self.conditioning_keys]
-            return [x, *c_list]
+            return x, batch
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
-            batch = process_batch(batch)
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            if len(self.conditioning_keys) == 0:
-                x, c = batch
-            else:
-                x = batch[0]
-                c = {}
-                for idx, key in enumerate(self.conditioning_keys):
-                    c[key] = batch[1 + idx]
-            loss, loss_dict = model(x, c)
+            #batch = [x.cuda(non_blocking=True) for x in batch]
+            x, batch = process_batch(batch)
+
+
+            loss, loss_dict = model(x, batch)
 
             def dummy(output_tensor):
                 return loss, loss_dict
@@ -624,14 +630,10 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
-        if self.cfg.first_stage_key.endswith("encoded"):
-            self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
-                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
-            )
-        else:
-            self._train_ds, self._validation_ds = build_train_valid_datasets(
-                model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
-            )
+
+        self._train_ds, self._validation_ds = build_sdxl_train_valid_datasets(
+            model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
+        )
         self._test_ds = None
 
         if self._train_ds is not None:
@@ -709,13 +711,3 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
-
-    def save_to(self, save_path: str):
-        # Replace .nemo path in config for NeMo CLIP
-        cfg = self._cfg
-        if cfg.get('cond_stage_config').get('restore_from_path'):
-            with open_dict(cfg):
-                cfg.cond_stage_config.restore_from_path = None
-                cfg.cond_stage_config.cfg = self.model.cond_stage_model.cfg
-            self._cfg = cfg
-        super().save_to(save_path)
