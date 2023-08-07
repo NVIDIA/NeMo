@@ -582,7 +582,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             if averaged_metric is not None:
                 self.log(f"validation_{self.val_metric_name}", averaged_metric)
         elif mode == 'test':
-            self.log("test_loss", averaged_loss)
+            self.log("test_loss", averaged_loss, batch_size=1)
             if averaged_metric is not None:
                 self.log(f"test_{self.test_metric_name}", averaged_metric)
 
