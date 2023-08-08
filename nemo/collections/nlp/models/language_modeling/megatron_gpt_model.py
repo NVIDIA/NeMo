@@ -794,7 +794,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_batch_on_this_context_parallel_rank(self, batch):
         cp_size = self.cfg.get('context_parallel_size', 1)
-        loss_mask_sum = None if 'loss_mask' not in batch else batch['loss_mask'].sum()
+        loss_mask_sum = None
+        if 'loss_mask' in batch and batch['loss_mask'] is not None:
+            loss_mask_sum = batch['loss_mask'].sum()
 
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
