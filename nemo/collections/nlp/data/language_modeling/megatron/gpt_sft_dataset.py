@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import numpy as np
 import torch
+from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 
 __all__ = ['GPTSFTDataset']
 
@@ -40,12 +44,14 @@ class GPTSFTDataset(Dataset):
         label_key: str = "answer",
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
-        truncation_field: str = "answer",
+        truncation_field: str = "context",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         index_mapping_dir: str = None,
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
+        memmap_workers: Optional[int] = None,
+        hf_dataset: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -67,6 +73,7 @@ class GPTSFTDataset(Dataset):
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
+        hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -93,9 +100,18 @@ class GPTSFTDataset(Dataset):
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
-        self.indexed_dataset = JSONLMemMapDataset(
-            dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
-        )
+        if hf_dataset:
+            self.indexed_dataset = load_dataset(
+                'json', data_files=file_path, cache_dir=index_mapping_dir, num_proc=memmap_workers, split='train'
+            )
+        else:
+            self.indexed_dataset = JSONLMemMapDataset(
+                dataset_paths=[file_path],
+                tokenizer=None,
+                header_lines=0,
+                index_mapping_dir=index_mapping_dir,
+                workers=memmap_workers,
+            )
 
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
@@ -134,7 +150,11 @@ class GPTSFTDataset(Dataset):
                 idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
-        example = self.indexed_dataset[idx]
+        try:
+            example = self.indexed_dataset[idx]
+        except Exception as e:
+            logging.error(f"Error while loading example {idx} from dataset {self.file_path}")
+            raise e
         return self._process_example(example)
 
     def _process_example(self, example):
