@@ -33,6 +33,8 @@ exp_manager:
     filename: 'megatron_gpt_sft--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
+	step_timing_kwargs:
+    sync_cuda: True
 
 model:
   seed: 1234

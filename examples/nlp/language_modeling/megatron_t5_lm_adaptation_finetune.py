@@ -29,7 +29,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.utils.exp_manager import exp_manager, CustomProgressBar
 
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_lm_adaptation_finetune")
@@ -64,7 +64,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[ModelSummary(max_depth=3), CustomProgressBar()])
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager

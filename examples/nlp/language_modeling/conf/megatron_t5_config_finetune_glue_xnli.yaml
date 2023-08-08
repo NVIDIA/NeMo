@@ -35,6 +35,8 @@ exp_manager:
     filename: 'megatron_t5--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
+	step_timing_kwargs:
+    sync_cuda: True
 
 model:
   restore_from_path: null # Path to a trained T5 .nemo file

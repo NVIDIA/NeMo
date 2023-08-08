@@ -40,6 +40,8 @@ exp_manager:
     min_delta: 0.001
     patience: 10
     verbose: True
+	step_timing_kwargs:
+    sync_cuda: True  
 
 model:
   seed: 1234

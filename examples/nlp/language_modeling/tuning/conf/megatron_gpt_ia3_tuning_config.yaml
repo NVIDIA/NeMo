@@ -37,6 +37,8 @@ exp_manager:
     filename: 'megatron_gpt_ia3_tuning--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
+	step_timing_kwargs:
+    sync_cuda: True
 
 model:
   seed: 1234

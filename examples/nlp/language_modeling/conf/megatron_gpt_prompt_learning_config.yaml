@@ -44,7 +44,8 @@ exp_manager:
     patience: 10
     verbose: True
     strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
-  
+	step_timing_kwargs:
+    sync_cuda: True  
 
 model:
   seed: 1234
