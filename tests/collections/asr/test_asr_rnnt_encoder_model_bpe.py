@@ -19,6 +19,7 @@ import tempfile
 import pytest
 import torch
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
@@ -96,7 +97,7 @@ def asr_model(test_data_dir):
 
 
 class NestedRNNTModel(ASRModel):
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
         if 'inner_model' in self.cfg:

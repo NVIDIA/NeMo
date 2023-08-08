@@ -28,7 +28,7 @@ except ModuleNotFoundError:
 
 
 def update_model_config(
-    model_cls: 'nemo.core.config.modelPT.NemoConfig', update_cfg: 'DictConfig', drop_missing_subconfigs: bool = True
+    model_cls: 'nemo.core.config.modelPT.NemoConfig', update_cfg: DictConfig, drop_missing_subconfigs: bool = True
 ):
     """
     Helper class that updates the default values of a ModelPT config class with the values
@@ -108,7 +108,7 @@ def update_model_config(
 
 
 def _update_subconfig(
-    model_cfg: 'DictConfig', update_cfg: 'DictConfig', subconfig_key: str, drop_missing_subconfigs: bool
+    model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str, drop_missing_subconfigs: bool
 ):
     """
     Updates the NemoConfig DictConfig such that:
@@ -146,7 +146,7 @@ def _update_subconfig(
     return model_cfg
 
 
-def _add_subconfig_keys(model_cfg: 'DictConfig', update_cfg: 'DictConfig', subconfig_key: str):
+def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str):
     """
     For certain sub-configs, the default values specified by the NemoConfig class is insufficient.
     In order to support every potential value in the merge between the `update_cfg`, it would require

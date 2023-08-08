@@ -1414,7 +1414,7 @@ class ModelPT(LightningModule, Model):
         state_dict = cls._save_restore_connector.extract_state_dict_from(restore_path, save_dir, split_by_module)
         return state_dict
 
-    def prepare_test(self, trainer: 'Trainer') -> bool:
+    def prepare_test(self, trainer: Trainer) -> bool:
         """
         Helper method to check whether the model can safely be tested
         on a dataset after training (or loading a checkpoint).

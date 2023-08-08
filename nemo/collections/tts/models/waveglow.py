@@ -16,6 +16,7 @@
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
+from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
@@ -38,7 +39,7 @@ from nemo.utils import logging, model_utils
 class WaveGlowModel(GlowVocoder, Exportable):
     """WaveGlow model (https://arxiv.org/abs/1811.00002) that is used to generate audio from mel spectrogram."""
 
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)

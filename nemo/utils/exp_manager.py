@@ -842,7 +842,7 @@ def configure_checkpointing(
     log_dir: Path,
     name: str,
     resume: bool,
-    params: 'DictConfig',
+    params: DictConfig,
     create_preemption_callback: bool,
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint

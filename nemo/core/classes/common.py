@@ -31,6 +31,7 @@ import wrapt
 from huggingface_hub import HfApi, HfFolder, ModelFilter, hf_hub_download
 from huggingface_hub.hf_api import ModelInfo
 from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer
 
 import nemo
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -447,7 +448,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
+    def from_config_dict(cls, config: DictConfig, trainer: Optional[Trainer] = None):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
@@ -510,7 +511,7 @@ class Serialization(ABC):
             instance._cfg = config
         return instance
 
-    def to_config_dict(self) -> 'DictConfig':
+    def to_config_dict(self) -> DictConfig:
         """Returns object's configuration to config dictionary"""
         if hasattr(self, '_cfg') and self._cfg is not None:
             # Resolve the config dict
@@ -560,7 +561,7 @@ class FileIO(ABC):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
+        trainer: Optional[Trainer] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -813,7 +814,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
+        trainer: Optional[Trainer] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """

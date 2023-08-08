@@ -51,7 +51,7 @@ except ModuleNotFoundError:
 
 @experimental
 class VitsModel(TextToWaveform):
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
 
         cfg = model_utils.convert_model_config_to_dict_config(cfg)

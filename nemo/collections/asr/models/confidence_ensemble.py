@@ -159,7 +159,7 @@ class ConfidenceEnsembleModel(ModelPT):
     """
 
     def __init__(
-        self, cfg: DictConfig, trainer: 'Trainer' = None,
+        self, cfg: DictConfig, trainer: Trainer = None,
     ):
         super().__init__(cfg=cfg, trainer=trainer)
 

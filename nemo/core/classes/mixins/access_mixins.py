@@ -22,7 +22,7 @@ _ACCESS_CFG = DictConfig({"detach": False, "convert_to_cpu": False})
 _ACCESS_ENABLED = False
 
 
-def set_access_cfg(cfg: 'DictConfig'):
+def set_access_cfg(cfg: DictConfig):
     if cfg is None or not isinstance(cfg, DictConfig):
         raise TypeError(f"cfg must be a DictConfig")
     global _ACCESS_CFG

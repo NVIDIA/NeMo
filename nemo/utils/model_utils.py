@@ -23,6 +23,8 @@ from typing import List, Optional, Tuple, Union
 
 import wrapt
 
+from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.config.modelPT import NemoConfig
 from nemo.utils import AppState, logging
 from nemo.utils.data_utils import resolve_cache_dir  # imported for compatibility: model_utils.resolve_cache_dir()
 from nemo.utils.data_utils import is_datastore_path
@@ -61,7 +63,7 @@ class ArtifactItem:
     hashed_path: Optional[str] = None
 
 
-def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
+def resolve_dataset_name_from_cfg(cfg: DictConfig) -> Optional[str]:
     """
     Parses items of the provided sub-config to find the first potential key that
     resolves to an existing file or directory.
@@ -387,7 +389,7 @@ def wrap_training_step(wrapped, instance: 'pl.LightningModule', args, kwargs):
     return output_dict
 
 
-def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) -> 'DictConfig':
+def convert_model_config_to_dict_config(cfg: Union[DictConfig, NemoConfig]) -> 'DictConfig':
     """
     Converts its input into a standard DictConfig.
     Possible input values are:
@@ -414,7 +416,7 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
     return config
 
 
-def _convert_config(cfg: 'OmegaConf'):
+def _convert_config(cfg: OmegaConf):
     """ Recursive function convertint the configuration from old hydra format to the new one. """
     if not _HAS_HYDRA:
         logging.error("This function requires Hydra/Omegaconf and it was not installed.")
@@ -439,7 +441,7 @@ def _convert_config(cfg: 'OmegaConf'):
         logging.warning(f"Skipped conversion for config/subconfig:\n{cfg}\n Reason: {e}.")
 
 
-def maybe_update_config_version(cfg: 'DictConfig'):
+def maybe_update_config_version(cfg: DictConfig):
     """
     Recursively convert Hydra 0.x configs to Hydra 1.x configs.
 
@@ -491,7 +493,7 @@ def import_class_by_path(path: str):
     return mod
 
 
-def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelInfo']:
+def resolve_subclass_pretrained_model_info(base_class) -> List[PretrainedModelInfo]:
     """
     Recursively traverses the inheritance graph of subclasses to extract all pretrained model info.
     First constructs a set of unique pretrained model info by performing DFS over the inheritance graph.
