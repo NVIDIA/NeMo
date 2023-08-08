@@ -460,7 +460,25 @@ class SpeechLM_T5dataset(Dataset):
         assert tokens.ndim == 1
         tokens = torch.tile(tokens, (8, 1))
         tokens[1:] = 0
-        return self._getitem_from_speech(tokens)
+        
+        enc_input = tokens[:, 1:] * 1 # to avoid changing the original tensor
+        dec_input = tokens[:, :-1] * 1
+        labels = tokens[:, 1:] * 1
+        enc_input = self._mask_encoder_input(enc_input)
+        enc_input[1:] = 0
+        enc_mask = (enc_input[0] != self.mask_id).long()
+        dec_mask = (labels[0] != self.pad_id ).long()
+        # loss_mask = (enc_input[0] == self.mask_id ).long()
+        loss_mask = torch.ones_like(dec_mask)
+
+        return {
+            'enc_input': enc_input,
+            'dec_input': dec_input,
+            'labels': labels,
+            'enc_mask': enc_mask,
+            'dec_mask': dec_mask,
+            'loss_mask': loss_mask,
+        }
 
     def __getitem__(self, idx):
         tokens = torch.from_numpy(self._get_tokens(idx))

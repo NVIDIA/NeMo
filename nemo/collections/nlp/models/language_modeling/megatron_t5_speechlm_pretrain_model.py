@@ -227,7 +227,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
             # input_embeds = self.embed_input(input_ids, taskname_ids, inference)
@@ -377,28 +376,29 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             
             if self.trainer.global_step % 100 == 0:
                 with torch.no_grad():
-                    enc_input_example = self.unprocess_encoder_input(enc_input[0])
-                    dec_input_example = self.unprocess_encoder_input(dec_input[0])
+                    if speech_mask[0].sum() != 0:
+                        enc_input_example = self.unprocess_encoder_input(enc_input[0])
+                        dec_input_example = self.unprocess_encoder_input(dec_input[0])
 
-                    enc_wav = self.additional_models['encodec'].decode([[enc_input_example[None], None]])[0,0]
-                    self.logger.experiment.add_audio("Enc Input", enc_wav, self.global_step, 24000)
+                        enc_wav = self.additional_models['encodec'].decode([[enc_input_example[None], None]])[0,0]
+                        self.logger.experiment.add_audio("Enc Input", enc_wav, self.global_step, 24000)
 
-                    dec_wav = self.additional_models['encodec'].decode([[dec_input_example[None], None]])[0,0]
-                    self.logger.experiment.add_audio("Dec Input", dec_wav, self.global_step, 24000)
+                        dec_wav = self.additional_models['encodec'].decode([[dec_input_example[None], None]])[0,0]
+                        self.logger.experiment.add_audio("Dec Input", dec_wav, self.global_step, 24000)
 
-                    token_logits = debug_tensors[0]
-                    speech_logits = debug_tensors[1]
-                    token_logits_example = token_logits[:,0,:] * 1
-                    speech_logits_example = speech_logits[:,0,:,:] * 1
-                    first_layer_tokens = token_logits_example.argmax(dim=1) - 29184
-                    outher_layer_tokens = []
-                    for _i in range(speech_logits_example.shape[2]):
-                        outher_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
-                    
-                    all_layer_tokens = torch.stack([first_layer_tokens] + outher_layer_tokens) # (8, t)
-                    all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
-                    predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
-                    self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
+                        token_logits = debug_tensors[0]
+                        speech_logits = debug_tensors[1]
+                        token_logits_example = token_logits[:,0,:] * 1
+                        speech_logits_example = speech_logits[:,0,:,:] * 1
+                        first_layer_tokens = token_logits_example.argmax(dim=1) - 29184
+                        outher_layer_tokens = []
+                        for _i in range(speech_logits_example.shape[2]):
+                            outher_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
+                        
+                        all_layer_tokens = torch.stack([first_layer_tokens] + outher_layer_tokens) # (8, t)
+                        all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                        predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
+                        self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
 
 
             def loss_func(output_tensor):

@@ -90,10 +90,10 @@ model:
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
     # data_prefix: ["/datap/misc/BinaryDataset/books3/Books3_shuf_text_document"]
-    # data_prefix: [1, "/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", 1, "/datap/misc/BinaryDataset/t5binaries/my-t5_test_bert_tokenizer_text_document"]
-    data_prefix: ["/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document"]
+    data_prefix: [1, "/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", 1, "/datap/misc/BinaryDataset/t5binaries/my-t5_test_bert_tokenizer_text_document"]
+    # data_prefix: ["/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document"]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: "lazy"
+    data_impl: ["lazy", "mmap"]
     splits_string: 900,50,50
     seq_length: 512
     skip_warmup: True
