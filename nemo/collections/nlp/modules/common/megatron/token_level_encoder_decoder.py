@@ -405,7 +405,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
                 self.tokens_head = MegatronTokenLevelHead(
-                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
+                    self.word_embeddings_weight().size(0), False, bias=tokens_head_bias
                 )
                 # Need to subtract 1024*7, the last 7 heads of encodec
                 # self.tokens_head = MegatronTokenLevelHead(
@@ -629,6 +629,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output  # [s, b, h]
+                # output_type = self.predict_output_type(enc_output)
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
                     # @jasoli: Will have to check that this is indexed properly
@@ -656,7 +657,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight()[-(9000-1024*(i+1)):-(9000-1024*(i+2)),:])
                         speech_logits[:,:,:,i] = last_layer_logits
                 else:
-                    token_logits = self.tokens_head(dec_output)[0]
+                    token_logits = self.tokens_head(dec_output)[0] # T, B, WordEmbSize
 
                 if labels is not None:
                     if labels.dim() == 2:
@@ -672,7 +673,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels[0, :, :], label_smoothing)
                     else:
                         if labels.dim() == 2:
                             tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)

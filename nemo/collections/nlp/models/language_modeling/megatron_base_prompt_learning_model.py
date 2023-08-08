@@ -87,6 +87,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.cfg = cfg
 
         self.load_frozen_model(cfg, trainer)
+        self.freeze_model = self.cfg.get('freeze_model', True)
         self.prompt_encoder = None
         self.tokenizer = self.frozen_model.tokenizer
 
@@ -224,15 +225,19 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """Freeze params of existing virtual prompts that should not be tuned further
         """
         # Make sure word embeddings are frozen
-        for params in self.word_embeddings.parameters():
-            params.requires_grad = False
+        if self.freeze_model:
+            for params in self.word_embeddings.parameters():
+                params.requires_grad = False
+        else:
+            for params in self.word_embeddings.parameters():
+                params.requires_grad = True
 
     def state_dict(self):
         """
-        Custom state dict that only contains prompt table and prompt encoder parameters.
-        No frozen model parameters are stored in the state dict. Prompt encoder parameters
+        Custom state dict that only contains prompt table and prompt encoder parameters. 
+        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
         are only in state dict for intermediate checkpoints saved during training. Final
-        nemo checkpoints at the end of training will contain prompt table parameters only.
+        nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
         state_dict_ = {}
 
@@ -247,7 +252,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def load_state_dict(self, state_dict, strict: bool = True):
         """
         Custom load state dict method that only loads prompt table and prompt encoder
-        parameters. Matching load method for this class' custom state dict method.
+        parameters. Matching load method for this class' custom state dict method. 
         """
         if self.first_stage_of_pipeline():
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
@@ -259,12 +264,13 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups.
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
         Only want virtual prompt params to be passed to the optimizer.
         """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
+        # Freeze frozen model
+        if self.freeze_model:
+            for param in self.frozen_model.parameters():
+                param.requires_grad = False
 
         virtual_prompt_params = {'params': []}
 
@@ -296,7 +302,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+        virtual_token_locations = (input_ids >= self.pseudo_token_ids_start)
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():
