@@ -20,7 +20,9 @@ from tqdm.auto import tqdm
 from encodec import EncodecModel
 from pathlib import Path
 import numpy as np
+import random
 from typing import Callable, Dict, List, Optional, Union
+from itertools import filterfalse
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Sentinel
@@ -34,6 +36,11 @@ from nemo.utils import logging
 
 __all__ = ['T5SpeechLMDataset']
 
+
+def pad_text_to_speech_dims(text_tensor, pad_id):
+    token_len = text_tensor.shape[0]
+    empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+    return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
 class T5SpeechLMDataset(BasePromptLearningDataset):
     """
@@ -68,7 +75,11 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         pitch_augment: bool = False,
         sup_data_path: Optional[Union[Path, str]] = None,
         speech_offset: Optional[int] = None,
+<<<<<<< HEAD
         mask_context_prob=0.0,
+=======
+        train_task: Optional[str] = None,
+>>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
         **kwargs,
     ):
         """
@@ -114,6 +125,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             self.sup_data_path = sup_data_path
 
         self.codec_folder = kwargs.pop('codec_folder', None)
+        self.train_task = train_task
         if self.codec_folder is None:
             self.codec_folder = Path(self.sup_data_path) / "codec"
         elif isinstance(self.codec_folder, str):
@@ -164,6 +176,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         skipped = 0
         i = 0
+        print(f"copy_dataset len === {len(copy_dataset)}")
         for json_line in tqdm(copy_dataset):
             # if i > 25:
             #     break
@@ -194,6 +207,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 answer_field=answer_field,
                 doc=doc,
             )
+            question_in_manifest = doc['question']
 
             # Format the input example according to the template
             # Get context, question and answer codes in a dict.
@@ -204,6 +218,30 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 context_tokens = self._mask_context_tokens(context_tokens, doc['context_type'])
 
             question_tokens = input_dict['question']
+
+            # Logic to prune context
+            # In case of TTS task, the entire reference speech is not required, so we randomly select a portion
+            # of the reference audio.
+            # In case of Next token prediction, We want context[:T] to go in the encoder and context[T+1:] to be
+            # predicted by the decoder.
+            start_token_index = 0
+            end_token_index = -1
+            if "Text to speech this" in question_in_manifest:
+                total_context_len = context_tokens[0].size()[1]
+                reduced_len = min(400, int(total_context_len * 0.2) if total_context_len > 600 else int( total_context_len * random.uniform(0.2, 0.5) ))
+                start_token_index = random.randint(0, total_context_len - reduced_len)
+                context_tokens[0] = context_tokens[0][:, start_token_index:min(440, start_token_index+reduced_len)]
+                if self.train_task != 'tts':
+                    continue
+            elif "Next token prediction" in question_in_manifest:
+                total_context_len = context_tokens[0].size()[1]
+                end_token_index = int( total_context_len * random.uniform(0.01, 0.2) )
+                context_tokens[0] = context_tokens[0][:, :end_token_index]
+            else:
+                if self.train_task == 'tts':
+                    continue
+
+
             # Get virtual tokens
             virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
             
@@ -228,27 +266,32 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 question_tokens = question_tokens + [self.tokenizer.eos_id]
 
             # Try to truncate input text to fit into the max sequence length
-            # TODO(sugh) - adapt to speech tokens = context tokens
-            if len(context_tokens) + len(question_tokens) + total_virtual_tokens > self.max_seq_length:
-                context_tokens = self._truncate_input(
-                    truncation_field, context_tokens, taskname, doc, total_virtual_tokens
-                )
+            if self._get_len(context_tokens, question_tokens, virtual_tokens) > self.max_seq_length:
+                context_tokens, question_tokens, virtual_tokens = self._truncate_input_speech(context_tokens, question_tokens, virtual_tokens)
+            
+            virtual_tokens, virtual_tokens_len = self.list_to_tensor(virtual_tokens)
+            context_tokens, context_tokens_len = self.list_to_tensor(context_tokens)
+            question_tokens, question_tokens_len = self.list_to_tensor(question_tokens)
+
+            if doc["question_type"] != "SPEECH" and doc["context_type"] == "SPEECH":
+                question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id)
+            if doc["context_type"] != "SPEECH" and doc["question_type"] == "SPEECH":
+                context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id)
+            context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
 
             # get answer ids
             if answer_field in doc.keys():  # training and validation
                 answer_ids = self._get_tokens(doc, answer_field, doc[answer_field])
-                # if answer_ids is a torch tensor
-                if len(answer_ids) == 1 and (not isinstance(answer_ids[0], int)) and answer_ids[0].dim() == 2:
-                    if answer_ids[0].size()[1] > self.max_seq_length - 3:
-                        answer_ids[0] = answer_ids[0][:, : self.max_seq_length - 3]
+                if end_token_index > -1:
+                    answer_ids[0] = answer_ids[0][:, end_token_index:]
 
                 if self.decoder_starts_with_pad:
                     answer_text_ids = [self.tokenizer.pad_id]
                 else:
                     answer_text_ids = [self.tokenizer.bos_id]
                 # a trick to align with the data format in t5 pretraining
-                if self.add_sentinel_to_input:
-                    answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                # if self.add_sentinel_to_input:
+                #     answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                 answer_text_ids += answer_ids
 
                 if self.add_eos_to_decoder_output:
@@ -260,9 +303,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if (
-                self.min_seq_length
-                <= self._get_len(context_tokens, question_tokens, virtual_tokens)
-                <= self.max_seq_length
+                self.min_seq_length <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens) <= self.max_seq_length
+                and
+                self.min_seq_length <= self._get_element_len(answer_text_ids) <= self.max_seq_length
             ):
                 if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                     taskname_id = self.tokenizer.text_to_ids(taskname)
@@ -279,34 +322,35 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 if answer_field in doc.keys():  # training and validation
                     dec_input = answer_text_ids[:-1]
                     dec_labels = answer_text_ids[1:]
-
-                virtual_tokens, virtual_tokens_len = self.list_to_tensor(virtual_tokens)
-                context_tokens, context_tokens_len = self.list_to_tensor(context_tokens)
-                question_tokens, question_tokens_len = self.list_to_tensor(question_tokens)
+                
                 dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
                 dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
-                is_speech = True if doc["context_type"] == "SPEECH" else False
+                is_speech = True if doc["answer_type"] == "SPEECH" else False
 
-                self.examples.append(
-                    (
-                        taskname_id,
-                        virtual_tokens,
-                        virtual_tokens_len,
-                        context_tokens,
-                        context_tokens_len,
-                        question_tokens,
-                        question_tokens_len,
-                        dec_input,
-                        dec_input_len,
-                        dec_labels,
-                        dec_labels_len,
-                        is_speech,
-                    )
-                )
+                self.examples.append((
+                    taskname_id, 
+                    virtual_tokens, 
+                    virtual_tokens_len,
+                    context_and_question_tokens,
+                    context_tokens_len + question_tokens_len,
+                    dec_input,
+                    dec_input_len,
+                    dec_labels,
+                    dec_labels_len,
+                    is_speech))
             else:
+                print(f"skipped for {self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens)} {self._get_element_len(answer_text_ids)} len")
                 skipped += 1
+        print(f"After Process len(self.examples) {len(self.examples)}")
 
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
+
+    def _truncate_input_speech(self, context_tokens, question_tokens, virtual_tokens):
+        total_len = self._get_len(context_tokens, question_tokens, virtual_tokens)
+        context_len = self._get_element_len(context_tokens)
+        truncation_length = total_len - self.max_seq_length + 1
+        context_tokens[0] = context_tokens[0][:, min(truncation_length, context_len):]
+        return context_tokens, question_tokens, virtual_tokens
 
     def list_to_tensor(self, element, fill=False):
         """
@@ -467,29 +511,29 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
 
         if codec_path.exists():
-            codec_codes = torch.load(codec_path).long()
+            try:
+                codec_codes = torch.load(codec_path).long()
+            except Exception as e:
+                print(f"[ERROR IN LOADING {codec_path}] e")
+                codec_codes = self.get_codec(audio).long()
+                torch.save(codec_codes, codec_path)
         else:
             codec_codes = self.get_codec(audio).long()
             torch.save(codec_codes, codec_path)
 
         codec_codes_length = torch.tensor(codec_codes.shape[1]).long()
 
-        # Convert to embeddings
-        # codec_embeddings = self.get_quantizer_codebook(codec_codes, codec_codes_length)
-
         # Convert codes to codes corresponding to megatron embedding layer
-        # logging.error(codec_codes.shape)
-        # import ipdb; ipdb.set_trace()
         for i in range(codec_codes.shape[0]):
-            codec_codes[i] = (codec_codes[i] + self.speech_offset + i * 1024).long()
+            codec_codes[i] = (codec_codes[i] + self.speech_offset+i*1024).long()
 
         return codec_codes
 
     def _get_tokens(self, doc, field, field_data):
         if f"{field}_type" not in doc.keys():
-            field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
+            field_tokens = self._get_text_tokens(field_data.strip(" ")) # list of ids
         elif doc[f"{field}_type"] == 'TEXT':
-            field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
+            field_tokens = self._get_text_tokens(field_data.strip(" ")) # list of ids
         elif doc[f"{field}_type"] == 'SPEECH':
             dur = -1
             if f"{field}_duration" in doc:
@@ -517,22 +561,18 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 field_data = doc[field]
                 if f"{field}_type" not in doc.keys():
                     doc[f"{field}_type"] = "TEXT"
-                    # raise Exception(f"{field}_type does not exist in doc")
-                out_dict[field] = self._get_tokens(doc, field, field_data)
+                    raise Exception(f"{field}_type does not exist in doc")
+                else:
+                    out_dict[field] = self._get_tokens(doc, field, field_data)
         return out_dict
-
-    def get_position_ids(self, virtual_token, context, question):
+    
+    def get_position_ids(self, virtual_token, context_and_qquestion):
         enc_input = []
         enc_input.append(virtual_token)
-        if context.dim() > 2:
-            enc_input.append(context[:, 0, :])
+        if context_and_qquestion.dim() > 2:
+            enc_input.append(context_and_qquestion[:, 0, :])
         else:
-            enc_input.append(context)
-
-        if question.dim() > 2:
-            enc_input.append(question[:, 0, :])
-        else:
-            enc_input.append(question)
+            enc_input.append(context_and_qquestion)
 
         enc_input = torch.cat(enc_input, dim=1)
 
@@ -543,14 +583,12 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         data_dict = self.pad_batch_and_build_loss_mask(batch)
 
-        position_ids = self.get_position_ids(
-            data_dict['virtual_tokens'], data_dict['context_tokens'], data_dict['question_tokens']
-        )
+        position_ids = self.get_position_ids(data_dict['virtual_tokens'],
+                                             data_dict['context_and_question_tokens'])
 
-        return (
-            data_dict['virtual_tokens'],
-            data_dict['context_tokens'],
-            data_dict['question_tokens'],
+        return ( 
+            data_dict['virtual_tokens'], 
+            data_dict['context_and_question_tokens'], 
             data_dict['enc_mask'],
             data_dict['dec_input'],
             data_dict['dec_input_mask'],
@@ -558,7 +596,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             data_dict['dec_labels_mask'],
             position_ids,
             data_dict['taskname_id'],
-            data_dict['speech_mask'],
+            data_dict['speech_mask']
         )
 
     def pad_batch_and_build_loss_mask(self, batch):
@@ -568,14 +606,12 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             _,
             virtual_tokens_len,
             _,
-            context_tokens_len,
-            _,
-            question_tokens_len,
+            context_and_question_tokens_len,
             _,
             dec_input_len,
             _,
             dec_labels_len,
-            _,
+            _
         ) = zip(*batch)
 
         taskname_ids = self.pad_taskname_ids(taskname_ids)
@@ -585,29 +621,23 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             virtual_tokens_len = torch.stack(virtual_tokens_len)
         virtual_mask = get_mask_from_lengths(virtual_tokens_len)
 
-        max_context_tokens_len = max(context_tokens_len).item() if context_tokens_len is not None else 0
-        if isinstance(context_tokens_len, tuple):
-            context_tokens_len = torch.stack(context_tokens_len)
-        context_mask = get_mask_from_lengths(context_tokens_len)
-
-        max_question_tokens_len = max(question_tokens_len).item() if question_tokens_len is not None else 0
-        if isinstance(question_tokens_len, tuple):
-            question_tokens_len = torch.stack(question_tokens_len)
-        question_mask = get_mask_from_lengths(question_tokens_len)
-
+        max_context_and_question_tokens_len = max(context_and_question_tokens_len).item() if context_and_question_tokens_len is not None else 0
+        if isinstance(context_and_question_tokens_len, tuple):
+            context_and_question_tokens_len = torch.stack(context_and_question_tokens_len)
+        context_and_question_mask = get_mask_from_lengths(context_and_question_tokens_len)
+        
         max_dec_input_len = max(dec_input_len).item() if dec_input_len is not None else 0
         max_dec_labels_len = max(dec_labels_len).item() if dec_labels_len is not None else 0
-        enc_mask = torch.cat([virtual_mask, context_mask, question_mask], dim=1)
+        enc_mask = torch.cat([virtual_mask, context_and_question_mask], dim=1)
 
         (
             virtual_tokens_list,
-            context_tokens_list,
-            question_tokens_list,
+            context_question_tokens_list,
             dec_input_list,
             dec_input_mask_list,
             dec_labels_list,
             dec_labels_mask_list,
-            speech_mask_list,
+            speech_mask_list
         ) = (
             [],
             [],
@@ -624,15 +654,13 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 _,
                 virtual_token,
                 virtual_token_len,
-                context_token,
-                context_token_len,
-                question_token,
-                question_token_len,
+                context_and_question_token,
+                context_and_question_token_len,
                 dec_input,
                 dec_input_len,
                 dec_label,
                 dec_label_len,
-                is_speech,
+                is_speech
             ) = sample_tuple
 
             virtual_tokens_list.append(
@@ -641,50 +669,24 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 )
             )
 
-            def pad_text_to_speech_dims(text_tensor, pad_id):
-                token_len = text_tensor.shape[0]
-                empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
-                return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
-
-            context_tokens_padded = general_padding(
-                context_token, context_token_len.item(), max_context_tokens_len, pad_value=self.tokenizer.pad_id
-            )
+            context_tokens_padded = general_padding(context_and_question_token, context_and_question_token_len.item(), max_context_and_question_tokens_len, pad_value=self.tokenizer.pad_id)
             if len(context_tokens_padded.shape) < 2:
                 context_tokens_padded = pad_text_to_speech_dims(context_tokens_padded, self.tokenizer.pad_id)
-            context_tokens_list.append(context_tokens_padded)
-
-            question_tokens_padded = general_padding(
-                question_token, question_token_len.item(), max_question_tokens_len, pad_value=self.tokenizer.pad_id
-            )
-            if len(question_tokens_padded.shape) < 2:
-                question_tokens_padded = pad_text_to_speech_dims(question_tokens_padded, self.tokenizer.pad_id)
-            question_tokens_list.append(question_tokens_padded)
+            context_question_tokens_list.append(context_tokens_padded)
 
             if max_dec_input_len > 0:
-                dec_input_padded = general_padding(
-                    dec_input, dec_input_len.item(), max_dec_input_len, pad_value=self.tokenizer.pad_id
-                )
+                dec_input_padded = general_padding(dec_input, dec_input_len.item(), max_dec_input_len, pad_value=self.tokenizer.pad_id)
                 if len(dec_input_padded.shape) < 2:
                     dec_input_padded = pad_text_to_speech_dims(dec_input_padded, self.tokenizer.pad_id)
                 dec_input_list.append(dec_input_padded)
-                dec_mask = (
-                    torch.as_tensor(([1] * dec_input_len) + ([0] * (max_dec_input_len - dec_input_len)))
-                    .long()
-                    .contiguous()
-                )
+                dec_mask = torch.as_tensor(([1] * dec_input_len) + ([0] * (max_dec_input_len - dec_input_len))).long().contiguous()
                 dec_input_mask_list.append(dec_mask)
                 speech_mask = dec_mask if is_speech else torch.zeros(dec_mask.shape)
                 speech_mask_list.append(speech_mask)
 
             if max_dec_labels_len > 0:
-                loss_mask = (
-                    torch.as_tensor(([1] * dec_label_len) + ([0] * (max_dec_labels_len - dec_label_len)))
-                    .long()
-                    .contiguous()
-                )
-                dec_label_padded = general_padding(
-                    dec_label, dec_label_len.item(), max_dec_labels_len, pad_value=self.tokenizer.pad_id
-                )
+                loss_mask = torch.as_tensor(([1] * dec_label_len) + ([0] * (max_dec_labels_len - dec_label_len))).long().contiguous()
+                dec_label_padded = general_padding(dec_label, dec_label_len.item(), max_dec_labels_len, pad_value=self.tokenizer.pad_id)
                 if len(dec_label_padded.shape) < 2:
                     dec_label_padded = pad_text_to_speech_dims(dec_label_padded, self.tokenizer.pad_id)
                 dec_labels_list.append(dec_label_padded)
@@ -693,8 +695,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         data_dict = {
             "taskname_id": taskname_ids,
             "virtual_tokens": torch.stack(virtual_tokens_list),
-            "context_tokens": torch.stack(context_tokens_list),
-            "question_tokens": torch.stack(question_tokens_list),
+            "context_and_question_tokens": torch.stack(context_question_tokens_list),
             "enc_mask": enc_mask,
             "dec_input": torch.stack(dec_input_list) if len(dec_input_list) > 0 else None,
             "dec_input_mask": torch.stack(dec_input_mask_list) if len(dec_input_mask_list) > 0 else None,
