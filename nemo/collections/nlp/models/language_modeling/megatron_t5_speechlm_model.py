@@ -34,11 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
 )
-<<<<<<< HEAD
-from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
-=======
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -97,49 +93,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
 
-<<<<<<< HEAD
-        # Expanding existing text vocabulary with speech vocabulary
-        # Old vocab is in first 29184 characters with curent checkpoint
-        # New vocab is next 9000 tokens
-        old_token_size = self.word_embeddings.num_embeddings
-        new_embeddings = tensor_parallel.VocabParallelEmbedding(
-            num_embeddings=self.word_embeddings.num_embeddings + cfg.num_speech_tokens,
-            embedding_dim=self.word_embeddings.embedding_dim
-        )
-        new_weight = new_embeddings.weight.clone()
-        new_weight[:old_token_size, :] = self.word_embeddings.weight.clone()
-        new_weight = torch.nn.Parameter(new_weight)
-        new_embeddings.weight = new_weight
-        self.word_embeddings = new_embeddings
-        del new_embeddings
-        del new_weight
-        self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings = self.word_embeddings
-        self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings = self.word_embeddings
-
-        # # Expand the dimension of bias of tokens head
-        # bias_size = self.frozen_model.enc_dec_model.tokens_head.bias.size()[0]
-        # new_parameter = torch.nn.Parameter(torch.zeros(bias_size + cfg.num_speech_tokens))
-        # new_parameter.data[:bias_size] = self.frozen_model.enc_dec_model.tokens_head.bias.data.clone()
-        # self.frozen_model.enc_dec_model.tokens_head.bias = new_parameter
-        # del new_parameter
-
-        # # Expanding existing text vocabulary with speech vocabulary
-        # Add first layer
-        new_token_head = MegatronTokenLevelHead(old_token_size + 1024, self.word_embeddings.embedding_dim)
-        new_bias = new_token_head.bias.clone()
-        new_bias[:old_token_size] = self.frozen_model.enc_dec_model.tokens_head.bias.clone()
-        new_bias = torch.nn.Parameter(new_bias)
-        new_token_head.bias = new_bias
-        self.frozen_model.enc_dec_model.tokens_head = new_token_head
-
-        list_of_speech_heads = []
-        for _ in range(7):
-            list_of_speech_heads.append(MegatronTokenLevelHead(1024, self.word_embeddings.embedding_dim))
-        self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
-
-        # TODO: remove hardcoding
-        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 29184+1024)
-=======
         list_of_speech_heads = []
         for _ in range(7):
             list_of_speech_heads.append(MegatronTokenLevelHead(self.frozen_model.enc_dec_model.tokens_head.bias.size(0), False))
@@ -147,7 +100,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         # TODO: remove hardcoding
         self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 30000+1024)
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
         self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 1024)
 
     def first_stage_of_pipeline(self):
@@ -220,11 +172,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self._optimizer_param_groups = param_groups
 
     def forward(
-<<<<<<< HEAD
-        self, virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, speech_mask=None, inference=False,
-=======
         self, virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_mask, position_ids, taskname_ids, labels=None, speech_mask=None, inference=False,
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -233,13 +181,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-<<<<<<< HEAD
-            # input_embeds = self.embed_input(input_ids, taskname_ids, inference)
-            # import ipdb; ipdb.set_trace()
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_tokens, question_tokens], taskname_ids, inference)
-=======
             input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_and_question_tokens], taskname_ids, inference)
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -361,18 +303,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
-<<<<<<< HEAD
-            virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
-            # enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-
-            output_tensor, encoder_input = model(
-                virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=labels, speech_mask=speech_mask, inference=False,
-=======
             virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
 
             output_tensor, encoder_input = model(
                 virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=labels, speech_mask=speech_mask, inference=False,
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
             )
             output_tensor = output_tensor.contiguous()
 
@@ -487,11 +421,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return torch.cat(embedding_list, dim=1)
 
     def validation_step(self, batch, batch_idx, inference=False):
-<<<<<<< HEAD
-        virtual_tokens, context_tokens, question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
-=======
         virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
         # does not use dataloader_iter due to device placement issues arising from PTL
         mode = self.training
         self.eval()
@@ -501,11 +431,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
-<<<<<<< HEAD
-            input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_tokens, question_tokens], taskname_ids, inference)
-=======
             input_embeds = self.get_embeddings_and_combine([virtual_tokens, context_and_question_tokens], taskname_ids, inference)
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -622,11 +548,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             pitch_augment=self.cfg.data.get('pitch_augment', None),
             sup_data_path=self.cfg.data.get('sup_data_path', '/sup_data_path'),
             speech_offset=self.cfg.data.get('speech_offset', None),
-<<<<<<< HEAD
-            mask_context_prob=self.cfg.data.get('mask_context_prob', 0.0),
-=======
             train_task=self.cfg.data.get('train_task', "tts")
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
         )
 
         rank = parallel_state.get_data_parallel_rank()

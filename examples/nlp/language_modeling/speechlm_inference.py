@@ -100,7 +100,15 @@ def getitem_from_speech(tokens, tokenizer):
     return item_dict
     
     
+def unprocess_encoder_input(enc_input):
+    assert enc_input.dim() == 2
+    unprocessed_enc_input = enc_input.clone()
+    for _i in range(enc_input.shape[0]):
+        mask_indices = (enc_input[_i] != 103).long()
+        unprocessed_enc_input[_i] = enc_input[_i] - 29184 - (_i * 1024)
+        unprocessed_enc_input[_i] = unprocessed_enc_input[_i] * mask_indices
     
+    return unprocessed_enc_input    
 
 
 @hydra_runner(config_path="conf", config_name="speechlm_inference.yaml")
@@ -151,69 +159,94 @@ def main(cfg) -> None:
     #     print(f"cfg.model.restore_path is None")
     #     model = MegatronT5SpeechLMModel(cfg.model, trainer=trainer)
 
-    model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path="/datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch40000.ckpt", trainer=trainer, cfg=cfg.model)
+    checkpoint_path = "/datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch102000.ckpt"
+    # model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path="/datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch40000.ckpt", trainer=trainer, cfg=cfg.model)
+    model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model)
     model.eval()
     model = model.cuda()
-    with torch.no_grad():
-        indexed_dataset_speech = make_indexed_dataset("/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", "lazy")
-        sample_input = indexed_dataset_speech[0]
-        sample_input = torch.tensor(sample_input)[:,:512]
-        batch = getitem_from_speech(sample_input, model.tokenizer)
 
-        
+
+
+    for example_num in range(3):
         with torch.no_grad():
-            output_token_list = []
-            for t in range(500):
-                print("timestep: ", t)
-                enc_input = batch['enc_input'].cuda()
-                enc_mask = batch['enc_mask'].cuda()
+            indexed_dataset_speech = make_indexed_dataset("/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", "lazy")
+            sample_input = indexed_dataset_speech[example_num]
+            sample_input = torch.tensor(sample_input)[:,1024:1024+512]
+            batch = getitem_from_speech(sample_input, model.tokenizer)
+
+            
+            with torch.no_grad():
+                output_token_list = []
                 dec_input = batch['dec_input'].cuda()
-                dec_input_mask = batch['dec_mask'].cuda()
-                # dec_input[:, :, t+1:] = model.tokenizer.pad_id
-                # dec_input_mask[:, t+1 : ] = 0
-                # print("dec_input", dec_input.shape, dec_input[:,:,:10])
-                position_ids = batch['position_ids'].cuda()
-                speech_mask = batch['speech_mask'].cuda()
-                output_tensor, enc_output, debug_tensors = model(
-                            enc_input, enc_mask, dec_input, dec_input_mask, position_ids, labels=None, speech_mask=speech_mask, inference=True,
-                        )
-                output_tokens = output_tensor.argmax(dim=2)
-                if t == 0:
-                    # print("output tokens shape", output_tokens.shape)
-                    output_tokens_encodec = output_tokens[0].transpose(0,1)
-                    all_wav = model.additional_models['encodec'].decode([[output_tokens_encodec[None], None]])[0,0]
-                    model.logger.experiment.add_audio("Dec Wav Complete", all_wav, 1, 24000)
-
-                    token_logits = debug_tensors[0]
-                    speech_logits = debug_tensors[1].transpose(0,1)
-                    token_logits_example = token_logits[0,:,:] * 1
-                    speech_logits_example = speech_logits[:,0,:,:] * 1
-                    first_layer_tokens = token_logits_example.argmax(dim=1) - 29184
-                    outher_layer_tokens = []
-                    for _i in range(speech_logits_example.shape[2]):
-                        outher_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
-                    all_layer_tokens = torch.stack([first_layer_tokens] + outher_layer_tokens) # (8, t)
-                    all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                for t in range(500):
+                    print("timestep: ", t)
+                    enc_input = batch['enc_input'].cuda()
+                    enc_mask = batch['enc_mask'].cuda()
+                    dec_input_mask = batch['dec_mask'].cuda()
                     
-                    predicted_wav2 = model.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
-                    model.logger.experiment.add_audio("Dec Wav Old Way", predicted_wav2, 1, 24000)
+
+                    if t == 0:
+                        # print("output tokens shape", output_tokens.shape)
+                        enc_input_example = unprocess_encoder_input(enc_input[0])
+                        enc_wav = model.additional_models['encodec'].decode([[enc_input_example[None], None]])[0,0]
+                        model.logger.experiment.add_audio("Enc Input", enc_wav, example_num+1, 24000)
+
+                        dec_input_example = unprocess_encoder_input(dec_input[0])
+                        dec_input_wav = model.additional_models['encodec'].decode([[dec_input_example[None], None]])[0,0]
+                        model.logger.experiment.add_audio("Dec Input", dec_input_wav, example_num+1, 24000)
+
+                    dec_input[:, :, t+1:] = model.tokenizer.pad_id
+                    dec_input_mask[:, t+1 : ] = 0
+                    print("dec_input", dec_input.shape, dec_input[:,:,:10])
+
+                    position_ids = batch['position_ids'].cuda()
+                    speech_mask = batch['speech_mask'].cuda()
+                    output_tensor, enc_output, debug_tensors = model(
+                                enc_input, enc_mask, dec_input, dec_input_mask, position_ids, labels=None, speech_mask=speech_mask, inference=True,
+                            )
+                    output_tokens = output_tensor.argmax(dim=2)
+                    if t == 0:
+                        pass
+                        # print("output tokens shape", output_tokens.shape)
+                        # enc_input_example = unprocess_encoder_input(enc_input[0])
+                        # enc_wav = model.additional_models['encodec'].decode([[enc_input_example[None], None]])[0,0]
+                        # model.logger.experiment.add_audio("Enc Input", enc_wav, example_num+1, 24000)
+
+                        # dec_input_example = unprocess_encoder_input(dec_input[0])
+                        # dec_input_wav = model.additional_models['encodec'].decode([[dec_input_example[None], None]])[0,0]
+                        # model.logger.experiment.add_audio("Dec Input", dec_input_wav, example_num+1, 24000)
+
+                        # output_tokens_encodec = output_tokens[0].transpose(0,1)
+                        # all_wav = model.additional_models['encodec'].decode([[output_tokens_encodec[None], None]])[0,0]
+                        # model.logger.experiment.add_audio("Dec Wav Complete", all_wav, example_num+1, 24000)
+
+                        # token_logits = debug_tensors[0]
+                        # speech_logits = debug_tensors[1].transpose(0,1)
+                        # token_logits_example = token_logits[0,:,:] * 1
+                        # speech_logits_example = speech_logits[:,0,:,:] * 1
+                        # first_layer_tokens = token_logits_example.argmax(dim=1) - 29184
+                        # other_layer_tokens = []
+                        # for _i in range(speech_logits_example.shape[2]):
+                        #     other_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
+                        # all_layer_tokens = torch.stack([first_layer_tokens] + other_layer_tokens) # (8, t)
+                        # all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                        
+                        # predicted_wav2 = model.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
+                        # model.logger.experiment.add_audio("Dec Wav Old Way", predicted_wav2, example_num+1, 24000)
 
 
-                output_tokens_curr_timestep = output_tokens[:, t]
-                # print("dec input shape", dec_input.shape)
-                # print("output tokens shape", output_tokens.shape)
-                # print("output tokens curr timestep shape", output_tokens_curr_timestep.shape)
-                output_token_list.append(output_tokens_curr_timestep[0])
-                output_tokens_curr_timestep_deccompatible = output_tokens_curr_timestep * 1
-                for _c in range(8):
-                    output_tokens_curr_timestep_deccompatible[:,_c] = output_tokens_curr_timestep_deccompatible[:,_c] + 29184 + (_c * 1024)
+                    output_tokens_curr_timestep = output_tokens[:, t]
+                    output_token_list.append(output_tokens_curr_timestep[0])
+                    output_tokens_curr_timestep_deccompatible = output_tokens_curr_timestep * 1
+                    for _c in range(8):
+                        output_tokens_curr_timestep_deccompatible[:,_c] = output_tokens_curr_timestep_deccompatible[:,_c] + 29184 + (_c * 1024)
 
-                dec_input[:, :, t+1] = output_tokens_curr_timestep_deccompatible * 1
-                
-            output_tokens_combined = torch.stack(output_token_list) # (T, 8)
-            output_tokens_combined = output_tokens_combined.transpose(0,1) # (8, T)
-            output_wav = model.additional_models['encodec'].decode([[output_tokens_combined[None], None]])[0,0]
-            model.logger.experiment.add_audio("Dec Wav", output_wav, 1, 24000)
+                    dec_input[:, :, t+1] = output_tokens_curr_timestep_deccompatible * 1
+                    
+                output_tokens_combined = torch.stack(output_token_list) # (T, 8)
+                output_tokens_combined = output_tokens_combined.transpose(0,1) # (8, T)
+                output_wav = model.additional_models['encodec'].decode([[output_tokens_combined[None], None]])[0,0]
+                model.logger.experiment.add_audio("Dec Wav", output_wav, example_num+1, 24000)
     
 
 

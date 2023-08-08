@@ -75,11 +75,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         pitch_augment: bool = False,
         sup_data_path: Optional[Union[Path, str]] = None,
         speech_offset: Optional[int] = None,
-<<<<<<< HEAD
-        mask_context_prob=0.0,
-=======
         train_task: Optional[str] = None,
->>>>>>> 4b71b1e7c9487e6e657f5720ae37f179579708ba
         **kwargs,
     ):
         """

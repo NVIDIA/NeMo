@@ -14,7 +14,8 @@ trainer:
   val_check_interval: 1000
   gradient_clip_val: 1.0
   limit_val_batches: 25
-  resume_from_checkpoint: /datap/misc/Experiments3/SpeechExperiments/Aug2BugsFixed/2023-08-03_04-58-13/checkpoints/Epoch6000.ckpt
+  resume_from_checkpoint: /datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch102000.ckpt
+  # resume_from_checkpoint: /datap/misc/Experiments3/SpeechExperiments/Aug2BugsFixed/2023-08-03_04-58-13/checkpoints/Epoch6000.ckpt
 
 exp_manager:
   explicit_log_dir: null
