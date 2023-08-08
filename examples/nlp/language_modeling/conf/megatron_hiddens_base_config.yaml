@@ -1,5 +1,6 @@
 # this file main purpose is documentation, and it should not be used directly 
 enc_output_name: z # name of key in hidden transforms output to pass to decoder (e.g., z for VAE/MIM)
+tokens_loss_weight: 1.0 # weight of tokens loss (if not specified defaults to 1.0)
 # the lists below are useful for adding multiple transforms and losses according to order
 # if order is not important, you can use a single dictionary in the list with multiple keys
 transform: # a list of dictionaries of transforms (or a joint dictionary) to apply to hiddens (list enforces order)

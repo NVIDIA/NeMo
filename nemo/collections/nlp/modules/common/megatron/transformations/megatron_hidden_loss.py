@@ -86,6 +86,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         # store updated losses
         loss_dict["loss"] = loss
         loss_dict["weighted_loss"] = weighted_loss
+        loss_dict["weight_loss"] = torch.tensor(self.loss_weight).to(weighted_loss)
 
         return loss_dict
 

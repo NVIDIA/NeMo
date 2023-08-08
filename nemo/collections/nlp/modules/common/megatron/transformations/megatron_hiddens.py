@@ -175,12 +175,14 @@ class MegatronHiddensModule(torch.nn.Module):
         hidden_transforms: List[MegatronBaseHiddenLoss] = [],
         hidden_loss_transforms: List[MegatronBaseHiddenTransform] = [],
         enc_output_name: str = "hiddens",  # name (key) of the encoder output
+        tokens_loss_weight: float = 1.0,  # weight of the tokens loss
         loss_prefix: str = "hiddens_",  # if not None or "", add this prefix to all loss names
     ):
         super().__init__()
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
         self.enc_output_name = enc_output_name
+        self.tokens_loss_weight = tokens_loss_weight
         self.loss_prefix = loss_prefix
 
         # register all hidden / loss transforms as submodules to support learned parameters
@@ -284,7 +286,7 @@ class MegatronHiddensModule(torch.nn.Module):
             cur_loss_dict.pop("weighted_loss")
             # add name to loss values
             if loss_transform.name:
-                loss_dict = {f"{loss_transform.name}_{k}": v for k, v in cur_loss_dict.items()}
+                cur_loss_dict = {f"{loss_transform.name}_{k}": v for k, v in cur_loss_dict.items()}
 
             # check if cur_loss keys are unique - we do not allow to override keys
             dup_keys = set(cur_loss_dict.keys()).intersection(set(loss_dict.keys()))
@@ -301,5 +303,8 @@ class MegatronHiddensModule(torch.nn.Module):
         # add prefix to all loss keys (default to 'hiddens_')
         if self.loss_prefix:
             loss_dict = {f"{self.loss_prefix}{k}": v for k, v in loss_dict.items()}
+
+        # add tokens loss weight (to be used by caller, or be ignored)
+        loss_dict["tokens_loss_weight"] =  torch.tensor(self.tokens_loss_weight).to(joint_loss)
 
         return loss_dict
