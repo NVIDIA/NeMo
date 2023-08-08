@@ -25,7 +25,7 @@ from nemo.core.config import hydra_runner
 from nemo.core.config.optimizers import AdamParams, AdamWParams
 from nemo.core.optim.optimizers import register_optimizer
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager, CustomProgressBar
+from nemo.utils.exp_manager import CustomProgressBar, exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_mutransfer")
