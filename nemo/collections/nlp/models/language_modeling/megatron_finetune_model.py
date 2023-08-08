@@ -107,30 +107,32 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             metric_name = data_cfg.metric.name
             metric_class = MetricStringToTorchMetric[metric_name]
 
-            kwargs = {}
-            if hasattr(data_cfg.metric, 'average'):
-                if metric_name != 'rouge':  
-                    kwargs['average'] = data_cfg.metric.average
-
-            if hasattr(data_cfg.metric, 'num_classes'):
-                if metric_name != 'rouge':  
-                    kwargs['num_classes'] = data_cfg.metric.num_classes
-
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
             if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
-                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
-                    # We pass average and num_classes to the metric constructor via kwargs.
+                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name,
+                                                                    ListConfig) and metric_name != 'rouge':
                     metric = [
-                        metric_class(**kwargs)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.src_file_name))
+                    ]
+                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names,
+                                                                    ListConfig) and metric_name != 'rouge':
+                    metric = [
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.file_names))
+                    ]
+                elif hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
+                    metric = [
+                        metric_class()
                         for _ in range(len(data_cfg.src_file_name))
                     ]
                 elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
                     metric = [
-                        metric_class(**kwargs)
+                        metric_class()
                         for _ in range(len(data_cfg.file_names))
                     ]
                 else:
-                    metric = [metric_class(**kwargs)]
+                    metric = [metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
             else:
                 metric = [metric_class()]  # GLUE does need to specify average or num_classes.
 
