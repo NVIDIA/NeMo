@@ -41,7 +41,7 @@ exp_manager:
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: '${name}--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
-	step_timing_kwargs:
+  step_timing_kwargs:
     sync_cuda: True
 
 model:
