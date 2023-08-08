@@ -188,8 +188,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             "enable_volume": False,
             "enable_ragged_batches": False,
         }
-        if self.fastpitch.speaker_emb is not None:
-            self.export_config["num_speakers"] = cfg.n_speakers
+        if self.fastpitch.speaker_encoder.lookup_module is not None:
+            self.export_config["num_speakers"] = cfg.speaker_encoder.lookup_module.n_speakers
 
         self.log_config = cfg.get("log_config", None)
 
@@ -823,7 +823,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
         disabled_inputs = set()
-        if self.fastpitch.speaker_emb is None:
+        if self.fastpitch.speaker_encoder is None:
             disabled_inputs.add("speaker")
         if not self.export_config["enable_ragged_batches"]:
             disabled_inputs.add("batch_lengths")
