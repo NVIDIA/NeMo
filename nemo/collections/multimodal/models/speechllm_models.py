@@ -14,26 +14,31 @@
 
 import itertools
 import os
-from typing import Optional, Union, Dict
 from functools import partial
+from typing import Dict, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
-from nemo.utils import logging, model_utils
-from nemo.collections.asr.data.audio_to_text_dali import (
-    DALIOutputs,
-)
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
-from nemo.core.classes.mixins import AccessMixin
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.multimodal.data.audio_text_qa_dataset import AudioQuestionAnswerDataset
+from nemo.collections.multimodal.modules.speechllm_perception import AudioPerceptionModel
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
+    build_position_ids,
     get_iterator_k_split,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -41,25 +46,15 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    SamplingParam,
-)
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    LengthsType,
-    NeuralType,
-    SpectrogramType,
-)
-from nemo.utils import AppState, logging
+from nemo.core.classes.mixins import AccessMixin, adapter_mixins
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.utils import AppState, logging, model_utils
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
     HAVE_APEX = True
 
@@ -77,104 +72,104 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ["ModularizedSpeechGPTModel"]
+__all__ = ["ModularizedAudioGPTModel"]
 
 
-class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
+class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
     """Modularized speech GPT model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
-        self.init_perception_model(cfg, trainer)
+        self.perception = AudioPerceptionModel(cfg=cfg.perception)
+        self.setup_optimizer_param_groups()
+        self.configure_optimizers()
+        self.summarize()
 
-    def init_perception_model(self, cfg: DictConfig, trainer: Trainer):
-        # Convert to Hydra 1.0 compatible DictConfig
-        cfg = model_utils.convert_model_config_to_dict_config(cfg)
-        cfg = model_utils.maybe_update_config_version(cfg)
+    def parameters(self):
+        # override the same method in MegatronGPT model to include parameters ouside of LM
+        all_names = []
+        all_params = []
+        for name, param in self.named_parameters(recurse=True):
+            all_names.append(name)
+            all_params.append(param)
 
-        if not isinstance(cfg, DictConfig):
-            raise ValueError("cfg must be an OmegaConf DictConfig")
+        if isinstance(self.model, list):
+            for module in self.model:
+                for name, param in module.named_parameters(recurse=True):
+                    all_names.append(name)
+                    all_params.append(param)
 
-        self.perception = ModularizedSpeechGPTModel.from_config_dict(
-            self.cfg.perception
-        )
-        # TODO(zhehuai): load pretrained perception model weights
+        return itertools.chain(all_params)
 
-        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
-        self.world_size = 1
-        if trainer is not None:
-            self.world_size = trainer.world_size
-        fixed_prompt_prefix_str = cfg.get("fixed_prompt_prefix", None)
-        if fixed_prompt_prefix_str is not None:
-            self.fixed_prompt_prefix = torch.Tensor(self.tokenizer.text_to_ids(
-                fixed_prompt_prefix_str
-            )).int().cuda()
-        else:
-            self.fixed_prompt_prefix = None
-
-    # follow MegatronGPTPromptLearningModel for GPT model init
-    def init_model(self, cfg: DictConfig, trainer: Trainer):
-        super().init_model(cfg, trainer)
-        # gpt code handle the setup of the tokenizer
-        # disable text prompt tuning specifics
-        self.existing_tasks = None
-        self.new_tasks = None
-        self.virtual_prompt_style = None
-        self.word_embeddings = (
-            self.frozen_model.model.language_model.embedding.word_embeddings
-        )
-        self.pseudo_tokens = None
-        self.pseudo_token_ids = None
-        self.pseudo_token_ids_start = None
-        self.virtual_prompt_source = None
-        self.prompt_encoder = None
-        # self.frozen_model is frozen by setup_optimizer_param_groups
-
-    def state_dict(self):
+    def setup_optimizer_param_groups(self):
         """
-        TODO(zhehuai): Custom state dict.
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Makes two optimizer param groups, one for the frozen model params
+        and one for the prompt-table/prompt-encoder params. The learning 
+        rate for the frozen model's params will always be zero effectively
+        freezing the model's params but still allowing for the needed gradients
+        to be passed around in pipeline parallel models. The prompt-encoder 
+        and/or prompt table will use the learning rate set by the user. 
         """
-        state_dict_ = {}
+        self.unfreeze()
+        known_groups = []
+        if self.cfg.get('freeze_llm', True):
+            for param in self.model.parameters():
+                param.requires_grad = False
+            known_groups.append('model.')
+        # TODO(heh): double check this part works properly
+        if self.cfg.get('freeze_matcher', False):
+            self.perception.matcher.freeze()
+            known_groups.append('matcher.')
+        if self.cfg.get('freeze_audio_encoder', False):
+            self.perception.encoder.freeze()
+            known_groups.append('audio_encoder.')
 
-        if self.first_stage_of_pipeline():
-            pass
+        opt_params = []
+        for _, module in self.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                module.set_enabled_adapters(enabled=True)
+                module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
+                opt_params += [p for p in module.parameters()]
 
-        return state_dict_
+        param_groups = []
+        if "optim_param_groups" in self.cfg:
+            param_groups_cfg = self.cfg.optim_param_groups
+            for group, group_cfg in param_groups_cfg.items():
+                module = getattr(self, group, None)
+                if module is None:
+                    raise ValueError(f"{group} not found in model.")
+                elif hasattr(module, "parameters"):
+                    known_groups.append(f"{group}.")
+                    new_group = {"params": module.parameters()}
+                    for k, v in group_cfg.items():
+                        new_group[k] = v
+                    param_groups.append(new_group)
+                else:
+                    raise ValueError(f"{group} does not have parameters.")
 
-    def load_task_templates(self, task_templates):
-        # TODO(zhehuai): support task template to support complexer SFT format
-        self.task_templates = {}
-        self.task_id_num_to_name = {}
-        self.max_virtual_tokens = 0
+        for n, p in self.named_parameters():
+            is_unknown = True
+            for group in known_groups:
+                if n.startswith(group):
+                    is_unknown = False
+            if is_unknown:
+                opt_params.append(p)
 
-    def get_text_batch_from_audio(self, audio_batch):
-        _, _, transcript, transcript_len = audio_batch
-        # TODO(zhehuai) Add BOS/EOS if desired, adds EOS by default
-        labels = transcript[:, 1:].contiguous()
-        input_ids = transcript[:, :-1].contiguous()
-        input_length = transcript_len - 1
+        param_groups = [{"params": opt_params}] + param_groups
 
-        b = labels.shape[0]
-        max_len = labels.shape[1]
-        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
-        loss_mask = torch.arange(max_len).expand(b, max_len).cuda() < input_length.unsqueeze(1)
-        loss_mask = loss_mask.float()
-        return input_ids, input_length, labels, loss_mask
+        self._optimizer_param_groups = param_groups
+        logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
     def prepare_llm_input(self, audio_batch):
         def _concat_embs(embs1, emb1_lens, embs2, emb2_lens):
             concat_emb = []
             concat_len = []
-            for emb1, emb1_len, emb2, emb2_len in zip(
-                embs1, emb1_lens, embs2, emb2_lens
-            ):
+            for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
                 new_len = emb1_len + emb2_len
                 new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
-                padded_new_emb = torch.zeros(
-                    emb1.shape[0] + emb2.shape[0], emb1.shape[-1]
-                )
+                padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
                 padded_new_emb[:new_len, ...] = new_emb
                 concat_emb.append(padded_new_emb)
                 concat_len.append(new_len)
@@ -182,73 +177,46 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
             concat_len = torch.stack(concat_len, dim=0)
             return concat_emb, concat_len
 
-        def _shift_labels_by_emb_len(
-            labels, label_lens, emb_lens, max_len, pad_token=0
-        ):
+        def _shift_labels_by_emb_len(labels, label_lens, emb_lens, max_len, pad_token=0):
             shifted_labels = []
             for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
-                shifted_label = torch.full([max_len], pad_token)
+                shifted_label = torch.full([max_len], pad_token, device=label.device)
                 shifted_label[emb_len : emb_len + label_len] = label[:label_len]
                 shifted_labels.append(shifted_label)
             shifted_labels = torch.stack(shifted_labels, dim=0)
             return shifted_labels
 
-        signal, signal_len, _, _ = audio_batch
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
 
-        # forward() only performs encoder forward
-        if isinstance(audio_batch, DALIOutputs) and audio_batch.has_processed_signal:
-            (
-                input_signal,
-                input_signal_length,
-                processed_signal,
-                processed_signal_length,
-            ) = (None, None, signal, signal_len)
-        else:
-            (
-                input_signal,
-                input_signal_length,
-                processed_signal,
-                processed_signal_length,
-            ) = (signal, signal_len, None, None)
-
-        input_ids, input_length, labels, loss_mask = self.get_text_batch_from_audio(
-            audio_batch
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
         )
-
-        if not self.frozen_model.model.pre_process:
-            raise ValueError("Model does not have pre_process method defined.")
 
         # [b, t, c]
         encoded, encoded_len = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
-            processed_signal=processed_signal,
-            processed_signal_length=processed_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
         )
-        if self.fixed_prompt_prefix is not None:
-            fixed_prompt_prefix = self.fixed_prompt_prefix.expand(encoded.shape[0], -1)
-            prompt_prefix = self.word_embeddings(fixed_prompt_prefix)
-            encoded = torch.cat([prompt_prefix, encoded], dim=1)
-            encoded_len += fixed_prompt_prefix.shape[1]
         # [b, t, c]
-        input_embeds = self.word_embeddings(input_ids)
-        encoder_input, encoder_length = _concat_embs(
-            encoded, encoded_len, input_embeds, input_length
-        )
-        labels = _shift_labels_by_emb_len(
-            labels, input_length, encoded_len, encoder_input.shape[1], pad_token=0
-        )
+        lm_embedding = self.model.language_model.embedding
+        input_embeds = lm_embedding.word_embeddings(input_ids)
+        encoder_input, encoder_length = _concat_embs(encoded, encoded_len, input_embeds, input_length)
+        labels = _shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_input.shape[1], pad_token=0)
         # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
-        loss_mask = _shift_labels_by_emb_len(
-            loss_mask, input_length, encoded_len, encoder_input.shape[1], pad_token=0
-        )
+        loss_mask = _shift_labels_by_emb_len(loss_mask, input_length, encoded_len, encoder_input.shape[1], pad_token=0)
 
         b = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
 
         # Using causal attention mask for whole input
         # TODO(zhehuai): use prefixlm instead for the audio embeddings
-        attention_mask = torch.tril(torch.ones((b, max_len, max_len))).view(
+        attention_mask = torch.tril(torch.ones((b, max_len, max_len), device=encoder_input.device)).view(
             b, 1, max_len, max_len
         )
         # Convert attention mask from float to bool
@@ -256,329 +224,250 @@ class ModularizedSpeechGPTModel(MegatronGPTPromptLearningModel):
         position_ids = build_position_ids(encoder_input[:, :, 0])
 
         # Add position embeddings
-        if hasattr(
-            self.frozen_model.model.language_model.embedding, "position_embeddings"
-        ):
-            position_embeddings = (
-                self.frozen_model.model.language_model.embedding.position_embeddings(
-                    position_ids
-                )
-            )
+        if hasattr(lm_embedding, "position_embeddings"):
+            position_embeddings = lm_embedding.position_embeddings(position_ids)
             encoder_input = encoder_input + position_embeddings
         else:
             encoder_input = encoder_input
         encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
-            encoder_input = (
-                tensor_parallel.mappings.scatter_to_sequence_parallel_region(
-                    encoder_input
-                )
-            )
+            encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
 
         return encoder_input, attention_mask, labels, loss_mask, encoder_length
 
     def forward(
-        self,
-        audio_batch,
-        inference=True,
-        set_inference_key_value_memory=False,
-        inference_max_sequence_len=None,
+        self, audio_batch, checkpoint_activations_all_layers,
     ):
         """Forward pass of the model.
 
-        We first prepend a fixed text instruction that briefly describes the
-        task to the audio embeddings. Then we prepend audio embeddings to
-        the label text tokens as the LLM input.
-        TODO(zhehuai): read text instruction from the SFT dataset, set loss_mask
-          accordingly, following pad_batch_and_build_loss_mask.
+        We prepend audio embeddings to the instruction and label text tokens 
+        as the LLM input.
         """
-
-        # concat the text embeddings and the audio embeddings together to form the input embeddings
-        
-        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(
-            audio_batch
-        )
-        output = self.frozen_model.model(
+        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
+        output = self.model(
             input_ids=None,
             position_ids=None,
             encoder_input=encoder_input,
             attention_mask=attention_mask,
             labels=labels,
-            set_inference_key_value_memory=set_inference_key_value_memory,
-            inference_max_sequence_len=inference_max_sequence_len,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
         return output, loss_mask
 
-    def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(dataloader_iter, model):
+    def get_forward_output_and_loss_func(self, validation_step=False):
+        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            output_tensor, loss_mask = model(batch, inference=False)
-
-            if isinstance(output_tensor, tuple):
-                output_tensor, _ = output_tensor
+            batch = {key: val.cuda(non_blocking=True) for key, val in batch.items()}
+            output_tensor, loss_mask = self.forward(
+                batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
+            )
+            output_tensor = output_tensor[0]  # get loss only, ingore logits
 
             def loss_func(output_tensor):
-                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {"avg": reduced_loss}
+                # Loss for a micro-batch (ub)
+                loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                if validation_step and not self.cfg.data.get('validation_drop_last', True):
+                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
+                    if loss_for_ub.isnan():
+                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
+                    else:
+                        loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+
+                    loss_sum_and_ub_size_all_gpu = torch.cat(
+                        [
+                            loss_sum_for_ub.clone().detach().view(1),
+                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
+                        ]
+                    )
+                    # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
+                    torch.distributed.all_reduce(
+                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                    )
+                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                else:
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    return loss_for_ub, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
 
-    def training_step(self, batch, batch_nb):
-        # Reset access registry
-        if AccessMixin.is_access_enabled():
-            AccessMixin.reset_registry(self)
+    def _build_dataset(self, data_cfg, is_train=True):
+        datasets = []
 
-        signal, signal_len, transcript, transcript_len = batch
-        loss_mean = self.fwd_bwd_step(
-            itertools.chain([batch]), None, forward_only=False
-        )
-        self.allreduce_gradients()
-
-        ## logging
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-        torch.distributed.broadcast(loss_mean, get_last_rank())
-
-        # TODO(zhehuai): add loss and step logging
-        return loss_mean
-
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        # TODO(zhehuai) support infernece
-        pass
-
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), None, forward_only=True)
-        if loss_mean.item == 0.0:
-            loss_mean = []
-        return {"loss": loss_mean}
-
-    # dataset configuration
-    def _setup_dataloader_from_config(self, config: Optional[Dict], for_train=True):
-        dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
-            config=config,
-            local_rank=self.local_rank,
-            global_rank=self.global_rank,
-            world_size=self.world_size,
-            tokenizer=self.tokenizer,
-            preprocessor_cfg=self.cfg.get("preprocessor", None),
-        )
-
-        if dataset is None:
-            return None
-
-        if isinstance(dataset, AudioToBPEDALIDataset):
-            # DALI Dataset implements dataloader interface
-            return dataset
-
-        shuffle = config["shuffle"]
-        if isinstance(dataset, torch.utils.data.IterableDataset):
-            shuffle = False
-
-        # TODO(zhehuai): test distributed dataloader and parallel_state
-        # Make distributed dataloader following build_virtual_prompt_dataset
-        rank = parallel_state.get_data_parallel_rank()
-        data_parallel_size = parallel_state.get_data_parallel_world_size()
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
-        )
-
-        batch_size=config["batch_size"]
-        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
-
-        if for_train:
-            if self.cfg.get("sequence_parallel", False):
-                collate_fn = partial(
-                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
-                )
-            else:
-                collate_fn = partial(dataset.collate_fn, tp_workers=0)
+        if isinstance(data_cfg.file_names, str):
+            file_names = data_cfg.file_names.split(',')
         else:
-            collate_fn = dataset.inference_collate_fn
-        assert config.get("num_workers", 0) > 0, "(@adithyare and @eharper) We need this to make spawn=True to work."
+            file_names = data_cfg.file_names
 
-        return torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=collate_fn,
-            sampler=sampler,
-            batch_size=batch_size // data_parallel_size,
-            shuffle=shuffle,
-            drop_last=config.get("drop_last", False),
-            num_workers=config.get("num_workers", 0),
-            pin_memory=config.get("pin_memory", False),
-            persistent_workers=True
-        )
-
-    def _setup_transcribe_dataloader(
-        self, config: Dict
-    ) -> "torch.utils.data.DataLoader":
-        """
-        Setup function for a temporary data loader which wraps the provided audio file.
-
-        Args:
-            config: A python dictionary which contains the following keys:
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-                Recommended length per file is between 5 and 25 seconds.
-            batch_size: (int) batch size to use during inference. \
-                Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the audio manifest is temporarily
-                stored.
-
-        Returns:
-            A pytorch DataLoader for the given audio file(s).
-        """
-        if "manifest_filepath" in config:
-            manifest_filepath = config["manifest_filepath"]
-            batch_size = config["batch_size"]
-        else:
-            manifest_filepath = os.path.join(config["temp_dir"], "manifest.json")
-            batch_size = min(config["batch_size"], len(config["paths2audio_files"]))
-
-        dl_config = {
-            "manifest_filepath": manifest_filepath,
-            "sample_rate": self.preprocessor._sample_rate,
-            "batch_size": batch_size,
-            "shuffle": False,
-            "num_workers": config.get(
-                "num_workers", min(batch_size, os.cpu_count() - 1)
-            ),
-            "pin_memory": True,
-            "channel_selector": config.get("channel_selector", None),
-            "use_start_end_token": self.cfg.validation_ds.get(
-                "use_start_end_token", False
-            ),
-        }
-
-        if config.get("augmentor"):
-            dl_config["augmentor"] = config.get("augmentor")
-
-        temporary_datalayer = self._setup_dataloader_from_config(
-            config=DictConfig(dl_config), for_train=False
-        )
-        return temporary_datalayer
-
-    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        """
-        TODO(zhehuai): support unpaired data and the mixing of paired and unpaired data.
-        Sets up the training data loader via a Dict-like object.
-
-        Args:
-            train_data_config: A config that contains the information regarding construction
-                of an ASR Training dataset.
-
-        Supported Datasets:
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
-        """
-        if "shuffle" not in train_data_config:
-            train_data_config["shuffle"] = True
-
-        # preserve config
-        self._update_dataset_config(dataset_name="train", config=train_data_config)
-
-        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, for_train=True)
-
-        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
-        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
-        # So we set the number of steps manually (to the correct number) to fix this.
-        if (
-            self._train_dl is not None
-            and hasattr(self._train_dl, "dataset")
-            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
-        ):
-            # We also need to check if limit_train_batches is already set.
-            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
-            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(
-                self._trainer.limit_train_batches, float
-            ):
-                self._trainer.limit_train_batches = int(
-                    self._trainer.limit_train_batches
-                    * ceil(
-                        (len(self._train_dl.dataset) / self.world_size)
-                        / train_data_config["batch_size"]
+        if is_train and not data_cfg.get('is_tarred', False):
+            # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
+            # that is of the format [weight1,file_name1,weight2,file_name2,...]
+            concat_sampling_probabilities = data_cfg.get('concat_sampling_probabilities', None)
+            if concat_sampling_probabilities is None:
+                concat_sampling_probabilities = [1.0 / len(file_names)] * len(file_names)
+            elif len(data_cfg.get('concat_sampling_probabilities', None)) != len(file_names):
+                raise ValueError(
+                    (
+                        f"concat_sampling_probabilities must be of the same size as file_names.",
+                        f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(file_names)}",
                     )
                 )
-            elif self._trainer is None:
-                logging.warning(
-                    "Model Trainer was not set before constructing the dataset, incorrect number of "
-                    "training batches will be used. Please set the trainer and rebuild the dataset."
+
+            data_prefix = []
+            for weight, prefix in zip(concat_sampling_probabilities, file_names):
+                data_prefix.append(weight)
+                data_prefix.append(prefix)
+
+            if self.trainer.max_steps is None or self.trainer.max_steps <= 0:
+                raise ValueError(
+                    f'Trainer max_steps must be set to a positive integer. Found {self.trainer.max_steps}'
                 )
-
-    def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
-        """
-        Sets up the validation data loader via a Dict-like object.
-
-        Args:
-            val_data_config: A config that contains the information regarding construction
-                of an ASR Training dataset.
-
-        Supported Datasets:
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
-        """
-        if "shuffle" not in val_data_config:
-            val_data_config["shuffle"] = False
-
-        # preserve config
-        self._update_dataset_config(dataset_name="validation", config=val_data_config)
-
-        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config, for_train=True)
-
-    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
-        """
-        Sets up the test data loader via a Dict-like object.
-
-        Args:
-            test_data_config: A config that contains the information regarding construction
-                of an ASR Training dataset.
-
-        Supported Datasets:
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
-        """
-        if "shuffle" not in test_data_config:
-            test_data_config["shuffle"] = False
-
-        # preserve config
-        self._update_dataset_config(dataset_name="test", config=test_data_config)
-
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config, for_train=False)
-
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        if hasattr(self.preprocessor, "_sample_rate"):
-            input_signal_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
+            num_train_samples = [self.trainer.max_steps * data_cfg.global_batch_size]
+            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
+            num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
         else:
-            input_signal_eltype = AudioSignal()
+            num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
 
-        return {
-            "input_signal": NeuralType(("B", "T"), input_signal_eltype, optional=True),
-            "input_signal_length": NeuralType(tuple("B"), LengthsType(), optional=True),
-            "processed_signal": NeuralType(
-                ("B", "D", "T"), SpectrogramType(), optional=True
-            ),
-            "processed_signal_length": NeuralType(
-                tuple("B"), LengthsType(), optional=True
-            ),
-        }
+        if 'augmentor' in data_cfg:
+            augmentor = process_augmentations(
+                data_cfg['augmentor'], global_rank=self.global_rank, world_size=self.world_size
+            )
+        else:
+            augmentor = None
+        for file_path, num_samples in zip(file_names, num_train_samples_per_dataset):
+            dataset = AudioQuestionAnswerDataset(
+                manifest_filepath=file_path,
+                tokenizer=self.tokenizer,
+                sample_rate=data_cfg.sample_rate,
+                int_values=data_cfg.get('int_values', False),
+                augmentor=augmentor,
+                max_duration=getattr(data_cfg, 'max_duration', None),
+                min_duration=getattr(data_cfg, 'min_duration', None),
+                max_utts=getattr(data_cfg, 'max_utts', -1),
+                trim=getattr(data_cfg, 'trim_silence', False),
+                channel_selector=getattr(data_cfg, 'channel_selector', None),
+                max_seq_length=data_cfg.max_seq_length,
+                min_seq_length=data_cfg.min_seq_length,
+                add_bos=data_cfg.get('add_bos', False),
+                add_eos=data_cfg.get('add_eos', True),
+                add_sep=data_cfg.get('add_sep', False),
+                sep_id=self.sep_id,
+                max_num_samples=num_samples[0],
+                seed=data_cfg.get('seed', 1234),
+                separate_prompt_and_response_with_newline=data_cfg.get(
+                    'separate_prompt_and_response_with_newline', True
+                ),
+                answer_only_loss=self.cfg.get('answer_only_loss', True),
+                truncation_field=data_cfg.get('truncation_field', 'context'),
+                pad_to_max_length=False,
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
+                prompt_template=data_cfg.get('prompt_template', None),
+                virtual_tokens=self.virtual_tokens,
+                tokens_to_generate=data_cfg.get(
+                    'tokens_to_generate', 0
+                ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+            )
+            datasets.append(dataset)
 
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
-            "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
-        }
+        if is_train and not data_cfg.get('is_tarred', False):
+            dataset = BlendableDataset(
+                datasets=datasets, weights=concat_sampling_probabilities, size=num_train_samples_after_blend
+            )
+            return dataset
+        else:
+            return datasets
+
+    @classmethod
+    def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):
+        """
+        This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
+        The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
+        """
+        OmegaConf.set_struct(gpt_cfg, True)
+        OmegaConf.resolve(cfg)
+        with open_dict(gpt_cfg):
+            gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
+            gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
+            gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
+            gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
+            gpt_cfg.activations_checkpoint_granularity = cfg.model.get("activations_checkpoint_granularity", None)
+            gpt_cfg.activations_checkpoint_num_layers = cfg.model.get("activations_checkpoint_num_layers", None)
+            gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
+            gpt_cfg.data = cfg.model.data
+            gpt_cfg.optim = cfg.model.optim
+            gpt_cfg.precision = cfg.trainer.precision
+            gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
+            gpt_cfg.restore_from_path = cfg.model.restore_from_path
+            gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
+            gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
+            gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
+            gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
+            gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
+            gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
+            gpt_cfg.peft = cfg.model.peft
+            # for AudioGPTLoRAModel
+            gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
+            gpt_cfg.perception = cfg.model.perception
+            gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
+            gpt_cfg.perception.encoder = audio_cfg.encoder
+            matcher_cfg = gpt_cfg.perception.matcher
+            matcher_cfg.feat_in = audio_cfg.encoder.d_model
+            gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
+            # This is needed when modifying a hparam file directly to load `.ckpt` files.
+            # This is not needed to modify the cfg in `.nemo` files.
+            if add_cfg_to_tree:
+                OmegaConf.resolve(gpt_cfg)
+                gpt_cfg.cfg = gpt_cfg
+
+        return gpt_cfg
+
+    @classmethod
+    def restore_from_pretrained_models(
+        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
+    ):
+        if not cfg.model.pretrained_audio_model:
+            raise RuntimeError("PEFT training needs a pretrained audio model present.")
+
+        if not cfg.model.restore_from_path:
+            raise RuntimeError("PEFT training needs a trained base model present.")
+
+        base_model_save_restore_connector = NLPSaveRestoreConnector()
+        if os.path.isdir(cfg.model.restore_from_path):
+            base_model_save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+        base_model_cfg = cls.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            return_config=True,
+            save_restore_connector=base_model_save_restore_connector,
+        )
+        pretrained_audio_model = cfg.model.pretrained_audio_model
+        if pretrained_audio_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+            audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+            audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+
+        model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
+        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        save_restore_connector = PEFTSaveRestoreConnector(
+            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
+        )
+        if os.path.isdir(cfg.model.restore_from_path):
+            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+
+        # load llm
+        model = cls.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            save_restore_connector=save_restore_connector,
+            strict=False,
+        )
+        # load am
+        model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+        logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
+        return model
