@@ -137,7 +137,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
                 item['neighbors'].append(neighbor_text)
             self.retrieved_text.append(item)
 
-    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
         self.retrieved = []
         self.retrieved_text = []
         """initialize the batch data before the inference steps."""
@@ -161,7 +161,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
                 self.retrieved.append(chunks)
 
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int, compute_attention_mask: bool = True,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         tokenizer = self.model.tokenizer
 
@@ -284,7 +284,7 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
         return context_tokens_tensor, context_length_tensor
 
-    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
         self.retrieved = []
         self.retrieved_text = []
         self.reuse_neighbors = pickle.loads(self.store.get('reuse_neighbors'))
@@ -309,7 +309,7 @@ class RetroQAModelTextGenerationStrategy(RetroModelTextGenerationStrategy):
                 self.retrieved.append(chunks)
 
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int, compute_attention_mask: bool = True,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         tokenizer = self.model.tokenizer
 
@@ -550,7 +550,7 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
         return context_tokens_tensor, context_length_tensor
 
-    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
         self.retrieved = []
         self.retrieved_text = []
         self.reuse_neighbors = pickle.loads(self.store.get('reuse_neighbors'))
@@ -575,7 +575,7 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
                 self.retrieved.append(chunks)
 
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int, compute_attention_mask: bool = True,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         tokenizer = self.model.tokenizer
 
@@ -656,6 +656,7 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
             positions2use,
         ]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        # return tokens2use, self.attention_mask[:, :context_length], retrieved, retrieved_mask, setkey_value_array, len_array, neighbors_array, positions2use
         return batch, tensor_shape
 
     def post_process(self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int):

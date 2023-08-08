@@ -718,6 +718,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         """
 
         def fwd_output_only_func(batch, model):
+            batch = next(batch)
             extra_arg = {}
             (
                 tokens,
