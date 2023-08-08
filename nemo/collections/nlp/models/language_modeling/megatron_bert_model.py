@@ -659,8 +659,9 @@ class MegatronBertModel(MegatronBaseModel):
         """ Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
-            sequence_parallel_param = getattr(param, 'sequence_parallel', False) or \
-                    getattr(param, 'sequence_parallel_enabled', False)
+            sequence_parallel_param = getattr(param, 'sequence_parallel', False) or getattr(
+                param, 'sequence_parallel_enabled', False
+            )
             if sequence_parallel_param:
                 if self.megatron_amp_o2:
                     grad = param.main_grad
