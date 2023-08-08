@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import json
+import os
+from typing import Optional
+
 import numpy as np
 import torch
-from typing import Optional
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
@@ -80,9 +80,9 @@ class SequenceToSequenceDataset(Dataset):
         item = {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
         if 'metadata' in example:
             item['metadata'] = example['metadata']
-            
+
         return item
-            
+
     def _get_examples(self):
         self.examples = []
         with open(self.src_file_name, encoding='utf8') as f_src, open(self.tgt_file_name, encoding='utf8') as f_tgt:
@@ -106,20 +106,22 @@ class SequenceToSequenceDataset(Dataset):
                 if len(tgt) > self.max_tgt_seq_length:
                     tgt = tgt[-self.max_tgt_seq_length + 1 :]
                 self.examples.append({'src': src, 'tgt': tgt})
-                
+
         if self.aux_file_name is not None:
             if not os.path.exists(self.aux_file_name):
                 raise FileNotFoundError(f"Auxilary file {self.aux_file_name} not found")
-                
+
             with open(self.aux_file_name, 'r') as file:
                 lines = []
                 for line in file:
                     try:
                         lines.append(json.loads(line))
                     except json.JSONDecodeError:
-                        raise ValueError(f"Auxilary file '{self.aux_file_name}' is not a valid JSONL file.")          
-            
-            assert len(lines) == len(self.examples), f'Auxilary file {self.aux_file_name} should have {len(self.examples)} lines.'
+                        raise ValueError(f"Auxilary file '{self.aux_file_name}' is not a valid JSONL file.")
+
+            assert len(lines) == len(
+                self.examples
+            ), f'Auxilary file {self.aux_file_name} should have {len(self.examples)} lines.'
             for example, line in zip(self.examples, lines):
                 example['metadata'] = line
 
@@ -155,7 +157,7 @@ class SequenceToSequenceDataset(Dataset):
 
         enc_mask = (text_enc != self.src_tokenizer.pad_id).long()
         dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
-        
+
         batch_out = {
             'text_enc': text_enc,
             'text_dec': text_dec,
@@ -168,7 +170,7 @@ class SequenceToSequenceDataset(Dataset):
         if 'metadata' in batch[0]:
             metadata = [item['metadata'] for item in batch]
             batch_out['metadata'] = metadata
-            
+
         return batch_out
 
 
