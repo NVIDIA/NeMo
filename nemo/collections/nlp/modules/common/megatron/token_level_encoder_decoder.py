@@ -706,12 +706,27 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             destination, prefix, keep_vars
         )
 
+        if hasattr(self, "speech_tokens_heads"):
+            state_dict_["speech_tokens_heads"] = self.speech_tokens_heads.state_dict_for_save_checkpoint()
+
+        if hasattr(self, "speech_residual_model_1"):
+            state_dict_["speech_residual_model_1"] = self.speech_residual_model_1.state_dict_for_save_checkpoint()
+            
+        if hasattr(self, "speech_residual_model_2"):
+            state_dict_["speech_residual_model_2"] = self.speech_residual_model_2.state_dict_for_save_checkpoint()
+
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
+        self.encoder_embedding.load_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+        if hasattr(self, "speech_tokens_heads"):
+            self.speech_tokens_heads.load_state_dict(state_dict["speech_tokens_heads"], strict=strict)
+        if hasattr(self, "speech_residual_model_1"):
+            self.speech_residual_model_1.load_state_dict(state_dict["speech_residual_model_1"], strict=strict)
+        if hasattr(self, "speech_residual_model_2"):
+            self.speech_residual_model_2.load_state_dict(state_dict["speech_residual_model_2"], strict=strict)

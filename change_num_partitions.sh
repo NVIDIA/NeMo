@@ -1,7 +1,7 @@
 !/usr/bin/env bash
 
-PATH_TO_SRC_FILE="/data/megatron_3b_1TP/megatron_t5_expanded_vocab_3.nemo"
-PATH_TO_TGT_FILE="/data/megatron_3b_xTP/megatron_t5_expanded_vocab_3.nemo"
+PATH_TO_SRC_FILE="/data/megatron_3b_1TP/megatron_t5_expanded_vocab_posemb.nemo"
+PATH_TO_TGT_FILE="/data/megatron_3b_xTP/megatron_t5_expanded_vocab_posemb.nemo"
 
 python examples/nlp/language_modeling/megatron_change_num_partitions.py \
     --model_file=${PATH_TO_SRC_FILE} \
@@ -12,4 +12,5 @@ python examples/nlp/language_modeling/megatron_change_num_partitions.py \
     --pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_size=1 \
     --target_pipeline_model_parallel_split_rank=0 \
+    --speech_model \
     --precision=bf16

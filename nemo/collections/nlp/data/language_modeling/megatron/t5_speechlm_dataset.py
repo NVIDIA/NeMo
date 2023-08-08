@@ -630,8 +630,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 dec_label_len,
                 is_speech
             ) = sample_tuple
-            print(f"virtual_token {virtual_token.size()}")
-            print(f"context_and_question_token {context_and_question_token.size()}")
 
             virtual_tokens_list.append(general_padding(virtual_token, virtual_token_len.item(), max_virtual_tokens_len, pad_value=self.tokenizer.pad_id))
 
