@@ -61,6 +61,7 @@ from nemo.utils import logging
 try:
     import apex.transformer.pipeline_parallel.utils
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.enums import AttnMaskType 
 
     HAVE_APEX = True
 
