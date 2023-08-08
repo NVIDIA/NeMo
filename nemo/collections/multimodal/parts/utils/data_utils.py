@@ -12,4 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.multimodal import models, modules
+import numpy as np
+import torch
+
+
+def maybe_cast_to_list(x):
+    if isinstance(x, np.ndarray):
+        return [item.tolist() for item in x]
+    return x
+
+
+def ceil_to_nearest(n, m):
+    return (n + m - 1) // m * m
