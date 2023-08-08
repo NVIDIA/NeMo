@@ -13,14 +13,21 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
 
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf/audio_codec", config_name="audio_codec")
 def main(cfg):
+    # PTL 2.0 has find_unused_parameters as False by default, so its required to set it to True
+    # when there are unused parameters here
+    if cfg.trainer.strategy == 'ddp':
+        cfg.trainer.strategy = "ddp_find_unused_parameters_true"
+    logging.info(f"\nConfig Params:\n{OmegaConf.to_yaml(cfg)}")
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = AudioCodecModel(cfg=cfg.model, trainer=trainer)
