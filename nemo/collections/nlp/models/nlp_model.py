@@ -134,7 +134,6 @@ class NLPModel(ModelPT, Exportable):
             # register encoder config
             self.register_bert_model()
 
-
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
     ):
