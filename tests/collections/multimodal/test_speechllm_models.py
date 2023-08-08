@@ -27,16 +27,20 @@ import pytorch_lightning as pl
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
-from nemo.collections.multimodal.models.speechllm_models import (
-    ModularizedSpeechGPTModel,
-)
+from nemo.collections.multimodal.models import speechllm_models
 from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
-    MegatronGPTModel,
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import (
+    GPTModel,
 )
 
+
+class ModularizedAudioGPTModel(speechllm_models.ModularizedAudioGPTModel):
+    # disable logging to avoid MisconfigurationException
+    def log(self, *args, **kwargs):
+        pass
 
 def setup_module():
+    pl.seed_everything(1)
     # init model parallel needed for LLM loss
     init_method = 'tcp://'
     master_ip = 'localhost'
@@ -56,11 +60,13 @@ def llm_model_config():
             "../../../examples/multimodel/conf/speechllm/modularized_speech_gpt_config.yaml",
         )
     )
-    # TODO(zhehuai): update train_ds and validation_ds
-    # wget  -nc --content-disposition https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_gpt_345m/versions/1/files/megatron_gpt_345m.nemo -O /home/TestData/nlp/megatron_gpt/megatron_gpt_345m.nemo
-    config.model.language_model_path = (
-        "/home/TestData/nlp/megatron_gpt/megatron_gpt_345m.nemo"
+    # TODO(zhehuai): move the following to Test /home/TestData
+    config.model.restore_from_path = (
+        "/root/home/works/TestData/pretrained_models/megatron_gpt/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo"
     )
+    config.model.micro_batch_size = 64
+    config.model.data.validation_ds.file_names = '/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json'
+    config.model.data.train_ds.file_names = '/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json'
     return config
 
 
@@ -77,10 +83,11 @@ def trainer_config():
     config_trainer.devices = 1
     config_trainer.num_nodes = 1
     config_trainer.max_epochs = 4
+    config_trainer.max_steps = 1
     config_trainer.val_check_interval = 1.0
 
     # for PyTorch Native AMP set precision=16
-    config_trainer.precision = 16 if torch.cuda.is_available() else 32
+    config_trainer.precision = 32
 
     # setup cluster environment parameters"
     # use torch elastic cluster environment so `create_process_externally` is True
@@ -93,7 +100,7 @@ def trainer_config():
     strategy = NLPDDPStrategy(
     )
     plugins = [TorchElasticEnvironment()]
-    trainer = pl.Trainer(logger=None, plugins=plugins, strategy=strategy, **config_trainer)
+    trainer = pl.Trainer(logger=False, plugins=plugins, strategy=strategy, **config_trainer)
     return trainer, config_trainer
 
 
@@ -117,86 +124,93 @@ def perception_model_config():
             "preprocessor": DictConfig(preprocessor),
             "encoder": DictConfig(encoder),
             "matcher": DictConfig(encoder),
-            "d_model": 1024,
+            "output_dim": 1024,
         }
     )
     return model_config
 
-class TestModularizedSpeechGPTModel:
+@pytest.fixture
+def test_batch():
+    signal_len = torch.from_numpy(np.array([64000, 64000]))
+    transcript = torch.arange(10).reshape(2, 5).int()
+    tokens = transcript[:,:-1]
+    labels = transcript[:,1:]
+    transcript_length = torch.Tensor([3, 2]).int()
+    # assuming context_lengths = [1, 1]
+    loss_mask = torch.Tensor([[0, 1, 1, 0], [0, 1, 0, 0]])
+    batch = {
+        'audio_signal_length':signal_len,
+        'tokens':tokens,
+        'tokens_length':transcript_length,
+        'labels':labels,
+        'loss_mask': loss_mask
+    }
+    batch['audio_signal'] = torch.randn([2, 64000])
+    return batch
+
+class TestModularizedAudioGPTModel:
     @pytest.mark.unit
     def test_init_and_train(
         self, llm_model_config, perception_model_config, trainer_config
     ):
+        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
-
-        assert isinstance(model.frozen_model, MegatronGPTModel)
+        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        
+        assert isinstance(model.model, GPTModel)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_path = str(Path(tmpdir) / "model.nemo")
             model.train()
             model.save_to(save_path)
 
+
     @pytest.mark.unit
     def test_prepare_llm_input(
-        self, llm_model_config, perception_model_config, trainer_config
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
     ):
+        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
+        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
 
         model.train()
-        pl.seed_everything(1)
-        signal = torch.randn(2, 64000).cuda()
-        signal_len = torch.from_numpy(np.array([64000, 64000])).cuda()
-        transcript = torch.arange(8).reshape(2, 4).int().cuda()
-        transcript_length = torch.from_numpy(np.array([3, 2])).cuda()
-        batch = signal, signal_len, transcript, transcript_length
+        batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
         encoder_input, attention_mask, labels, loss_mask, encoder_length = model.prepare_llm_input(batch)
-        assert encoder_input.shape == (40, 2, 1024)
-        assert np.allclose(encoder_input.sum().cpu().detach().numpy(), -788.436)
-        assert attention_mask.shape == (2, 1, 40, 40)
-        assert labels.shape == (2, 40)
+        assert encoder_input.shape == (17, 2, 768)
+        assert np.allclose(encoder_input.sum().cpu().detach().numpy(), 15.783691)
+        assert attention_mask.shape == (2, 1, 17, 17)
+        assert labels.shape == (2, 17)
         assert np.allclose(loss_mask.sum(axis=1).cpu().numpy(), [2, 1])
-        assert np.allclose(encoder_length.cpu().numpy(), (39, 38))
+        assert np.allclose(encoder_length.cpu().numpy(), (16, 15))
 
     @pytest.mark.unit
     def test_training_step(
-        self, llm_model_config, perception_model_config, trainer_config
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
     ):
+        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
+        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
 
+        model.on_train_start()
+        model.setup()
         model.train()
-        pl.seed_everything(1)
-        signal = torch.randn(2, 64000)
-        signal_len = torch.from_numpy(np.array([64000, 64000]))
-        transcript = torch.arange(8).reshape(2, 4).int()
-        transcript_length = torch.from_numpy(np.array([3, 2]))
-        batch = signal, signal_len, transcript, transcript_length
-        loss_mean = model.training_step(batch, None)
-        assert np.allclose(loss_mean.cpu().detach().numpy(), 7.757044)
+        loss_mean = model.training_step(iter([test_batch]), None)
+        assert np.allclose(loss_mean.cpu().detach().numpy(), 6.014655)
 
     @pytest.mark.unit
     def test_validation_step(
-        self, llm_model_config, perception_model_config, trainer_config
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
     ):
+        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularizedSpeechGPTModel(cfg=llm_model_config.model, trainer=trainer)
+        model = ModularizedAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
 
         model.train()
-        pl.seed_everything(1)
-        signal = torch.randn(2, 64000)
-        signal_len = torch.from_numpy(np.array([64000, 64000]))
-        transcript = torch.arange(8).reshape(2, 4).int()
-        transcript_length = torch.from_numpy(np.array([3, 2]))
-        batch = signal, signal_len, transcript, transcript_length
-        loss_mean = model.validation_step(batch, None)
-        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 7.7556906)
-
-    # TODO(zhehuai): test ckpt restore
+        loss_mean = model.validation_step(iter([test_batch]), None)
+        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 5.9237595)
