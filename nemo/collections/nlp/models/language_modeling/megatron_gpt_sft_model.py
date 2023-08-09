@@ -322,12 +322,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 min_val = masked.min().item()
                 max_val = masked.max().item()
                 for i in range(min_val, max_val + 1, 2):
+                    # preferred average cross entropy
                     prefered = output_tensor_contrastive[bid][0][loss_mask_contrastive[bid][0] == i]
+                    # not preferred average cross entropy
                     not_prefered = output_tensor_contrastive[bid][1][loss_mask_contrastive[bid][1] == i]
                     if len(prefered) == 0 or len(not_prefered) == 0:
                         continue
-                    prefered = prefered.mean()
-                    not_prefered = not_prefered.mean()
+                    # convert it to likelihood, the negative sign is need to convert cross entropy to likelihood
+                    prefered = -prefered.mean()
+                    not_prefered = -not_prefered.mean()
                     loss = -torch.nn.functional.logsigmoid(prefered - not_prefered).mean()
                     losses.append(loss)
             contrasitve_loss = torch.stack(losses).mean()
