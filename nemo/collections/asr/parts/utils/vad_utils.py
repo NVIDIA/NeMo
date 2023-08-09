@@ -732,7 +732,7 @@ def generate_vad_segment_table(
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
     if not out_dir:
-        out_dir_name = "seg_output_"
+        out_dir_name = "seg_output"
         for key in postprocessing_params:
             out_dir_name = out_dir_name + "-" + str(key) + str(postprocessing_params[key])
 
@@ -1051,11 +1051,11 @@ def plot(
     else:
         label = None
 
-    if label:
+    if label is not None:
         ax2.plot(np.arange(len_pred) * unit_frame_len, label, 'r', label='label')
-    if pred_snippet:
+    if pred_snippet is not None:
         ax2.plot(np.arange(len_pred) * unit_frame_len, pred_snippet, 'b', label='pred')
-    if frame_snippet:
+    if frame_snippet is not None:
         ax2.plot(np.arange(len_pred) * unit_frame_len, frame_snippet, 'g--', label='speech prob')
 
     ax2.tick_params(axis='y', labelcolor='r')
