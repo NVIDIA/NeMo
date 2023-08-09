@@ -57,7 +57,7 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
                 t5_cfg.encoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
             if hasattr(t5_cfg.decoder, 'ffn_dropout'):
                 t5_cfg.decoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
-                
+
             if hasattr(cfg.model, 'encoder'):
                 if hasattr(cfg.model.encoder, 'position_embedding_type'):
                     t5_cfg.encoder.position_embedding_type = cfg.model.encoder.position_embedding_type
