@@ -11,7 +11,7 @@ transform: # a list of dictionaries of transforms (or a joint dictionary) to app
   - q_z_given_x: # Gaussian posterior with reparameterization
       cls_name: cond_gaussian # class path name
       hidden_size: 512 # hidden size of the encoder
-      min_logvar: -7.0 # minimum log variance
+      min_logvar: -6.0 # minimum log variance
   - logP_cls:
       cls_name: guided_cls
       input_name: hiddens
@@ -31,8 +31,8 @@ loss: # a list of dictionaries of loss terms (or a joint dictionary) to add to r
         loss_weight: 1.0 # weight of the MIM latent loss
       vae: # VAE example
         cls_name: vae
-        loss_weight: 1e-2 # weight of KL term in loss
         min_kl_value: null # minimum KL value if a float is provided
+        loss_weight: 1e-2 # weight of KL term in loss
       logP_cls:
         cls_name: guided_cls_loss
         input_name: logP

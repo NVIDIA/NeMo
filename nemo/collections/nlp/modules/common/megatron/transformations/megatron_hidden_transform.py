@@ -91,7 +91,7 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
     Constructes a diagonal Gaussian distribution from the hidden states and samples from it using reparametrization.
     """
 
-    def __init__(self, hidden_size, min_logvar=-8, init_method_std=0.02, name="cond_gaussian"):
+    def __init__(self, hidden_size, min_logvar=-6, init_method_std=0.02, name="cond_gaussian"):
         super().__init__(name=name)
         # limit smaller allowed variance (for numerical stability)
         self.min_logvar = min_logvar
