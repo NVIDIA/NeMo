@@ -709,54 +709,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-#############
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        """
-        return_values - if given, returns a dictionary with given keys and corresponding values
-        """
-        return self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-
-    def _test_validation_epoch_end(self, outputs, prefix):
-        """
-        Shared logging for validation and test
-        """
-        # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
-        if len(outputs) == 0:
-            logging.warning("validation_epoch_end: outputs is empty")
-            return
-
-        # only the last pipeline parallel stages return loss
-        averaged_outputs = {k: torch.stack([x[k] for x in outputs]).mean() for k in outputs[0].keys()}
-
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        for k, v in averaged_outputs.items():
-            torch.distributed.broadcast(v, get_last_rank())
-            n = f'{prefix}_{k}'
-            # log only '*_loss' values in progress bar
-            self.log(n, v, prog_bar=(n.endswith("_loss")), rank_zero_only=True, batch_size=1)
-
-        return averaged_outputs
-
-    def validation_epoch_end(self, outputs):
-        averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="val")
-        # FIXME: do we need this? 'global_step' is logged in training_step
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-
-        return averaged_outputs
-
-    def test_step(self, dataloader_iter, batch_idx):
-        return self.validation_step(dataloader_iter, batch_idx)
-
-    def test_epoch_end(self, outputs):
-        averaged_outputs = self._test_validation_epoch_end(outputs=outputs, prefix="test")
-
-        return averaged_outputs
-
 ##########
 
     def _test_validation_step(self, step_outputs, dataloader_iter, batch_idx, dataloader_idx=0):
         """
-        Shared logging for validation and test step
+        Shared code for validation and test step
         """
         # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely with PP rank 1 reaches the end of dataloader_iter
         dataloader_iter, done = self._prefetch(dataloader_iter)
@@ -797,43 +754,49 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dataloader_idx=dataloader_idx,
         )
 
-    def _test_validation_epoch_end(self, outputs, prefix):
+    def _test_validation_epoch_end(self, step_outputs, prefix):
         """
         Shared logging for validation and test
         """
+        # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
+        if not step_outputs:
+            logging.warning(f"{prefix} epoch end: outputs is empty")
+            return None
+
+        # only the last pipeline parallel stages return loss
+        if parallel_state.is_pipeline_last_stage() and len(step_outputs):
+            averaged_outputs = {k: torch.stack([x[k] for x in step_outputs]).mean() for k in step_outputs[0].keys()}
+        else:
+            # if we are here we assume that only loss is available and hidden transforms are disabled (since not supported in pipleline parallel)
+            averaged_loss = {'loss': torch.tensor(0.0).cuda()}
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        for k, v in averaged_outputs.items():
+            torch.distributed.broadcast(v, get_last_rank())
+            averaged_outputs[k] = v
+            n = f'{prefix}_{k}'
+            # log only '*_loss' values in progress bar
+            self.log(n, v, prog_bar=(n.endswith("_loss")), rank_zero_only=True, batch_size=1)
+
+        # free memory
+        step_outputs.clear()  
+
+        return averaged_loss
 
     def on_validation_epoch_end(self):
-        # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
-        if not self.validation_step_outputs:
-            logging.warning("validation_epoch_end: outputs is empty")
-            return None
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(self.validation_step_outputs).mean()
-        else:
-            averaged_loss = torch.tensor(0.0).cuda()
-
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        # FIXME: do we need this? 'global_step' is logged in training_step
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.validation_step_outputs.clear()  # free memory
-        return averaged_loss
+        return self._test_validation_epoch_end(
+            step_outputs=self.validation_step_outputs, 
+            prefix="val",
+            )
 
     def on_test_epoch_end(self):
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(self.test_step_outputs).mean()
-        else:
-            averaged_loss = torch.tensor(0.0).cuda()
-
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.test_step_outputs.clear()  # free memory
-        return averaged_loss
-
-########## 
+        return self._test_validation_epoch_end(
+            step_outputs=self.test_step_outputs, 
+            prefix="test",
+            )
+        
     def loss_func(self, loss_mask, tokens_loss):
         """
         This function takes as input per-token loss and masks non-required values.
