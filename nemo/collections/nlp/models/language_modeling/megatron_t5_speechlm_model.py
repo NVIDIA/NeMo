@@ -94,7 +94,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         list_of_speech_heads = []
         for _ in range(7):
-            list_of_speech_heads.append(MegatronTokenLevelHead(self.frozen_model.enc_dec_model.tokens_head.bias.size(0), False))
+            list_of_speech_heads.append(MegatronTokenLevelHead(1024, False))
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
 
         # TODO: remove hardcoding

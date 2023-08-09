@@ -99,49 +99,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
 
-        # Expanding existing text vocabulary with speech vocabulary
-        # Old vocab is in first 29184 characters with curent checkpoint
-        # New vocab is next 9000 tokens
-        # old_token_size = self.word_embeddings.num_embeddings
-        # new_embeddings = tensor_parallel.VocabParallelEmbedding(
-        #     num_embeddings=self.word_embeddings.num_embeddings + cfg.num_speech_tokens,
-        #     embedding_dim=self.word_embeddings.embedding_dim
-        # )
-        # new_weight = new_embeddings.weight.clone()
-        # new_weight[:old_token_size, :] = self.word_embeddings.weight.clone()
-        # new_weight = torch.nn.Parameter(new_weight)
-        # new_embeddings.weight = new_weight
-        # self.word_embeddings = new_embeddings
-        # del new_embeddings
-        # del new_weight
-        # self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings = self.word_embeddings
-        # self.frozen_model.enc_dec_model.decoder_embedding.word_embeddings = self.word_embeddings
-
-        # # # Expand the dimension of bias of tokens head
-        # # bias_size = self.frozen_model.enc_dec_model.tokens_head.bias.size()[0]
-        # # new_parameter = torch.nn.Parameter(torch.zeros(bias_size + cfg.num_speech_tokens))
-        # # new_parameter.data[:bias_size] = self.frozen_model.enc_dec_model.tokens_head.bias.data.clone()
-        # # self.frozen_model.enc_dec_model.tokens_head.bias = new_parameter
-        # # del new_parameter
-
-        # # # Expanding existing text vocabulary with speech vocabulary
-        # # Add first layer
-        # new_token_head = MegatronTokenLevelHead(old_token_size + 1024, self.word_embeddings.embedding_dim)
-        # new_bias = new_token_head.bias.clone()
-        # new_bias[:old_token_size] = self.frozen_model.enc_dec_model.tokens_head.bias.clone()
-        # new_bias = torch.nn.Parameter(new_bias)
-        # new_token_head.bias = new_bias
-        # self.frozen_model.enc_dec_model.tokens_head = new_token_head
-
-        # list_of_speech_heads = []
-        # for _ in range(7):
-        #     list_of_speech_heads.append(MegatronTokenLevelHead(1024, self.word_embeddings.embedding_dim))
-        # self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
-
-        # # TODO: remove hardcoding
-        # self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 29184+1024)
-        # self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 1024)
-
         list_of_speech_heads = []
         for _ in range(7):
             list_of_speech_heads.append(MegatronTokenLevelHead(1024, False))
@@ -361,7 +318,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         unprocessed_enc_input = enc_input.clone()
         for _i in range(enc_input.shape[0]):
             mask_indices = (enc_input[_i] != 103).long()
-            unprocessed_enc_input[_i] = enc_input[_i] - 29184 - (_i * 1024)
+            unprocessed_enc_input[_i] = enc_input[_i] - 30000 - (_i * 1024)
             unprocessed_enc_input[_i] = unprocessed_enc_input[_i] * mask_indices
         
         return unprocessed_enc_input

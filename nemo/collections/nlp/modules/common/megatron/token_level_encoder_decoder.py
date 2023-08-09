@@ -635,7 +635,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # @jasoli: Will have to check that this is indexed properly
                     # TODO: Remove hardcode of 9000 = num_speech_tokens
                     # token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:-(9000-1024),:]) # s, b, vocab
-                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:30000+1024,:]) # s, b, vocab
+                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())[:,:,:30000+1024] # s, b, vocab
                     # @jasoli: We will have to define a speech_mask whether this is from the
                     # datalayer or we infer it from model output as below
                     # text_token_size = 29184
