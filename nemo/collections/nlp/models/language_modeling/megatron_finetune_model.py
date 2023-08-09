@@ -89,8 +89,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                             f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
                         )
                 if (
-                        data_cfg.metric.get('labels_are_strings', False)
-                        and data_cfg.metric.name in self._metrics_require_string2category_map
+                    data_cfg.metric.get('labels_are_strings', False)
+                    and data_cfg.metric.name in self._metrics_require_string2category_map
                 ):
                     if data_cfg.metric.num_classes is None:
                         raise ValueError(
@@ -98,7 +98,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                             f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
                         )
                     if data_cfg.metric.get('class_labels', None) is None or not isinstance(
-                            data_cfg.metric.get('class_labels', None), ListConfig
+                        data_cfg.metric.get('class_labels', None), ListConfig
                     ):
                         raise ValueError(
                             "Class labels are not provided properly in the metric section witnin the data config. "
@@ -266,13 +266,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if (
-                global_batch_size_per_gpu
-                != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+            global_batch_size_per_gpu
+            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
         ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             if (
-                    global_batch_size_per_gpu
-                    != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
+                global_batch_size_per_gpu
+                != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
                 _reconfigure_microbatch_calculator(
@@ -392,8 +392,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 ids = ids[:idx]
 
             if (
-                    len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1
-                    and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids
+                len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1
+                and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids
             ):
                 idx = ids.index(tokenizer.text_to_ids(T5Sentinel.END.value)[0])
                 ids = ids[:idx]
@@ -446,7 +446,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         'labels': x['labels'],
                         'categories': x['categories'],
                         'inputs': x['inputs'],
-                        'metadata': x['metadata']
+                        'metadata': x['metadata'],
                     }
                     for x in output
                 ],
@@ -465,7 +465,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
                 for batch in gathered_outputs[rank]:
                     for pred, label, input, category, metadata in zip(
-                            batch['preds'], batch['labels'], batch['inputs'], batch['categories'], batch['metadata']
+                        batch['preds'], batch['labels'], batch['inputs'], batch['categories'], batch['metadata']
                     ):
                         key = input + label
                         if key not in gt_inp_set:
@@ -481,16 +481,18 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             if metric_name != 'loss':
                 # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[
-                    dataloader_idx]
+                metric_fn = (
+                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+                )
 
                 if metric_label_key in deduplicated_outputs['metadata'][0]:
                     labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
                 else:
                     labels = deduplicated_outputs['labels']
 
-                for pred, label, category in zip(deduplicated_outputs['preds'], labels,
-                                                 deduplicated_outputs['categories']):
+                for pred, label, category in zip(
+                    deduplicated_outputs['preds'], labels, deduplicated_outputs['categories']
+                ):
                     # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
                     pred, label = self.cast_for_metric(
                         pred=pred,
@@ -576,8 +578,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
         with open(output_file_path, "w") as f_json:
             assert (
-                    len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(
-                outputs['metadata'])
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
             )
             for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
                 json_string = {'input': i, 'pred': p, 'label': l}
@@ -599,7 +600,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
-            self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
+        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
     ):
         """Buld dataloader given an input dataset."""
 
@@ -664,8 +665,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def _build_train_dataset(self, data_cfg):
         """Build the training dataset."""
         if (
-                data_cfg.drop_last is False
-                and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
+            data_cfg.drop_last is False
+            and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
         ):
             raise ValueError(
                 f"Cannot use drop_last=False in your training data with gradient accumulation found grad acc of {data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())} with global_batch_size {data_cfg.global_batch_size}, micro_batch_size {data_cfg.micro_batch_size}, data parallel size {parallel_state.get_data_parallel_world_size()}"
