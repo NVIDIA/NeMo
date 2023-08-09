@@ -145,4 +145,5 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
+    logging.warning("DEPRECATION WARNING!!! please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_tuning.py followed by megatron_gpt_peft_eval.py")
     main()  # noqa pylint: disable=no-value-for-parameter

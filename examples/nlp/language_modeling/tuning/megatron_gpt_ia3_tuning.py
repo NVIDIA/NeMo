@@ -108,4 +108,5 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
+    logging.warning("DEPRECATION WARNING!!! please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_tuning.py")
     main()
