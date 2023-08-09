@@ -13,7 +13,7 @@ trainer:
   log_every_n_steps: 10
   val_check_interval: 1.0
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null
+  resume_from_checkpoint: null 
 
 exp_manager:
   explicit_log_dir: null
@@ -59,9 +59,9 @@ model:
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
   existing_tasks: []
-  new_tasks: ["squad"]
+  new_tasks: ["squad"] 
 
 
   task_templates: 
@@ -102,13 +102,13 @@ model:
   optim:
     name: fused_adam
     lr: 1e-4
-    weight_decay: 0.01
-    betas:
+    weight_decay: 0.01 
+    betas: 
     - 0.9
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 1000
+      warmup_steps: 50
       constant_steps: 0
       min_lr: 0.0
       monitor: val_loss

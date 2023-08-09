@@ -399,7 +399,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                         speech_logits = debug_tensors[1]
                         token_logits_example = token_logits[:,0,:] * 1
                         speech_logits_example = speech_logits[:,0,:,:] * 1
-                        first_layer_tokens = token_logits_example.argmax(dim=1) - 29184
+                        first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
                         outher_layer_tokens = []
                         for _i in range(speech_logits_example.shape[2]):
                             outher_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
