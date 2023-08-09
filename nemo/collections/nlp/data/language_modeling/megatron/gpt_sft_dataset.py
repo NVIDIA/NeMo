@@ -150,7 +150,7 @@ class GPTSFTDataset(Dataset):
             idx = len(self) + idx
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-    
+
     def _process_prompt(self, context: str, label: str, query: str):
         """
         Combine context, label, and query string into a unifed string.
@@ -160,35 +160,39 @@ class GPTSFTDataset(Dataset):
             assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
             context_string_start_idx = self.prompt_template.find(context_string)
             context_string_end_idx = context_string_start_idx + len(context_string)
-            
+
             label_string = f'{{{self.label_key}}}'
             assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
             assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
                 label_string
             ), f'{{self.label_key}} must be at the end of prompt_template.'
-            
+
             if self.query_key is not None:
                 query_string = f'{{{self.query_key}}}'
                 assert query_string in self.prompt_template, f'{query_string} must in {self.prompt_template}'
                 query_string_start_idx = self.prompt_template.find(query_string)
                 query_string_end_idx = query_string_start_idx + len(query_string)
-                        
+
                 input_part_end_idx = max(context_string_end_idx, query_string_end_idx)
-                input_text = self.prompt_template[ : input_part_end_idx].replace(context_string, context).replace(query_string, query)
-                answer_text = self.prompt_template[input_part_end_idx : ].replace(label_string, label)
+                input_text = (
+                    self.prompt_template[:input_part_end_idx]
+                    .replace(context_string, context)
+                    .replace(query_string, query)
+                )
+                answer_text = self.prompt_template[input_part_end_idx:].replace(label_string, label)
             else:
-                input_text = self.prompt_template[ : context_string_end_idx].replace(context_string, context)
-                answer_text = self.prompt_template[context_string_end_idx : ].replace(label_string, label)
+                input_text = self.prompt_template[:context_string_end_idx].replace(context_string, context)
+                answer_text = self.prompt_template[context_string_end_idx:].replace(label_string, label)
         else:
             if self.query_key is not None:
                 input_text = query + ' ' + context
             else:
                 input_text = context
-            
+
             answer_text = label
-        
+
         return input_text, answer_text
-    
+
     def _process_truncation(self, token_ids: Optional[int], truncation_length: int):
         assert len(token_ids) >= truncation_length, f"'{self.truncation_field}' is not long enough to truncate."
         cropped_token_ids = token_ids[: -min(truncation_length, len(token_ids))]
@@ -204,11 +208,11 @@ class GPTSFTDataset(Dataset):
         context = example[self.context_key]
         label = example[self.label_key]
         query = example[self.query_key] if self.query_key is not None else None
-        
+
         input_text, answer_text = self._process_prompt(context, label, query)
         input_ids = self.tokenizer.text_to_ids(input_text)
         answer_ids = self.tokenizer.text_to_ids(answer_text)
-        
+
         total_ids_amount = (
             self.virtual_tokens
             + len(input_ids)
@@ -216,14 +220,14 @@ class GPTSFTDataset(Dataset):
             + self.add_bos
             + self.add_sep
         )
-        
+
         if total_ids_amount > self.max_seq_length:
             truncation_length = total_ids_amount - self.max_seq_length
             if self.truncation_field == "answer":
                 answer_ids = self._process_truncation(answer_ids, truncation_length)
             elif self.truncation_field == "context":
                 input_ids = self._process_truncation(input_ids, truncation_length)
-            
+
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
@@ -251,7 +255,7 @@ class GPTSFTDataset(Dataset):
             total_ids = total_ids + [self.tokenizer.eos_id]
 
         assert len(total_ids) <= self.max_seq_length
-        
+
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
         processed_example = {
