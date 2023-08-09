@@ -26,7 +26,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model im
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
-
+from nemo.utils import logging
 mp.set_start_method("spawn", force=True)
 
 """
