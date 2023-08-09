@@ -634,7 +634,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if self.share_decoder_tokens_head_embeddings:
                     # @jasoli: Will have to check that this is indexed properly
                     # TODO: Remove hardcode of 9000 = num_speech_tokens
-                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:-(9000-1024),:]) # s, b, vocab
+                    # token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:-(9000-1024),:]) # s, b, vocab
+                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:30000+1024,:]) # s, b, vocab
                     # @jasoli: We will have to define a speech_mask whether this is from the
                     # datalayer or we infer it from model output as below
                     # text_token_size = 29184
@@ -654,7 +655,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
                         # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
                         # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
-                        last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight()[-(9000-1024*(i+1)):-(9000-1024*(i+2)),:])
+                        last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight()[30000+1024*(i+1):30000+1024*(i+2),:])
                         speech_logits[:,:,:,i] = last_layer_logits
                 else:
                     token_logits = self.tokens_head(dec_output)[0] # T, B, WordEmbSize
@@ -698,7 +699,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous() #(b, s, 30208)
                     print("token_logits", token_logits.shape, )
-                    first_layer_speech_logits = token_logits[:,:,29184:29184+1024].unsqueeze(-1) #(b, s, 1023, 1)
+                    first_layer_speech_logits = token_logits[:,:,30000:30000+1024].unsqueeze(-1) #(b, s, 1023, 1)
                     # pad speech_logits with zeros to make it 1024
                     # first_layer_speech_logits = torch.cat([first_layer_speech_logits, torch.zeros([*first_layer_speech_logits.shape[:-2], 1, 1], device=first_layer_speech_logits.device)], dim=-2) #(b, s, 1024, 1)
                     speech_logits = speech_logits.transpose(0, 1).contiguous() #(b, s, 1024, 7)

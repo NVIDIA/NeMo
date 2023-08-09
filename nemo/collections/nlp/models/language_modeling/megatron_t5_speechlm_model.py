@@ -199,7 +199,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
-            output = self.frozen_model.enc_dec_model(
+            output, _ = self.frozen_model.enc_dec_model(
                 enc_input_ids=None,
                 enc_attn_mask=enc_mask,
                 dec_input_ids=dec_input,
@@ -212,7 +212,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
-                output = self.frozen_model.enc_dec_model(
+                output, _ = self.frozen_model.enc_dec_model(
                     enc_input_ids=None,
                     enc_attn_mask=enc_mask,
                     dec_input_ids=dec_input,
