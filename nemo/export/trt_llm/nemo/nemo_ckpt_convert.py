@@ -159,11 +159,12 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
         config.write(config_file)
 
     # AMMO modification.
-    return out_dir, gpt_model_config, tokenizer
+    return gpt_model_config, tokenizer
 
 
 def create_out_dir(args):
-    out_dir = Path(args.out_dir) / f"{args.tensor_parallelism}-gpu/"
+    # AMMO modification.
+    out_dir = Path(args.out_dir)
     if not out_dir.exists():
         out_dir.mkdir(parents=True)
     return out_dir
@@ -212,7 +213,8 @@ def copy_tokenizer_files(config, out_dir):
 
 def build_tokenizer(tokenizer_config: typing.Dict):
     if tokenizer_config["library"] == "sentencepiece":
-        tokenizer = T5Tokenizer(tokenizer_config["model"], extra_ids=0)
+        # Turn off legacy model by default: See https://github.com/huggingface/transformers/pull/24622
+        tokenizer = T5Tokenizer(tokenizer_config["model"], extra_ids=0, legacy=False)
     elif "GPT2" in tokenizer_config["type"]:
         tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
     else:

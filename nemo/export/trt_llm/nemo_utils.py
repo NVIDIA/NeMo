@@ -36,7 +36,7 @@ def _nemo_decode(
     processes: int = 1,
     storage_type: str = "bfloat16",
     load_checkpoints_on_gpu: bool = False,
-) -> Tuple[Path, GPT2Config, PreTrainedTokenizer]:
+) -> Tuple[GPT2Config, PreTrainedTokenizer]:
     """Decodes the NEMO file and save the weights to out_dir."""
     args = argparse.Namespace()
     args.in_file = in_file
@@ -71,10 +71,10 @@ def _nemo_decode(
         )
 
         start_time = datetime.datetime.now()
-        weights_dir, gpt_model_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
+        gpt_model_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
-        return weights_dir, gpt_model_config, tokenizer
+        return gpt_model_config, tokenizer
 
 
 def get_model_config(weights_dir: Path) -> GPT2Config:
@@ -105,25 +105,24 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
 
 
 def nemo_to_model_config(
-    in_file: str,
-    decoder_type: str,
-    gpus: int = 1,
+    in_file: str, decoder_type: str, gpus: int = 1, nemo_export_dir: str = "/tmp/nemo"
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = "bfloat16"
-    out_dir = "/tmp/nemo"
 
-    if os.path.exists(out_dir):
-        shutil.rmtree(out_dir)
+    if os.path.exists(nemo_export_dir):
+        shutil.rmtree(nemo_export_dir)
 
-    weights_dir, gpt_model_config, tokenizer = _nemo_decode(
+    gpt_model_config, tokenizer = _nemo_decode(
         in_file=in_file,
-        out_dir=out_dir,
+        out_dir=nemo_export_dir,
         tensor_parallelism=gpus,
         processes=1,
         storage_type=dtype_str,
         load_checkpoints_on_gpu=False,
     )
+
+    weights_dir = Path(nemo_export_dir)
 
     model_config_template = ModelConfig()
     model_config_template.dtype = dtype_str
