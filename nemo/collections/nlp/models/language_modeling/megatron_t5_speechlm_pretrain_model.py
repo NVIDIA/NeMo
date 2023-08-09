@@ -303,6 +303,9 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
+            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
+            t5_cfg.seq_length = 2048 
+            t5_cfg.max_position_embeddings = 2048
 
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),
@@ -311,7 +314,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
         print(f"self.frozen_model {self.frozen_model}")
-
+    
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.

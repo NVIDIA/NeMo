@@ -50,7 +50,7 @@ model:
   validation_drop_last: False
   report_validation_metric: False
   validation_metric: accuracy
-  num_speech_tokens: 9000 # Vocabulary size pertaining to speech
+  num_speech_tokens: 10112 # Vocabulary size pertaining to speech
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
