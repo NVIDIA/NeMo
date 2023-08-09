@@ -119,9 +119,9 @@ class TestFlashAttention:
         k = torch.rand(sl, bz, np, hn, device=device).half()
         v = torch.rand(sl, bz, np, hn, device=device).half()
 
-        attention_mask_2d = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(
+        attention_mask_2d = ~(torch.arange(sl, device=device).unsqueeze(0) < torch.randint(
             1, sl, (bz,), device=device
-        ).unsqueeze(1)
+        ).unsqueeze(1))
 
         attention_mask_padding_3d = build_attention_mask_3d(
             source_mask=attention_mask_2d, target_mask=attention_mask_2d, attn_mask_type=AttnMaskType.padding
@@ -192,13 +192,13 @@ class TestFlashAttention:
         k = torch.rand(sk, bz, np, hn, device=device).half()
         v = torch.rand(sk, bz, np, hn, device=device).half()
 
-        attention_mask_2d_q = torch.arange(sq, device=device).unsqueeze(0) < torch.randint(
+        attention_mask_2d_q = ~(torch.arange(sq, device=device).unsqueeze(0) < torch.randint(
             1, sq, (bz,), device=device
-        ).unsqueeze(1)
+        ).unsqueeze(1))
 
-        attention_mask_2d_k = torch.arange(sk, device=device).unsqueeze(0) < torch.randint(
+        attention_mask_2d_k = ~(torch.arange(sk, device=device).unsqueeze(0) < torch.randint(
             1, sk, (bz,), device=device
-        ).unsqueeze(1)
+        ).unsqueeze(1))
 
         attention_mask_padding_3d = build_attention_mask_3d(
             source_mask=attention_mask_2d_q, target_mask=attention_mask_2d_k, attn_mask_type=AttnMaskType.padding
@@ -243,9 +243,9 @@ class TestFlashAttention:
         k = torch.rand(sl, bz, np, hn, device=device).half()
         v = torch.rand(sl, bz, np, hn, device=device).half()
 
-        attention_mask_2d = torch.arange(sl, device=device).unsqueeze(0) < torch.randint(
+        attention_mask_2d = ~(torch.arange(sl, device=device).unsqueeze(0) < torch.randint(
             1, sl, (bz,), device=device
-        ).unsqueeze(1)
+        ).unsqueeze(1))
 
         attention_mask_padding_3d = build_attention_mask_3d(
             source_mask=attention_mask_2d, target_mask=attention_mask_2d, attn_mask_type=AttnMaskType.padding
@@ -324,13 +324,13 @@ class TestFlashAttention:
         k = torch.rand(sk, bz, np, hn, device=device).half()
         v = torch.rand(sk, bz, np, hn, device=device).half()
 
-        attention_mask_2d_q = torch.arange(sq, device=device).unsqueeze(0) < torch.randint(
+        attention_mask_2d_q = ~(torch.arange(sq, device=device).unsqueeze(0) < torch.randint(
             1, sq, (bz,), device=device
-        ).unsqueeze(1)
+        ).unsqueeze(1))
 
-        attention_mask_2d_k = torch.arange(sk, device=device).unsqueeze(0) < torch.randint(
+        attention_mask_2d_k = ~(torch.arange(sk, device=device).unsqueeze(0) < torch.randint(
             1, sk, (bz,), device=device
-        ).unsqueeze(1)
+        ).unsqueeze(1))
 
         attention_mask_padding_3d = build_attention_mask_3d(
             source_mask=attention_mask_2d_q, target_mask=attention_mask_2d_k, attn_mask_type=AttnMaskType.padding
