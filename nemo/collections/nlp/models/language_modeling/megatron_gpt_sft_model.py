@@ -340,8 +340,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             loss_mask = (loss_mask > 0).view(-1).float().contiguous()
             loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
             if self.training:
-                self.log('train sft loss', loss, batch_size=1)
-                self.log('train contrastive loss', contrasitve_loss, batch_size=1)
+                self.log('train sft loss', loss, batch_size=1, sync_dist=True)
+                self.log('train contrastive loss', contrasitve_loss, batch_size=1, sync_dist=True)
             else:
                 self.log('val sft loss', loss)
                 self.log('val contrastive loss', contrasitve_loss)
