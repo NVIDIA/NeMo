@@ -150,70 +150,50 @@ class GPTSFTDataset(Dataset):
             idx = len(self) + idx
         example = self.indexed_dataset[idx]
         return self._process_example(example)
-
-    def _get_prompt_tokens(self):
-
-        context_string = f'{{{self.context_key}}}'
-        label_string = f'{{{self.label_key}}}'
-        assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
-        assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
-        assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
-            label_string
-        ), f'{label_string} must be at the end of prompt_template.'
-
-        context_string_start_idx = self.prompt_template.find(context_string)
-        context_string_end_idx = context_string_start_idx + len(context_string)
-
-        label_string_start_idx = self.prompt_template.find(label_string)
-        label_string_end_idx = label_string_start_idx + len(label_string)
-
-        string_before_context = self.prompt_template[:context_string_start_idx]
-        if string_before_context != '':
-            token_ids_before_context = self.tokenizer.text_to_ids(string_before_context)
+    
+    def _process_prompt(self, context: str, label: str, query: str):
+        """
+        Combine context, label, and query string into a unifed string.
+        """
+        if self.prompt_template is not None:
+            context_string = f'{{{self.context_key}}}'
+            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
+            context_string_start_idx = self.prompt_template.find(context_string)
+            context_string_end_idx = context_string_start_idx + len(context_string)
+            
+            label_string = f'{{{self.label_key}}}'
+            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
+            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
+                label_string
+            ), f'{{self.label_key}} must be at the end of prompt_template.'
+            
+            if self.query_key is not None:
+                query_string = f'{{{self.query_key}}}'
+                assert query_string in self.prompt_template, f'{query_string} must in {self.prompt_template}'
+                query_string_start_idx = self.prompt_template.find(query_string)
+                query_string_end_idx = query_string_start_idx + len(query_string)
+                        
+                input_part_end_idx = max(context_string_end_idx, query_string_end_idx)
+                input_text = self.prompt_template[ : input_part_end_idx].replace(context_string, context).replace(query_string, query)
+                answer_text = self.prompt_template[input_part_end_idx : ].replace(label_string, label)
+            else:
+                input_text = self.prompt_template[ : context_string_end_idx].replace(context_string, context)
+                answer_text = self.prompt_template[context_string_end_idx : ].replace(label_string, label)
         else:
-            token_ids_before_context = None
-
-        string_between_context_and_label = self.prompt_template[context_string_end_idx:label_string_start_idx]
-        if string_between_context_and_label != '':
-            token_ids_between_context_and_label = self.tokenizer.text_to_ids(string_between_context_and_label)
-        else:
-            token_ids_between_context_and_label = None
-
-        string_after_label = self.prompt_template[label_string_end_idx:]
-        if string_after_label != '':
-            token_ids_after_label = self.tokenizer.text_to_ids(string_after_label)
-        else:
-            token_ids_after_label = None
-
-        return token_ids_before_context, token_ids_between_context_and_label, token_ids_after_label
-
-    def _process_prompt(
-        self,
-        context_ids: Optional[int],
-        label_ids: Optional[int],
-        token_ids_before_context: Optional[int] = None,
-        token_ids_between_context_and_label: Optional[int] = None,
-        token_ids_after_label: Optional[int] = None,
-    ):
-
-        if token_ids_before_context:
-            context_ids = token_ids_before_context + context_ids
-
-        if token_ids_between_context_and_label:
-            label_ids = token_ids_between_context_and_label + label_ids
-
-        if token_ids_after_label:
-            label_ids = label_ids + token_ids_after_label
-
-        return context_ids, label_ids
-
+            if self.query_key is not None:
+                input_text = query + ' ' + context
+            else:
+                input_text = context
+            
+            answer_text = label
+        
+        return input_text, answer_text
+    
     def _process_truncation(self, token_ids: Optional[int], truncation_length: int):
-
         assert len(token_ids) >= truncation_length, f"'{self.truncation_field}' is not long enough to truncate."
         cropped_token_ids = token_ids[: -min(truncation_length, len(token_ids))]
-        cropped_text = self.tokenizer.ids_to_text(cropped_token_ids)
 
-        return cropped_text, cropped_token_ids
+        return cropped_token_ids
 
     def _process_example(self, example: dict):
         """
@@ -221,84 +201,65 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        original_context = example[self.context_key]
-        original_label = example[self.label_key]
-
-        # Convert original context and original label to tokens
-        original_context_ids = self.tokenizer.text_to_ids(original_context)
-        original_label_ids = self.tokenizer.text_to_ids(original_label)
-
-        context, context_ids = original_context, original_context_ids
-        label, label_ids = original_label, original_label_ids
-
-        if self.prompt_template is None:
-            self.prompt_template = "{input} <extra_id_1>\n {output}"
-
-        prompt_tokens = self._get_prompt_tokens()
-        prompt_tokens_amount = sum(
-            list(map(len, list(filter(lambda tokens_ids: tokens_ids is not None, list(prompt_tokens)))))
-        )
-
-        # Calculate total amount of tokens
-        total_ids = (
+        context = example[self.context_key]
+        label = example[self.label_key]
+        query = example[self.query_key] if self.query_key is not None else None
+        
+        input_text, answer_text = self._process_prompt(context, label, query)
+        input_ids = self.tokenizer.text_to_ids(input_text)
+        answer_ids = self.tokenizer.text_to_ids(answer_text)
+        
+        total_ids_amount = (
             self.virtual_tokens
-            + len(context_ids)
-            + max(len(label_ids), self.tokens_to_generate)
-            + prompt_tokens_amount
+            + len(input_ids)
+            + max(len(answer_ids), self.tokens_to_generate)
             + self.add_bos
             + self.add_sep
         )
-
-        ## Only training need to consider eos token
-        if self.tokens_to_generate == 0:
-            total_ids += self.add_eos
-
-        # If total amount of tokens bigger than max sequence length, apply truncation to specified field
-        if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
+        
+        if total_ids_amount > self.max_seq_length:
+            truncation_length = total_ids_amount - self.max_seq_length
             if self.truncation_field == "answer":
-                label, label_ids = self._process_truncation(original_label_ids, truncation_length)
+                answer_ids = self._process_truncation(answer_ids, truncation_length)
             elif self.truncation_field == "context":
-                context, context_ids = self._process_truncation(original_context_ids, truncation_length)
-
-        context_ids, label_ids = self._process_prompt(context_ids, label_ids, *prompt_tokens)
-
+                input_ids = self._process_truncation(input_ids, truncation_length)
+            
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
-            context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
+            input_ids = [self.tokenizer.eos_id] * self.virtual_tokens + input_ids
 
-        input_ids = context_ids
-        label_start_idx = len(input_ids)
+        total_ids = input_ids
+        answer_start_idx = len(total_ids)
 
         # Adds bos token in the start
         if self.add_bos:
-            context_ids = [self.tokenizer.bos_id] + context_ids
             input_ids = [self.tokenizer.bos_id] + input_ids
-            label_start_idx += 1
+            total_ids = [self.tokenizer.bos_id] + total_ids
+            answer_start_idx += 1
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
-            context_ids = context_ids + [self.sep_id]
             input_ids = input_ids + [self.sep_id]
-            label_start_idx += 1
+            total_ids = total_ids + [self.sep_id]
+            answer_start_idx += 1
 
-        input_ids = input_ids + label_ids
+        total_ids = total_ids + answer_ids
 
         # Only training need to consider eos token
         if self.add_eos and self.tokens_to_generate == 0:
-            input_ids = input_ids + [self.tokenizer.eos_id]
+            total_ids = total_ids + [self.tokenizer.eos_id]
 
-        assert len(input_ids) <= self.max_seq_length
-
+        assert len(total_ids) <= self.max_seq_length
+        
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
         processed_example = {
-            'input_ids': input_ids,
-            'answer_start_idx': label_start_idx,
-            'context_ids': context_ids,
-            'context_length': len(context_ids),
-            'answer_ids': label_ids,
+            'input_ids': total_ids,
+            'answer_start_idx': answer_start_idx,
+            'context_ids': input_ids,
+            'context_length': len(input_ids),
+            'answer_ids': answer_ids,
             'metadata': metadata,
         }
         return processed_example
