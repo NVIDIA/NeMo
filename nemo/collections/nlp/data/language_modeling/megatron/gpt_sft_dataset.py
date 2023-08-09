@@ -195,7 +195,8 @@ class GPTSFTDataset(Dataset):
             text = context + ' ' + label
 
         context_ids = self.tokenizer.text_to_ids(context)
-        label_ids = self.tokenizer.text_to_ids(text)[len(context_ids) :]
+        # Make sure always take the same string for label_ids
+        label_ids = self.tokenizer.text_to_ids(text[len(context):])
 
         return context_ids, label_ids
 
@@ -226,11 +227,12 @@ class GPTSFTDataset(Dataset):
 
             for i, ck in enumerate(self.context_keys):
                 if ck in self.truncation_fields:
-                    context_ids = self.tokenizer.text_to_ids(contexts[i])
+                    # We use text_to_tokens because ids may be unknown to raise an issue if we detokenize back
+                    context_tokens = self.tokenizer.text_to_tokens(contexts[i])
                     truncation_length = truncation_length_list.pop()
-                    assert len(context_ids) >= truncation_length, f'{ck} is not long enough to truncate.'
-                    context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-                    contexts[i] = self.tokenizer.ids_to_text(context_ids)
+                    assert len(context_tokens) >= truncation_length, f'{ck} is not long enough to truncate.'
+                    context_tokens = context_tokens[: -min(truncation_length, len(context_tokens))]
+                    contexts[i] = self.tokenizer.tokens_to_text(context_tokens)
 
         return contexts
 
