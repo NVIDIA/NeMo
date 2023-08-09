@@ -126,14 +126,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
 
-        if self.cfg.precision == 'bf16':
+        if self.cfg.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.cfg.precision) == 32:
+        elif self.cfg.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.cfg.precision) == 16:
+        elif self.cfg.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -709,6 +709,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
+#############
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
@@ -751,6 +752,88 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return averaged_outputs
 
+##########
+
+    def _test_validation_step(self, step_outputs, dataloader_iter, batch_idx, dataloader_idx=0):
+        """
+        Shared logging for validation and test step
+        """
+        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely with PP rank 1 reaches the end of dataloader_iter
+        dataloader_iter, done = self._prefetch(dataloader_iter)
+        if done:
+            return
+                    
+        loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        step_outputs.append(loss_dict)
+        
+        return loss_dict
+    
+    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        """
+        return_values - if given, returns a dictionary with given keys and corresponding values
+        """
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            step_outputs = self.validation_step_outputs[dataloader_idx]
+        else:
+            step_outputs = self.validation_step_outputs
+
+        return self._test_validation_step(
+            step_outputs=step_outputs, 
+            dataloader_iter=dataloader_iter, 
+            batch_idx=batch_idx, 
+            dataloader_idx=dataloader_idx,
+        )
+
+    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            step_outputs = self.test_step_outputs[dataloader_idx]
+        else:
+            step_outputs = self.test_step_outputs
+
+        return self._test_validation_step(
+            step_outputs=step_outputs, 
+            dataloader_iter=dataloader_iter, 
+            batch_idx=batch_idx, 
+            dataloader_idx=dataloader_idx,
+        )
+
+    def _test_validation_epoch_end(self, outputs, prefix):
+        """
+        Shared logging for validation and test
+        """
+
+    def on_validation_epoch_end(self):
+        # NOTE: we need to make sure outputs is not empty (this is a workaround for a bug in pytorch lightning (?))
+        if not self.validation_step_outputs:
+            logging.warning("validation_epoch_end: outputs is empty")
+            return None
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(self.validation_step_outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
+        return averaged_loss
+
+    def on_test_epoch_end(self):
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(self.test_step_outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.test_step_outputs.clear()  # free memory
+        return averaged_loss
+
+########## 
     def loss_func(self, loss_mask, tokens_loss):
         """
         This function takes as input per-token loss and masks non-required values.
@@ -905,7 +988,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             f'Number of model parameters on device: {num_parameters_on_device:.2e}\n'
             f'Total number of model parameters: {total_num_parameters:.2e}\n'
         )
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
 
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
