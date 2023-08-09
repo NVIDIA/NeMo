@@ -3603,6 +3603,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.resume_if_exits=False \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
         model.optim.name=fused_adam \
