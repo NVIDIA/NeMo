@@ -68,7 +68,10 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
         self.encoder = self.from_config_dict(cfg.encoder)
-        self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
+        if 'spec_augment' in cfg and cfg.spec_augment is not None:
+            self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
         self.matcher = self.from_config_dict(cfg.matcher)
         self.proj = nn.Linear(cfg.matcher.d_model, cfg.output_dim)
 
