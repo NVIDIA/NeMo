@@ -481,19 +481,22 @@ def make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_d
                             )
                             f.write(subtitle_text + '\n')
 
-        # write first set of subtitles for text before speech starts to be spoken
+        # Write final set of subtitles for text after speech has been spoken.
+        # To do this, we need to collect 'tokens_in_final_segment' so that we know what the final line is.
         tokens_in_final_segment = []
         for segment_or_token in utt_obj.segments_and_tokens[::-1]:
+            # Collect tokens from final segment - will 'break' so we only look at the final one.
             if type(segment_or_token) is Segment:
+                # 'segment_or_token' is known to be Segment, which has attribute 'words_and_tokens'
                 for word_or_token in segment_or_token.words_and_tokens:
                     if type(word_or_token) is Token:
                         if word_or_token.text != BLANK_TOKEN:
                             tokens_in_final_segment.append(word_or_token)
                     else:
+                        # 'word_or_token' is known to be a Word, which has attribute 'tokens'
                         for token in word_or_token.tokens:
                             if token.text != BLANK_TOKEN:
                                 tokens_in_final_segment.append(token)
-
                 break
 
         for token in tokens_in_final_segment:
