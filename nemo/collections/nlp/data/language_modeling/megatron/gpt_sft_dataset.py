@@ -198,7 +198,7 @@ class GPTSFTDataset(Dataset):
 
         context_ids = self.tokenizer.text_to_ids(context)
         # Make sure always take the same string for label_ids
-        label_ids = self.tokenizer.text_to_ids(text[len(context):])
+        label_ids = self.tokenizer.text_to_ids(text[len(context) :])
 
         return context_ids, label_ids
 
