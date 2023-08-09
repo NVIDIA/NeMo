@@ -348,7 +348,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
     if cfg.resume_from_checkpoint is not None:
-        trainer.ckpt_path = cfg.model.resume_from_checkpoint
+        trainer.ckpt_path = cfg.resume_from_checkpoint
 
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
