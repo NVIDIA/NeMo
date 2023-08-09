@@ -990,8 +990,7 @@ class CoreAttention(MegatronModule):
             assert len(attention_mask.shape) == 2
             attention_mask_q = attention_mask
             attention_mask_kv = attention_mask
-        import pdb
-        pdb.set_trace()
+
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         seqlens_q_in_batch = len(attention_mask_q.sum(dim=-1, dtype=torch.int32).unique())
         seqlens_kv_in_batch = len(attention_mask_kv.sum(dim=-1, dtype=torch.int32).unique())
@@ -999,8 +998,7 @@ class CoreAttention(MegatronModule):
         if seqlens_q_in_batch == 1 and seqlens_kv_in_batch == 1 and flash_attn_func is not None:
             # [b, sq, np, hn]
             context_layer = flash_attn_func(query_layer, key_layer, value_layer, 
-                                            dropout_p=self.attention_dropout_p if self.training else 0.0,
-                                            softmax_scale=None, 
+                                            dropout_p=self.attention_dropout_p if self.training else 0.0, 
                                             causal=is_causal)
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
