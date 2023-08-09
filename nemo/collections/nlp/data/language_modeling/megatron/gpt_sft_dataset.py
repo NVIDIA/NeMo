@@ -181,7 +181,7 @@ class GPTSFTDataset(Dataset):
             text = context + ' ' + label
 
         context_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = self.tokenizer.text_to_ids(text)[len(context_ids) :]
+        answer_ids = self.tokenizer.text_to_ids(text[len(context):])
 
         return context_ids, answer_ids
 
@@ -205,15 +205,15 @@ class GPTSFTDataset(Dataset):
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
             if self.truncation_field == "answer":
-                answer_ids = self.tokenizer.text_to_ids(origin_label)
+                answer_ids = self.tokenizer.text_to_tokens(origin_label)
                 assert len(answer_ids) >= truncation_length, 'answer is not long enough to truncate.'
                 answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-                label = self.tokenizer.ids_to_text(answer_ids)
+                label = self.tokenizer.tokens_to_text(answer_ids)
             elif self.truncation_field == "context":
-                context_ids = self.tokenizer.text_to_ids(origin_context)
+                context_ids = self.tokenizer.text_to_tokens(origin_context)
                 assert len(context_ids) >= truncation_length, 'context is not long enough to truncate.'
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-                context = self.tokenizer.ids_to_text(context_ids)
+                context = self.tokenizer.tokens_to_text(context_ids)
 
         return context, label
 
