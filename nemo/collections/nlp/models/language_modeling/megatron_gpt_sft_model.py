@@ -317,6 +317,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             output_tensor_contrastive = output_tensor.view(-1, 2, length)
             batch_size = loss_mask_contrastive.shape[0]
             losses = []
+            prefered_likelihoods = []
+            nonprefered_likelihoods = []
             for bid in range(batch_size):
                 masked = loss_mask_contrastive[bid][loss_mask_contrastive[bid] >= 1]
                 min_val = masked.min().item()
@@ -331,9 +333,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     # convert it to likelihood, the negative sign is need to convert cross entropy to likelihood
                     prefered = -prefered.mean()
                     not_prefered = -not_prefered.mean()
+                    prefered_likelihoods.append(prefered)
+                    nonprefered_likelihoods.append(not_prefered)
                     loss = -torch.nn.functional.logsigmoid(prefered - not_prefered).mean()
                     losses.append(loss)
             contrasitve_loss = torch.stack(losses).mean()
+            prefered_likelihoods = torch.stack(prefered_likelihoods).mean()
+            nonprefered_likelihoods = torch.stack(nonprefered_likelihoods).mean()
             # only calculate the loss for the prefered one
             losses = output_tensor_contrastive[:, 0].float().contiguous()
             loss_mask = loss_mask_contrastive[:, 0]
@@ -342,9 +348,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             if self.training:
                 self.log('train sft loss', loss, batch_size=1, sync_dist=True)
                 self.log('train contrastive loss', contrasitve_loss, batch_size=1, sync_dist=True)
+                self.log('train prefered likelihood', prefered_likelihoods, batch_size=1, sync_dist=True)
+                self.log('train nonprefered likelihood', nonprefered_likelihoods, batch_size=1, sync_dist=True)
             else:
-                self.log('val sft loss', loss)
-                self.log('val contrastive loss', contrasitve_loss)
+                self.log('val sft loss', loss, sync_dist=True)
+                self.log('val contrastive loss', contrasitve_loss, sync_dist=True)
+                self.log('val prefered likelihood', prefered_likelihoods, sync_dist=True)
+                self.log('val nonprefered likelihood', nonprefered_likelihoods, sync_dist=True)
             sft_loss_weight = self.cfg.sft_loss_weight
             loss = sft_loss_weight * loss + contrasitve_loss
         else:
