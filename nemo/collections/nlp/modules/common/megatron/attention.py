@@ -65,17 +65,17 @@ except (ImportError, ModuleNotFoundError):
 try:
     # Flash Attention 1.X
     from flash_attn.bert_padding import pad_input, unpad_input
-    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
-    
+    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
+
     HAVE_FLASH_ATTENTION = True
     flash_attn_func = None
 
 except (ImportError, ModuleNotFoundError):
     try:
         # Flash Attention 2.X
-        from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
         from flash_attn import flash_attn_func
+        from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
 
         HAVE_FLASH_ATTENTION = True
 
@@ -994,17 +994,21 @@ class CoreAttention(MegatronModule):
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         seqlens_q_in_batch = len(attention_mask_q.sum(dim=-1, dtype=torch.int32).unique())
         seqlens_kv_in_batch = len(attention_mask_kv.sum(dim=-1, dtype=torch.int32).unique())
-        
+
         if seqlens_q_in_batch == 1 and seqlens_kv_in_batch == 1 and flash_attn_func is not None:
             # [b, sq, np, hn]
-            context_layer = flash_attn_func(query_layer, key_layer, value_layer, 
-                                            dropout_p=self.attention_dropout_p if self.training else 0.0, 
-                                            causal=is_causal)
+            context_layer = flash_attn_func(
+                query_layer,
+                key_layer,
+                value_layer,
+                dropout_p=self.attention_dropout_p if self.training else 0.0,
+                causal=is_causal,
+            )
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
             k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
             v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-            
+
             context_layer = flash_attn_unpadded_func(
                 q,
                 k,
