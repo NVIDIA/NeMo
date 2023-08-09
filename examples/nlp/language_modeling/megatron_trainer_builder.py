@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -24,7 +25,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 
 
 class MegatronTrainerBuilder:
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
 
     def _training_strategy(self) -> NLPDDPStrategy:
