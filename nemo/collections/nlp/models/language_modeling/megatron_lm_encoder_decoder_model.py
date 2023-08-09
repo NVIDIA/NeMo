@@ -765,15 +765,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # only the last pipeline parallel stages return loss
         if parallel_state.is_pipeline_last_stage() and len(step_outputs):
-            averaged_outputs = {k: torch.stack([x[k] for x in step_outputs]).mean() for k in step_outputs[0].keys()}
+            averaged_loss = {k: torch.stack([x[k] for x in step_outputs]).mean() for k in step_outputs[0].keys()}
         else:
             # if we are here we assume that only loss is available and hidden transforms are disabled (since not supported in pipleline parallel)
             averaged_loss = {'loss': torch.tensor(0.0).cuda()}
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
-        for k, v in averaged_outputs.items():
+        for k, v in averaged_loss.items():
             torch.distributed.broadcast(v, get_last_rank())
-            averaged_outputs[k] = v
+            averaged_loss[k] = v
             n = f'{prefix}_{k}'
             # log only '*_loss' values in progress bar
             self.log(n, v, prog_bar=(n.endswith("_loss")), rank_zero_only=True, batch_size=1)
