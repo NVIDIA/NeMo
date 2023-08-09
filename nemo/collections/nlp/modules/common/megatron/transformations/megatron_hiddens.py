@@ -305,6 +305,6 @@ class MegatronHiddensModule(torch.nn.Module):
             loss_dict = {f"{self.loss_prefix}{k}": v for k, v in loss_dict.items()}
 
         # add tokens loss weight (to be used by caller, or be ignored)
-        loss_dict["tokens_loss_weight"] =  torch.tensor(self.tokens_loss_weight).to(joint_loss)
+        loss_dict["tokens_loss_weight"] = torch.tensor(self.tokens_loss_weight).to(joint_loss)
 
         return loss_dict

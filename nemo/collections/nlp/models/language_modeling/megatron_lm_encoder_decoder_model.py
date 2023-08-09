@@ -709,7 +709,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-##########
+    ##########
 
     def _test_validation_step(self, step_outputs, dataloader_iter, batch_idx, dataloader_idx=0):
         """
@@ -719,12 +719,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         dataloader_iter, done = self._prefetch(dataloader_iter)
         if done:
             return
-                    
+
         loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
         step_outputs.append(loss_dict)
-        
+
         return loss_dict
-    
+
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
@@ -735,9 +735,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             step_outputs = self.validation_step_outputs
 
         return self._test_validation_step(
-            step_outputs=step_outputs, 
-            dataloader_iter=dataloader_iter, 
-            batch_idx=batch_idx, 
+            step_outputs=step_outputs,
+            dataloader_iter=dataloader_iter,
+            batch_idx=batch_idx,
             dataloader_idx=dataloader_idx,
         )
 
@@ -748,9 +748,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             step_outputs = self.test_step_outputs
 
         return self._test_validation_step(
-            step_outputs=step_outputs, 
-            dataloader_iter=dataloader_iter, 
-            batch_idx=batch_idx, 
+            step_outputs=step_outputs,
+            dataloader_iter=dataloader_iter,
+            batch_idx=batch_idx,
             dataloader_idx=dataloader_idx,
         )
 
@@ -779,24 +779,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.log(n, v, prog_bar=(n.endswith("_loss")), rank_zero_only=True, batch_size=1)
 
         # free memory
-        step_outputs.clear()  
+        step_outputs.clear()
 
         return averaged_loss
 
     def on_validation_epoch_end(self):
         # FIXME: do we need this? 'global_step' is logged in training_step
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        return self._test_validation_epoch_end(
-            step_outputs=self.validation_step_outputs, 
-            prefix="val",
-            )
+        return self._test_validation_epoch_end(step_outputs=self.validation_step_outputs, prefix="val",)
 
     def on_test_epoch_end(self):
-        return self._test_validation_epoch_end(
-            step_outputs=self.test_step_outputs, 
-            prefix="test",
-            )
-        
+        return self._test_validation_epoch_end(step_outputs=self.test_step_outputs, prefix="test",)
+
     def loss_func(self, loss_mask, tokens_loss):
         """
         This function takes as input per-token loss and masks non-required values.
