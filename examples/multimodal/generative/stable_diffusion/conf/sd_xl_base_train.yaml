@@ -4,7 +4,7 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: 32
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
@@ -56,7 +56,7 @@ model:
   inductor: False # Not working right now
   capture_cudagraph_iters: -1
   scale_by_std: False
-  channels_last: True
+  channels_last: False
 
   loss_fn_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.loss.StandardDiffusionLoss
@@ -83,9 +83,9 @@ model:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
 #    from_pretrained: /sdxl_ckpts/stable-diffusion-xl-base-1.0/unet/diffusion_pytorch_model.safetensors
     from_NeMo: False
-    adm_in_channels: 1792
+    adm_in_channels: 2816
     num_classes: sequential
-    use_checkpoint: False
+    use_checkpoint: True
     in_channels: 4
     out_channels: 4
     model_channels: 320
@@ -96,11 +96,11 @@ model:
     use_spatial_transformer: True
     use_linear_in_transformer: True
     transformer_depth: [ 1, 2, 10 ]  # note: the first is unused (due to attn_res starting at 2) 32, 16, 8 --> 64, 32, 16
-    context_dim: 768
+    context_dim: 2048
     image_size: 64 # unused
 #    spatial_transformer_attn_type: softmax  #note: only default softmax is supported now
     legacy: False
-    use_flash_attention: False
+    use_flash_attention: True
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper
@@ -135,19 +135,18 @@ model:
           _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder
           layer: hidden
           layer_idx: 11
-          always_return_pooled: True
       # crossattn and vector cond
-#      - is_trainable: False
-#        ucg_rate: 0.1
-#        input_key: captions
-#        emb_model:
-#          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenOpenCLIPEmbedder2
-#          arch: ViT-bigG-14
-#          version: laion2b_s39b_b160k
-#          freeze: True
-#          layer: penultimate
-#          always_return_pooled: True
-#          legacy: False
+      - is_trainable: False
+        ucg_rate: 0.1
+        input_key: captions
+        emb_model:
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenOpenCLIPEmbedder2
+          arch: ViT-bigG-14
+          version: laion2b_s39b_b160k
+          freeze: True
+          layer: penultimate
+          always_return_pooled: True
+          legacy: False
       # vector cond
       - is_trainable: False
         ucg_rate: 0.1
@@ -162,13 +161,13 @@ model:
         emb_model:
           _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
           outdim: 256  # multiplied by two
-#      # vector cond
-#      - is_trainable: False
-#        ucg_rate: 0.1
-#        input_key: target_size_as_tuple
-#        emb_model:
-#          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
-#          outdim: 256  # multiplied by two
+      # vector cond
+      - is_trainable: False
+        ucg_rate: 0.1
+        input_key: target_size_as_tuple
+        emb_model:
+          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.ConcatTimestepEmbedderND
+          outdim: 256  # multiplied by two
 
 
   data:
