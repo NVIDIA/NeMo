@@ -1547,7 +1547,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
             idx_bucket = self._bisect(length)
             if idx_bucket != -1:
                 buckets[idx_bucket].append(i)
-    
+
         num_samples_per_bucket = []
         total_batch_size = self.num_replicas * self.batch_size
         i = 0
@@ -1557,13 +1557,12 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
                 buckets.pop(i)
                 self.boundaries.pop(i + 1)
                 continue
-    
+
             rem = (total_batch_size - (len_bucket % total_batch_size)) % total_batch_size
             num_samples_per_bucket.append(len_bucket + rem)
             i += 1
-    
-        return buckets, num_samples_per_bucket
 
+        return buckets, num_samples_per_bucket
 
     def __iter__(self):
         # deterministically shuffle based on epoch
