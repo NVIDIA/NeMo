@@ -101,6 +101,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 30000+1024)
         self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 1024)
 
+        self.frozen_model.enc_dec_model.speech_offset = cfg.data.get('speech_offset', 30000)
+        self.frozen_model.enc_dec_model.speech_codebook_size = 1024
+
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
             return True
