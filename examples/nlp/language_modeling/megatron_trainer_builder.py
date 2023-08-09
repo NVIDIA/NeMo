@@ -25,10 +25,18 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 
 
 class MegatronTrainerBuilder:
+    """
+    Builder type to hide complex configuration of PTL Trainers for Megatron LLM models.
+    Can be extended to change behavior for a specific model.
+    """
+
     def __init__(self, cfg: DictConfig) -> None:
         self.cfg = cfg
 
     def _training_strategy(self) -> NLPDDPStrategy:
+        """
+        Returns a ddp strategy passed to Trainer.strategy.
+        """
         return NLPDDPStrategy(
             no_ddp_communication_hook=True,
             gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
@@ -36,6 +44,9 @@ class MegatronTrainerBuilder:
         )
 
     def _grad_scaler(self) -> GradScaler:
+        """
+        Returns a scaler for precision plugins.
+        """
         return GradScaler(
             init_scale=self.cfg.model.get('native_amp_init_scale', 2 ** 32),
             growth_interval=self.cfg.model.get('native_amp_growth_interval', 1000),
@@ -43,6 +54,10 @@ class MegatronTrainerBuilder:
         )
 
     def _plugins(self) -> list:
+        """
+        Returns:
+            plugins: list of plugins passed to Trainer.plugins including precision plugins.
+        """
         megatron_amp_o2 = self.cfg.model.get('megatron_amp_O2', False)
         with_distributed_adam = self.cfg.model.optim.get('name') == 'distributed_fused_adam'
 
@@ -72,6 +87,8 @@ class MegatronTrainerBuilder:
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
+    """Builder for BERT model Trainer with overrides."""
+
     def _grad_scaler(self) -> GradScaler:
         return GradScaler(
             init_scale=self.cfg.model.get('native_amp_init_scale', 2 ** 32),
@@ -80,6 +97,8 @@ class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
 
 
 class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
+    """Builder for T5 model Trainer with overrides."""
+
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
