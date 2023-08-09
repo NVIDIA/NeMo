@@ -48,8 +48,8 @@ class TestNemoExport:
                     no_error = False
 
                 try:
-                    trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"], gpu_ids=[1])
-                    output = trt_llm_exporter.forward(["test1", "how about test 2"])
+                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"], gpu_ids=1)
+                    output = trt_llm_exporter2.forward(["Let's see how this works", "Did you get the result yet?"])
                     print("output 2: ", output)
                 except:
                     print("Inference on a different GPU didn't work.")
