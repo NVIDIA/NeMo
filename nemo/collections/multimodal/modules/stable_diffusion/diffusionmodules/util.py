@@ -30,6 +30,7 @@ from einops import repeat
 from group_norm import GroupNormOpt
 from torch._dynamo import disable
 from inspect import isfunction
+from torch.cuda.amp import custom_fwd, custom_bwd
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -130,6 +131,7 @@ def checkpoint(func, inputs, params, flag):
 
 class CheckpointFunction(torch.autograd.Function):
     @staticmethod
+    @custom_fwd
     def forward(ctx, run_function, length, *args):
         ctx.run_function = run_function
         ctx.input_tensors = list(args[:length])
@@ -140,6 +142,7 @@ class CheckpointFunction(torch.autograd.Function):
         return output_tensors
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, *output_grads):
         ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
         with torch.enable_grad():

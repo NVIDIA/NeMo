@@ -4,7 +4,7 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 32
+  precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
@@ -56,7 +56,7 @@ model:
   inductor: False # Not working right now
   capture_cudagraph_iters: -1
   scale_by_std: False
-  channels_last: False
+  channels_last: True
 
   loss_fn_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.loss.StandardDiffusionLoss
