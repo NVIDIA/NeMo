@@ -35,7 +35,6 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -351,8 +350,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         trainer.ckpt_path = cfg.resume_from_checkpoint
 
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
-    trainer._checkpoint_connector = _CheckpointConnector(trainer)
 
     checkpoint_name = name
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
