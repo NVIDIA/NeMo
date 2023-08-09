@@ -590,13 +590,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
