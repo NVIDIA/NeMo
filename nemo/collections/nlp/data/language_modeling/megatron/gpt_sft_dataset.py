@@ -221,6 +221,10 @@ class GPTSFTDataset(Dataset):
             + self.add_sep
         )
 
+        ## Only training need to consider eos token
+        if self.tokens_to_generate == 0:
+            total_ids_amount += self.add_eos
+
         if total_ids_amount > self.max_seq_length:
             truncation_length = total_ids_amount - self.max_seq_length
             if self.truncation_field == "answer":
