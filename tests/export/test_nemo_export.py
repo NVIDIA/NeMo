@@ -48,7 +48,7 @@ class TestNemoExport:
                     no_error = False
 
                 try:
-                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"], gpu_ids=1)
+                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"], gpu_id=1)
                     output = trt_llm_exporter2.forward(["Let's see how this works", "Did you get the result yet?"])
                     print("output 2: ", output)
                 except:
