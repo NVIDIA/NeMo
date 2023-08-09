@@ -40,6 +40,7 @@ else:
         QKVStableAttention,
         QKVStableMaskedAttention,
     )
+
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import (
     Downsample,
     Upsample,
@@ -65,8 +66,7 @@ def check_cuda():
 
 
 try:
-    from flash_attn import flash_attn_varlen_func
-    from flash_attn import flash_attn_varlen_kvpacked_func
+    from flash_attn import flash_attn_varlen_func, flash_attn_varlen_kvpacked_func
 
     flash_attn_installed = check_cuda()
 except ImportError:

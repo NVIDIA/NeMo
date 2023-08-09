@@ -13,11 +13,12 @@
 # limitations under the License.
 # pytorch_diffusion + derived encoder decoder
 import math
+
 import numpy as np
 import torch
 import torch.nn as nn
-from einops import rearrange
 from apex.contrib.group_norm import GroupNorm
+from einops import rearrange
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config

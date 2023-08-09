@@ -99,7 +99,9 @@ extras_require['test'] = list(chain([extras_require['tts'], extras_require['core
 extras_require['asr'] = list(chain([extras_require['asr'], extras_require['core'], extras_require['common']]))
 extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['core'], extras_require['common'],]))
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['core'], extras_require['common'],]))
-extras_require['multimodal'] = list(chain([extras_require['multimodal'], extras_require['core'], extras_require['common'],]))
+extras_require['multimodal'] = list(
+    chain([extras_require['multimodal'], extras_require['core'], extras_require['common'],])
+)
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))

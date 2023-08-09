@@ -26,8 +26,8 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from einops import repeat
 from apex.contrib.group_norm import GroupNorm
+from einops import repeat
 from torch._dynamo import disable
 
 

@@ -24,9 +24,9 @@ import scipy.io.wavfile as wav
 import torch
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from utils import get_segments
 
 import nemo.collections.asr as nemo_asr
-from utils import get_segments
 
 parser = argparse.ArgumentParser(description="CTC Segmentation")
 parser.add_argument("--output_dir", default="output", type=str, help="Path to output directory")

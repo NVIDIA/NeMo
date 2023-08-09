@@ -19,11 +19,11 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
+from utils import get_metrics
 
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from utils import get_metrics
 
 """
 python g2p_inference.py \
