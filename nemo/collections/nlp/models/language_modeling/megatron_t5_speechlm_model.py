@@ -256,11 +256,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         return loss_mean
 
-    def convert_tokens_to_range(self, labels):
+    def convert_tokens_to_range(self, tokens, only_first_layer=False):
         # convert labels to range [0, vocab_size]
-        output_tokens = labels.clone() 
-        for i in range(labels.shape[0]):
-            output_tokens[i] = labels[i] - 30000 - (i * 1024)
+        output_tokens = tokens.clone() 
+        for i in range(tokens.shape[0]):
+            if only_first_layer and i > 0:
+                break
+            output_tokens[i] = tokens[i] - 30000 - (i * 1024)
         #clip values between 0 and 1023
         output_tokens = torch.clamp(output_tokens, min=0, max=1023)
         return output_tokens
@@ -279,7 +281,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             if self.trainer.global_step % 50 == 0:
                 with torch.no_grad():
                     audio_len = (labels[0][0] != 0).sum().item()
-                    labels_to_1024 = self.convert_tokens_to_range(labels[0,:,0:audio_len])
+                    labels_to_1024 = self.convert_tokens_to_range(labels[0,:,0:audio_len], only_first_layer=True)
                     label_wav = self.additional_models['encodec'].decode([[labels_to_1024[None], None]])[0,0]
                     dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0,:,0:audio_len])
                     dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0,0]
