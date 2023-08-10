@@ -21,6 +21,8 @@ from typing import List, Union
 import torch
 from torchmetrics import Metric
 
+from nemo.collections.common.metrics.execution import get_result
+
 __all__ = ['TopKClassificationAccuracy']
 
 
@@ -52,7 +54,7 @@ class TopKClassificationAccuracy(Metric):
             tensorboard_log = {'val_loss': val_loss_mean}
             for top_k, score in zip(self._accuracy.top_k, topk_scores):
                 tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
-            
+
             self.val_outputs.clear()  # free memory
             return {'log': tensorboard_log}
 
@@ -206,6 +208,26 @@ class ExactStringMatchMetric(Metric):
     def update(self, pred: str, target: str):
         if pred == target:
             self.correct += 1
+        self.total += 1
+
+    def compute(self):
+        return self.correct.float() / self.total
+
+
+class CodeGenerationAccuracy(Metric):
+    """How many programs match the right answer."""
+
+    def __init__(self, dist_sync_on_step=False, *args, **kwargs):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("correct", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, pred: str, target):
+        if '<extra_id_1>' in pred:
+            pred = pred.split('<extra_id_1>')[0].strip()
+        pred_answer = get_result(pred, 0.01)
+        self.correct += pred_answer == round(float(target), 6)
         self.total += 1
 
     def compute(self):
