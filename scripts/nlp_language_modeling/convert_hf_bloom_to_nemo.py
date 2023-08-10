@@ -22,16 +22,16 @@ Conversion script to convert Huggingface checkpoints into nemo checkpoint.
 
 from argparse import ArgumentParser
 from collections import OrderedDict
-from omegaconf import OmegaConf
 
 import torch
+from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
+from transformers import BloomForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import logging
-from transformers import BloomForCausalLM
 
 
 def get_args():
@@ -43,10 +43,13 @@ def get_args():
         required=False,
         help="Path to HF BLOOM checkpoints saved during training. Ex: /dataset/bloom-560m/",
     )
-    parser.add_argument("--out-file", type=str, default='bloom.nemo', required=False, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--out-file", type=str, default='bloom.nemo', required=False, help="Path to output .nemo file."
+    )
 
     args = parser.parse_args()
     return args
+
 
 def load_model(cls, checkpoint, strict, **kwargs):
     print(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
@@ -69,45 +72,47 @@ def load_model(cls, checkpoint, strict, **kwargs):
         cls._set_model_restore_state(is_being_restored=False)
     return model
 
+
 def load_config(hf_config):
     nemo_config = {}
     nemo_config['cfg'] = {}
-    nemo_config['cfg']['encoder_seq_length']      = 2048
-    nemo_config['cfg']['num_layers']              = hf_config['n_layer']
-    nemo_config['cfg']['hidden_size']             = hf_config['hidden_size']
-    nemo_config['cfg']['ffn_hidden_size']         = 4 * hf_config['hidden_size']
-    nemo_config['cfg']['num_attention_heads']     = hf_config['n_head']
+    nemo_config['cfg']['encoder_seq_length'] = 2048
+    nemo_config['cfg']['num_layers'] = hf_config['n_layer']
+    nemo_config['cfg']['hidden_size'] = hf_config['hidden_size']
+    nemo_config['cfg']['ffn_hidden_size'] = 4 * hf_config['hidden_size']
+    nemo_config['cfg']['num_attention_heads'] = hf_config['n_head']
     nemo_config['cfg']['max_position_embeddings'] = 2048
-    nemo_config['cfg']['make_vocab_size_divisible_by'] = 256 # must be set
-    nemo_config['cfg']['init_method_std']         = hf_config['initializer_range']
-    nemo_config['cfg']['normalization']           = 'layernorm'
+    nemo_config['cfg']['make_vocab_size_divisible_by'] = 256  # must be set
+    nemo_config['cfg']['init_method_std'] = hf_config['initializer_range']
+    nemo_config['cfg']['normalization'] = 'layernorm'
     nemo_config['cfg']['embedding_normalization'] = 'layernorm'
-    nemo_config['cfg']['layernorm_epsilon']       = hf_config['layer_norm_epsilon']
-    nemo_config['cfg']['attention_dropout']       = hf_config['attention_dropout']
-    nemo_config['cfg']['hidden_dropout']          = hf_config['hidden_dropout']
-    nemo_config['cfg']['pre_process']             = True
-    nemo_config['cfg']['post_process']            = True
-    nemo_config['cfg']['bias']                    = True
+    nemo_config['cfg']['layernorm_epsilon'] = hf_config['layer_norm_epsilon']
+    nemo_config['cfg']['attention_dropout'] = hf_config['attention_dropout']
+    nemo_config['cfg']['hidden_dropout'] = hf_config['hidden_dropout']
+    nemo_config['cfg']['pre_process'] = True
+    nemo_config['cfg']['post_process'] = True
+    nemo_config['cfg']['bias'] = True
     nemo_config['cfg']['bias_dropout_add_fusion'] = True
-    nemo_config['cfg']['masked_softmax_fusion']   = hf_config['masked_softmax_fusion']
-    nemo_config['cfg']['bias_activation_fusion']  = True
+    nemo_config['cfg']['masked_softmax_fusion'] = hf_config['masked_softmax_fusion']
+    nemo_config['cfg']['bias_activation_fusion'] = True
     nemo_config['cfg']['share_embeddings_and_output_weights'] = False
     nemo_config['cfg']['apply_query_key_layer_scaling'] = False
-    nemo_config['cfg']['activation']              = 'gelu'
-    nemo_config['cfg']['transformer_block_type']  = 'pre_ln'
+    nemo_config['cfg']['activation'] = 'gelu'
+    nemo_config['cfg']['transformer_block_type'] = 'pre_ln'
     nemo_config['cfg']['position_embedding_type'] = 'alibi'
-    nemo_config['cfg']['precision']               = 16
-    nemo_config['cfg']['optim']                   = {'name': 'fused_adam'}
-    nemo_config['cfg']['tokenizer']               = {}
-    nemo_config['cfg']['tokenizer']['library']    = 'huggingface'
-    nemo_config['cfg']['tokenizer']['type']       = hf_config['_name_or_path']
-    nemo_config['cfg']['tokenizer']['model']      = 'null'
+    nemo_config['cfg']['precision'] = 16
+    nemo_config['cfg']['optim'] = {'name': 'fused_adam'}
+    nemo_config['cfg']['tokenizer'] = {}
+    nemo_config['cfg']['tokenizer']['library'] = 'huggingface'
+    nemo_config['cfg']['tokenizer']['type'] = hf_config['_name_or_path']
+    nemo_config['cfg']['tokenizer']['model'] = 'null'
     nemo_config['cfg']['tokenizer']['vocab_file'] = 'null'
     nemo_config['cfg']['tokenizer']['merge_file'] = 'null'
-    nemo_config['cfg']['micro_batch_size']        = 1
-    nemo_config['cfg']['global_batch_size']       = 1
+    nemo_config['cfg']['micro_batch_size'] = 1
+    nemo_config['cfg']['global_batch_size'] = 1
 
     return nemo_config
+
 
 def convert(args):
     trainer = Trainer(devices=1, accelerator='cpu', num_nodes=1)
@@ -124,20 +129,16 @@ def convert(args):
     checkpoint['state_dict'] = OrderedDict()
 
     # embedding
-    checkpoint['state_dict'][
-        f'model.language_model.embedding.word_embeddings.weight'
-    ] = hf_state_dict[f'transformer.word_embeddings.weight']
+    checkpoint['state_dict'][f'model.language_model.embedding.word_embeddings.weight'] = hf_state_dict[
+        f'transformer.word_embeddings.weight'
+    ]
 
     # input layernorm
     input_ln_weight = hf_state_dict[f'transformer.word_embeddings_layernorm.weight']
-    checkpoint['state_dict'][
-        f'model.language_model.embedding.embedding_layernorm.weight'
-    ] = input_ln_weight
-    
+    checkpoint['state_dict'][f'model.language_model.embedding.embedding_layernorm.weight'] = input_ln_weight
+
     input_ln_bias = hf_state_dict[f'transformer.word_embeddings_layernorm.bias']
-    checkpoint['state_dict'][
-        f'model.language_model.embedding.embedding_layernorm.bias'
-    ] = input_ln_bias
+    checkpoint['state_dict'][f'model.language_model.embedding.embedding_layernorm.bias'] = input_ln_bias
 
     for l in range(num_layers):
         print(f"converting layer {l}")
@@ -156,15 +157,10 @@ def convert(args):
 
         # attention dense
         dense_weight = hf_state_dict[f'transformer.h.{l}.self_attention.dense.weight']
-        checkpoint['state_dict'][
-            f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
-        ] = dense_weight
+        checkpoint['state_dict'][f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'] = dense_weight
 
         dense_bias = hf_state_dict[f'transformer.h.{l}.self_attention.dense.bias']
-        checkpoint['state_dict'][
-            f'model.language_model.encoder.layers.{l}.self_attention.dense.bias'
-        ] = dense_bias
-
+        checkpoint['state_dict'][f'model.language_model.encoder.layers.{l}.self_attention.dense.bias'] = dense_bias
 
         # MLP
         dense_h_to_4h_weight = hf_state_dict[f'transformer.h.{l}.mlp.dense_h_to_4h.weight']
@@ -189,14 +185,10 @@ def convert(args):
 
         # input LayerNorm
         input_ln_weight = hf_state_dict[f'transformer.h.{l}.input_layernorm.weight']
-        checkpoint['state_dict'][
-            f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
-        ] = input_ln_weight
+        checkpoint['state_dict'][f'model.language_model.encoder.layers.{l}.input_layernorm.weight'] = input_ln_weight
 
         input_ln_bias = hf_state_dict[f'transformer.h.{l}.input_layernorm.bias']
-        checkpoint['state_dict'][
-            f'model.language_model.encoder.layers.{l}.input_layernorm.bias'
-        ] = input_ln_bias
+        checkpoint['state_dict'][f'model.language_model.encoder.layers.{l}.input_layernorm.bias'] = input_ln_bias
 
         # post attention layernorm
         post_attn_ln_weight = hf_state_dict[f'transformer.h.{l}.post_attention_layernorm.weight']
@@ -213,20 +205,14 @@ def convert(args):
 
     # final layernorm
     final_ln_weight = hf_state_dict[f'transformer.ln_f.weight']
-    checkpoint['state_dict'][
-        f'model.language_model.encoder.final_layernorm.weight'
-    ] = final_ln_weight
+    checkpoint['state_dict'][f'model.language_model.encoder.final_layernorm.weight'] = final_ln_weight
 
     final_ln_bias = hf_state_dict[f'transformer.ln_f.bias']
-    checkpoint['state_dict'][
-        f'model.language_model.encoder.final_layernorm.bias'
-    ] = final_ln_bias
+    checkpoint['state_dict'][f'model.language_model.encoder.final_layernorm.bias'] = final_ln_bias
 
     # output layer
     output_layer_weight = hf_state_dict[f'lm_head.weight']
-    checkpoint['state_dict'][
-        f'model.language_model.output_layer.weight'
-    ] = output_layer_weight
+    checkpoint['state_dict'][f'model.language_model.output_layer.weight'] = output_layer_weight
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = OmegaConf.create(nemo_config)
 
