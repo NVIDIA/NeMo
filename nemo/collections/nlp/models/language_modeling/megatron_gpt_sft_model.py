@@ -404,7 +404,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
-        metadata = batch.pop('metadata')
+        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
         # We need _inference_config to get generation params

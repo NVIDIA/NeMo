@@ -59,6 +59,7 @@ model:
   # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: null # not used with 'selective'
   activations_checkpoint_layers_per_pipeline: null
+  # This feature is valid only when used with pipeline-model-parallelism. More details in megatron_gpt_config.yaml.
   answer_only_loss: False # not used right now
   gradient_as_bucket_view: False
   seq_len_interpolation_factor: null # if not None, seq_len_interpolation_factor will match the base model's value
