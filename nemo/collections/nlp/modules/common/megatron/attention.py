@@ -296,7 +296,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=headscale_tensor,
-                inference_mode=inference_mode
+                inference_mode=inference_mode,
             )
             return output_
 
@@ -885,7 +885,9 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode)
+        context_layer = self.attn_fn(
+            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode
+        )
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
@@ -966,11 +968,13 @@ class CoreAttention(MegatronModule):
         value_layer = _cast_if_autocast_enabled(value_layer)
         attention_mask = _cast_if_autocast_enabled(attention_mask)
         attention_bias = _cast_if_autocast_enabled(attention_bias)
-        
+
         is_causal = self.attn_mask_type == AttnMaskType.causal and not inference_mode
-        
+
         if attention_bias is not None:
-            return self.flash_attention_triton(query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,)
+            return self.flash_attention_triton(
+                query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
+            )
         else:
             return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal,)
 
@@ -993,7 +997,7 @@ class CoreAttention(MegatronModule):
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-        
+
         context_layer = flash_attn_unpadded_func(
             q,
             k,
