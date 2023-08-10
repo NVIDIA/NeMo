@@ -42,10 +42,17 @@ class TestNemoExport:
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                     trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
                     output = trt_llm_exporter.forward(["test1", "how about test 2"])
-                    print("output: ", output)
+                    print("output 1: ", output)
                 except:
                     print("Error in TensorRT LLM.")
                     no_error = False
+
+                try:
+                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"], gpu_id=1)
+                    output = trt_llm_exporter2.forward(["Let's see how this works", "Did you get the result yet?"])
+                    print("output 2: ", output)
+                except:
+                    print("Inference on a different GPU didn't work.")
 
                 test_at_least_one = True
 

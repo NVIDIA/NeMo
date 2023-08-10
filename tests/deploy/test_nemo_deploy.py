@@ -39,12 +39,12 @@ class TestNemoDeployment:
 
             if Path(model_info["checkpoint"]).exists():
                 test_at_least_one = True
-                nm = DeployPyTriton(checkpoint_path=model_info["checkpoint"], triton_model_name=model_name)
+                nm = DeployPyTriton(checkpoint_path=model_info["checkpoint"], triton_model_name=model_name, port=8005)
 
                 try:
                     nm.deploy()
                     nm.run()
-                    nq = NemoQuery(url="localhost", model_name=model_name)
+                    nq = NemoQuery(url="localhost:8005", model_name=model_name)
 
                     output = nq.query_llm(prompts=["hello, testing GPT inference"])
                     print(output)
@@ -79,7 +79,7 @@ class TestNemoDeployment:
                 trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                 trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
 
-                nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name)
+                nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
 
                 try:
                     nm.deploy()

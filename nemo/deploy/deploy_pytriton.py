@@ -12,17 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 
-import numpy as np
-import torch
-from pytorch_lightning import Trainer
-from pytriton.decorators import batch
 from pytriton.model_config import ModelConfig, Tensor
-from pytriton.triton import Triton
-
-from nemo.core.classes.modelPT import ModelPT
-
+from pytriton.triton import Triton, TritonConfig
 from .deploy_base import DeployBase
 
 
@@ -34,6 +26,8 @@ class DeployPyTriton(DeployBase):
         checkpoint_path: str = None,
         model=None,
         max_batch_size: int = 128,
+        port: int = 8000,
+        http_address="0.0.0.0",
     ):
         super().__init__(
             triton_model_name=triton_model_name,
@@ -41,13 +35,16 @@ class DeployPyTriton(DeployBase):
             checkpoint_path=checkpoint_path,
             model=model,
             max_batch_size=max_batch_size,
+            port=port,
+            http_address=http_address,
         )
 
     def deploy(self):
         self._init_nemo_model()
 
         try:
-            self.triton = Triton()
+            triton_config = TritonConfig(http_address=self.http_address, http_port=self.port)
+            self.triton = Triton(config=triton_config)
             self.triton.bind(
                 model_name=self.triton_model_name,
                 model_version=self.triton_model_version,
