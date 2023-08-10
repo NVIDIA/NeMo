@@ -98,18 +98,27 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         # torch.autograd.set_detect_anomaly(True)
         super().__init__(cfg, trainer)
         self.model_type = ModelType.encoder_and_decoder
+        speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
+        speech_offset = cfg.data.get('speech_offset', 30000)
 
         list_of_speech_heads = []
+        list_of_speech_tokens_embeddings = []
         for _ in range(7):
-            list_of_speech_heads.append(MegatronTokenLevelHead(1024, False))
+            list_of_speech_heads.append(MegatronTokenLevelHead(speech_codebook_size, False))
+            list_of_speech_tokens_embeddings.append(
+                tensor_parallel.VocabParallelEmbedding(
+                    speech_codebook_size, embedding_dim=self.word_embeddings.embedding_dim
+                )
+            )
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
+        self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(list_of_speech_tokens_embeddings)
 
         # TODO: remove hardcoding
-        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 30000+1024)
-        self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, 1024)
+        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset+speech_codebook_size)
+        self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size)
 
-        self.frozen_model.enc_dec_model.speech_offset = cfg.data.get('speech_offset', 30000)
-        self.frozen_model.enc_dec_model.speech_codebook_size = 1024
+        self.frozen_model.enc_dec_model.speech_offset = speech_offset
+        self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
 
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)

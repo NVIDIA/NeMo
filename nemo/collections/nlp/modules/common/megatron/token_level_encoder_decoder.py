@@ -651,9 +651,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         if i == 0:
                             speech_residual_model = self.speech_residual_model_1
                         last_layer_output = speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
-                        _start_vocab_index = self.speech_offset + self.speech_codebook_size*(i+1)
-                        _end_vocab_index = _start_vocab_index + self.speech_codebook_size
-                        last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.word_embeddings_weight()[_start_vocab_index:_end_vocab_index,:])
+                        last_layer_logits = self.speech_tokens_heads[i](last_layer_output, self.speech_tokens_embeddings[i].weight)
                         speech_logits[:,:,:,i] = last_layer_logits
                 else:
                     token_logits = self.tokens_head(dec_output)[0] # T, B, WordEmbSize
@@ -723,6 +721,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if hasattr(self, "speech_tokens_heads"):
             state_dict_["speech_tokens_heads"] = self.speech_tokens_heads.state_dict()
 
+        if hasattr(self, "speech_tokens_embeddings"):
+            state_dict_["speech_tokens_embeddings"] = self.speech_tokens_embeddings.state_dict()
+
         if hasattr(self, "speech_residual_model_1"):
             state_dict_["speech_residual_model_1"] = self.speech_residual_model_1.state_dict()
             
@@ -739,6 +740,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
         if hasattr(self, "speech_tokens_heads"):
             self.speech_tokens_heads.load_state_dict(state_dict["speech_tokens_heads"], strict=strict)
+        if hasattr(self, "speech_tokens_embeddings"):
+            self.speech_tokens_embeddings.load_state_dict(state_dict["speech_tokens_embeddings"], strict=strict)
         if hasattr(self, "speech_residual_model_1"):
             self.speech_residual_model_1.load_state_dict(state_dict["speech_residual_model_1"], strict=strict)
         if hasattr(self, "speech_residual_model_2"):
