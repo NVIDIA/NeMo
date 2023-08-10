@@ -735,11 +735,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             base_module = self.model
         if self.cfg.get('mcore_gpt', False):
-            pass
-        else:
             base_module.decoder.config.recompute_granularity = self.original_checkpointing_granularity
             base_module.decoder.config.recompute_num_layers = self.original_checkpointing_num_layers
             base_module.decoder.config.recompute_method = self.original_checkpointing_method
+        else:
+            base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
+            base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
+            base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
 
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
