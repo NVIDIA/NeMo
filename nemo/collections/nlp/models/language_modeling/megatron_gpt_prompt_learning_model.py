@@ -142,7 +142,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 trainer=trainer,
                 save_restore_connector=save_restore_connector,
                 override_config_path=frozen_model_cfg,
-            )#.to(dtype=self.autocast_dtype)
+            ).to(dtype=self.autocast_dtype)
 
         self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
