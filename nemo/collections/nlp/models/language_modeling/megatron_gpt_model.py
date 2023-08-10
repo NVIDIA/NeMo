@@ -408,8 +408,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = self.model[0]  # only the first virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        param = module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                         param._disable_greedy_grad_copy = not self.megatron_amp_o2
                         param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -417,8 +417,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = self.model[-1]  # only the last virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        param = module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                         param._disable_greedy_grad_copy = not self.megatron_amp_o2
                         param._disable_overlap_grad_sync = True
 
@@ -439,6 +439,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     stage_bucket = []
+                    layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
                     for layer in module.language_model.encoder.layers:
                         stage_bucket.extend(
                             p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
@@ -450,7 +451,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 for module in modules:
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
-                    for layer in module.language_model.encoder.layers:
+                    layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
+                    for layer in layers:
                         buckets.append(
                             [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
                         )
@@ -584,7 +586,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for module in modules:
                 if isinstance(module, (Float16Module, MCoreFloat16Module)):
                     module = module.module
-                module = module.language_model
+                if not self.mcore_gpt:
+                    module = module.language_model
                 if hasattr(module, 'embedding'):
                     for param in module.embedding.parameters():
                         param.data_ptr()
@@ -1226,19 +1229,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         return result
 
-    def _set_tp_groups(self, module):
-        """ Helper method to set tp groups for transformer engine"""
-
-        if self.cfg.get('transformer_engine', False):
-            logging.info(f'Setting up transformer engine modules for tensor parallelism.')
-            if self.cfg.get('megatron_amp_O2', 'False'):
-                # when using O2 additional module key is added that casts the weights
-                for layer in module.module.language_model.encoder.layers:
-                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
-
-            else:
-                for layer in module.language_model.encoder.layers:
-                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
     def setup_transformer_engine_tp_groups(self):
         """ This should be called after model parallel groups have been initialized
@@ -1310,6 +1300,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Reset model parameters.
         for module in self.get_gpt_module_list():
+            # TODO: @eharper how to update this for mcore
             module.language_model.encoder.activations_checkpoint_granularity = None
             module.language_model.encoder.activations_checkpoint_method = None
             module.language_model.encoder.activations_checkpoint_num_layers = None
@@ -1321,6 +1312,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             _reset_activation_checkpointing_args.
         """
         # Restore config values.
+        # TODO: @eharper how to update this for mcore
         self.cfg.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
         self.cfg.activations_checkpoint_method = self.last_activations_checkpoint_method
         self.cfg.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
