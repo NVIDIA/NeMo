@@ -342,9 +342,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     [loss_reduced[k] for loss_reduced in losses_reduced_per_micro_batch]
                 ).mean()
         else:
-            # if forward_only:
-            #     loss_mean = []
-            # else:
             loss_mean = torch.tensor(0.0).cuda()
             mean_loss_dict = {"loss": loss_mean}
 
