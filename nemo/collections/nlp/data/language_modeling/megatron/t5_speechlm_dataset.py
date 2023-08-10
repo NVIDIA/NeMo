@@ -223,8 +223,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             if "Text to speech this" in question_in_manifest:
                 total_context_len = context_tokens[0].size()[1]
                 reduced_len = min(400, int(total_context_len * 0.2) if total_context_len > 600 else int( total_context_len * random.uniform(0.2, 0.5) ))
-                start_token_index = random.randint(0, total_context_len - reduced_len)
-                context_tokens[0] = context_tokens[0][:, start_token_index:min(440, start_token_index+reduced_len)]
+                start_token_index = random.randint(0, total_context_len - reduced_len) # start index can be greater than 440
+                context_tokens[0] = context_tokens[0][:, start_token_index:min(start_token_index+440, start_token_index+reduced_len)]
                 if self.train_task != 'tts':
                     continue
             elif "Next token prediction" in question_in_manifest:
@@ -314,6 +314,10 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
                 dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
                 is_speech = True if doc["answer_type"] == "SPEECH" else False
+                if is_speech:
+                    assert dec_labels.dim() == 2
+                    for _i in range(1, dec_labels.size(0)):
+                        dec_labels[_i,:-1] = dec_labels[_i,:-1] - self.speech_offset - (_i*1024)
 
                 self.examples.append((
                     taskname_id, 
