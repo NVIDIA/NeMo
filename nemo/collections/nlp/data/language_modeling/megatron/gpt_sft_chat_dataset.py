@@ -43,7 +43,7 @@ def _mask_targets(
     header_len,
     s_ids,
     tokenizer,
-    mask_role,
+    mask_roles,
     gtype,
     extra_id_2_token_id,
     new_line_token_id,
@@ -58,7 +58,7 @@ def _mask_targets(
         header_len (int): the system prompt length
         s_ids (List[Tensor]): array of tokenized ids of each turns
         tokenizer (TokenizerSpec): tokenizer object
-        mask_role (str): the speaker id to be masked from loss computation
+        mask_roles (List[str]): the speaker ids to be masked from loss computation
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
         extra_id_2_token_id (int): <extra_id_2> token id
         new_line_token_id (int): new line token id
@@ -93,13 +93,13 @@ def _mask_targets(
         if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
             # mask the first turn completely to provide at least one turn as context
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
+        elif speaker in mask_roles and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role and (i > 1):
+        elif speaker in mask_roles and (i > 1):
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role and (i <= 1):
+        elif speaker in mask_roles and (i <= 1):
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
@@ -121,7 +121,7 @@ def response_value_formater(label):
         raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
 
 
-def _add_speaker_and_signal(header, source, mask_role, gtype):
+def _add_speaker_and_signal(header, source, mask_roles, gtype):
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
     conversation = header
@@ -158,7 +158,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype):
             )
         conversation += sentence["value"]
         # if the last turn is not masked, add next token start token to the end, which will be included for loss calculation
-        if sentence_from != mask_role and i == len(source) - 1:
+        if sentence_from not in mask_roles and i == len(source) - 1:
             conversation += TURN_TOKEN
     return conversation
 
@@ -180,9 +180,9 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
     if data_type is not None:
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
-    mask_role = source.get('mask', 'User')
+    mask_roles = source.get('mask', ('User',))
     header = f"{SYSTEM_TOKEN}{conversation}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type)
+    conversation = _add_speaker_and_signal(header, source['conversations'], mask_roles, data_type)
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -202,7 +202,7 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
             # remove one token as it adds an empty token in front
             tokenized_lens.append(len(tokenized_sentence))
     speakers = [sentence["from"] for sentence in source['conversations']]
-    assert mask_role in speakers, "mask role not in the conversation"
+    # assert all(mask_role in speakers for mask_role in mask_roles), "mask roles not in the conversation"
     target = torch.LongTensor(target)
     # not going to train on the header
     target[:header_len] = IGNORE_INDEX
@@ -215,7 +215,7 @@ def preprocess(source: dict, tokenizer: TokenizerSpec, extra_id_2_token_id: int,
         header_len,
         ids,
         tokenizer,
-        mask_role,
+        mask_roles,
         data_type,
         extra_id_2_token_id,
         new_line_token_id,
