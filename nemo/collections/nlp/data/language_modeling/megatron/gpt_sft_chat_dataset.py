@@ -264,11 +264,11 @@ class GPTSFTChatDataset(GPTSFTDataset):
         BOS, EOS, and SEP, are added if specified.
         """
         result = preprocess(example, self.tokenizer, self.extra_id_2_token_id, self.new_line_token_id)
-        
+
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in ['conversations']}
         result['metadata'] = metadata
-        
+
         return result
 
     def collate_fn(self, batch):
@@ -278,7 +278,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         answers = [item['answer_ids'].tolist() for item in batch]
         loss_mask = [item['mask'][1:].tolist() for item in batch]
         metadata = [item['metadata'] for item in batch]
-        
+
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
@@ -306,7 +306,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         context_lengths = torch.LongTensor([len(x) for x in contexts])
         contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
         answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
-        
+
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
