@@ -346,12 +346,16 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     _ = metric(pred, label)
 
             outputs = {
-                'loss': loss,
                 'preds': preds_text,
                 'labels': labels_text,
                 'categories': categories,
                 'inputs': input_text,
             }
+
+            if isinstance(loss, dict):
+                outputs.update(loss)
+            else:
+                outputs['loss'] = loss
             if mode == 'validation':
                 if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
                     self.validation_step_outputs[dataloader_idx].append(outputs)
