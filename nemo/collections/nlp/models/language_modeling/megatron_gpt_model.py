@@ -289,6 +289,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.inference_params = None
 
+
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [
@@ -412,19 +413,35 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = self.model[0]  # only the first virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
-                        param._disable_overlap_grad_sync = True
+                    if self.cfg.get('mcore_gpt', False):
+                        if isinstance(module, (Float16Module, MCoreFloat16Module)):
+                            module = module.module
+                        if module.share_embeddings_and_output_weights:
+                            param = module.shared_embedding_or_output_weight()
+                            param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                            param._disable_overlap_grad_sync = True
+                    else:
+                        if module.share_token_embeddings:
+                            param = module.word_embeddings_weight()
+                            param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                            param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     if isinstance(self.model, list):
                         module = self.model[-1]  # only the last virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
-                        param._disable_overlap_grad_sync = True
+                    if self.cfg.get('mcore_gpt', False):
+                        if isinstance(module, (Float16Module, MCoreFloat16Module)):
+                            module = module.module
+                        if module.share_embeddings_and_output_weights:
+                            param = module.shared_embedding_or_output_weight()
+                            param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                            param._disable_overlap_grad_sync = True
+                    else:
+                        if module.share_token_embeddings:
+                            param = module.word_embeddings_weight()
+                            param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                            param._disable_overlap_grad_sync = True
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
@@ -443,7 +460,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     stage_bucket = []
-                    for layer in module.language_model.encoder.layers:
+                    if self.cfg.get('mcore_gpt', False):
+                        layers = module.decoder.layers
+                    else:
+                        layers = module.language_model.encoder.layers
+                    for layer in layers:
                         stage_bucket.extend(
                             p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
                         )
@@ -454,7 +475,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 for module in modules:
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
-                    for layer in module.language_model.encoder.layers:
+                    if self.cfg.get('mcore_gpt', False):
+                        layers = module.decoder.layers
+                    else:
+                        layers = module.language_model.encoder.layers
+                    for layer in layers:
                         buckets.append(
                             [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
                         )
@@ -588,7 +613,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for module in modules:
                 if isinstance(module, (Float16Module, MCoreFloat16Module)):
                     module = module.module
-                module = module.language_model
+                if self.cfg.get('mcore_gpt', False):
+                    pass
+                else:
+                    module = module.language_model
                 if hasattr(module, 'embedding'):
                     for param in module.embedding.parameters():
                         param.data_ptr()

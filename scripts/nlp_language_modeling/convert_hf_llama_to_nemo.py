@@ -107,7 +107,7 @@ def convert(args):
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
 
-    if precision == "bf16":
+    if args.precision == "bf16":
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
             precision = "bf16"
         else:
