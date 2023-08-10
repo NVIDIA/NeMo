@@ -19,6 +19,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     PromptEncoderAdapterConfig,
 )
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.position_embedding import (
@@ -38,6 +40,7 @@ from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
+    from apex.normalization import MixedFusedRMSNorm
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
@@ -89,6 +92,7 @@ def get_language_model(
     activations_checkpoint_method=None,
     activations_checkpoint_num_layers=1,
     normalization='layernorm',
+    embedding_normalization=None,
     layernorm_epsilon=1e-5,
     bias_activation_fusion=True,
     masked_softmax_fusion=True,
@@ -168,6 +172,7 @@ def get_language_model(
         activations_checkpoint_method=activations_checkpoint_method,
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
         normalization=normalization,
+        embedding_normalization=embedding_normalization,
         layernorm_epsilon=layernorm_epsilon,
         bias_activation_fusion=bias_activation_fusion,
         bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -272,6 +277,9 @@ class Embedding(MegatronModule):
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
         transpose_batch_sequence=True,
+        normalization=None,
+        layernorm_epsilon=1e-5,
+        persist_layer_norm=False,
     ):
         super(Embedding, self).__init__()
 
@@ -315,6 +323,20 @@ class Embedding(MegatronModule):
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
+
+        # Optional embedding layernorm
+        if normalization == 'layernorm':
+            self.embedding_layernorm = get_layer_norm(
+                hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+            )
+        elif normalization == 'layernorm1p':
+            self.embedding_layernorm = LayerNorm1P(
+                hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+            )
+        elif normalization == 'rmsnorm':
+            self.embedding_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+        else:
+            self.embedding_layernorm = None
 
     def zero_parameters(self):
         """Zero out all parameters in embedding."""
@@ -371,6 +393,10 @@ class Embedding(MegatronModule):
                 embeddings = self.embedding_dropout(embeddings)
         else:
             embeddings = self.embedding_dropout(embeddings)
+
+        # Optional embedding layernorm
+        if self.embedding_layernorm is not None:
+            embeddings = self.embedding_layernorm(embeddings)
 
         return embeddings
 
@@ -477,6 +503,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         normalization='layernorm',
+        embedding_normalization=None,
         layernorm_epsilon=1e-5,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
@@ -554,6 +581,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 position_embedding_type=position_embedding_type,
                 fp32_residual_connection=fp32_residual_connection,
                 dtype=self.dtype,
+                normalization=embedding_normalization,
+                layernorm_epsilon=layernorm_epsilon,
+                persist_layer_norm=persist_layer_norm,
             )
             self._embedding_key = 'embedding'
 
