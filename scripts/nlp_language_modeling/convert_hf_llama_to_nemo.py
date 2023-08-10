@@ -274,10 +274,16 @@ def convert(args):
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
 
+    del model
+
     model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
+
+    # cast to target precision and disable cpu init
     model = model.to(dtype=dtype)
+    model.cfg.use_cpu_initialization = False
+    
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
 
