@@ -1247,7 +1247,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
 
-
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
