@@ -356,7 +356,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 self.log('val prefered likelihood', prefered_likelihoods, sync_dist=True)
                 self.log('val nonprefered likelihood', nonprefered_likelihoods, sync_dist=True)
             sft_loss_weight = self.cfg.sft_loss_weight
-            loss = sft_loss_weight * loss + contrasitve_loss
+            loss = sft_loss_weight * loss + (1.0 - sft_loss_weight) * contrasitve_loss
         else:
             losses = output_tensor.float()
             loss_mask = loss_mask.view(-1).float()
