@@ -89,9 +89,14 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             base_module = self.model
 
-        self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
-        self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
-        self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
+        if self.cfg.get('mcore_gpt', False):
+            self.original_checkpointing_granularity = base_module.decoder.config.recompute_granularity
+            self.original_checkpointing_num_layers = base_module.decoder.config.recompute_num_layers
+            self.original_checkpointing_method = base_module.decoder.config.recompute_method
+        else:
+            self.original_checkpointing_granularity = base_module.language_model.encoder.activations_checkpoint_granularity
+            self.original_checkpointing_num_layers = base_module.language_model.encoder.activations_checkpoint_num_layers
+            self.original_checkpointing_method = base_module.language_model.encoder.activations_checkpoint_method
         self.virtual_tokens = 0
 
     def setup_metric(self, data_cfg):
@@ -181,14 +186,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            else:
-                self.model.sync_initial_word_embeddings()
+        if not self.cfg.get('mcore_gpt', False):
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if isinstance(self.model, list):
+                    for i, module in enumerate(self.model):
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                        module.sync_initial_word_embeddings()
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+                else:
+                    self.model.sync_initial_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
@@ -714,18 +720,28 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         else:
             base_module = self.model
 
-        base_module.language_model.encoder.activations_checkpoint_granularity = None
-        base_module.language_model.encoder.activations_checkpoint_method = None
-        base_module.language_model.encoder.activations_checkpoint_num_layers = None
+        if self.cfg.get('mcore_gpt', False):
+            base_module.decoder.config.recompute_granularity = None
+            base_module.decoder.config.recompute_num_layers = None
+            base_module.decoder.config.recompute_method = None
+        else:
+            base_module.language_model.encoder.activations_checkpoint_granularity = None
+            base_module.language_model.encoder.activations_checkpoint_method = None
+            base_module.language_model.encoder.activations_checkpoint_num_layers = None
 
     def _restore_activation_checkpointing_args(self):
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
         else:
             base_module = self.model
-        base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
-        base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
-        base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
+        if self.cfg.get('mcore_gpt', False):
+            base_module.decoder.config.recompute_granularity = self.original_checkpointing_granularity
+            base_module.decoder.config.recompute_num_layers = self.original_checkpointing_num_layers
+            base_module.decoder.config.recompute_method = self.original_checkpointing_method
+        else:
+            base_module.language_model.encoder.activations_checkpoint_granularity = self.original_checkpointing_granularity
+            base_module.language_model.encoder.activations_checkpoint_method = self.original_checkpointing_method
+            base_module.language_model.encoder.activations_checkpoint_num_layers = self.original_checkpointing_num_layers
 
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
