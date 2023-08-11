@@ -210,13 +210,13 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels, act=""):
+def normalization(channels, act="", gn_groups=32):
     """
     Make a standard normalization layer.
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNormOpt(32, channels, act=act)
+    return GroupNormOpt(gn_groups, channels, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
