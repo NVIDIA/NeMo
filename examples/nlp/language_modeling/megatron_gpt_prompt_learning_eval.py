@@ -195,7 +195,10 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
-    logging.warning(
-        "DEPRECATION WARNING!!! please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_tuning.py followed by megatron_gpt_peft_eval.py"
-    )
+    dep_msg = "* Please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py *"
+    dep = "Deprecation Notice!!".center(len(dep_msg) - 2, " ")
+    banner = "*" * len(dep_msg)
+    spacer = " " * (len(dep_msg) - 2)
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")
     main()
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")
