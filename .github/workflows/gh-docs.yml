@@ -35,6 +35,11 @@ jobs:
           git remote rm origin
           git remote add origin "${remote_repo}"
 
+      - name: "Install dependencies"
+        if: github.event.repository.fork == false
+        run: |
+          pip install mkdocs-video
+
       - name: "Deploy Github Page"
         continue-on-error: true
         run:  mkdocs gh-deploy --force

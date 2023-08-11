@@ -72,6 +72,9 @@ plugins:
   - search
   - minify:
       minify_html: true
+  - mkdocs-video:
+      is_video: true
+      video_controls: true
 
 # Customization
 extra:
@@ -156,6 +159,8 @@ nav:
   # NeMo Blog Posts
   - Posts:
     - 2023:
+      - blogs/2023/2023-08-nfa.md
+      - blogs/2023/2023-08-forced-alignment.md
       - blogs/2023/2023-06-07-fast-conformer.md
     - 2022:
       - blogs/2022/2022-08-introduction.md
