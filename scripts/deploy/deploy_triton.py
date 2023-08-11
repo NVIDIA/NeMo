@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import argparse
-import sys
+import sys, os
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
@@ -32,11 +32,12 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
     )
-    parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
+    parser.add_argument("--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
     parser.add_argument("--optimized", default="True", type=str, help="Use TRT-LLM for inference")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
+    parser.add_arugment("--num_gpu", default=1, type=int, help="Number of GPUs for the deployment")
     parser.add_argument(
         "--dtype",
         choices=["bf16", "fp16", "fp8", "int8"],
@@ -73,8 +74,16 @@ def nemo_deploy(argv):
         else:
             trt_llm_path = args.trt_llm_folder
 
+        if args.nemo_checkpoint is None and not os.path.isdir(args.trt_llm_folder):
+            logging.error(
+                "The supplied trt_llm_folder is not already a valid TRT engine "
+                "directory. Please supply a --nemo_checkpoint."
+            )
+
         trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
-        trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=1)
+
+        if args.nemo_checkpoint is not None:
+            trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=args.num_gpu)
         nm = DeployPyTriton(
             model=trt_llm_exporter,
             triton_model_name=args.triton_model_name,
