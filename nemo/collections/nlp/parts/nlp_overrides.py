@@ -774,9 +774,7 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
             return optimizer.step(**kwargs)
 
         if isinstance(optimizer, torch.optim.LBFGS):
-            raise MisconfigurationException(
-                f"Native AMP and the LBFGS optimizer are not compatible (optimizer)."
-            )
+            raise MisconfigurationException(f"Native AMP and the LBFGS optimizer are not compatible (optimizer).")
         assert not optimizer.fp32_grad_accumulation, "FP16 uses FP16 grad accumulation"
         closure_result = closure()
 
