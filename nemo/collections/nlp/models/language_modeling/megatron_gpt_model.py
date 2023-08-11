@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ast import mod
 import itertools
 import queue
 import warnings
@@ -403,20 +404,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                modules = self.get_gpt_module_list()
                 if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[0]  # only the first virtual rank has the embeddings
+                    if len(modules) > 1:
+                        module = modules[0]  # only the first virtual rank has the embeddings
                     else:
-                        module = self.model
+                        module = modules[0]
                     if self.cfg.get('share_embeddings_and_output_weights', True):
                         param = module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                         param._disable_greedy_grad_copy = not self.megatron_amp_o2
                         param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[-1]  # only the last virtual rank has the embeddings
+                    if len(modules) > 1:
+                        module = modules[-1]  # only the last virtual rank has the embeddings
                     else:
-                        module = self.model
+                        module = modules[0]
                     if self.cfg.get('share_embeddings_and_output_weights', True):
                         param = module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                         param._disable_greedy_grad_copy = not self.megatron_amp_o2
@@ -440,7 +442,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = module.module
                     stage_bucket = []
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in module.language_model.encoder.layers:
+                    for layer in layers:
                         stage_bucket.extend(
                             p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
                         )

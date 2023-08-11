@@ -104,6 +104,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=save_restore_connector,
         )
 
+        # set hidden size in the model parallel config for pipeline parallel schedules
+        setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
+
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
             frozen_model_cfg.megatron_amp_O2 = False
@@ -121,8 +124,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
         if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            # set hidden size in the model parallel config for pipeline parallel schedules
-            setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
             self.autocast_dtype = torch.bfloat16
         elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
