@@ -17,6 +17,12 @@ import math
 
 import torch
 
+try:
+    import ocean
+    HAVE_OCEAN = True  
+except (ImportError, ModuleNotFoundError):
+    HAVE_OCEAN = False
+    
 __all__ = ['ALiBiRelativePositionEmbedding']
 
 
@@ -119,7 +125,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
-        if self.use_FA:
+        if self.use_FA and HAVE_OCEAN:
             return self.slopes.unsqueeze(0)
         
         max_seq_len = max(query_seq_length, key_seq_length)
