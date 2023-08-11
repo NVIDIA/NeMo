@@ -175,7 +175,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         # transformer encoder
         enc_output = self.model(
             enc_input,
-            enc_attn_mask_3d,
+            attn_mask_postprocess(enc_attn_mask_3d),
             layer_past=layer_past,
             get_key_value=get_key_value,
             self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
