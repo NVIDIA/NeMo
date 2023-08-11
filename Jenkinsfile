@@ -3321,8 +3321,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         //model.activations_checkpoint_num_layers=1 \
         //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
        }
      }
     stage('L2: Megatron GPT with Rope Pretraining using Flash Attention and Resume Training TP=2') {
@@ -3580,8 +3580,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         //model.activations_checkpoint_num_layers=1 \
         //model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         //model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        //sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-        //sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
     stage('L2: Megatron GPT Pretraining and Resume Training PP=2') {
@@ -3815,6 +3815,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.test_ds.global_batch_size=1 \
         model.data.test_ds.micro_batch_size=1 \
         model.data.test_ds.tokens_to_generate=10 \
+        model.data.test_ds.write_predictions_to_file=True \
+        model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_tp2/out' \
         inference.greedy=True \
         inference.repetition_penalty=1.0 \
         inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2/out.jsonl'"
@@ -3874,6 +3876,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.data.test_ds.micro_batch_size=1 \
             model.data.test_ds.tokens_to_generate=30 \
             model.data.test_ds.max_seq_length=6000 \
+            model.data.test_ds.write_predictions_to_file=True \
+            model.data.test_ds.output_file_path_prefix='examples/nlp/language_modeling/out' \
             inference.greedy=True \
             inference.repetition_penalty=1.0 \
             inference.outfile_path='examples/nlp/language_modeling/out.jsonl' && \
