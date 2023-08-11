@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import numpy as np
 import torch
 
@@ -38,14 +40,16 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: str = "text",
         label_key: str = "answer",
+        query_key: Optional[str] = None,
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
-        truncation_field: str = "answer",
+        truncation_field: str = "context",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         index_mapping_dir: str = None,
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
+        memmap_workers: Optional[int] = None,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -61,12 +65,13 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
+        query_key: Key to use for the query in your JSON file if we separete query from the context. 
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
-        prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
+        prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -80,6 +85,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.context_key = context_key
         self.label_key = label_key
+        self.query_key = query_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_field = truncation_field
@@ -94,11 +100,16 @@ class GPTSFTDataset(Dataset):
         assert self.truncation_field in ["answer", "context"]
 
         self.indexed_dataset = JSONLMemMapDataset(
-            dataset_paths=[file_path], tokenizer=None, header_lines=0, index_mapping_dir=index_mapping_dir
+            dataset_paths=[file_path],
+            tokenizer=None,
+            header_lines=0,
+            index_mapping_dir=index_mapping_dir,
+            workers=memmap_workers,
         )
 
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
+        assert self.tokens_to_generate < self.max_seq_length
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
@@ -134,99 +145,129 @@ class GPTSFTDataset(Dataset):
                 idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
+        # idx may < 0 because we pad_samples_to_global_batch_size, e.g. id = -1
+        if idx < 0:
+            idx = len(self) + idx
         example = self.indexed_dataset[idx]
         return self._process_example(example)
 
-    def _process_example(self, example):
+    def _process_prompt(self, context: str, label: str, query: str):
+        """
+        Combine context, label, and query string into a unifed string.
+        """
+        if self.prompt_template is not None:
+            context_string = f'{{{self.context_key}}}'
+            label_string = f'{{{self.label_key}}}'
+            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
+            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
+            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
+                label_string
+            ), f'{{self.label_key}} must be at the end of prompt_template.'
+            original_context = context
+            context = self.prompt_template.replace(context_string, context).replace(label_string, '').strip(' ')
+            text = self.prompt_template.replace(context_string, original_context).replace(label_string, label)
+            if self.query_key is not None:
+                query_string = f'{{{self.query_key}}}'
+                assert query_string in self.prompt_template, f'{query_string} must in {self.prompt_template}'
+                context = context.replace(query_string, query)
+                text = text.replace(query_string, query)
+        elif self.separate_prompt_and_response_with_newline:
+            if self.query_key is not None:
+                context = context + '\n' + query
+            text = context + '\n' + label
+        else:
+            if self.query_key is not None:
+                context = context + ' ' + query
+            text = context + ' ' + label
+
+        context_ids = self.tokenizer.text_to_ids(context)
+        answer_ids = self.tokenizer.text_to_ids(text[len(context):])
+
+        return context_ids, answer_ids
+
+    def _process_truncation(self, context: str, label: str, query: str):
+        """
+        Calculate total tokens and truncate context or label string.
+        """
+        origin_context, origin_label = context, label
+        context_ids, answer_ids = self._process_prompt(context, label, query)
+        total_ids = (
+            self.virtual_tokens
+            + len(context_ids)
+            + max(len(answer_ids), self.tokens_to_generate)
+            + self.add_bos
+            + self.add_sep
+        )
+        # Only training need to consider eos token
+        if self.tokens_to_generate == 0:
+            total_ids += self.add_eos
+
+        if total_ids > self.max_seq_length:
+            truncation_length = total_ids - self.max_seq_length
+            if self.truncation_field == "answer":
+                answer_ids = self.tokenizer.text_to_tokens(origin_label)
+                assert len(answer_ids) >= truncation_length, 'answer is not long enough to truncate.'
+                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+                label = self.tokenizer.tokens_to_text(answer_ids)
+            elif self.truncation_field == "context":
+                context_ids = self.tokenizer.text_to_tokens(origin_context)
+                assert len(context_ids) >= truncation_length, 'context is not long enough to truncate.'
+                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+                context = self.tokenizer.tokens_to_text(context_ids)
+
+        return context, label
+
+    def _process_example(self, example: dict):
         """
         Create an example by concatenating text and answer.
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
         context = example[self.context_key]
-        output = example[self.label_key]
+        label = example[self.label_key]
+        query = example[self.query_key] if self.query_key is not None else ""
 
-        if self.prompt_template is not None:
-            assert f'{{{self.context_key}}}' in self.prompt_template
-            assert f'{{{self.label_key}}}' in self.prompt_template
-            # Make sure that '{output}' always occurs at the end of the prompt template string
-            assert self.prompt_template.index(f'{{{self.label_key}}}') == len(self.prompt_template) - len(
-                f'{{{self.label_key}}}'
-            )
-            # Get the context by replacing only the input
-            original_context = context
-            context = (
-                self.prompt_template.replace(f'{{{self.context_key}}}', context)
-                .replace(f'{{{self.label_key}}}', '')
-                .strip(' ')
-            )
-            # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace(f'{{{self.context_key}}}', original_context).replace(
-                f'{{{self.label_key}}}', output
-            )
-
-        if self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = context + '\n' + output
-        elif not self.separate_prompt_and_response_with_newline and self.prompt_template is None:
-            text = context + ' ' + output
+        context, label = self._process_truncation(context, label, query)
+        context_ids, answer_ids = self._process_prompt(context, label, query)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
             # these pad/eos tokens are placeholders for virtual tokens
-            pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
-        else:
-            pre_pad = []
-        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
-        answer_ids = tokenized_text[len(context_ids) :]
+            context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
 
-        # for the long context cases, collate_fn includes self.tokens_to_generate for padding
-        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
-        if self.add_bos:
-            total_ids += 1
-        if self.add_sep:
-            total_ids += 1
-        if self.add_eos:
-            total_ids += 1
-
-        # If the total number of token is greater than the max, we will try to truncate the answer
-        if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            elif self.truncation_field == "context":
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-
-        if len(context_ids) > self.max_seq_length:
-            context_ids = context_ids[: self.max_seq_length]
-
-        assert len(context_ids) <= self.max_seq_length
         input_ids = context_ids
-
         answer_start_idx = len(input_ids)
+
+        # Adds bos token in the start
+        if self.add_bos:
+            context_ids = [self.tokenizer.bos_id] + context_ids
+            input_ids = [self.tokenizer.bos_id] + input_ids
+            answer_start_idx += 1
+
         # Adds sep token between text/prompt and answer
         if self.add_sep:
+            context_ids = context_ids + [self.sep_id]
             input_ids = input_ids + [self.sep_id]
             answer_start_idx += 1
 
         input_ids = input_ids + answer_ids
 
-        if self.add_bos:
-            input_ids = [self.tokenizer.bos_id] + input_ids
-            answer_start_idx += 1
-        if self.add_eos:
+        # Only training need to consider eos token
+        if self.add_eos and self.tokens_to_generate == 0:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
-        if len(input_ids) < self.min_seq_length or len(input_ids) > self.max_seq_length:
-            input_ids = input_ids[: self.max_seq_length]
+        assert len(input_ids) <= self.max_seq_length
 
+        # store metadata in dataset, in case user may have keys required in the prediction json files
+        metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
+            'answer_ids': answer_ids,
+            'metadata': metadata,
         }
-
         return processed_example
 
     def _maybe_cast_to_list(self, x):
@@ -272,14 +313,17 @@ class GPTSFTDataset(Dataset):
         labels = [item['input_ids'][1:] for item in batch]
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
+        answers = [item['answer_ids'] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
+        metadata = [item['metadata'] for item in batch]
 
-        max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
+        max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
+
         assert max_length <= self.max_seq_length
 
         attention_mask = [self._create_attention_mask(max_length) for _ in batch]
@@ -292,6 +336,7 @@ class GPTSFTDataset(Dataset):
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
         contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,
@@ -301,6 +346,8 @@ class GPTSFTDataset(Dataset):
             'position_ids': position_ids,
             'contexts': contexts,
             'context_lengths': context_lengths,
+            'answers': answers,
+            'metadata': metadata,
         }
 
         return processed_batch

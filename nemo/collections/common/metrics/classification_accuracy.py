@@ -16,7 +16,7 @@ import logging
 import re
 import string
 from collections import Counter
-from typing import List
+from typing import List, Union 
 
 import torch
 from torchmetrics import Metric
@@ -211,13 +211,14 @@ class ExactStringMatchMetric(Metric):
 
 
 class TokenF1Score(Metric):
+    """Taken from the official evaluation script for v1.1 of the SQuAD dataset"""
     def __init__(self, dist_sync_on_step=False, *args, **kwargs):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.add_state("correct", default=torch.tensor(0.0), dist_reduce_fx="sum")
         self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
 
-    def update(self, pred: str, target):
+    def update(self, pred: str, target: Union[str, List[str]]):
         if isinstance(target, str):
             self.correct += self.f1_score(pred, target)
         elif isinstance(target, list):
