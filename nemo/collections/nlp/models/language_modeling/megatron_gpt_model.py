@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ast import mod
 import itertools
 import queue
 import warnings
+from ast import mod
 from dataclasses import fields
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
