@@ -161,6 +161,8 @@ class MegatronGPTAdapterModel(MegatronGPTPEFTModel):
             column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
             row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
             dropout=adapter_tuning_cfg.adapter_dropout,
+            base_model_precision=cfg.precision,
+            megatron_amp_O2=cfg.megatron_amp_O2,
         )
 
         self.name_key_to_cfg = {}
@@ -319,6 +321,8 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
             column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
             row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
             dropout=adapter_tuning_cfg.adapter_dropout,
+            base_model_precision=cfg.precision,
+            megatron_amp_O2=cfg.megatron_amp_O2,
         )
 
         self.name_key_to_cfg = {
@@ -367,6 +371,8 @@ class MegatronGPTLoRAModel(MegatronGPTPEFTModel):
             row_init_method=lora_cfg.get("row_init_method", "zero"),
             gather_output=False,
             dropout=lora_cfg.adapter_dropout,
+            base_model_precision=cfg.precision,
+            megatron_amp_O2=cfg.megatron_amp_O2,
         )
 
         self.name_key_to_cfg = {}
