@@ -267,6 +267,7 @@ def main(cfg) -> None:
         "add_BOS": cfg.inference.add_BOS,
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
+        "end_strings": cfg.inference.end_strings,
     }
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
@@ -313,7 +314,12 @@ def main(cfg) -> None:
                         'assistant': cfg.chatbot_config.assistant,
                         'system': cfg.chatbot_config.system,
                     }
-                    web_ui = partial(get_chatbot_demo, defaults=defaults, value=cfg.chatbot_config.value)
+                    web_ui = partial(
+                        get_chatbot_demo,
+                        defaults=defaults,
+                        value=cfg.chatbot_config.value,
+                        attributes=cfg.chatbot_config.attributes,
+                    )
                 else:
                     web_ui = get_demo
                 loop = asyncio.new_event_loop()

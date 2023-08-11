@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import importlib
 import os
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
@@ -554,7 +555,7 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Op
         if '.' in lib_name:
             mod = import_class_by_path(lib_name)
         else:
-            mod = __import__(lib_name)
+            mod = importlib.import_module(lib_name)
 
         if hasattr(mod, '__version__'):
             lib_ver = version.Version(mod.__version__)
@@ -575,7 +576,7 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Op
                 f"Could not check version compatibility."
             )
             return False, msg
-    except (ImportError, ModuleNotFoundError):
+    except (AttributeError, ImportError, ModuleNotFoundError):
         pass
 
     msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
