@@ -59,9 +59,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         super().__init__(cfg, trainer=trainer)
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
         self.val_metric = torch.nn.ModuleList(self.val_metric)
+        if hasattr(self.cfg.data.validation_ds, "metric"):
+            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
             self.test_metric = torch.nn.ModuleList(self.test_metric)
+            if hasattr(self.cfg.data.test_ds, "metric"):
+                self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
 
     def setup_metric(self, data_cfg):
         # XNLI is a special case.
@@ -84,8 +89,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                             f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
                         )
                 if (
-                    data_cfg.metric.get('labels_are_strings', False)
-                    and data_cfg.metric.name in self._metrics_require_string2category_map
+                        data_cfg.metric.get('labels_are_strings', False)
+                        and data_cfg.metric.name in self._metrics_require_string2category_map
                 ):
                     if data_cfg.metric.num_classes is None:
                         raise ValueError(
@@ -93,7 +98,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                             f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
                         )
                     if data_cfg.metric.get('class_labels', None) is None or not isinstance(
-                        data_cfg.metric.get('class_labels', None), ListConfig
+                            data_cfg.metric.get('class_labels', None), ListConfig
                     ):
                         raise ValueError(
                             "Class labels are not provided properly in the metric section witnin the data config. "
@@ -105,24 +110,36 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         )
 
             metric_name = data_cfg.metric.name
-            metric = MetricStringToTorchMetric[metric_name]
+            metric_class = MetricStringToTorchMetric[metric_name]
+
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
             if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
-                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
-                    # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
+                if (
+                        hasattr(data_cfg, "src_file_name")
+                        and isinstance(data_cfg.src_file_name, ListConfig)
+                        and metric_name != 'rouge'
+                ):
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
                         for _ in range(len(data_cfg.src_file_name))
                     ]
-                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                elif (
+                        hasattr(data_cfg, "file_names")
+                        and isinstance(data_cfg.file_names, ListConfig)
+                        and metric_name != 'rouge'
+                ):
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
                         for _ in range(len(data_cfg.file_names))
                     ]
+                elif hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
+                    metric = [metric_class() for _ in range(len(data_cfg.src_file_name))]
+                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                    metric = [metric_class() for _ in range(len(data_cfg.file_names))]
                 else:
-                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                    metric = [metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
             else:
-                metric = [metric()]  # GLUE does need to specify average or num_classes.
+                metric = [metric_class()]  # GLUE does need to specify average or num_classes.
 
         return metric, metric_name
 
@@ -261,13 +278,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if (
-            global_batch_size_per_gpu
-            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+                global_batch_size_per_gpu
+                != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
         ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             if (
-                global_batch_size_per_gpu
-                != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
+                    global_batch_size_per_gpu
+                    != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
                 _reconfigure_microbatch_calculator(
@@ -336,10 +353,16 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # Regular finetuning datasets will return a list of dicts for each microbatch.
         # But T0 datasets will return a single dict for the global batch.
         batch = next(dataloader_iter)
+
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
+
+        if 'metadata' in batch:
+            metadata = batch.pop('metadata')
+        else:
+            metadata = [{}] * len(batch['text_enc'])
 
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
         # this will be ignored.
@@ -348,7 +371,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         predicted_token_ids, _ = self.decode(
             tokens_enc=batch['text_enc'],
             enc_mask=batch['enc_mask'],
-            num_tokens_to_generate=30,
+            num_tokens_to_generate=data_cfg.max_tgt_seq_length,
             bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
         )
 
@@ -362,28 +385,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             categories = batch['lang']
 
-        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-        assert len(categories) == len(preds_text) == len(labels_text)
-        for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
-            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-            pred, label = self.cast_for_metric(
-                pred=pred,
-                label=label,
-                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                class_labels=data_cfg.metric.get('class_labels', None),
-                labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
-            )
-            if batch_has_lang_information:
-                _ = metric(pred, label, category)
-            else:
-                _ = metric(pred, label)
-
         return {
             'loss': loss,
             'preds': preds_text,
             'labels': labels_text,
             'categories': categories,
             'inputs': input_text,
+            'metadata': metadata,  # [dict]
         }
 
     @classmethod
@@ -396,8 +404,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 ids = ids[:idx]
 
             if (
-                len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1
-                and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids
+                    len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1
+                    and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids
             ):
                 idx = ids.index(tokenizer.text_to_ids(T5Sentinel.END.value)[0])
                 ids = ids[:idx]
@@ -437,40 +445,110 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             loss = super().validation_epoch_end([x['loss'] for x in output])
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
-            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
-            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
             self.log(loss_log_key, loss, batch_size=1)
-            metric_object = (
-                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-            )
-            metric = metric_object.compute()
-            if metric_name == 'rouge':
-                metric = metric['rouge1_fmeasure']
-            # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
-            if isinstance(metric, dict):
-                # GLUE case:
-                if len(metric) == 1 and 'acc' in metric:
-                    metric = metric['acc']
-                    self.log(metric_log_key, metric, batch_size=1)
-                    logging.info(f"{mode} {metric_name}: {metric}")
-                # XNLI case where the metric dictionary contains the language and the computed metric as values.
-                else:
-                    for k, v in metric.items():
-                        if k != 'acc' and 'total' not in k:
-                            self.log(metric_log_key + f'_{k}', v, batch_size=1)
-                            logging.info(f"{mode} {metric_name} lang {k} : {v}")
-                    if metric_name != 'rouge':
-                        metric = metric['acc']
-            else:
-                self.log(metric_log_key, metric, batch_size=1)
-                logging.info(f"{metric_log_key}: {metric}")
-            metric_object.reset()
-
             averaged_loss.append(loss)
-            averaged_metric.append(metric)
+
+            # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+            gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            torch.distributed.all_gather_object(
+                gathered_outputs,
+                [
+                    {
+                        'preds': x['preds'],
+                        'labels': x['labels'],
+                        'categories': x['categories'],
+                        'inputs': x['inputs'],
+                        'metadata': x['metadata']
+                    }
+                    for x in output
+                ],
+                group=parallel_state.get_data_parallel_group(),
+            )
+
+            # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
+            gt_inp_set = set()
+            deduplicated_outputs = {
+                'preds': [],
+                'labels': [],
+                'categories': [],
+                'inputs': [],
+                'metadata': [],
+            }
+            for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                for batch in gathered_outputs[rank]:
+                    for pred, label, input, category, metadata in zip(
+                            batch['preds'], batch['labels'], batch['inputs'], batch['categories'], batch['metadata']
+                    ):
+                        key = input + label
+                        if key not in gt_inp_set:
+                            gt_inp_set.add(key)
+                            deduplicated_outputs['preds'].append(pred)
+                            deduplicated_outputs['labels'].append(label)
+                            deduplicated_outputs['categories'].append(category)
+                            deduplicated_outputs['inputs'].append(input)
+                            deduplicated_outputs['metadata'].append(metadata)
+
+            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+            metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
+            if metric_name != 'loss':
+                # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+                metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+                metric_fn = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[
+                    dataloader_idx]
+
+                if metric_label_key in deduplicated_outputs['metadata'][0]:
+                    labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+                else:
+                    labels = deduplicated_outputs['labels']
+
+                for pred, label, category in zip(deduplicated_outputs['preds'], labels,
+                                                 deduplicated_outputs['categories']):
+                    # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+                    pred, label = self.cast_for_metric(
+                        pred=pred,
+                        label=label,
+                        metric_name=metric_name,
+                        class_labels=data_cfg.metric.get('class_labels', None),
+                        labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
+                    )
+                    if category is not None:
+                        _ = metric_fn(pred, label, category)
+                    else:
+                        _ = metric_fn(pred, label)
+
+                metric_result = metric_fn.compute()
+
+                if metric_name == 'rouge':
+                    for k, v in metric_result.items():
+                        if 'fmeasure' in k:
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                            logging.info(f"{mode} {metric_name} {k}: {v.item()}")
+                    metric_result = metric_result['rouge1_fmeasure']
+
+                elif isinstance(metric_result, dict):
+                    # GLUE case:
+                    if len(metric_result) == 1 and 'acc' in metric_result:
+                        metric_result = metric_result['acc']
+                        self.log(metric_log_key, metric_result, batch_size=1)
+                        logging.info(f"{mode} {metric_name}: {metric_result}")
+                    # XNLI case where the metric dictionary contains the language and the computed metric as values.
+                    else:
+                        for k, v in metric_result.items():
+                            if k != 'acc' and 'total' not in k:
+                                self.log(metric_log_key + f'_{k}', v, batch_size=1)
+                                logging.info(f"{mode} {metric_name} lang {k} : {v}")
+                        if metric_name != 'rouge':
+                            metric_result = metric_result['acc']
+                else:
+                    self.log(metric_log_key, metric_result.item(), batch_size=1)
+                    logging.info(f"{metric_log_key}: {metric_result.item()}")
+
+                metric_fn.reset()
+                averaged_metric.append(metric_result)
 
             # Write predictions, labels, and inputs to a file for each validation/test dataset.
-            if data_cfg.get("write_predictions_to_file", False):
+            if self.global_rank == 0 and data_cfg.get("write_predictions_to_file", False):
+                logging.info(f"Total deduplicated inference data size: {len(deduplicated_outputs['inputs'])}")
 
                 # Check if the user provided a prefix path to the file(s) they want to write.
                 if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
@@ -478,57 +556,18 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
 
-                # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-                gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-                torch.distributed.all_gather_object(
-                    gathered_outputs,
-                    [
-                        {
-                            'preds': x['preds'],
-                            'labels': x['labels'],
-                            'categories': x['categories'],
-                            'inputs': x['inputs'],
-                        }
-                        for x in output
-                    ],
-                    group=parallel_state.get_data_parallel_group(),
-                )
-
-                # Figure out what the suffix of the file should be.
                 filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-
-                # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
-                gt_inp_set = set()
-                deduplicated_outputs = {
-                    'preds': [],
-                    'labels': [],
-                    'categories': [],
-                    'inputs': [],
-                }
-
-                # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
-                if self.global_rank == 0:
-                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                        for batch in gathered_outputs[rank]:
-                            for pred, label, input, category in zip(
-                                batch['preds'], batch['labels'], batch['inputs'], batch['categories']
-                            ):
-                                gt_inp_set.add(input + label)
-                                deduplicated_outputs['preds'].append(pred)
-                                deduplicated_outputs['labels'].append(label)
-                                deduplicated_outputs['categories'].append(category)
-                                deduplicated_outputs['inputs'].append(input)
-                    self.write_predictions_to_file(
-                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
-                    )
-                torch.distributed.barrier()
+                self.write_predictions_to_file(
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                )
+            torch.distributed.barrier()
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 1 else None
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
-        if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
+        if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
             app_state = AppState()
             monitor_mode = app_state.checkpoint_callback_params.mode
             assert monitor_mode in ['min', 'max']
@@ -536,18 +575,28 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         if mode == 'validation':
             self.log("validation_loss", averaged_loss, batch_size=1)
-            self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
+            if averaged_metric is not None:
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, batch_size=1)
         elif mode == 'test':
             self.log("test_loss", averaged_loss, batch_size=1)
-            self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
+            if averaged_metric is not None:
+                self.log(f"test_{self.test_metric_name}", averaged_metric, batch_size=1)
 
         return averaged_loss, averaged_metric
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
-        with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
-            assert len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels'])
-            for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
-                f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
+        output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
+        with open(output_file_path, "w") as f_json:
+            assert (
+                    len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(
+                outputs['metadata'])
+            )
+            for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
+                json_string = {'input': i, 'pred': p, 'label': l}
+                for k, v in m.items():
+                    if k not in json_string:
+                        json_string[k] = v
+                f_json.write(json.dumps(json_string) + '\n')
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
@@ -562,7 +611,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
-        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
+            self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
     ):
         """Buld dataloader given an input dataset."""
 
@@ -609,7 +658,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                global_batch_size=data_cfg.global_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,
@@ -627,8 +676,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def _build_train_dataset(self, data_cfg):
         """Build the training dataset."""
         if (
-            data_cfg.drop_last is False
-            and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
+                data_cfg.drop_last is False
+                and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
         ):
             raise ValueError(
                 f"Cannot use drop_last=False in your training data with gradient accumulation found grad acc of {data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())} with global_batch_size {data_cfg.global_batch_size}, micro_batch_size {data_cfg.micro_batch_size}, data parallel size {parallel_state.get_data_parallel_world_size()}"
@@ -702,10 +751,23 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             data_cfg.src_file_name = [data_cfg.src_file_name]
             data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
 
-        for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
+        if 'aux_file_name' in data_cfg:
+            is_aux_list_config = isinstance(data_cfg.aux_file_name, ListConfig)
+            if (is_src_list_config and is_tgt_list_config) and not is_aux_list_config:
+                raise ValueError("aux_list must be a ListConfig ")
+            if not is_aux_list_config:
+                aux_file_names = [data_cfg.aux_file_name]
+            else:
+                aux_file_names = data_cfg.aux_file_name
+            data_cfg.aux_file_name = aux_file_names
+        else:
+            aux_file_names = [None] * len(data_cfg.src_file_name)
+
+        for src, tgt, aux in zip(data_cfg.src_file_name, data_cfg.tgt_file_name, aux_file_names):
             dataset = SequenceToSequenceDataset(
                 src_file_name=src,
                 tgt_file_name=tgt,
+                aux_file_name=aux,
                 src_tokenizer=self.tokenizer,
                 tgt_tokenizer=self.tokenizer,
                 max_src_seq_length=data_cfg.max_src_seq_length,

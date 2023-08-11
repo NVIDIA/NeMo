@@ -14,8 +14,10 @@
 
 import os
 
+import json
 import numpy as np
 import torch
+from typing import Optional
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
@@ -43,6 +45,7 @@ class SequenceToSequenceDataset(Dataset):
         add_bos_to_input: bool = True,
         add_eos_to_input: bool = True,
         replace_bos_with_pad: bool = False,
+        aux_file_name: Optional[str] = None,
     ):
         super().__init__()
         self.src_file_name = src_file_name
@@ -54,6 +57,7 @@ class SequenceToSequenceDataset(Dataset):
         self.add_bos_to_input = add_bos_to_input
         self.add_eos_to_input = add_eos_to_input
         self.replace_bos_with_pad = replace_bos_with_pad
+        self.aux_file_name = aux_file_name
         assert self.max_src_seq_length > 0
         assert self.max_tgt_seq_length > 0
         self._check_files_exist()
@@ -73,8 +77,12 @@ class SequenceToSequenceDataset(Dataset):
         text_enc = example['src']
         text_dec = example['tgt'][:-1]
         labels = example['tgt'][1:]
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
-
+        item = {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        if 'metadata' in example:
+            item['metadata'] = example['metadata']
+            
+        return item
+            
     def _get_examples(self):
         self.examples = []
         with open(self.src_file_name, encoding='utf8') as f_src, open(self.tgt_file_name, encoding='utf8') as f_tgt:
@@ -98,6 +106,22 @@ class SequenceToSequenceDataset(Dataset):
                 if len(tgt) > self.max_tgt_seq_length:
                     tgt = tgt[-self.max_tgt_seq_length + 1 :]
                 self.examples.append({'src': src, 'tgt': tgt})
+                
+        if self.aux_file_name is not None:
+            if not os.path.exists(self.aux_file_name):
+                raise FileNotFoundError(f"Auxilary file {self.aux_file_name} not found")
+                
+            with open(self.aux_file_name, 'r') as file:
+                lines = []
+                for line in file:
+                    try:
+                        lines.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        raise ValueError(f"Auxilary file '{self.aux_file_name}' is not a valid JSONL file.")          
+            
+            assert len(lines) == len(self.examples), f'Auxilary file {self.aux_file_name} should have {len(self.examples)} lines.'
+            for example, line in zip(self.examples, lines):
+                example['metadata'] = line
 
         logging.info(f'Dataset Length : {len(self.examples)}')
 
@@ -131,8 +155,8 @@ class SequenceToSequenceDataset(Dataset):
 
         enc_mask = (text_enc != self.src_tokenizer.pad_id).long()
         dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
-
-        return {
+        
+        batch_out = {
             'text_enc': text_enc,
             'text_dec': text_dec,
             'labels': labels,
@@ -140,6 +164,12 @@ class SequenceToSequenceDataset(Dataset):
             'enc_mask': enc_mask,
             'dec_mask': dec_mask,
         }
+
+        if 'metadata' in batch[0]:
+            metadata = [item['metadata'] for item in batch]
+            batch_out['metadata'] = metadata
+            
+        return batch_out
 
 
 class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):

@@ -881,7 +881,7 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
-    
+
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
 
@@ -1018,6 +1018,7 @@ class CoreAttention(MegatronModule):
 
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         q_len, kv_len = None, None
+
         if attention_mask is not None:
             """
             attention_mask: 0 is not masked; 1 is masked
