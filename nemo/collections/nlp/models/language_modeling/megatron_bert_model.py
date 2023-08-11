@@ -315,9 +315,8 @@ class MegatronBertModel(MegatronBaseModel):
         if self.cfg.data.dataloader_type == "LDDL":
             # this is of type bert dataset
             seq_length = dataloader_iter.iterator.loaders.get_seqlen()
-            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
-            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            seq_length = self.cfg.encoder_seq_length
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -329,7 +328,7 @@ class MegatronBertModel(MegatronBaseModel):
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=False,
-            seq_length=self.cfg.encoder_seq_length,
+            seq_length=seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
         )
 
