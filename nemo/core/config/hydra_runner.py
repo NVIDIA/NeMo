@@ -23,8 +23,10 @@ from hydra.core.config_store import ConfigStore
 from hydra.types import TaskFunction
 from omegaconf import DictConfig, OmegaConf
 
+
 def _get_gpu_name():
     import pynvml
+
     pynvml.nvmlInit()
     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
     cuda_capability, _ = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
@@ -35,6 +37,7 @@ def _get_gpu_name():
         return "h100"
     else:
         return None
+
 
 OmegaConf.register_new_resolver("gpu_name", _get_gpu_name)
 
