@@ -411,7 +411,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     else:
                         module = modules[0]
                     if self.cfg.get('share_embeddings_and_output_weights', True):
-                        param = module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
+                        param = (
+                            module.shared_embedding_or_output_weight()
+                            if self.mcore_gpt
+                            else module.word_embeddings_weight()
+                        )
                         param._disable_greedy_grad_copy = not self.megatron_amp_o2
                         param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -420,7 +424,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     else:
                         module = modules[0]
                     if self.cfg.get('share_embeddings_and_output_weights', True):
-                        param = module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
+                        param = (
+                            module.shared_embedding_or_output_weight()
+                            if self.mcore_gpt
+                            else module.word_embeddings_weight()
+                        )
                         param._disable_greedy_grad_copy = not self.megatron_amp_o2
                         param._disable_overlap_grad_sync = True
 
@@ -1230,7 +1238,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         )
         return result
-
 
     def setup_transformer_engine_tp_groups(self):
         """ This should be called after model parallel groups have been initialized
