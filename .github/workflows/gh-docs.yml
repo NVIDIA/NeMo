@@ -38,7 +38,7 @@ jobs:
       - name: "Install dependencies"
         if: github.event.repository.fork == false
         run: |
-          pip install mkdocs-video
+          pip install mkdocs-video==1.4.0
 
       - name: "Deploy Github Page"
         continue-on-error: true

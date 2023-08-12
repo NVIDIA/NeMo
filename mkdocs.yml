@@ -7,6 +7,7 @@ site_description: >-
 # Repository
 repo_name: NVIDIA/NeMo
 repo_url: https://github.com/NVIDIA/NeMo
+docs_dir: docs/
 
 # Copyright
 copyright: >

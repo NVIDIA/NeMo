@@ -147,3 +147,6 @@ current Released NeMo version (https://github.com/NVIDIA/NeMo/releases) and then
 - Click update release when done.
 - Right click on the Asset and select “Copy Link Address” and use in your post.
 
+# Note about additional Requirments:
+
+- If you need to add any additional requirements, please add them to the `requirements.txt` file in `requirements` directory.
