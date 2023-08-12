@@ -7,6 +7,7 @@ NFA is hosted here: https://github.com/NVIDIA/NeMo/tree/main/tools/nemo_forced_a
 NFA is a tool for generating token-, word- and segment-level timestamps of speech in audio using NeMo's CTC-based Automatic Speech Recognition models. 
 You can provide your own reference text, or use ASR-generated transcription. 
 You can use NeMo's ASR Model checkpoints out of the box in `14+ languages <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html#speech-recognition-languages>`_, or train your own model.
+NFA can be used on long audio files of 1+ hours duration (subject to your hardware and the ASR model used).
 
 Demos & Tutorials
 -----------------
@@ -40,11 +41,11 @@ Call the ``align.py`` script, specifying the parameters as follows:
 
 * ``pretrained_name``: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded from NGC and used for generating the log-probs which we will use to do alignment. Any Quartznet, Citrinet, Conformer CTC model should work, in any language (only English has been tested so far). If ``model_path`` is specified, ``pretrained_name`` must not be specified.
 
-	Note: NFA can only use CTC models (not Transducer models) at the moment.
+	Note: Currently NFA can only use CTC models, or Hybrid CTC-Transducer models (in CTC mode). Pure Transducer models cannot be used.
 
 * ``model_path``: string specifying the local filepath to a CTC NeMo ASR model which will be used to generate the log-probs which we will use to do alignment. If ``pretrained_name`` is specified, ``model_path`` must not be specified.
 
-	Note: NFA can only use CTC models (not Transducer models) at the moment.
+	Note: Currently NFA can only use CTC models, or Hybrid CTC-Transducer models (in CTC mode). Pure Transducer models cannot be used.
 
 * ``manifest_filepath``: The path to the manifest of the data you want to align, containing ``'audio_filepath'`` and ``'text'`` fields. The audio filepaths need to be absolute paths.
 
