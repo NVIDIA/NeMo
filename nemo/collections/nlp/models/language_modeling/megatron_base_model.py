@@ -85,7 +85,8 @@ class MegatronBaseModel(NLPModel):
             )
 
         if trainer is None:
-            raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+            #raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+            print("Only support runing single gpu inference when trainer is None")
 
         if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
             raise ImportError(
@@ -96,6 +97,7 @@ class MegatronBaseModel(NLPModel):
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 
+        import pdb; pdb.set_trace()
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
@@ -104,7 +106,7 @@ class MegatronBaseModel(NLPModel):
         self._enable_nvidia_optimizations()
 
         if self._cfg.get('use_cpu_initialization', False) is False:
-            torch.cuda.set_device(trainer.local_rank)
+            torch.cuda.set_device(trainer.local_rank) if trainer else torch.cuda.set_device(0)
 
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_loss_buffer = []
@@ -116,9 +118,9 @@ class MegatronBaseModel(NLPModel):
             init_global_rank = app_state.global_rank
             init_local_rank = app_state.local_rank
         else:
-            init_world_size = trainer.world_size
-            init_global_rank = trainer.global_rank
-            init_local_rank = trainer.local_rank
+            init_world_size = trainer.world_size if trainer else 1
+            init_global_rank = trainer.global_rank if trainer else 0
+            init_local_rank = trainer.local_rank if trainer else 0
 
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,

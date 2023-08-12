@@ -368,7 +368,61 @@ def receive_generate_info():
         end_strings,
     )
 
+def unsynced_generate(
+    model,
+    inference_strategy,
+    context_tokens_tensor,
+    context_length_tensor,
+    tokens_to_generate,
+    all_probs,
+    temperature,
+    top_k=0,
+    top_p=0.0,
+    greedy=False,
+    compute_attention_mask=True,
+    compute_logprob=False,
+    repetition_penalty=1.2,
+    end_strings=[],
+    min_tokens_to_generate=0,
+):
+    context_length = context_length_tensor.min().item()
+    tokenizer = model.tokenizer
+    
+    if isinstance(tokenizer, TabularTokenizer):
+        #TODO(yuanzhe): add support to tabular tokenizer
+        batch_token_iterator = unsynced_sample_sequence_batch(
+            model,
+            inference_strategy,
+            context_tokens_tensor,
+            context_length_tensor,
+            tokens_to_generate,
+            all_probs,
+            compute_attention_mask=compute_attention_mask,
+            temperature=temperature,
+        )
+    else:
+        batch_token_iterator = unsynced_sample_sequence_batch(
+            model,
+            inference_strategy,
+            context_tokens_tensor,
+            context_length_tensor,
+            tokens_to_generate,
+            all_probs,
+            compute_attention_mask=compute_attention_mask,
+            compute_logprob=compute_logprob,
+            temperature=temperature,
+            end_strings=end_strings,
+            extra={
+                "top_p": top_p,
+                "top_k": top_k,
+                "greedy": greedy,
+                "repetition_penalty": repetition_penalty,
+                "min_tokens_to_generate": min_tokens_to_generate,
+            },
+        )
 
+    
+    
 def synced_generate(
     model,
     inference_strategy,
@@ -388,6 +442,7 @@ def synced_generate(
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
+    
     if isinstance(tokenizer, TabularTokenizer):
         batch_token_iterator = tab_sample_sequence_batch(
             model,
@@ -463,7 +518,8 @@ def synced_generate(
                 )
                 torch.distributed.broadcast(full_logits, src, group)
     if tokens is not None:
-        return tokens[:, :context_length], output_logits, full_logits
+        return tokens[:, :context_length], output_logits, full_logit
+
 
 
 def generate(
@@ -512,61 +568,88 @@ def generate(
     else:
         inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
-    if torch.distributed.get_rank() == get_model_parallel_src_rank():
+    import pdb; pdb.set_trace()
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == get_model_parallel_src_rank():
+            if isinstance(inputs, tuple):
+                context_tokens_tensor, context_length_tensor = inputs
+            else:
+                context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
+                    inputs, tokens_to_generate, add_BOS
+                )
+
+            send_generate_info(
+                context_tokens_tensor,
+                context_length_tensor,
+                tokens_to_generate,
+                all_probs,
+                compute_logprob,
+                temperature,
+                top_k,
+                top_p,
+                greedy,
+                repetition_penalty,
+                min_tokens_to_generate,
+                end_strings,
+            )
+        else:
+            (
+                context_length_tensor,
+                context_tokens_tensor,
+                tokens_to_generate,
+                all_probs,
+                compute_logprob,
+                temperature,
+                top_k,
+                top_p,
+                greedy,
+                repetition_penalty,
+                min_tokens_to_generate,
+                end_strings,
+            ) = receive_generate_info()
+
+        output = synced_generate(
+            model,
+            inference_strategy,
+            context_tokens_tensor,
+            context_length_tensor,
+            tokens_to_generate,
+            all_probs,
+            temperature,
+            compute_attention_mask=compute_attention_mask,
+            compute_logprob=compute_logprob,
+            top_k=top_k,
+            top_p=top_p,
+            greedy=greedy,
+            repetition_penalty=repetition_penalty,
+            end_strings=end_strings,
+            min_tokens_to_generate=min_tokens_to_generate,
+        )
+    else:
         if isinstance(inputs, tuple):
             context_tokens_tensor, context_length_tensor = inputs
         else:
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
-
-        send_generate_info(
+        output = unsynced_generate(
+            model,
+            inference_strategy,
             context_tokens_tensor,
             context_length_tensor,
             tokens_to_generate,
             all_probs,
-            compute_logprob,
             temperature,
-            top_k,
-            top_p,
-            greedy,
-            repetition_penalty,
-            min_tokens_to_generate,
-            end_strings,
+            compute_attention_mask=compute_attention_mask,
+            compute_logprob=compute_logprob,
+            top_k=top_k,
+            top_p=top_p,
+            greedy=greedy,
+            repetition_penalty=repetition_penalty,
+            end_strings=end_strings,
+            min_tokens_to_generate=min_tokens_to_generate,
         )
-    else:
-        (
-            context_length_tensor,
-            context_tokens_tensor,
-            tokens_to_generate,
-            all_probs,
-            compute_logprob,
-            temperature,
-            top_k,
-            top_p,
-            greedy,
-            repetition_penalty,
-            min_tokens_to_generate,
-            end_strings,
-        ) = receive_generate_info()
 
-    output = synced_generate(
-        model,
-        inference_strategy,
-        context_tokens_tensor,
-        context_length_tensor,
-        tokens_to_generate,
-        all_probs,
-        temperature,
-        compute_attention_mask=compute_attention_mask,
-        compute_logprob=compute_logprob,
-        top_k=top_k,
-        top_p=top_p,
-        greedy=greedy,
-        repetition_penalty=repetition_penalty,
-        end_strings=end_strings,
-        min_tokens_to_generate=min_tokens_to_generate,
-    )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
         special_tokens.add(tokenizer.pad_token)
@@ -818,6 +901,160 @@ def sample_sequence_batch(
             if done:
                 break
 
+
+def unsynced_sample_sequence_batch(
+    model,
+    inference_strategy,
+    context_tokens,
+    context_lengths,
+    tokens_to_generate,
+    all_probs=False,
+    compute_attention_mask=True,
+    compute_logprob=False,
+    type_ids=None,
+    temperature=None,
+    end_strings=['<|endoftext|>'],
+    extra={},
+):
+    # Importing here to avoid circular import errors
+
+    app_state = AppState()
+    micro_batch_size = context_tokens.shape[0]
+    _reconfigure_microbatch_calculator(
+        rank=app_state.global_rank,
+        rampup_batch_size=None,
+        global_batch_size=micro_batch_size,
+        micro_batch_size=micro_batch_size,
+        data_parallel_size=1,
+    )
+    assert (
+        model.cfg.get('sequence_parallel', False) == False
+    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert (
+        model.cfg.get('activations_checkpoint_granularity', None) is None
+    ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert (
+        model.cfg.get('activations_checkpoint_method', None) is None
+    ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+
+    tokenizer = model.tokenizer
+    # initialize the batch
+    with torch.no_grad():
+        context_length = context_lengths.min().item()
+        inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
+        # added eos_id to support the function generate_samples_eval that passes
+        # eos_id as an argument and needs termination when that id id found.
+        eod_id = tokenizer.eos_id
+        counter = 0
+
+        batch_size = context_tokens.size(0)
+        is_done = torch.zeros([batch_size]).byte().cuda()
+        tokens = context_tokens
+        output_logits = None
+        all_generated_indices = None  # used to track all generated indices
+        # Generate enough tokens for the longest sequence
+        maxlen = tokens_to_generate + context_lengths.max().item()
+
+        maxlen = inference_strategy.clip_max_len(maxlen)
+
+        lengths = torch.ones([batch_size]).long().cuda() * maxlen
+        while context_length < maxlen:
+            batch, tensor_shape = inference_strategy.prepare_batch_at_step(
+                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
+            )
+            output = inference_strategy.forward_step(batch, tensor_shape)
+
+            if compute_logprob:
+                output = output[0]['logits']
+                assert output is not None
+                logits = output[:, -1].view(batch_size, -1).contiguous()
+
+            else:
+                logits = output[0]['logits'][:, -1].contiguous()
+                assert logits is not None
+                logits = logits.view(batch_size, -1)
+
+            # make sure it will generate at least min_length
+            min_length = extra.get('min_tokens_to_generate', 0)
+            if min_length > 0:
+                within_min_length = (context_length - context_lengths) < min_length
+                logits[within_min_length, eod_id] = -float('Inf')
+
+            # make sure it won't sample outside the vocab_size range
+            logits[:, tokenizer.vocab_size :] = -float('Inf')
+
+                # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
+
+            started = context_lengths <= context_length
+            if extra.get('greedy', False):
+                prev = torch.argmax(logits, dim=-1).view(-1)
+            else:
+                logits = logits.float()
+                logits /= temperature
+                # handle repetition penality
+                logits = repetition_penalty(logits, extra.get('repetition_penalty', 1.2), all_generated_indices)
+                logits = top_k_logits(
+                    logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
+                )
+                probs = F.softmax(logits, dim=-1)
+                prev = torch.multinomial(probs, num_samples=1).view(-1)
+
+            # Clamp the predicted out of vocabulary tokens
+            prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
+            new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
+
+            # Replace sampled tokens w/ done token if EOD has already been sampled
+            new_tokens = switch(new_tokens, eod_id, is_done)
+
+            # post process the inference tokens based on the strategy
+            inference_strategy.post_process(tokens, new_tokens, context_length)
+
+            # Insert either new predicted or next prompt token
+            tokens[:, context_length] = new_tokens
+
+            if compute_logprob:
+                if output_logits is None:
+                    output = F.log_softmax(output[:, :context_length, :], 2)
+
+                    indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
+                    output_logits = torch.gather(output, 2, indices).squeeze(2)
+                    all_generated_indices = indices[:, :, 0]
+                    if all_probs:
+                        full_logits = output
+                else:
+                    output = F.log_softmax(output, 2)
+                    indices = torch.unsqueeze(new_tokens, 1).unsqueeze(2)
+                    new_output_logits = torch.gather(output, 2, indices).squeeze(2)
+
+                    # TODO(rprenger) we're copying output_logits every time.  Should pre-allocate
+                    output_logits = torch.cat([output_logits, new_output_logits], 1)
+                    all_generated_indices = torch.cat([all_generated_indices, indices[:, :, 0]], 1)
+                    if all_probs:
+                        full_logits = torch.cat([full_logits, output], 1)
+
+            #                done_token = (prev == eod_id).byte() & started.byte()
+            done_token = inference_strategy.end_of_generation_condition(
+                tokens[:, : context_length + 1], prev, eod_id, end_strings
+            )
+            done_token = done_token.byte() & started.byte()
+
+            just_finished = (done_token & ~is_done).bool()
+            lengths[just_finished.view(-1)] = context_length
+            is_done = is_done | done_token
+
+            done = torch.all(is_done)
+            if compute_logprob:
+                if all_probs:
+                    yield tokens, lengths, output_logits, full_logits
+                else:
+                    yield tokens, lengths, output_logits, None
+            else:
+                yield tokens, lengths, None, None
+
+            context_length += 1
+            counter += 1
+            if done:
+                break
 
 def tab_sample_sequence_batch(
     model,

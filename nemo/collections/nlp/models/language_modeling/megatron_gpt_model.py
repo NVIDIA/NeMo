@@ -216,8 +216,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
+        import pdb; pdb.set_trace()
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        if isinstance(self.trainer.accelerator, CPUAccelerator):
+        if self.trainer and isinstance(self.trainer.accelerator, CPUAccelerator):
             self.model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
@@ -263,13 +264,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     precision=cfg.precision,
                     share_token_embeddings=self.cfg.get('share_embeddings_and_output_weights', True),
                 )
-
-        if self.trainer.precision == 'bf16':
+        precision = trainer.precision if self.trainer else cfg.precision
+        if precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif int(precision) == 32:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif int(precision) == 16:
             self.autocast_dtype = torch.half
+        
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
@@ -1123,7 +1125,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if self.trainer and parallel_state.is_unitialized():
 
             def dummy():
                 return
@@ -1183,7 +1185,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """ Certain trainer configurations can break training.
             Here we try to catch them and raise an error.
         """
-        if self.trainer.accumulate_grad_batches > 1:
+        if self.trainer and self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
                 f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
