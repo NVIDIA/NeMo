@@ -388,7 +388,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             return
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        try:
+            return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
+        except StopIteration:
+            return
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
         batch = next(dataloader_iter)
@@ -413,7 +417,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
             for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
-
         outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
