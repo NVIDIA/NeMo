@@ -98,6 +98,7 @@ def load_config(args, llama_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
+    nemo_config.precision = 32
 
     # print(nemo_config)
     return nemo_config
@@ -124,7 +125,7 @@ def convert(args):
         dtype = torch.float32  # fallback
 
     # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
-    trainer = Trainer(accelerator='cpu', precision=args.precision)
+    trainer = Trainer(accelerator='cpu', precision=precision)
     # checkpoint_path = megatron_lm_inject_model_parallel_rank(
     #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
     # )
@@ -153,7 +154,6 @@ def convert(args):
     # print(model.state_dict())
     param_to_weights = lambda param: param.float()
 
-    checkpoint = None                                                   # why?
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
 
@@ -193,8 +193,6 @@ def convert(args):
         v = model.state_dict()[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
         qkv_weights=torch.empty((0, head_size) + old_tensor_shape[1:])
         heads_per_group = head_num // num_query_groups
-        print(k.shape)
-        print(k[0:1,:,:].shape)
         for i in range(num_query_groups):
             qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i+1) * heads_per_group,:,:]))
             qkv_weights = torch.cat((qkv_weights, k[i:i+1,:,:]))
@@ -283,6 +281,7 @@ def convert(args):
     # cast to target precision and disable cpu init
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
+    model.cfg.precision = precision
     
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
