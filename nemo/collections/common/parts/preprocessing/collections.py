@@ -258,6 +258,7 @@ class AudioQuestAns(_Collection):
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
         index_by_file_id: bool = False,
+        max_num_samples: Optional[int] = None,
     ):
         """Instantiates audio-question-answer manifest with filters and preprocessing.
 
@@ -314,6 +315,19 @@ class AudioQuestAns(_Collection):
             # Max number of entities filter.
             if len(data) == max_number:
                 break
+
+        if max_num_samples is not None and not index_by_file_id:
+            if max_num_samples <= len(data):
+                logging.info(f"Subsampling dataset from {len(data)} to {max_num_samples} samples")
+                data = data[:max_num_samples]
+            else:
+                logging.info(f"Oversampling dataset from {len(data)} to {max_num_samples} samples")
+                data = data * (max_num_samples // len(data))
+                res_num = max_num_samples % len(data)
+                res_data = [data[idx] for idx in np.random.choice(len(data), res_num, replace=False)]
+                data.extend(res_data)
+        elif max_num_samples is not None and index_by_file_id:
+            logging.warning("Tried to subsample dataset by max_num_samples, but cannot since index_by_file_id is set.")
 
         if do_sort_by_duration:
             if index_by_file_id:

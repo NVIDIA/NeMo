@@ -232,6 +232,7 @@ class AudioQuestionAnswerDataset(Dataset):
             max_duration=max_duration,
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
+            max_num_samples=max_num_samples,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
