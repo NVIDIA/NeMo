@@ -3842,7 +3842,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             prompts=['How to fix GPU memory? A:'] \
             tensor_model_parallel_size=1 \
             inference.tokens_to_generate=32 \
-            trainer.precision=16"
+            trainer.precision=32"
       }
     }
     stage('L2: Megatron GPT Eval PP2') {
