@@ -280,32 +280,34 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             if self.trainer.global_step % 50 == 0:
                 with torch.no_grad():
-                    audio_len = (labels[0][0] != 0).sum().item()
-                    labels_to_1024 = self.convert_tokens_to_range(labels[0,:,0:audio_len], only_first_layer=True)
-                    label_wav = self.additional_models['encodec'].decode([[labels_to_1024[None], None]])[0,0]
-                    dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0,:,0:audio_len])
-                    dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0,0]
-                    self.logger.experiment.add_audio("Target Wav", label_wav, self.global_step, 24000)
-                    self.logger.experiment.add_audio("Dec Input Wav", dec_input_wav, self.global_step, 24000)
+                    with torch.cuda.amp.autocast(enabled=False):
+                        # Encodec does not work with fp16, so we disable autocast for logging audio
+                        audio_len = (labels[0][0] != 0).sum().item()
+                        labels_to_1024 = self.convert_tokens_to_range(labels[0,:,0:audio_len], only_first_layer=True)
+                        label_wav = self.additional_models['encodec'].decode([[labels_to_1024[None], None]])[0,0]
+                        dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0,:,0:audio_len])
+                        dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0,0]
+                        self.logger.experiment.add_audio("Target Wav", label_wav, self.global_step, 24000)
+                        self.logger.experiment.add_audio("Dec Input Wav", dec_input_wav, self.global_step, 24000)
 
-                    input_token_list = [context_and_question_tokens[0,0,i].item() for i in range(context_and_question_tokens.shape[2])] 
-                    input_token_list = [t for t in input_token_list if t != 0 and t < 30000]
-                    input_text = self.frozen_model.tokenizer.ids_to_text(input_token_list)
-                    self.logger.experiment.add_text("Input Text", input_text, self.global_step)
+                        input_token_list = [context_and_question_tokens[0,0,i].item() for i in range(context_and_question_tokens.shape[2])] 
+                        input_token_list = [t for t in input_token_list if t != 0 and t < 30000]
+                        input_text = self.frozen_model.tokenizer.ids_to_text(input_token_list)
+                        self.logger.experiment.add_text("Input Text", input_text, self.global_step)
 
-                    token_logits = out_logits[0]
-                    speech_logits = out_logits[1]
-                    token_logits_example = token_logits[:,0,:] * 1
-                    speech_logits_example = speech_logits[:,0,:,:] * 1
-                    first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
-                    other_layer_tokens = []
-                    for _i in range(speech_logits_example.shape[2]):
-                        other_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
-                    
-                    all_layer_tokens = torch.stack([first_layer_tokens] + other_layer_tokens) # (8, t)
-                    all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
-                    predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
-                    self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
+                        token_logits = out_logits[0]
+                        speech_logits = out_logits[1]
+                        token_logits_example = token_logits[:,0,:] * 1
+                        speech_logits_example = speech_logits[:,0,:,:] * 1
+                        first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
+                        other_layer_tokens = []
+                        for _i in range(speech_logits_example.shape[2]):
+                            other_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
+                        
+                        all_layer_tokens = torch.stack([first_layer_tokens] + other_layer_tokens) # (8, t)
+                        all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                        predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
+                        self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
 
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
