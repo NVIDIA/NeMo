@@ -17,7 +17,7 @@ import json
 import os
 from itertools import combinations
 from typing import Any, Dict, Iterable, List, Optional, Union
-
+import numpy as np
 import pandas as pd
 
 from nemo.collections.common.parts.preprocessing import manifest, parsers
