@@ -3860,7 +3860,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             tensor_model_parallel_size=1 \
             pipeline_model_parallel_size=2 \
             trainer.devices=2 \
-            trainer.num_nodes=1"
+            trainer.num_nodes=1 \
+            trainer.precision=32"
       }
     }
     stage('L2: Megatron GPT SFT Eval (inference seq len > training seq len)') {
