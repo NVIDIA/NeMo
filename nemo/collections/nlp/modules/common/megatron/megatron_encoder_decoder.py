@@ -197,8 +197,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         return state_dict_
 
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
+    # def load_state_dict(self, state_dict, strict=True):
+    #     """Customized load."""
 
-        self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
-        self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
+    #     self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
+    #     self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)

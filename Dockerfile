@@ -23,7 +23,7 @@ FROM ${BASE_IMAGE} as nemo-deps
 
 # dependency flags; should be declared after FROM
 # torchaudio: not required by default
-ARG REQUIRE_TORCHAUDIO=false
+ARG REQUIRE_TORCHAUDIO=true
 # k2: not required by default
 ARG REQUIRE_K2=false
 # ais cli: not required by default, install only if required
@@ -71,6 +71,7 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN pip install --no-deps encodec
 
 # install flash attention dependencies
 RUN pip install flash-attn
@@ -117,6 +118,9 @@ COPY scripts /workspace/nemo/scripts
 COPY examples /workspace/nemo/examples
 COPY tests /workspace/nemo/tests
 COPY tutorials /workspace/nemo/tutorials
+COPY nemo /workspace/nemo/nemo
+COPY tools /workspace/nemo/tools
+COPY train.sh /workspace/nemo/train.sh
 # COPY README.rst LICENSE /workspace/nemo/
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \

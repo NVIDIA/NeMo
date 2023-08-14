@@ -837,6 +837,7 @@ def main():
     )
     parser.add_argument('--hparams_file', type=str, default=None, help='Path to hparams file from PTL training')
     parser.add_argument('--tp_conversion_only', action='store_true', help='Only convert TP model to TP model')
+    parser.add_argument('--speech_model', action='store_true', help='Speech Model or normal LLM model')
     parser.add_argument('--model_extracted_dir', type=str, default=None, help='Path to pre-extracted model directory')
 
     args = parser.parse_args()
@@ -1271,11 +1272,26 @@ def main():
         )
 
         tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
+        OmegaConf.set_struct(tmp_cfg, True)
+        if args.speech_model:
+            with open_dict(tmp_cfg):
+                if hasattr(tmp_cfg, 'encoder') and hasattr(tmp_cfg, 'decoder'):
+                    tmp_cfg.encoder.masked_softmax_fusion = False
+                    tmp_cfg.decoder.masked_softmax_fusion = False
+                else:
+                    tmp_cfg.masked_softmax_fusion = False
+                # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
+                tmp_cfg.precision = trainer.precision
+                tmp_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens
+                tmp_cfg.seq_length = 2048
+                tmp_cfg.max_position_embeddings = 2048
+
 
         model = cls.restore_from(
             restore_path=model_filepath,
             trainer=trainer,
             map_location=torch.device("cpu"),
+            override_config_path=tmp_cfg,
             save_restore_connector=save_restore_connector,
         )
         model.to(dtype=dtype)

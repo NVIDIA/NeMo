@@ -221,6 +221,59 @@ class MegatronBaseModel(NLPModel):
             legacy=legacy,
         )
 
+    @classmethod
+    def _expand_tokenizer(cls, tokenizer, tokenizer_cfg: DictConfig, dataset_type: str):
+        """
+
+        Args:
+            tokenizer:
+            tokenizer_cfg:
+            dataset_type:
+
+        Returns:
+
+        """
+        if dataset_type is None:
+            return
+
+        if dataset_type == "ul2":
+            # Need to do dynamic import to prevent circular dependency
+            from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+
+            MegatronT5Model.add_special_tokens_to_tokenizer(
+                tokenizer=tokenizer,
+                tokenizer_cfg=tokenizer_cfg,
+                dataset_type=dataset_type,
+                add_sentinel_tokens_in_reverse_order=tokenizer_cfg.get("add_sentinel_tokens_in_reverse_order", False),
+                add_sentinel_tokens_first=tokenizer_cfg.get("add_sentinel_tokens_first", False),
+                add_base_tokens=True,
+            )
+            # NOTE: This should only happen for the GPT2 tokenizer.
+            if tokenizer.pad_id is None:
+                tokenizer.add_special_tokens({'pad_token': '<pad>'})
+
+        elif dataset_type == "t5":
+            # Need to do dynamic import to prevent circular dependency
+            from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+
+            MegatronT5Model.add_special_tokens_to_tokenizer(
+                tokenizer=tokenizer,
+                tokenizer_cfg=tokenizer_cfg,
+                dataset_type=dataset_type,
+                add_sentinel_tokens_in_reverse_order=False,
+                add_sentinel_tokens_first=False,
+            )
+            # NOTE: This should only happen for the GPT2 tokenizer.
+            if tokenizer.pad_id is None:
+                tokenizer.add_special_tokens({'pad_token': '<pad>'})
+
+        else:
+            logging.warning(
+                f"Unknown dataset type `{dataset_type}`. No special tokens will be added to the tokenizer!"
+            )
+
+        return tokenizer
+
     def on_train_start(self) -> None:
         super().on_train_start()
         self.init_global_step = self.trainer.global_step
