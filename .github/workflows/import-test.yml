@@ -102,7 +102,7 @@ jobs:
         pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
         git clone https://github.com/NVIDIA/Megatron-LM.git
         cd Megatron-LM
-        git checkout 0609f27fe8376f17ab65c001d3d8f35cd8175950
+        git checkout main
         pip install .
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "nlp"
