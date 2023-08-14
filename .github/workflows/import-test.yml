@@ -104,7 +104,6 @@ jobs:
         apt-get install -y git
         git clone https://github.com/NVIDIA/Megatron-LM.git
         cd Megatron-LM
-        git checkout main
         pip install -e .
         cd ..
         # Run import checks
