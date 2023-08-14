@@ -105,7 +105,7 @@ jobs:
         git clone https://github.com/NVIDIA/Megatron-LM.git
         cd Megatron-LM
         git checkout main
-        pip install .
+        pip install -e .
         cd ..
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "nlp"
