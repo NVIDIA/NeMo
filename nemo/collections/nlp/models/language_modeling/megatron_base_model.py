@@ -101,6 +101,9 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
+        # set the megatron core model parallel config
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
+
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
@@ -549,6 +552,10 @@ class MegatronBaseModel(NLPModel):
                 * get_num_microbatches()
             )
         return int(consumed_samples)
+
+    def _compute_consumed_samples_after_training_step(self):
+        # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
         try:

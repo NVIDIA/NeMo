@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """Transformer based language model."""
+from ast import Mod
+
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
