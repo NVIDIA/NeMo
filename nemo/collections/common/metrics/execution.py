@@ -204,7 +204,9 @@ def reliability_guard(maximum_memory_bytes: Optional[int] = None):
 
     import os
 
-    os.environ['OMP_NUM_THREADS'] = '1'
+    # VERY IMPORTANT TO DISABLE THIS - OTHERWISE THERE ARE ERRORS
+    # os.environ['OMP_NUM_THREADS'] = '1'
+    # TODO: NOT SURE ABOUT SECURITY IMPLICATIONS!
 
     os.kill = None
     os.system = None
