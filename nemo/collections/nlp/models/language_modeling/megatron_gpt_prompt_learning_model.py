@@ -108,6 +108,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=save_restore_connector,
         )
 
+        # set hidden size in the model parallel config for pipeline parallel schedules
+        setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
+
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
             frozen_model_cfg.megatron_amp_O2 = False
@@ -124,17 +127,14 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-            # set hidden size in the model parallel config for pipeline parallel schedules
-            setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
-
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(
@@ -387,6 +387,11 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter, batch_idx):
+        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
+        dataloader_iter, done = self._prefetch(dataloader_iter)
+        if done:
+            return
+        mode = 'test' if self.trainer.testing else 'val'
         batch = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
@@ -425,12 +430,23 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 label = self.tokenizer.ids_to_text(label)
                 preds_text.append(pred)
                 labels_text.append(label)
-
+            if mode == 'val':
+                self.validation_step_outputs.append(
+                    {'loss': loss_mean, 'preds': preds_text, 'labels': labels_text,}
+                )
+            else:
+                self.test_step_outputs.append(
+                    {'loss': loss_mean, 'preds': preds_text, 'labels': labels_text,}
+                )
             return {
                 'loss': loss_mean,
                 'preds': preds_text,
                 'labels': labels_text,
             }
+
+        self.validation_step_outputs.append({'loss': loss_mean}) if mode == 'val' else self.test_step_outputs.append(
+            {'loss': loss_mean}
+        )
         return {'loss': loss_mean}
 
     def on_train_epoch_start(self) -> None:
@@ -445,13 +461,13 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_validation_epoch_start()
 
-    def validation_epoch_end(self, outputs):
-        if len(outputs) == 0:
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
             return
 
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
+            averaged_loss = torch.stack([i['loss'] for i in self.validation_step_outputs]).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
@@ -464,8 +480,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
-            all_preds = list(itertools.chain(*[item['preds'] for item in outputs]))
-            all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+            all_preds = list(itertools.chain(*[item['preds'] for item in self.validation_step_outputs]))
+            all_labels = list(itertools.chain(*[item['labels'] for item in self.validation_step_outputs]))
 
             assert len(all_preds) == len(all_labels)
 
@@ -498,13 +514,15 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
+        self.validation_step_outputs.clear()  # free memory
 
     def test_step(self, dataloader_iter, batch_idx):
         return self.validation_step(dataloader_iter, batch_idx)
 
-    def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
+    def on_test_epoch_end(self):
+        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
+        self.test_step_outputs.clear()  # free memory
 
     def setup(self, stage=None):
         super().setup(stage)
