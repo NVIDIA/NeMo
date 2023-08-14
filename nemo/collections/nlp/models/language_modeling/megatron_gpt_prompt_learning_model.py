@@ -103,7 +103,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
-            
+
         setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
 
         # Need to overwrite some params in frozen model's config before restoring
