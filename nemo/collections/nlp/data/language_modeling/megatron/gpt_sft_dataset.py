@@ -16,8 +16,10 @@ from typing import Optional
 
 import numpy as np
 import torch
-from datasets import load_dataset, Features, Value, Sequence
-
+import datasets
+# hack to avoid the "not enough disk space" error in some slurm cluster
+datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
+from datasets import load_dataset
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
