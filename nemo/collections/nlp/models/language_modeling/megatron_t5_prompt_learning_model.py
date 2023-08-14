@@ -203,7 +203,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
         else:
@@ -213,6 +213,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return loss_mean
 
     def get_forward_output_and_loss_func(self):
+        # FIXME: consolidate this method into MegatronLMEncoderDecoderModel (or have a common base class)
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
@@ -226,7 +227,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
+                return loss, {'loss': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -309,6 +310,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         }
 
     def validation_step(self, batch, batch_idx, inference=False):
+        prefix = "test" if self.trainer.testing else "val"
         input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
         # does not use dataloader_iter due to device placement issues arising from PTL
         mode = self.training
@@ -339,9 +341,13 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         self.train(mode=mode)
         self.frozen_model.eval()
+        self.validation_step_outputs.append(metrics) if prefix == 'val' else self.test_step_outputs.append(metrics)
         return metrics
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
+        prefix = "test" if self.trainer.testing else "val"
+        outputs = self.validation_step_outputs if prefix == 'val' else self.test_step_outputs
+
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
@@ -400,11 +406,13 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
 
+        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()  # free memory
+
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
+    def on_test_epoch_end(self):
+        self.on_validation_epoch_end()
 
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
@@ -492,12 +500,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             'labels_text': labels_text,
         }
 
-    def on_predict_epoch_end(self, outputs: List[Any]) -> None:
-
+    def on_predict_epoch_end(self) -> None:
+        # PTL 2.0 removes outputs arg from on_predict_epoch_end and is retrived by self.trainer.predict_loop.predictions
+        outputs = self.trainer.predict_loop.predictions
         gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-        all_preds = list(itertools.chain(*[item['preds_text'] for item in outputs[0]]))
-        all_labels = list(itertools.chain(*[item['labels_text'] for item in outputs[0]]))
-        all_inputs = list(itertools.chain(*[item['input_text'] for item in outputs[0]]))
+        # In case of single dataloader format of self.trainer.predict_loop.predictions is [{dict1},{dict2}] v/s [[{dict1},{dict2}]] of outputs in 1.9
+        # Removing indix [0] to avoid TypeError (https://github.com/Lightning-AI/lightning/pull/16655/files)
+        all_preds = list(itertools.chain(*[item['preds_text'] for item in outputs]))
+        all_labels = list(itertools.chain(*[item['labels_text'] for item in outputs]))
+        all_inputs = list(itertools.chain(*[item['input_text'] for item in outputs]))
 
         assert len(all_preds) == len(all_labels)
         assert len(all_preds) == len(all_inputs)

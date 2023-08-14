@@ -123,6 +123,7 @@ Key Features
     * `Pre-trained Model Checkpoints in NVIDIA GPU Cloud (NGC) <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
 * `Tools <https://github.com/NVIDIA/NeMo/tree/stable/tools>`_
     * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization/intro.html>`_
+    * `NeMo Forced Aligner <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/nemo_forced_aligner.html>`_
     * `CTC-Segmentation tool <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_
     * `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html>`_: a dash-based tool for interactive exploration of ASR/TTS datasets
     * `Speech Data Processor <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/speech_data_processor.html>`_
@@ -133,7 +134,7 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 Requirements
 ------------
 
-1) Python 3.9 or above
+1) Python 3.10 or above
 2) Pytorch 1.13.1 or above
 3) NVIDIA GPU for training
 
@@ -177,7 +178,7 @@ We recommend installing NeMo in a fresh Conda environment.
 
 .. code-block:: bash
 
-    conda create --name nemo python==3.8.10
+    conda create --name nemo python==3.10.12
     conda activate nemo
 
 Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_.
@@ -305,13 +306,13 @@ NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separa
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.19.0`` comes with container ``nemo:23.04``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.20.0`` comes with container ``nemo:23.06``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:23.04
+    docker pull nvcr.io/nvidia/nemo:23.06
 
 To build a nemo container with Dockerfile from a branch, please run
 

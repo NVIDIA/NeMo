@@ -21,7 +21,7 @@ import omegaconf
 import torch
 from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -356,7 +356,7 @@ class MegatronBaseModel(NLPModel):
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
         if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+            self.trainer.precision_plugin, MixedPrecisionPlugin
         ):
             precision_plugin = self.trainer.precision_plugin
 
@@ -391,7 +391,7 @@ class MegatronBaseModel(NLPModel):
         if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
             gc.collect()
 
-    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
         if self.gc_interval > 0:
@@ -531,6 +531,10 @@ class MegatronBaseModel(NLPModel):
                 * get_num_microbatches()
             )
         return int(consumed_samples)
+
+    def _compute_consumed_samples_after_training_step(self):
+        # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
         try:
