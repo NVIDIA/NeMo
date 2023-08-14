@@ -50,8 +50,8 @@ import sys
 import time
 
 import ftfy
-import torch
 import numpy as np
+import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -189,27 +189,27 @@ class AudioEncoder(object):
         assert len(codes.shape) == 2, f"codes must be 2D, got {len(codes.shape)}"
 
         if self.args.n_codebooks_to_use is not None:
-            codes = codes[:self.args.n_codebooks_to_use, :]
+            codes = codes[: self.args.n_codebooks_to_use, :]
 
         # if n_codebooks_to_use is only one, we need to add a dimension
         if self.args.n_codebooks_to_use == 1:
-            codes = np.expand_dims(codes, axis=0)        # [N, T]
+            codes = np.expand_dims(codes, axis=0)  # [N, T]
 
         # flatten
         if self.args.flatten_audio_codebooks:
-            codes = self.flatten_codebooks(codes)      # [T]
+            codes = self.flatten_codebooks(codes)  # [T]
         return codes
 
     def encode(self, json_line):
         data = json.loads(json_line)
         ids = {}
         for key in self.args.json_keys:
-            audio = data[key]       # audio codes filepath
+            audio = data[key]  # audio codes filepath
             doc_ids = []
 
-            audio = self.process(audio)     # [T] or [N, T]
+            audio = self.process(audio)  # [T] or [N, T]
             if len(audio) > 0:
-                doc_ids.append(audio)       # list of numpy arrays
+                doc_ids.append(audio)  # list of numpy arrays
             if len(doc_ids) > 0 and self.args.append_eod and not self.args.flatten_audio_codebooks:
                 doc_ids[-1].append(Encoder.tokenizer.eos_id)
             ids[key] = doc_ids
@@ -291,9 +291,10 @@ def get_args():
     # TODO: There are dependencies b/w libraries and model files / tokenizer type strings to check.
     assert args.tokenizer_type is not None or args.tokenizer_model is not None
 
-    if args.dataset_impl == 'mmap':     # if you are not flattening use 'lazy' or 'cached' which use 'IndexedDatasetBuilder'
+    if (
+        args.dataset_impl == 'mmap'
+    ):  # if you are not flattening use 'lazy' or 'cached' which use 'IndexedDatasetBuilder'
         assert args.flatten_audio_codebooks, "mmap need --flatten_audio_codebooks flag"
-
 
     if args.append_eod:
         assert args.flatten_audio_codebooks, "add_eod need --flatten_audio_codebooks flag"

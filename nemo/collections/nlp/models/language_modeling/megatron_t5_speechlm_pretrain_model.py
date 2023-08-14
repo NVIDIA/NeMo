@@ -16,23 +16,25 @@ import itertools
 from typing import Any, List
 
 import torch
+from encodec import EncodecModel
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
-from nemo.collections.nlp.models.language_modeling.megatron_base_speechlm_model import (
-    MegatronSpeechLMBaseModel,
-)
-
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_indexed_dataset import (
+    build_train_valid_test_datasets,
+)
+from nemo.collections.nlp.models.language_modeling.megatron_base_speechlm_model import MegatronSpeechLMBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.modules.common import VirtualPromptStyle
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
@@ -41,10 +43,6 @@ from nemo.collections.nlp.modules.common.speech_residual_networks import Simples
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_indexed_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from encodec import EncodecModel
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -111,11 +109,17 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 )
             )
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
-        self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(list_of_speech_tokens_embeddings)
+        self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(
+            list_of_speech_tokens_embeddings
+        )
 
         # TODO: remove hardcoding
-        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset+speech_codebook_size)
-        self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size)
+        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(
+            self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset + speech_codebook_size
+        )
+        self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
+            self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
+        )
 
         self.frozen_model.enc_dec_model.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
@@ -125,9 +129,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         encodec_model.cuda()
         encodec_model.eval()
 
-        self.additional_models = {
-            'encodec' : encodec_model
-        }
+        self.additional_models = {'encodec': encodec_model}
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -236,7 +238,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                 labels=labels,
                 output_enc_hidden_only=False,
                 enc_input=encoder_input,
-                speech_mask=speech_mask
+                speech_mask=speech_mask,
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
@@ -249,7 +251,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                     labels=labels,
                     output_enc_hidden_only=False,
                     enc_input=encoder_input,
-                    speech_mask=speech_mask
+                    speech_mask=speech_mask,
                 )
 
         return output, encoder_input, debug_tensors
@@ -272,8 +274,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
-            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = 2048 
+            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056  # cfg.num_speech_tokens 39168
+            t5_cfg.seq_length = 2048
             t5_cfg.max_position_embeddings = 2048
 
         self.frozen_model = MegatronT5Model.restore_from(
@@ -283,7 +285,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
         print(f"self.frozen_model {self.frozen_model}")
-    
+
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -293,7 +295,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         batch = next(dataloader_iter)
         _, _, seq_length = batch['enc_input'].shape
         _, _, dec_seq_length = batch['dec_input'].shape
-        
+
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
@@ -332,7 +334,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             mask_indices = (enc_input[_i] != 103).long()
             unprocessed_enc_input[_i] = enc_input[_i] - 30000 - (_i * 1024)
             unprocessed_enc_input[_i] = unprocessed_enc_input[_i] * mask_indices
-        
+
         return unprocessed_enc_input
 
     def get_forward_output_and_loss_func(self):
@@ -349,12 +351,19 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             loss_mask = batch['loss_mask']
             position_ids = batch['position_ids']
             speech_mask = batch['speech_mask']
-            
+
             output_tensor, _, debug_tensors = model(
-                enc_input, enc_mask, dec_input, dec_input_mask, position_ids, labels=labels, speech_mask=speech_mask, inference=False,
+                enc_input,
+                enc_mask,
+                dec_input,
+                dec_input_mask,
+                position_ids,
+                labels=labels,
+                speech_mask=speech_mask,
+                inference=False,
             )
             output_tensor = output_tensor.contiguous()
-            
+
             if self.trainer.global_step % 100 == 0:
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
@@ -363,26 +372,27 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                             enc_input_example = self.unprocess_encoder_input(enc_input[0])
                             dec_input_example = self.unprocess_encoder_input(dec_input[0])
 
-                            enc_wav = self.additional_models['encodec'].decode([[enc_input_example[None], None]])[0,0]
+                            enc_wav = self.additional_models['encodec'].decode([[enc_input_example[None], None]])[0, 0]
                             self.logger.experiment.add_audio("Enc Input", enc_wav, self.global_step, 24000)
 
-                            dec_wav = self.additional_models['encodec'].decode([[dec_input_example[None], None]])[0,0]
+                            dec_wav = self.additional_models['encodec'].decode([[dec_input_example[None], None]])[0, 0]
                             self.logger.experiment.add_audio("Dec Input", dec_wav, self.global_step, 24000)
 
                             token_logits = debug_tensors[0]
                             speech_logits = debug_tensors[1]
-                            token_logits_example = token_logits[:,0,:] * 1
-                            speech_logits_example = speech_logits[:,0,:,:] * 1
+                            token_logits_example = token_logits[:, 0, :] * 1
+                            speech_logits_example = speech_logits[:, 0, :, :] * 1
                             first_layer_tokens = token_logits_example.argmax(dim=1) - 30000
                             outher_layer_tokens = []
                             for _i in range(speech_logits_example.shape[2]):
-                                outher_layer_tokens.append(speech_logits_example[:,:,_i].argmax(dim=1))
-                            
-                            all_layer_tokens = torch.stack([first_layer_tokens] + outher_layer_tokens) # (8, t)
-                            all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
-                            predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
-                            self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
+                                outher_layer_tokens.append(speech_logits_example[:, :, _i].argmax(dim=1))
 
+                            all_layer_tokens = torch.stack([first_layer_tokens] + outher_layer_tokens)  # (8, t)
+                            all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                            predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[
+                                0, 0
+                            ]
+                            self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
 
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
@@ -610,7 +620,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
-    
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             # TODO: look at this
@@ -649,7 +658,6 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-
     def setup(self, stage=None):
         if stage == 'predict' and self.first_stage_of_pipeline():
             return
@@ -667,10 +675,10 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building T5 datasets.')
-        
+
         global_batch_size = self.cfg.global_batch_size
-        
-        #TODO: remove hardcoding
+
+        # TODO: remove hardcoding
         max_train_steps = 100000
         eval_iters = 100
         test_iters = 100
@@ -703,7 +711,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         # import ipdb; ipdb.set_trace()
 
         return self._train_ds, self._validation_ds, self._test_ds
-    
+
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch

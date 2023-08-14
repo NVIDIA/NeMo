@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -24,14 +25,15 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
+    NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
-    NLPSaveRestoreConnector
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 mp.set_start_method("spawn", force=True)
+
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
@@ -145,7 +147,7 @@ def main(cfg) -> None:
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
-            map_location="cpu"
+            map_location="cpu",
         )
         # gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
         model = load_from_nemo(MegatronSpeechGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)

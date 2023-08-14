@@ -185,7 +185,7 @@ def get_ltor_masks_and_position_ids(
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
-    if data.dim()==3:
+    if data.dim() == 3:
         data = data[:, 0, :]
     micro_batch_size, seq_length = data.size()
 

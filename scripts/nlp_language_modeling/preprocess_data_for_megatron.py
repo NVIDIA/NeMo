@@ -50,13 +50,13 @@ import sys
 import time
 
 import ftfy
-import torch
 import numpy as np
+import torch
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from pytorch_lightning import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 try:
     import nltk
@@ -88,8 +88,7 @@ def get_tokenizer(args):
     if args.tokenizer_type == "t5":
         trainer = Trainer()
         frozen_model = MegatronT5Model.restore_from(
-            "/datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5.nemo",
-            trainer=trainer,
+            "/datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5.nemo", trainer=trainer,
         )
         tokenizer = frozen_model.tokenizer
     else:
@@ -181,48 +180,48 @@ class AudioEncoder(object):
             codes[n, :] += self.codebook_size * n
         flat_codes = codes.ravel("F")
         return flat_codes
-    
+
     def process(self, file_path):
         """load npz file from filepath
         """
         codes = np.load(file_path)
-        codes = codes["codes"]  # [n_codebooks, n_frames]  
-        
+        codes = codes["codes"]  # [n_codebooks, n_frames]
+
         # if n_codebooks_to_use is greater than the number of codebooks in the file, raise error
         if self.args.n_codebooks_to_use is not None and self.args.n_codebooks_to_use > codes.shape[0]:
             raise ValueError(
                 f"n_codebooks_to_use ({self.args.n_codebooks_to_use}) is greater than the number of codebooks in the file ({codes.shape[0]})."
             )
-        
+
         assert len(codes.shape) == 2, f"codes must be 2D, got {len(codes.shape)}"
 
         if self.args.n_codebooks_to_use is not None:
-            codes = codes[:self.args.n_codebooks_to_use, :]
+            codes = codes[: self.args.n_codebooks_to_use, :]
 
         # if n_codebooks_to_use is only one, we need to add a dimension
         if self.args.n_codebooks_to_use == 1:
-            codes = np.expand_dims(codes, axis=0)        # [N, T]
-        
+            codes = np.expand_dims(codes, axis=0)  # [N, T]
+
         # flatten
         if self.args.flatten_audio_codebooks:
-            codes = self.flatten_codebooks(codes)      # [T]  
-        return codes    
+            codes = self.flatten_codebooks(codes)  # [T]
+        return codes
 
     def encode(self, json_line):
         data = json.loads(json_line)
         ids = {}
         for key in self.args.json_keys:
-            audio = data[key]       # audio codes filepath
+            audio = data[key]  # audio codes filepath
             doc_ids = []
 
-            audio = self.process(audio)     # [T] or [N, T]
+            audio = self.process(audio)  # [T] or [N, T]
             if len(audio) > 0:
-                doc_ids.append(audio)       # list of numpy arrays
+                doc_ids.append(audio)  # list of numpy arrays
             if len(doc_ids) > 0 and self.args.append_eod and not self.args.flatten_audio_codebooks:
                 doc_ids[-1].append(Encoder.tokenizer.eos_id)
             ids[key] = doc_ids
         return ids, audio.size
-    
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -278,12 +277,12 @@ def get_args():
         help='If set, will preprocess all .json or .json.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
     )
     group.add_argument('--apply-ftfy', action='store_true', help='If set, will apply ftfy to the input text')
-    
+
     # audio_codes related args
     group = parser.add_argument_group(title='audio Tokenizer')
     group.add_argument('--flatten_audio_codebooks', action='store_true', help='flatten audio codebooks')
     group.add_argument('--n_codebooks_to_use', type=int, default=None, help='number of codebooks to use')
-    
+
     args = parser.parse_args()
     args.keep_empty = False
 
@@ -298,14 +297,15 @@ def get_args():
     args.vocab_extra_ids = 0
     # TODO: There are dependencies b/w libraries and model files / tokenizer type strings to check.
     assert args.tokenizer_type is not None or args.tokenizer_model is not None
-    
-    if args.dataset_impl == 'mmap':     # if you are not flattening use 'lazy' or 'cached' which use 'IndexedDatasetBuilder'
+
+    if (
+        args.dataset_impl == 'mmap'
+    ):  # if you are not flattening use 'lazy' or 'cached' which use 'IndexedDatasetBuilder'
         assert args.flatten_audio_codebooks, "mmap need --flatten_audio_codebooks flag"
 
-
     if args.append_eod:
-        assert args.flatten_audio_codebooks, "add_eod need --flatten_audio_codebooks flag"    
-    
+        assert args.flatten_audio_codebooks, "add_eod need --flatten_audio_codebooks flag"
+
     return args
 
 

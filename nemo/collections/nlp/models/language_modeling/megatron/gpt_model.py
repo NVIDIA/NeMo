@@ -24,9 +24,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -62,7 +61,7 @@ def post_language_model_processing(
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
     speech_mask=None,
-    speech_residual_model=None
+    speech_residual_model=None,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -73,7 +72,7 @@ def post_language_model_processing(
     async_tensor_model_parallel_allreduce = (
         parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
     )
-    num_speech_tokens = 8*1024  # TODO: Fix hardcode, assumes speech tokens are last
+    num_speech_tokens = 8 * 1024  # TODO: Fix hardcode, assumes speech tokens are last
     token_head = lambda x, y: parallel_lm_logits(
         x,
         y,
@@ -86,31 +85,36 @@ def post_language_model_processing(
     # approach 1 was using convs
     approach = 2 if speech_residual_model == None else 1
     output = token_head(
-        lm_output,
-        logit_weights[:256000+1024, :] if approach == 1 else logit_weights # TODO: remove hardcode
+        lm_output, logit_weights[: 256000 + 1024, :] if approach == 1 else logit_weights  # TODO: remove hardcode
     )
-
 
     speech_layers = 7
     if approach == 1:
         last_layer_output = lm_output
-        last_layer_logits = output[:,:,-1024:]
-        speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)  # [S, B, H, L]
+        last_layer_logits = output[:, :, -1024:]
+        speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
         for i in range(speech_layers):
             last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
             # Need to check that the below line is correct
             # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
             # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
             # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
-            last_layer_logits = token_head(last_layer_output, logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None,:])  # or None for the last layer in which case it's 0 and everything breaks
+            last_layer_logits = token_head(
+                last_layer_output,
+                logit_weights[
+                    -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None, :
+                ],
+            )  # or None for the last layer in which case it's 0 and everything breaks
             # print(f"{i}: {last_layer_output.shape}, {last_layer_logits.shape} // {logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)),:].shape}")
             # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
-            speech_logits[:,:,:,i] = last_layer_logits
+            speech_logits[:, :, :, i] = last_layer_logits
     else:
-        output = output[:,:,:256000+1024]
+        output = output[:, :, : 256000 + 1024]
         speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
         for i in range(speech_layers):
-            speech_logits[:,:,:,i] = output[:,:,-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None]
+            speech_logits[:, :, :, i] = output[
+                :, :, -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None
+            ]
 
     if get_key_value:
         output = [output, presents]
@@ -140,13 +144,23 @@ def post_language_model_processing(
                 if approach == 1:
                     loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
                     for i in range(speech_layers):
-                        loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                        loss += (
+                            vocab_parallel_cross_entropy(speech_logits[:, :, :, i].float(), labels[i + 1, :, :])
+                            * speech_mask.T
+                            * 0.125
+                        )
                 else:
-                    first_layer_logits = output[:, :, :256000+1024]
+                    first_layer_logits = output[:, :, : 256000 + 1024]
                     loss += vocab_parallel_cross_entropy(first_layer_logits.float(), labels[0, :, :])
                     for i in range(speech_layers):
-                        ith_layer_logits = output[:, :, -(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None]
-                        loss += vocab_parallel_cross_entropy(ith_layer_logits.float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                        ith_layer_logits = output[
+                            :, :, -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None
+                        ]
+                        loss += (
+                            vocab_parallel_cross_entropy(ith_layer_logits.float(), labels[i + 1, :, :])
+                            * speech_mask.T
+                            * 0.125
+                        )
                     # import ipdb; ipdb.set_trace()
                     # import ipdb; ipdb.set_trace()
                     # print(f"{i}: {loss}")
@@ -224,7 +238,7 @@ class GPTModel(MegatronModule):
         reduce_amax=True,
         use_emha=False,
         use_flash_attention=False,
-        output_size=None
+        output_size=None,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -307,7 +321,7 @@ class GPTModel(MegatronModule):
             reduce_amax=reduce_amax,
             use_emha=use_emha,
             use_flash_attention=use_flash_attention,
-            output_size=output_size
+            output_size=output_size,
         )
 
         if self.share_embeddings_and_output_weights:
