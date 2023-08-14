@@ -59,11 +59,10 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 
 """
 
-import os
+import copy
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
-from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
@@ -78,15 +77,33 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    @rank_zero_only
-    def get_model(name):
-        if os.path.isfile(name):
-            asr_model = ASRModel.restore_from(name)
-        else:
-            asr_model = ASRModel.from_pretrained(name)
-        return asr_model
+    if hasattr(cfg, 'init_from_ptl_ckpt') and cfg.init_from_ptl_ckpt is not None:
+        raise NotImplementedError(
+            "Currently for simplicity of single script for all model types, we only support `init_from_nemo_model` and `init_from_pretrained_model`"
+        )
 
-    asr_model = get_model(cfg.init_from_pretrained_model)
+    asr_model = ASRModel.maybe_init_from_pretrained_checkpoint(cfg)
+    vocab_size = asr_model.tokenizer.vocab_size
+
+    # if new tokenizer is provided, use it
+    if hasattr(cfg.model.tokenizer, 'update_tokenizer') and cfg.model.tokenizer.update_tokenizer:
+        decoder = copy.deepcopy(asr_model.decoder)
+        joint_state = copy.deepcopy(asr_model.joint)
+
+        if cfg.model.tokenizer.tokenizer_dir is None:
+            raise ValueError("tokenizer_dir must be specified if update_tokenizer is True")
+        asr_model.change_vocabulary(
+            new_tokenizer_dir=cfg.model.tokenizer.dir, new_tokenizer_type=cfg.model.tokenizer.type
+        )
+        if asr_model.tokenizer.vocab_size != vocab_size:
+            logging.warning(
+                "The vocabulary size of the new tokenizer differs from that of the loaded model. As a result, finetuning will proceed with the new vocabulary, and the decoder will be reinitialized."
+            )
+        else:
+            asr_model.decoder = decoder
+            asr_model.joint = joint_state
+    else:
+        logging.info("Reusing the tokenizer from the loaded model.")
 
     # Setup Data
     asr_model.setup_training_data(cfg.model.train_ds)
@@ -102,10 +119,6 @@ def main(cfg):
         asr_model.spec_augment = ASRModel.from_config_dict(cfg.model.spec_augment)
 
     trainer.fit(asr_model)
-
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if asr_model.prepare_test(trainer):
-            trainer.test(asr_model)
 
 
 if __name__ == '__main__':

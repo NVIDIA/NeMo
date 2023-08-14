@@ -1,6 +1,8 @@
 name: "FastConformer-Transducer-BPE"
 
-init_from_pretrained_model: ?? # pretrained model name or path to the pretrained model checkpoint
+# use `init_from_nemo_model` or `init_from_pretrained_model` to initialize the model
+# We do not currently support `init_from_ptl_ckpt` to create a single script for all types of models.
+init_from_nemo_model: ???
 
 model:
   sample_rate: 16000
@@ -43,6 +45,18 @@ model:
     use_start_end_token: false
     num_workers: 8
     pin_memory: true
+  
+  tokenizer:
+    update_tokenizer: false
+    dir: null  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
+
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2 # set to zero to disable it
+    time_masks: 10 # set to zero to disable it
+    freq_width: 27
+    time_width: 0.05
 
   optim:
     name: adamw
