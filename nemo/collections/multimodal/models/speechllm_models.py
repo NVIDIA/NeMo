@@ -24,16 +24,19 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
-from nemo.collections.multimodal.parts.utils.data_utils import get_num_samples_from_files
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.multimodal.data.audio_text_qa_dataset import AudioQuestionAnswerDataset
 from nemo.collections.multimodal.modules.speechllm_perception import AudioPerceptionModel
+from nemo.collections.multimodal.parts.utils.data_utils import get_num_samples_from_files
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
+    MegatronGPTLoRAModel,
+    MegatronGPTPEFTModel,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
@@ -499,3 +502,23 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
         logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
         return model
+
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        if self.setup_complete:
+            # Once setup is complete we only need adapter and perception model.
+            return_state_dict = self.get_peft_state_dict()
+            state_dict = self.model.state_dict(prefix="model.perception.")
+            return_state_dict.update(state_dict)
+            return return_state_dict
+        else:
+            # we want all the params with the same keys as calling self.state_dict()
+            # but we can't call self.state_dict() here as it would be a recursive call.
+            # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
+            return self.model.state_dict(prefix="model.")
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if self.setup_complete:
+            print(f"loading state_dict: {state_dict.keys()}")
+            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
+        else:
+            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=strict)

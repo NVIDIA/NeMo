@@ -106,7 +106,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             assert set(state_dict.keys()) == self.adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
-            super().load_state_dict(state_dict, strict=strict)
+            super().load_state_dict(state_dict, strict=True)
 
     def setup_optimizer_param_groups(self):
         """

@@ -10,6 +10,6 @@ VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean.json
 python -m pdb -c continue run_sft_audio_lm.py --config-path="../examples/multimodel/conf/speechllm/" --config-name "modularized_speech_gpt_config" \
     model.pretrained_audio_model=$ASR_MODEL \
     model.restore_from_path=$MEGATRON_CKPT \
-    model.data.train_ds.file_names=$TRAIN_MANIFESTS \
-    model.data.validation_ds.file_names=$VAL_MANIFESTS
+    model.data.train_ds.manifest_filepath=$TRAIN_MANIFESTS \
+    model.data.validation_ds.manifest_filepath=$VAL_MANIFESTS
 
