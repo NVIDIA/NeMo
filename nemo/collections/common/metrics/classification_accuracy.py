@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import logging
-from typing import List
+import re
+import string
+from collections import Counter
+from typing import List, Union
 
 import torch
 from torchmetrics import Metric
@@ -35,20 +38,22 @@ class TopKClassificationAccuracy(Metric):
         def validation_step(self, batch, batch_idx):
             ...
             correct_count, total_count = self._accuracy(logits, labels)
-            return {'val_loss': loss_value, 'val_correct_count': correct_count, 'val_total_count': total_count}
+            self.val_outputs = {'val_loss': loss_value, 'val_correct_count': correct_count, 'val_total_count': total_count}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-            correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
-            total_counts = torch.stack([x['val_total_counts'] for x in outputs])
+            val_loss_mean = torch.stack([x['val_loss'] for x in self.val_outputs]).mean()
+            correct_counts = torch.stack([x['val_correct_counts'] for x in self.val_outputs])
+            total_counts = torch.stack([x['val_total_counts'] for x in self.val_outputs])
 
             topk_scores = compute_topk_accuracy(correct_counts, total_counts)
 
             tensorboard_log = {'val_loss': val_loss_mean}
             for top_k, score in zip(self._accuracy.top_k, topk_scores):
                 tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
-
+            
+            self.val_outputs.clear()  # free memory
             return {'log': tensorboard_log}
 
     Args:
@@ -205,3 +210,53 @@ class ExactStringMatchMetric(Metric):
 
     def compute(self):
         return self.correct.float() / self.total
+
+
+class TokenF1Score(Metric):
+    """Taken from the official evaluation script for v1.1 of the SQuAD dataset"""
+
+    def __init__(self, dist_sync_on_step=False, *args, **kwargs):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("correct", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, pred: str, target: Union[str, List[str]]):
+        if isinstance(target, str):
+            self.correct += self.f1_score(pred, target)
+        elif isinstance(target, list):
+            self.correct += max([self.f1_score(pred, tgt) for tgt in target])
+        self.total += 1
+
+    def compute(self):
+        return self.correct.float() / self.total
+
+    def f1_score(self, prediction, ground_truth):
+        prediction_tokens = self.normalize(prediction).split()
+        ground_truth_tokens = self.normalize(ground_truth).split()
+        common = Counter(prediction_tokens) & Counter(ground_truth_tokens)
+        num_same = sum(common.values())
+        if num_same == 0:
+            return 0.0
+        precision = 1.0 * num_same / len(prediction_tokens)
+        recall = 1.0 * num_same / len(ground_truth_tokens)
+        f1 = (2 * precision * recall) / (precision + recall)
+        return f1
+
+    def normalize(self, s):
+        """Lower text and remove punctuation, articles and extra whitespace."""
+
+        def remove_articles(text):
+            return re.sub(r"\b(a|an|the)\b", " ", text)
+
+        def white_space_fix(text):
+            return " ".join(text.split())
+
+        def remove_punc(text):
+            exclude = set(string.punctuation)
+            return "".join(ch for ch in text if ch not in exclude)
+
+        def lower(text):
+            return text.lower()
+
+        return white_space_fix(remove_articles(remove_punc(lower(s))))
