@@ -59,7 +59,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule
+from nemo.collections.nlp.modules.common.speech_residual_networks import SimplestModule, LinearModule
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -782,6 +782,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
             # Model forward pass
+            # import ipdb; ipdb.set_trace()
             output_tensor = model(
                 batch['tokens'],
                 batch['position_ids'],
@@ -1352,8 +1353,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_layer.weight = new_weight
 
         # TODO: hardcodes
-        hidden_size = base_module.hidden_size
-        base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
+        # hidden_size = base_module.hidden_size
+        # base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
 
 class MegatronSpeechGPTModel(MegatronGPTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -1363,10 +1364,16 @@ class MegatronSpeechGPTModel(MegatronGPTModel):
         else:
             base_module = self.model
         hidden_size = base_module.hidden_size
-        base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
+        base_module.speech_residual_model = None
+        if self.cfg.get('speech_residual_model', None) == 'conv':
+            base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
+        elif self.cfg.get('speech_residual_model', None) == 'linear':
+            base_module.speech_residual_model = LinearModule(hidden_size, 1024)
 
     def model_provider_func(self, pre_process, post_process):
         """Very small override of base model so we can have different embedding and output layer size"""
+        # print(f"AGAIN1 {self.cfg.get('override_vocab_size')}")
+        # print(f"AGAIN1 {self.cfg.get('output_size')}")
         model = GPTModel(
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             output_size=self.cfg.get('output_size', self.padded_vocab_size),

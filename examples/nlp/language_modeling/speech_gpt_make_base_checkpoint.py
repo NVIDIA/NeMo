@@ -38,12 +38,10 @@ trainer = pl.Trainer(plugins= plugins, strategy=strategy, **config.trainer)
 print("Trainer config - \n")
 print(OmegaConf.to_yaml(config.trainer))
 
-checkpoint_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo"
-# checkpoint_path = "/home/datasets/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
-# checkpoint_path = "/home/datasets/jasoli/speech_t5/megatron_t5_220m/tp1_pp1/megatron_t5.nemo"
-# checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_2b/checkpoints/megatron_gpt--val_loss=9.16-step=100000-consumed_samples=799992.0-last.ckpt"
+# checkpoint_path = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo"
+checkpoint_path = "/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo"
 gpt_cfg = MegatronGPTModel.restore_from(
-    restore_path="/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo",
+    restore_path=checkpoint_path,
     trainer=trainer,
     return_config=True,
     save_restore_connector=NLPSaveRestoreConnector(),
@@ -103,4 +101,4 @@ def load_from_nemo(cls, cfg, trainer, checkpoint):
 # model = load_from_checkpoint_dir(MegatronGPTModel, gpt_cfg, trainer, checkpoint_path)
 model = load_from_nemo(MegatronGPTModel, gpt_cfg, trainer, checkpoint_path)
 model.update_for_speech()
-model.save_to("/home/jasoli/models/speechllm_sgpt_base_2b_tp1_pp1.nemo")
+model.save_to("/home/jasoli/models/speechllm_sgpt_base_843m_tp1_pp1.nemo")

@@ -20,3 +20,23 @@ class SimplestModule(torch.nn.Module):
             out = out * mask.T.unsqueeze(-1)
 
         return out
+
+class LinearModule(torch.nn.Module):
+    def __init__(self, dec_hid_size, token_input_size, token_output_size=None, n_quantizer_layers=8, dropout=0.25):
+        super().__init__()
+        if token_output_size is None:
+            token_output_size = token_input_size
+        self.layers = torch.nn.ModuleList([torch.nn.Linear(dec_hid_size+token_input_size, token_output_size) for _ in range(n_quantizer_layers)])
+        # self.dropout = torch.nn.Dropout(dropout)
+
+    def forward(self, dec_hidden, dec_logits, layer_i, mask):
+        out = torch.cat([dec_hidden, dec_logits], dim=-1)
+        # if mask is not None:
+        #     out = out * mask.T.unsqueeze(-1)
+        out = self.layers[layer_i](out)
+        # out = self.norm(out.transpose(1, 2))
+        # out = self.dropout(out)
+        if mask is not None:
+            out = out * mask.T.unsqueeze(-1)
+
+        return out

@@ -82,26 +82,35 @@ def post_language_model_processing(
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
-    # TODO: remove hardcode
+
+    # approach 1 was using convs
+    approach = 2 if speech_residual_model == None else 1
     output = token_head(
         lm_output,
-        logit_weights[:256000+1024, :]
+        logit_weights[:256000+1024, :] if approach == 1 else logit_weights # TODO: remove hardcode
     )
 
+
     speech_layers = 7
-    last_layer_output = lm_output
-    last_layer_logits = output[:,:,-1024:]
-    speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)  # [S, B, H, L]
-    for i in range(speech_layers):
-        last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
-        # Need to check that the below line is correct
-        # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
-        # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
-        # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
-        last_layer_logits = token_head(last_layer_output, logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None,:])  # or None for the last layer in which case it's 0 and everything breaks
-        # print(f"{i}: {last_layer_output.shape}, {last_layer_logits.shape} // {logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)),:].shape}")
-        # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
-        speech_logits[:,:,:,i] = last_layer_logits
+    if approach == 1:
+        last_layer_output = lm_output
+        last_layer_logits = output[:,:,-1024:]
+        speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)  # [S, B, H, L]
+        for i in range(speech_layers):
+            last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
+            # Need to check that the below line is correct
+            # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
+            # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
+            # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
+            last_layer_logits = token_head(last_layer_output, logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None,:])  # or None for the last layer in which case it's 0 and everything breaks
+            # print(f"{i}: {last_layer_output.shape}, {last_layer_logits.shape} // {logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)),:].shape}")
+            # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
+            speech_logits[:,:,:,i] = last_layer_logits
+    else:
+        output = output[:,:,:256000+1024]
+        speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
+        for i in range(speech_layers):
+            speech_logits[:,:,:,i] = output[:,:,-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None]
 
     if get_key_value:
         output = [output, presents]
@@ -128,9 +137,17 @@ def post_language_model_processing(
             if labels.dim() == 2:
                 loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
             elif labels.dim() == 3:
-                loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
-                for i in range(speech_layers):
-                    loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                if approach == 1:
+                    loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
+                    for i in range(speech_layers):
+                        loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                else:
+                    first_layer_logits = output[:, :, :256000+1024]
+                    loss += vocab_parallel_cross_entropy(first_layer_logits.float(), labels[0, :, :])
+                    for i in range(speech_layers):
+                        ith_layer_logits = output[:, :, -(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None]
+                        loss += vocab_parallel_cross_entropy(ith_layer_logits.float(), labels[i+1, :, :]) * speech_mask.T * 0.125
+                    # import ipdb; ipdb.set_trace()
                     # import ipdb; ipdb.set_trace()
                     # print(f"{i}: {loss}")
                     # logging.debug(f"token_loss_{i}: {tokens_loss}")
