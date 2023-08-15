@@ -112,6 +112,10 @@ jobs:
         echo "PYTHONPATH=/Megatron-LM:$PYTHONPATH" >> $GITHUB_ENV
     - name: Test NLP Domain Imports
       run: |
+        python --version
+        pip list
+        echo $PATH
+        echo $PYTHONPATH
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "nlp"
         # Uninstall NeMo
