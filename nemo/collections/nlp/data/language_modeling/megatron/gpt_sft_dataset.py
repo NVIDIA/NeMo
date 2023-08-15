@@ -42,7 +42,6 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_keys: str = "text",
         label_key: str = "answer",
-        separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_fields: str = "text",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
@@ -52,7 +51,7 @@ class GPTSFTDataset(Dataset):
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
         hf_dataset: bool = False,
-        truncation_augmentation: bool = False,
+        truncation_method: str = 'right',
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -68,14 +67,13 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_keys: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
-        separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: keys in context_keys). Field to be used for truncation if the combined length exceeds the max sequence length.
+        truncation_fields: Field to use for truncation. (Options: keys in context_keys). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
-        truncation_augmentation: Do random truncation instead of only end truncation
+        truncation_method: Truncation from which position. Options: ['random', 'left', 'right']
         """
         self.tokenizer = tokenizer
         # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
@@ -93,7 +91,6 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.context_keys = context_keys.split(',')
         self.label_key = label_key
-        self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
         self.truncation_fields = truncation_fields.split(',')
         self.pad_to_max_length = pad_to_max_length
@@ -101,11 +98,11 @@ class GPTSFTDataset(Dataset):
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
-        if self.prompt_template is not None:
-            # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
-            self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-
-        # Previous models has self.truncation_fields = ['context'] and self.context_keys = ['input']
+        assert self.prompt_template is not None, f'we need prompt_template to combine contexts {context_keys} and label {label_key}'
+        # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
+        self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
+        
+        # Legacy checkpoints has self.truncation_fields = ['context'] and self.context_keys = ['input']
         if (
             len(self.truncation_fields) == 1
             and len(self.context_keys) == 1
@@ -177,88 +174,88 @@ class GPTSFTDataset(Dataset):
             raise e
         return self._process_example(example)
 
-    def _process_prompt(self, contexts: List[str], label: str):
+    def _separate_template(self, contexts: List[str], label: str):
         """
-        Combine contexts and label into a list of strings and a list of keys based on template.
+        Combine contexts and label based on prompt_template into a list of strings and a list of keys.
+
+        Args:
+            contexts (List[str]): the list of context strings in jsonl file.
+            label (str): the label string in jsonl file.
+
+        Returns:
+            prompt_strings (List[str]): separated prompt_template with contexts/label placeholder filled with corresponding strings
+            prompt_keys (List[str]): strings point to placeholder keys or <template>
+            
+        Examples:
+            prompt_template = 'Context: {context} Question: {question} Answer: {label}'
+            contexts = ['CONTEXT', 'QUESTION']
+            label = ['LABEL']
+            
+            prompt_strings = ['Context:', ' CONTEXT', ' Question:', ' QUESTION', ' Answer:', ' LABEL'] # tokenizer_space_sensitive = True
+            prompt_strings = ['Context:', 'CONTEXT', 'Question:', 'QUESTION', 'Answer:', 'LABEL'] # tokenizer_space_sensitive = False
+            prompt_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
         prompt_strings = []
         prompt_keys = []
 
-        # split with template
-        if self.prompt_template is not None:
-            # context placeholder
-            context_phs = [f'{{{ck}}}' for ck in self.context_key]
-            for cph in context_phs:
-                assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
-            context_ph_to_context_s = {cph: cs for cph, cs in zip(context_phs, contexts)}
-            context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_key)}
+        # context placeholder
+        context_phs = [f'{{{ck}}}' for ck in self.context_key]
+        for cph in context_phs:
+            assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
+        context_ph_to_context_s = {cph: cs for cph, cs in zip(context_phs, contexts)}
+        context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_key)}
 
-            # label placeholder
-            label_ph = f'{{{self.label_key}}}'
-            assert label_ph in self.prompt_template, f'{label_ph} must in {self.prompt_template}'
-            assert self.prompt_template.index(label_ph) == len(self.prompt_template) - len(
-                label_ph
-            ), f'{{{self.label_key}}} must be at the end of prompt_template.'
+        # label placeholder
+        label_ph = f'{{{self.label_key}}}'
+        assert label_ph in self.prompt_template, f'{label_ph} must in {self.prompt_template}'
+        assert self.prompt_template.index(label_ph) == len(self.prompt_template) - len(
+            label_ph
+        ), f'{{{self.label_key}}} must be at the end of prompt_template.'
 
-            # positions
-            context_positions = [
-                p
-                for cph in context_phs
-                for p in (self.prompt_template.index(cph), self.prompt_template.index(cph) + len(cph))
-            ]
-            context_positions = [0] + context_positions + [self.prompt_template.index(label_ph)]
-            context_positions = sorted(context_positions)
+        # get sorted placeholder positions
+        context_positions = [
+            p
+            for cph in context_phs
+            for p in (self.prompt_template.index(cph), self.prompt_template.index(cph) + len(cph))
+        ]
+        context_positions = [0] + context_positions + [self.prompt_template.index(label_ph)]
+        context_positions = sorted(context_positions)
 
-            # iterate each position bucket
-            for i in range(len(context_positions) - 1):
-                pi = context_positions[i]
-                pj = context_positions[i + 1]
-                # prev_s end space + curr_s start space
-                leading_space = (
-                    0
-                    if i == 0
-                    else int(self.prompt_template[pi - 1] == ' ')
-                    + len(self.prompt_template[pi:pj])
-                    - len(self.prompt_template[pi:pj].lstrip(' '))
-                )
-                cs = context_ph_to_context_s.get(self.prompt_template[pi:pj], self.prompt_template[pi:pj]).strip(' ')
-                if len(cs) > 0:
-                    prompt_strings.append(' ' * leading_space + cs if self.tokenizer_space_sensitive else cs)
-                    prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
-
-            leading_space = int(self.prompt_template[pj - 1] == ' ')
-            prompt_strings.append(' ' * leading_space + label if self.tokenizer_space_sensitive else label)
-            prompt_keys.append(self.label_key)
-
-        # split with newline
-        elif self.separate_prompt_and_response_with_newline:
-            for ck, cs in zip(self.context_key, contexts):
-                prompt_strings.append(cs)
-                prompt_strings.append('\n')
-                prompt_keys.append(ck)
-                prompt_keys.append('<newline>')
-            prompt_strings.append(label)
-            prompt_keys.append(self.label_key)
-
-        # split with space
-        elif self.tokenizer_space_sensitive:
-            for ck, cs in zip(self.context_key, contexts):
-                prompt_strings.append(' ' + cs if len(prompt_strings) != 0 else cs)
-                prompt_keys.append(ck)
-            prompt_strings.append(' ' + label)
-            prompt_keys.append(self.label_key)
-        else:
-            for ck, cs in zip(self.context_key, contexts):
-                prompt_strings.append(cs)
-                prompt_keys.append(ck)
-            prompt_strings.append(label)
-            prompt_keys.append(self.label_key)
+        # iterate each placeholder position bucket
+        for i in range(len(context_positions) - 1):
+            pi = context_positions[i]
+            pj = context_positions[i + 1]
+            
+            # if tokenizer is space sensitive, we should check leading space
+            # from prev bucket last position or curr bucket first position and 
+            # add back to the left of string after we do string.strip(' ')
+            if i != 0 and self.tokenizer_space_sensitive:
+                has_leading_space = self.prompt_template[pi - 1] == ' ' or self.prompt_template[pi] == ' '
+            else:
+                has_leading_space = False
+            
+            # get string for the bucket from placeholder jsonl string or from prompt_template string
+            cs = context_ph_to_context_s.get(self.prompt_template[pi:pj], self.prompt_template[pi:pj]).strip(' ')
+            if len(cs) > 0:
+                prompt_strings.append(' ' + cs if has_leading_space else cs)
+                prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
+        
+        has_leading_space = self.prompt_template[pj - 1] == ' ' if self.tokenizer_space_sensitive else False
+        prompt_strings.append(' ' + label if has_leading_space else label)
+        prompt_keys.append(self.label_key)
 
         return prompt_strings, prompt_keys
 
-    def _process_truncation(self, prompt_ids: List[List[int]], prompt_keys: List[str]):
+    def _multiple_truncation(self, prompt_ids: List[List[int]], prompt_keys: List[str]):
         """
-        Calculate total tokens and truncate multiple contexts
+        Calculate total tokens and truncate multiple contexts in truncation_fields
+        Args:
+            prompt_ids (List[List[int]]): the list of separate prompt_template ids.
+            prompt_keys (List[str]): strings point to placeholder keys or <template> (used to check truncation_fields).
+
+        Returns:
+            context_ids (List[int]): all context ids.
+            label_ids (List[int]): all label ids.
         """
         context_ids = prompt_ids[:-1]
         label_ids = prompt_ids[-1]
@@ -273,18 +270,30 @@ class GPTSFTDataset(Dataset):
 
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
-            field_length = len(self.truncation_field)
+            num_fields = len(self.truncation_fields)
             # Sorted equal divide length to each field
+            # Examples: 
+            #   truncation_length_total = 3
+            #   num_fields = 11
+            #   truncation_length_list = [3,4,4]
             truncation_length_list = [
-                truncation_length_total // field_length + (1 if i < truncation_length_total % field_length else 0)
-                for i in range(field_length)[::-1]
+                truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
+                for i in range(num_fields)[::-1]
             ]
 
             for i, (ids, key) in enumerate(zip(context_ids, prompt_keys[:-1])):
-                if key in self.truncation_field:
+                if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
                     assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
-                    ids_offset = random.randint(0, truncation_length) if self.truncation_augmentation else 0
+                    if self.truncation_method == 'random':
+                        ids_offset = random.randint(0, truncation_length)
+                    elif self.truncation_method == 'left':
+                        ids_offset = truncation_length
+                    elif self.truncation_method == 'right':
+                        ids_offset = 0
+                    else:
+                        raise ValueError(f'{self.truncation_method} is not supported')
+    
                     ids_length = len(ids) - truncation_length
                     context_ids[i] = ids[ids_offset : ids_offset + ids_length]
 
@@ -300,9 +309,9 @@ class GPTSFTDataset(Dataset):
         contexts = [example[c].strip(' ') for c in self.context_keys]
         label = example[self.label_key]
 
-        prompt_strings, prompt_keys = self._process_prompt(contexts, label)
+        prompt_strings, prompt_keys = self._separate_template(contexts, label)
         prompt_ids = [self.tokenizer.text_to_ids(p) for p in prompt_strings]
-        context_ids, answer_ids = self._process_truncation(prompt_ids, prompt_keys)
+        context_ids, answer_ids = self._multiple_truncation(prompt_ids, prompt_keys)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
