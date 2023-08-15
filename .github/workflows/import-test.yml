@@ -99,7 +99,7 @@ jobs:
     - name: Test NLP Domain Imports
       run: |
         # Install NeMo Domain
-        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
+        pip install --no-build-isolation "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
         # Install git
         apt-get install -y git
         pip uninstall -y megatron-core
