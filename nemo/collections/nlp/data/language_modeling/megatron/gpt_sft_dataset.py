@@ -72,7 +72,7 @@ class GPTSFTDataset(Dataset):
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
-        truncation_method: Truncation from which position Option: ['random', 'left', 'right']
+        truncation_method: Truncation from which position. Options: ['random', 'left', 'right']
         """
         self.tokenizer = tokenizer
         # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
@@ -315,7 +315,7 @@ class GPTSFTDataset(Dataset):
         assert len(input_ids) <= self.max_seq_length
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in [self.context_keys, self.label_key]}
+        metadata = {k: v for k, v in example.items() if k not in self.context_keys + [self.label_key]}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
