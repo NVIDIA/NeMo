@@ -98,10 +98,12 @@ class GPTSFTDataset(Dataset):
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
-        assert self.prompt_template is not None, f'we need prompt_template to combine contexts {context_keys} and label {label_key}'
+        assert (
+            self.prompt_template is not None
+        ), f'we need prompt_template to combine contexts {context_keys} and label {label_key}'
         # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        
+
         # Legacy checkpoints has self.truncation_fields = ['context'] and self.context_keys = ['input']
         if (
             len(self.truncation_fields) == 1
@@ -225,21 +227,21 @@ class GPTSFTDataset(Dataset):
         for i in range(len(context_positions) - 1):
             pi = context_positions[i]
             pj = context_positions[i + 1]
-            
+
             # if tokenizer is space sensitive, we should check leading space
-            # from prev bucket last position or curr bucket first position and 
+            # from prev bucket last position or curr bucket first position and
             # add back to the left of string after we do string.strip(' ')
             if i != 0 and self.tokenizer_space_sensitive:
                 has_leading_space = self.prompt_template[pi - 1] == ' ' or self.prompt_template[pi] == ' '
             else:
                 has_leading_space = False
-            
+
             # get string for the bucket from placeholder jsonl string or from prompt_template string
             cs = context_ph_to_context_s.get(self.prompt_template[pi:pj], self.prompt_template[pi:pj]).strip(' ')
             if len(cs) > 0:
                 prompt_strings.append(' ' + cs if has_leading_space else cs)
                 prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
-        
+
         has_leading_space = self.prompt_template[pj - 1] == ' ' if self.tokenizer_space_sensitive else False
         prompt_strings.append(' ' + label if has_leading_space else label)
         prompt_keys.append(self.label_key)
@@ -272,7 +274,7 @@ class GPTSFTDataset(Dataset):
             truncation_length_total = total_ids - self.max_seq_length
             num_fields = len(self.truncation_fields)
             # Sorted equal divide length to each field
-            # Examples: 
+            # Examples:
             #   truncation_length_total = 3
             #   num_fields = 11
             #   truncation_length_list = [3,4,4]
@@ -293,7 +295,7 @@ class GPTSFTDataset(Dataset):
                         ids_offset = 0
                     else:
                         raise ValueError(f'{self.truncation_method} is not supported')
-    
+
                     ids_length = len(ids) - truncation_length
                     context_ids[i] = ids[ids_offset : ids_offset + ids_length]
 
