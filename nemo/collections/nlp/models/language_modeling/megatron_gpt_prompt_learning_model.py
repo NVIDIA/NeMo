@@ -104,6 +104,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=save_restore_connector,
         )
 
+        # set hidden size in the model parallel config for pipeline parallel schedules
         setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
 
         # Need to overwrite some params in frozen model's config before restoring
@@ -149,7 +150,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         with open_dict(self.cfg):
             self.cfg.existing_tasks = (
                 self.existing_tasks + self.new_tasks
-            )  # TODO: for backward compatibility (@adithyare) in general these tasks lists should be depricated
+            )  # TODO: for backward compatibility (@adithyare) in general these tasks lists should be deprecated
 
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
         self.model_type = ModelType.encoder_or_decoder
