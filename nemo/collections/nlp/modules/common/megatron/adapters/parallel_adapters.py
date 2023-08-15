@@ -28,8 +28,8 @@ from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_const, init_method_normal
 from nemo.collections.nlp.modules.common.prompt_encoder import InferenceTable
-from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.core.classes.mixins import adapter_mixin_strategies
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
