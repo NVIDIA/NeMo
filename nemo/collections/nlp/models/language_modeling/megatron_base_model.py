@@ -101,6 +101,9 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
+        # set the megatron core model parallel config
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
+
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
@@ -550,6 +553,10 @@ class MegatronBaseModel(NLPModel):
             )
         return int(consumed_samples)
 
+    def _compute_consumed_samples_after_training_step(self):
+        # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
+
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
         try:
             init_consumed_samples = int(float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0]))
@@ -753,7 +760,7 @@ class MegatronBaseModel(NLPModel):
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
-            "grad_scale_func": self.trainer.precision_plugin.scaler.scale if precision in [16, '16'] else None,
+            "grad_scale_func": self.trainer.precision_plugin.scaler.scale if precision in [16, '16', '16-mixed'] else None,
             "enable_autocast": not megatron_amp_O2 and precision in [16, '16', 'bf16'],
             "autocast_dtype": autocast_dtype,
             "variable_seq_lengths": False,  # set dynamically during training
