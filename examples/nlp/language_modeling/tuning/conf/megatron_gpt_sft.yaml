@@ -102,6 +102,7 @@ model:
       truncation_field: "input" # Options: keys in context_key
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      truncation_augmentation: True # Do truncation with random offset instead of just truncate from end
 
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
@@ -117,7 +118,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      add_eos: ${model.data.train_ds.add_eos}
+      add_eos: False
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
@@ -126,7 +127,8 @@ model:
       truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in context_key
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-
+      truncation_augmentation: False # Do truncation from end
+      
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
@@ -146,7 +148,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      add_eos: ${model.data.train_ds.add_eos}
+      add_eos: False
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
@@ -155,7 +157,8 @@ model:
       truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in context_ke
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-
+      truncation_augmentation: False # Do truncation from end
+      
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
