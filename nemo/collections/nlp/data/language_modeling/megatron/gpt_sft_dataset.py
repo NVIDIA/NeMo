@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import List, Optional
 
+import random
 import numpy as np
 import torch
 
@@ -40,16 +41,16 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: str = "text",
         label_key: str = "answer",
-        query_key: Optional[str] = None,
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
-        truncation_field: str = "context",
+        truncation_field: str = "text",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         index_mapping_dir: str = None,
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
+        truncation_method: str = "right",
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -65,15 +66,17 @@ class GPTSFTDataset(Dataset):
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         label_key: Key to use for the label in your JSONL file
-        query_key: Key to use for the query in your JSON file if we separete query from the context. 
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
+        truncation_field: Field to use for truncation. (Options: key in context_key). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
+        truncation_method: Truncation from which position. Options: ['random', 'left', 'right']
         """
         self.tokenizer = tokenizer
+        # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
+        self.tokenizer_space_sensitive = tokenizer.text_to_tokens('Hello World') != tokenizer.text_to_tokens('Hello') + tokenizer.text_to_tokens('World')
         self.file_path = file_path
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -83,21 +86,27 @@ class GPTSFTDataset(Dataset):
         self.sep_id = sep_id
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.context_key = context_key
+        self.context_keys = context_key.split(',')
         self.label_key = label_key
-        self.query_key = query_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
-        self.truncation_field = truncation_field
+        self.truncation_fields = truncation_field.split(',')
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
+        self.truncation_method = truncation_method
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        assert self.truncation_field in ["answer", "context"]
+        
+        # Legacy checkpoint has self.truncation_fields = ['context'] and self.context_keys = ['input']
+        if len(self.truncation_fields) == 1 and len(self.context_keys) == 1 and self.context_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+            self.truncation_fields[0] = self.context_keys[0]
+        assert set(self.truncation_fields).issubset(
+            self.context_keys
+        ), f'truncation_field {self.truncation_fields} must in {self.context_keys}'
 
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[file_path],
@@ -151,71 +160,117 @@ class GPTSFTDataset(Dataset):
         example = self.indexed_dataset[idx]
         return self._process_example(example)
 
-    def _process_prompt(self, context: str, label: str, query: str):
+    def _process_prompt(self, contexts: List[str], label: str):
         """
-        Combine context, label, and query string into a unifed string.
+        Combine contexts and label into a list of strings and a list of keys based on template.
         """
+        prompt_strings = []
+        prompt_keys = []
+        
+        # split with template
         if self.prompt_template is not None:
-            context_string = f'{{{self.context_key}}}'
-            label_string = f'{{{self.label_key}}}'
-            assert context_string in self.prompt_template, f'{context_string} must in {self.prompt_template}'
-            assert label_string in self.prompt_template, f'{label_string} must in {self.prompt_template}'
-            assert self.prompt_template.index(label_string) == len(self.prompt_template) - len(
-                label_string
-            ), f'{{self.label_key}} must be at the end of prompt_template.'
-            original_context = context
-            context = self.prompt_template.replace(context_string, context).replace(label_string, '').strip(' ')
-            text = self.prompt_template.replace(context_string, original_context).replace(label_string, label)
-            if self.query_key is not None:
-                query_string = f'{{{self.query_key}}}'
-                assert query_string in self.prompt_template, f'{query_string} must in {self.prompt_template}'
-                context = context.replace(query_string, query)
-                text = text.replace(query_string, query)
+            # context placeholder
+            context_phs = [f'{{{ck}}}' for ck in self.context_keys]
+            for cph in context_phs:
+                assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
+            context_ph_to_context_s = {cph: cs for cph, cs in zip(context_phs, contexts)}
+            context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_keys)}
+            
+            # label placeholder
+            label_ph = f'{{{self.label_key}}}'
+            assert label_ph in self.prompt_template, f'{label_ph} must in {self.prompt_template}'
+            assert self.prompt_template.index(label_ph) == len(self.prompt_template) - len(
+                label_ph
+            ), f'{{{self.label_key}}} must be at the end of prompt_template.'
+            
+            # positions
+            context_positions = [p for cph in context_phs for p in (self.prompt_template.index(cph), self.prompt_template.index(cph) + len(cph))]
+            context_positions = [0] + context_positions + [self.prompt_template.index(label_ph)]
+            context_positions = sorted(context_positions)
+            
+            # iterate each position bucket
+            for i in range(len(context_positions) - 1):
+                pi = context_positions[i]
+                pj = context_positions[i+1]
+                # prev_s end space + curr_s start space
+                num_leading_spaces = 0 if i == 0 else int(self.prompt_template[pi-1] == ' ') + len(self.prompt_template[pi:pj]) - len(self.prompt_template[pi:pj].lstrip(' '))
+                cs = context_ph_to_context_s.get(self.prompt_template[pi:pj], self.prompt_template[pi:pj]).strip(' ')
+                if len(cs) > 0:
+                    prompt_strings.append(' ' * num_leading_spaces + cs if self.tokenizer_space_sensitive else cs)
+                    prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
+                
+            num_leading_spaces = int(self.prompt_template[pj-1] == ' ')
+            prompt_strings.append(' ' * num_leading_spaces + label if self.tokenizer_space_sensitive else label)
+            prompt_keys.append(self.label_key)
+            
+        # split with newline
         elif self.separate_prompt_and_response_with_newline:
-            if self.query_key is not None:
-                context = context + '\n' + query
-            text = context + '\n' + label
+            for ck, cs in zip(self.context_keys, contexts):
+                prompt_strings.append(cs)
+                prompt_strings.append('\n')
+                prompt_keys.append(ck)
+                prompt_keys.append('<newline>')
+            prompt_strings.append(label)
+            prompt_keys.append(self.label_key)
+            
+        # split with space
+        elif self.tokenizer_space_sensitive:
+            for ck, cs in zip(self.context_keys, contexts):
+                prompt_strings.append(' ' + cs if len(prompt_strings) != 0 else cs)
+                prompt_keys.append(ck)
+            prompt_strings.append(' ' + label)
+            prompt_keys.append(self.label_key)
         else:
-            if self.query_key is not None:
-                context = context + ' ' + query
-            text = context + ' ' + label
+            for ck, cs in zip(self.context_keys, contexts):
+                prompt_strings.append(cs)
+                prompt_keys.append(ck)
+            prompt_strings.append(label)
+            prompt_keys.append(self.label_key)
+        
+        return prompt_strings, prompt_keys
 
-        context_ids = self.tokenizer.text_to_ids(context)
-        answer_ids = self.tokenizer.text_to_ids(text[len(context):])
-
-        return context_ids, answer_ids
-
-    def _process_truncation(self, context: str, label: str, query: str):
+    def _process_truncation(self, prompt_ids: List[List[int]], prompt_keys: List[str]):
         """
-        Calculate total tokens and truncate context or label string.
+        Calculate total tokens and truncate multiple contexts
         """
-        origin_context, origin_label = context, label
-        context_ids, answer_ids = self._process_prompt(context, label, query)
+        context_ids =  prompt_ids[:-1]
+        label_ids = prompt_ids[-1]
         total_ids = (
             self.virtual_tokens
-            + len(context_ids)
-            + max(len(answer_ids), self.tokens_to_generate)
+            + sum(len(ids) for ids in context_ids)
+            + max(len(label_ids), self.tokens_to_generate)
             + self.add_bos
             + self.add_sep
+            + self.add_eos # Only training need to consider eos token
         )
-        # Only training need to consider eos token
-        if self.tokens_to_generate == 0:
-            total_ids += self.add_eos
 
         if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = self.tokenizer.text_to_tokens(origin_label)
-                assert len(answer_ids) >= truncation_length, 'answer is not long enough to truncate.'
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-                label = self.tokenizer.tokens_to_text(answer_ids)
-            elif self.truncation_field == "context":
-                context_ids = self.tokenizer.text_to_tokens(origin_context)
-                assert len(context_ids) >= truncation_length, 'context is not long enough to truncate.'
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-                context = self.tokenizer.tokens_to_text(context_ids)
+            truncation_length_total = total_ids - self.max_seq_length
+            field_length = len(self.truncation_fields)
+            # Sorted equal divide length to each field
+            truncation_length_list = [
+                truncation_length_total // field_length + (1 if i < truncation_length_total % field_length else 0)
+                for i in range(field_length)[::-1]
+            ]
 
-        return context, label
+            for i, (ids, key) in enumerate(zip(context_ids, prompt_keys[:-1])):
+                if key in self.truncation_fields:
+                    truncation_length = truncation_length_list.pop()
+                    assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
+                    if self.truncation_method == 'random':
+                        ids_offset = random.randint(0, truncation_length)
+                    elif self.truncation_method == 'left':
+                        ids_offset = truncation_length
+                    elif self.truncation_method == 'right':
+                        ids_offset = 0
+                    else:
+                        raise ValueError(f'{self.truncation_method} is not supported')
+                    
+                    ids_length = len(ids) - truncation_length
+                    context_ids[i] = ids[ids_offset:ids_offset+ids_length]
+
+        context_ids = [i for ids in context_ids for i in ids]
+        return context_ids, label_ids
 
     def _process_example(self, example: dict):
         """
@@ -223,12 +278,13 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        context = example[self.context_key]
+        contexts = [example[c].strip(' ') for c in self.context_keys]
         label = example[self.label_key]
-        query = example[self.query_key] if self.query_key is not None else ""
-
-        context, label = self._process_truncation(context, label, query)
-        context_ids, answer_ids = self._process_prompt(context, label, query)
+        
+        prompt_strings, prompt_keys = self._process_prompt(contexts, label)
+        prompt_ids = [self.tokenizer.text_to_ids(p) for p in prompt_strings]
+        context_ids, answer_ids = self._process_truncation(prompt_ids, prompt_keys)
+        
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
@@ -253,13 +309,13 @@ class GPTSFTDataset(Dataset):
         input_ids = input_ids + answer_ids
 
         # Only training need to consider eos token
-        if self.add_eos and self.tokens_to_generate == 0:
+        if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
         assert len(input_ids) <= self.max_seq_length
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
+        metadata = {k: v for k, v in example.items() if k not in self.context_keys + [self.label_key]}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,
