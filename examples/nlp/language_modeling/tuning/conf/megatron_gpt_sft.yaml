@@ -95,12 +95,12 @@ model:
       #   - 0.25
       #   - 0.25
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
-      context_key: 'input'
+      context_key: 'input' # Can be multiple keys separated with ','
       label_key: 'output'
       add_eos: True
       add_sep: False
       add_bos: False
-      truncation_field: "input" # Options: keys in context_key
+      truncation_field: "input" # # Can be multiple keys separated with ',' Options: keys in context_key
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       hf_dataset: False # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.

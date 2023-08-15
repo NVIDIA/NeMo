@@ -40,10 +40,10 @@ class GPTSFTDataset(Dataset):
         sep_id: int = None,
         max_num_samples: int = None,
         seed: int = 1234,
-        context_keys: str = "text",
+        context_key: str = "text",
         label_key: str = "answer",
         answer_only_loss: bool = True,
-        truncation_fields: str = "text",
+        truncation_field: str = "text",
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         index_mapping_dir: str = None,
         prompt_template: str = None,
@@ -65,10 +65,10 @@ class GPTSFTDataset(Dataset):
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         seed: int = 1234,
-        context_keys: Key to use for the context in your JSONL file
+        context_key: Keys to use for the context in your JSONL file. Can be multiple key separated with ','.
         label_key: Key to use for the label in your JSONL file
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_fields: Field to use for truncation. (Options: keys in context_keys). Field to be used for truncation if the combined length exceeds the max sequence length.
+        truncation_field: Field to use for truncation. (Options: keys in context_key). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
@@ -197,11 +197,11 @@ class GPTSFTDataset(Dataset):
         prompt_keys = []
 
         # context placeholder
-        context_phs = [f'{{{ck}}}' for ck in self.context_key]
+        context_phs = [f'{{{ck}}}' for ck in self.context_keys]
         for cph in context_phs:
             assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
         context_ph_to_context_s = {cph: cs for cph, cs in zip(context_phs, contexts)}
-        context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_key)}
+        context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_keys)}
 
         # label placeholder
         label_ph = f'{{{self.label_key}}}'
@@ -308,7 +308,7 @@ class GPTSFTDataset(Dataset):
         label = example[self.label_key]
 
         prompt_strings, prompt_keys = self._separate_template(contexts, label)
-        prompt_ids = [self.tokenizer.text_to_ids(p) for p in prompt_strings]
+        prompt_ids = [self.tokenizer.text_to_ids(s) for s in prompt_strings]
         context_ids, answer_ids = self._multiple_truncation(prompt_ids, prompt_keys)
 
         if self.virtual_tokens:
@@ -331,7 +331,7 @@ class GPTSFTDataset(Dataset):
             input_ids = input_ids + [self.sep_id]
             answer_start_idx += 1
 
-        input_ids = input_ids + label_ids
+        input_ids = input_ids + answer_ids
 
         # Only training need to consider eos token
         if self.add_eos:
@@ -342,7 +342,7 @@ class GPTSFTDataset(Dataset):
             input_ids = input_ids[: self.max_seq_length]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
+        metadata = {k: v for k, v in example.items() if k not in self.context_keys + [self.label_key]}
 
         processed_example = {
             'input_ids': input_ids,
