@@ -507,7 +507,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         if self.setup_complete:
             # Once setup is complete we only need adapter and perception model.
             return_state_dict = self.get_peft_state_dict()
-            state_dict = self.model.state_dict(prefix="model.perception.")
+            state_dict = self.perception.state_dict(prefix="perception.")
             return_state_dict.update(state_dict)
             return return_state_dict
         else:
