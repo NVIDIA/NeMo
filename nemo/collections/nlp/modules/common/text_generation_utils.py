@@ -855,6 +855,7 @@ def sample_sequence_batch(
             if done:
                 break
 
+
 def sample_sequence_batch_teacherforced(
     model,
     inference_strategy,
@@ -945,7 +946,7 @@ def sample_sequence_batch_teacherforced(
                     logits[within_min_length, eod_id] = -float('Inf')
 
                 # make sure it won't sample outside the vocab_size range
-                logits[:, 256000+1024 :] = -float('Inf')
+                logits[:, 256000 + 1024 :] = -float('Inf')
 
                 # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
 
@@ -955,7 +956,7 @@ def sample_sequence_batch_teacherforced(
                     prev = torch.argmax(logits, dim=-1).view(-1)
                     prev_speech = torch.argmax(speech_logits, dim=1)
                     for i in range(7):
-                        prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024*(i+1)
+                        prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024 * (i + 1)
                 else:
                     raise NotImplementedError("No support for 2D speech tokens :(")
                     logits = logits.float()
@@ -969,20 +970,24 @@ def sample_sequence_batch_teacherforced(
                     prev = torch.multinomial(probs, num_samples=1).view(-1)
 
                 # Clamp the predicted out of vocabulary tokens
-                prev = torch.clamp(prev, max=tokenizer.vocab_size -1 + 1024)
+                prev = torch.clamp(prev, max=tokenizer.vocab_size - 1 + 1024)
                 # new_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 new_0th_tokens = switch(tokens[:, 0, context_length].view(-1), prev, started)
                 is_speech = new_0th_tokens >= 256000
                 # is_speech = new_tokens >= 256000
-                speech_tokens = torch.zeros([batch_size, 7],device=tokens.device)
+                speech_tokens = torch.zeros([batch_size, 7], device=tokens.device)
                 for i in range(7):
-                    speech_tokens[:,i] = switch(tokens[:, i+1, context_length].view(-1), prev_speech[:,i], started) * is_speech.to(torch.float)
+                    speech_tokens[:, i] = switch(
+                        tokens[:, i + 1, context_length].view(-1), prev_speech[:, i], started
+                    ) * is_speech.to(torch.float)
 
                 # Replace sampled tokens w/ done token if EOD has already been sampled
                 # new_tokens = switch(new_tokens, eod_id, is_done)
                 new_0th_tokens = switch(new_0th_tokens, eod_id, is_done)
                 for i in range(7):
-                    speech_tokens[:,i] = switch(speech_tokens[:, i].view(-1),eod_id, is_done) * is_speech.to(torch.float)
+                    speech_tokens[:, i] = switch(speech_tokens[:, i].view(-1), eod_id, is_done) * is_speech.to(
+                        torch.float
+                    )
 
                 # post process the inference tokens based on the strategy
                 # inference_strategy.post_process(tokens, new_tokens, context_length)
@@ -991,7 +996,7 @@ def sample_sequence_batch_teacherforced(
                 # Insert either new predicted or next prompt token
                 tokens[:, 0, context_length] = new_0th_tokens
                 for i in range(7):
-                    tokens[:, i+1, context_length] = speech_tokens[:, i]
+                    tokens[:, i + 1, context_length] = speech_tokens[:, i]
 
                 if compute_logprob:
                     raise NotImplementedError("No support for 2D speech tokens :(")
