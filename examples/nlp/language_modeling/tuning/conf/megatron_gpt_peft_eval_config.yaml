@@ -7,7 +7,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 9999
   max_steps: 20000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10 # frequency with which training steps are logged 
@@ -60,6 +60,7 @@ model:
   # of each chunk at the specified granularity
   # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: null # not used with 'selective'
+  activations_checkpoint_layers_per_pipeline: null
   answer_only_loss: False # not used right now
   gradient_as_bucket_view: False
 
@@ -113,7 +114,7 @@ model:
       truncation_field: ${data.train_ds.truncation_field} # Options: keys in context_key
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${data.train_ds.prompt_template}
-      tokens_to_generate: ???
+      tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
       truncation_augmentation: False # Do truncation from end
 
       metric:
