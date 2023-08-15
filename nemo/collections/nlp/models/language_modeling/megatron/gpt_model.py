@@ -148,7 +148,6 @@ def post_language_model_processing(
                         ith_layer_logits = output[:, :, -(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None]
                         loss += vocab_parallel_cross_entropy(ith_layer_logits.float(), labels[i+1, :, :]) * speech_mask.T * 0.125
                     # import ipdb; ipdb.set_trace()
-                    # import ipdb; ipdb.set_trace()
                     # print(f"{i}: {loss}")
                     # logging.debug(f"token_loss_{i}: {tokens_loss}")
                     # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
