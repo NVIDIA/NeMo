@@ -42,6 +42,7 @@ def get_result(output: str, timeout: float):
             getcwd = os.getcwd
             unlink = os.unlink
             scandir = os.scandir
+            remove = os.remove
 
             # Disable functionalities that can make destructive changes to the test.
             reliability_guard(1024 * 1024 * 1024)  # 1gb memory limit
@@ -86,6 +87,7 @@ def get_result(output: str, timeout: float):
             os.getcwd = getcwd
             os.unlink = unlink
             os.scandir = scandir
+            os.remove = remove
             result.append(to_return)
 
     if USING_MULTIPROCESSING:
