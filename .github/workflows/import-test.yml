@@ -96,18 +96,22 @@ jobs:
         # Preserve wheel location
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
-    - name: Test NLP Domain Imports
+    - name: Install NeMo NLP
       run: |
-        # Install NeMo Domain
         pip install --no-build-isolation "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
+    - name: Install megatron core
+      run: |
         # Install git
         apt-get install -y git
+        cd /
         pip uninstall -y megatron-core
         git clone https://github.com/NVIDIA/Megatron-LM.git
         cd Megatron-LM
         git checkout 0609f27fe8376f17ab65c001d3d8f35cd8175950
         pip install --no-build-isolation .
-        cd ..
+        echo "PYTHONPATH=/Megatron-LM:$PYTHONPATH" >> $GITHUB_ENV
+    - name: Test NLP Domain Imports
+      run: |
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "nlp"
         # Uninstall NeMo
