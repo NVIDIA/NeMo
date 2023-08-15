@@ -300,7 +300,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 ),  # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
                 truncation_augmentation=data_cfg.get(
                     'truncation_augmentation', False
-                ), # used to enable random truncation 
+                ),  # used to enable random truncation
             )
             datasets.append(dataset)
 

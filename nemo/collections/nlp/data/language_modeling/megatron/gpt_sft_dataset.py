@@ -79,7 +79,9 @@ class GPTSFTDataset(Dataset):
         """
         self.tokenizer = tokenizer
         # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
-        self.tokenizer_space_sensitive = tokenizer.text_to_tokens('Hello World') != tokenizer.text_to_tokens('Hello') + tokenizer.text_to_tokens('World')
+        self.tokenizer_space_sensitive = tokenizer.text_to_tokens('Hello World') != tokenizer.text_to_tokens(
+            'Hello'
+        ) + tokenizer.text_to_tokens('World')
         self.file_path = file_path
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -104,7 +106,12 @@ class GPTSFTDataset(Dataset):
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
 
         # Previous models has self.truncation_fields = ['context'] and self.context_keys = ['input']
-        if len(self.truncation_fields) == 1 and len(self.context_keys) == 1 and self.context_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+        if (
+            len(self.truncation_fields) == 1
+            and len(self.context_keys) == 1
+            and self.context_keys[0] == 'input'
+            and self.truncation_fields[0] == 'context'
+        ):
             self.truncation_fields[0] = self.context_keys[0]
         assert set(self.truncation_fields).issubset(
             self.context_keys
@@ -176,7 +183,7 @@ class GPTSFTDataset(Dataset):
         """
         prompt_strings = []
         prompt_keys = []
-        
+
         # split with template
         if self.prompt_template is not None:
             # context placeholder
@@ -185,34 +192,44 @@ class GPTSFTDataset(Dataset):
                 assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
             context_ph_to_context_s = {cph: cs for cph, cs in zip(context_phs, contexts)}
             context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_key)}
-            
+
             # label placeholder
             label_ph = f'{{{self.label_key}}}'
             assert label_ph in self.prompt_template, f'{label_ph} must in {self.prompt_template}'
             assert self.prompt_template.index(label_ph) == len(self.prompt_template) - len(
                 label_ph
             ), f'{{{self.label_key}}} must be at the end of prompt_template.'
-            
+
             # positions
-            context_positions = [p for cph in context_phs for p in (self.prompt_template.index(cph), self.prompt_template.index(cph) + len(cph))]
+            context_positions = [
+                p
+                for cph in context_phs
+                for p in (self.prompt_template.index(cph), self.prompt_template.index(cph) + len(cph))
+            ]
             context_positions = [0] + context_positions + [self.prompt_template.index(label_ph)]
             context_positions = sorted(context_positions)
-            
+
             # iterate each position bucket
             for i in range(len(context_positions) - 1):
                 pi = context_positions[i]
-                pj = context_positions[i+1]
+                pj = context_positions[i + 1]
                 # prev_s end space + curr_s start space
-                leading_space = 0 if i == 0 else int(self.prompt_template[pi-1] == ' ') + len(self.prompt_template[pi:pj]) - len(self.prompt_template[pi:pj].lstrip(' '))
+                leading_space = (
+                    0
+                    if i == 0
+                    else int(self.prompt_template[pi - 1] == ' ')
+                    + len(self.prompt_template[pi:pj])
+                    - len(self.prompt_template[pi:pj].lstrip(' '))
+                )
                 cs = context_ph_to_context_s.get(self.prompt_template[pi:pj], self.prompt_template[pi:pj]).strip(' ')
                 if len(cs) > 0:
                     prompt_strings.append(' ' * leading_space + cs if self.tokenizer_space_sensitive else cs)
                     prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
-                
-            leading_space = int(self.prompt_template[pj-1] == ' ')
+
+            leading_space = int(self.prompt_template[pj - 1] == ' ')
             prompt_strings.append(' ' * leading_space + label if self.tokenizer_space_sensitive else label)
             prompt_keys.append(self.label_key)
-            
+
         # split with newline
         elif self.separate_prompt_and_response_with_newline:
             for ck, cs in zip(self.context_key, contexts):
@@ -222,7 +239,7 @@ class GPTSFTDataset(Dataset):
                 prompt_keys.append('<newline>')
             prompt_strings.append(label)
             prompt_keys.append(self.label_key)
-            
+
         # split with space
         elif self.tokenizer_space_sensitive:
             for ck, cs in zip(self.context_key, contexts):
@@ -236,14 +253,14 @@ class GPTSFTDataset(Dataset):
                 prompt_keys.append(ck)
             prompt_strings.append(label)
             prompt_keys.append(self.label_key)
-        
+
         return prompt_strings, prompt_keys
 
     def _process_truncation(self, prompt_ids: List[List[int]], prompt_keys: List[str]):
         """
         Calculate total tokens and truncate multiple contexts
         """
-        context_ids =  prompt_ids[:-1]
+        context_ids = prompt_ids[:-1]
         label_ids = prompt_ids[-1]
         total_ids = (
             self.virtual_tokens
@@ -251,7 +268,7 @@ class GPTSFTDataset(Dataset):
             + max(len(label_ids), self.tokens_to_generate)
             + self.add_bos
             + self.add_sep
-            + self.add_eos # Only training need to consider eos token
+            + self.add_eos  # Only training need to consider eos token
         )
 
         if total_ids > self.max_seq_length:
@@ -269,7 +286,7 @@ class GPTSFTDataset(Dataset):
                     assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
                     ids_offset = random.randint(0, truncation_length) if self.truncation_augmentation else 0
                     ids_length = len(ids) - truncation_length
-                    context_ids[i] = ids[ids_offset:ids_offset+ids_length]
+                    context_ids[i] = ids[ids_offset : ids_offset + ids_length]
 
         context_ids = [i for ids in context_ids for i in ids]
         return context_ids, label_ids
