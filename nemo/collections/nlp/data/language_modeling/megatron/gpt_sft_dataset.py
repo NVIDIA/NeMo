@@ -223,8 +223,8 @@ class GPTSFTDataset(Dataset):
         for i in range(len(context_positions) - 1):
             pi = context_positions[i]
             pj = context_positions[i + 1]
-            
-            # if tokenizer is space sensitive e.g. AutoTokenizer(pretrained_model_name='gpt2', 
+
+            # if tokenizer is space sensitive e.g. AutoTokenizer(pretrained_model_name='gpt2',
             # we should check leading space from last position of prev bucket or first position of curr bucket
             # and add one space back to the left of string after we do string.strip(' ')
             if i != 0 and getattr(self.tokenizer, 'space_sensitive', False):
@@ -238,7 +238,9 @@ class GPTSFTDataset(Dataset):
                 prompt_strings.append(' ' + cs if has_leading_space else cs)
                 prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
 
-        has_leading_space = self.prompt_template[pj - 1] == ' ' if getattr(self.tokenizer, 'space_sensitive', False) else False
+        has_leading_space = (
+            self.prompt_template[pj - 1] == ' ' if getattr(self.tokenizer, 'space_sensitive', False) else False
+        )
         prompt_strings.append(' ' + label if has_leading_space else label)
         prompt_keys.append(self.label_key)
 
