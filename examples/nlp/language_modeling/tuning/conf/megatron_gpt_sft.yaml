@@ -96,15 +96,15 @@ model:
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       context_key: 'input'
       label_key: 'output'
-      query_key: null # This key is used when context is too long, and we first want to truncate context and then append query to it.
       add_eos: True
       add_sep: False
       add_bos: False
       separate_prompt_and_response_with_newline: False
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: "input" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-
+      truncation_augmentation: True
+      
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
@@ -119,8 +119,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      query_key: ${model.data.train_ds.query_key}
-      add_eos: ${model.data.train_ds.add_eos}
+      add_eos: False
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
@@ -130,7 +129,8 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       tokens_to_generate: ??? # decide how many tokens we want to generate to evaluate performance with string metrics
-
+      truncation_augmentation: False
+      
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss', 'rouge', 'token_f1']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
@@ -150,8 +150,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      query_key: ${model.data.train_ds.query_key}
-      add_eos: ${model.data.train_ds.add_eos}
+      add_eos: False
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
@@ -160,7 +159,8 @@ model:
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-
+      truncation_augmentation: False
+      
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
