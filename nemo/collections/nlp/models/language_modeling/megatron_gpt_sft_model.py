@@ -274,8 +274,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 memmap_workers=data_cfg.get(
                     'memmap_workers', None
                 ),  # used to set num. of workers to create the memmap index files
-                truncation_augmentation=data_cfg.get(
-                    'truncation_augmentation', False
+                truncation_method=data_cfg.get(
+                    'truncation_method', 'right'
                 ), # used to enable random truncation 
             )
             datasets.append(dataset)

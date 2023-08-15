@@ -50,7 +50,7 @@ class GPTSFTDataset(Dataset):
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
-        truncation_augmentation: bool = False,
+        truncation_method: str = "right",
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -72,7 +72,7 @@ class GPTSFTDataset(Dataset):
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
-        truncation_augmentation: Do random truncation instead of only end truncation
+        truncation_method: Truncation from which position Option: ['random', 'left', 'right']
         """
         self.tokenizer = tokenizer
         # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
@@ -86,27 +86,27 @@ class GPTSFTDataset(Dataset):
         self.sep_id = sep_id
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.context_key = context_key.split(',')
+        self.context_keys = context_key.split(',')
         self.label_key = label_key
         self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
         self.answer_only_loss = answer_only_loss
-        self.truncation_field = truncation_field.split(',')
+        self.truncation_fields = truncation_field.split(',')
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
-        self.truncation_augmentation = truncation_augmentation
+        self.truncation_method = truncation_method
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         
-        # Previous models has self.truncation_field = ['context'] and self.context_key = ['input']
-        if len(self.truncation_field) == 1 and len(self.context_key) == 1 and self.context_key[0] == 'input' and self.truncation_field[0] == 'context':
-            self.truncation_field[0] = self.context_key[0]
-        assert set(self.truncation_field).issubset(
-            self.context_key
-        ), f'truncation_field {self.truncation_field} must in {self.context_key}'
+        # Legacy checkpoint has self.truncation_fields = ['context'] and self.context_keys = ['input']
+        if len(self.truncation_fields) == 1 and len(self.context_keys) == 1 and self.context_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+            self.truncation_fields[0] = self.context_keys[0]
+        assert set(self.truncation_fields).issubset(
+            self.context_keys
+        ), f'truncation_field {self.truncation_fields} must in {self.context_keys}'
 
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[file_path],
@@ -170,11 +170,11 @@ class GPTSFTDataset(Dataset):
         # split with template
         if self.prompt_template is not None:
             # context placeholder
-            context_phs = [f'{{{ck}}}' for ck in self.context_key]
+            context_phs = [f'{{{ck}}}' for ck in self.context_keys]
             for cph in context_phs:
                 assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
             context_ph_to_context_s = {cph: cs for cph, cs in zip(context_phs, contexts)}
-            context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_key)}
+            context_ph_to_context_k = {cph: ck for cph, ck in zip(context_phs, self.context_keys)}
             
             # label placeholder
             label_ph = f'{{{self.label_key}}}'
@@ -193,19 +193,19 @@ class GPTSFTDataset(Dataset):
                 pi = context_positions[i]
                 pj = context_positions[i+1]
                 # prev_s end space + curr_s start space
-                leading_space = 0 if i == 0 else int(self.prompt_template[pi-1] == ' ') + len(self.prompt_template[pi:pj]) - len(self.prompt_template[pi:pj].lstrip(' '))
+                num_leading_spaces = 0 if i == 0 else int(self.prompt_template[pi-1] == ' ') + len(self.prompt_template[pi:pj]) - len(self.prompt_template[pi:pj].lstrip(' '))
                 cs = context_ph_to_context_s.get(self.prompt_template[pi:pj], self.prompt_template[pi:pj]).strip(' ')
                 if len(cs) > 0:
-                    prompt_strings.append(' ' * leading_space + cs if self.tokenizer_space_sensitive else cs)
+                    prompt_strings.append(' ' * num_leading_spaces + cs if self.tokenizer_space_sensitive else cs)
                     prompt_keys.append(context_ph_to_context_k.get(self.prompt_template[pi:pj], '<template>'))
                 
-            leading_space = int(self.prompt_template[pj-1] == ' ')
-            prompt_strings.append(' ' * leading_space + label if self.tokenizer_space_sensitive else label)
+            num_leading_spaces = int(self.prompt_template[pj-1] == ' ')
+            prompt_strings.append(' ' * num_leading_spaces + label if self.tokenizer_space_sensitive else label)
             prompt_keys.append(self.label_key)
             
         # split with newline
         elif self.separate_prompt_and_response_with_newline:
-            for ck, cs in zip(self.context_key, contexts):
+            for ck, cs in zip(self.context_keys, contexts):
                 prompt_strings.append(cs)
                 prompt_strings.append('\n')
                 prompt_keys.append(ck)
@@ -215,13 +215,13 @@ class GPTSFTDataset(Dataset):
             
         # split with space
         elif self.tokenizer_space_sensitive:
-            for ck, cs in zip(self.context_key, contexts):
+            for ck, cs in zip(self.context_keys, contexts):
                 prompt_strings.append(' ' + cs if len(prompt_strings) != 0 else cs)
                 prompt_keys.append(ck)
             prompt_strings.append(' ' + label)
             prompt_keys.append(self.label_key)
         else:
-            for ck, cs in zip(self.context_key, contexts):
+            for ck, cs in zip(self.context_keys, contexts):
                 prompt_strings.append(cs)
                 prompt_keys.append(ck)
             prompt_strings.append(label)
@@ -246,7 +246,7 @@ class GPTSFTDataset(Dataset):
 
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
-            field_length = len(self.truncation_field)
+            field_length = len(self.truncation_fields)
             # Sorted equal divide length to each field
             truncation_length_list = [
                 truncation_length_total // field_length + (1 if i < truncation_length_total % field_length else 0)
@@ -254,10 +254,18 @@ class GPTSFTDataset(Dataset):
             ]
 
             for i, (ids, key) in enumerate(zip(context_ids, prompt_keys[:-1])):
-                if key in self.truncation_field:
+                if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
                     assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
-                    ids_offset = random.randint(0, truncation_length) if self.truncation_augmentation else 0
+                    if self.truncation_method == 'random':
+                        ids_offset = random.randint(0, truncation_length)
+                    elif self.truncation_method == 'left':
+                        ids_offset = truncation_length
+                    elif self.truncation_method == 'right':
+                        ids_offset = 0
+                    else:
+                        raise ValueError(f'{self.truncation_method} is not supported')
+                    
                     ids_length = len(ids) - truncation_length
                     context_ids[i] = ids[ids_offset:ids_offset+ids_length]
 
@@ -270,7 +278,7 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        contexts = [example[c].strip(' ') for c in self.context_key]
+        contexts = [example[c].strip(' ') for c in self.context_keys]
         label = example[self.label_key]
         
         prompt_strings, prompt_keys = self._process_prompt(contexts, label)
@@ -307,7 +315,7 @@ class GPTSFTDataset(Dataset):
         assert len(input_ids) <= self.max_seq_length
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in [self.context_key, self.label_key]}
+        metadata = {k: v for k, v in example.items() if k not in [self.context_keys, self.label_key]}
         processed_example = {
             'input_ids': input_ids,
             'answer_start_idx': answer_start_idx,

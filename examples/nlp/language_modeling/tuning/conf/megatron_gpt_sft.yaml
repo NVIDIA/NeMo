@@ -100,10 +100,10 @@ model:
       add_sep: False
       add_bos: False
       separate_prompt_and_response_with_newline: False
-      truncation_field: "input" # Options: ['context', 'answer']
+      truncation_field: 'input' # Options: keys in context_key
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      truncation_augmentation: True
+      truncation_method: 'random' # Truncation from which position, Options: ['random', 'left', 'right'] 
       
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
@@ -125,11 +125,11 @@ model:
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: ${model.data.train_ds.truncation_field}
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       tokens_to_generate: ??? # decide how many tokens we want to generate to evaluate performance with string metrics
-      truncation_augmentation: False
+      truncation_method: 'right' # Truncation from which position, Options: ['random', 'left', 'right'] 
       
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss', 'rouge', 'token_f1']
@@ -156,10 +156,10 @@ model:
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: "context" # Options: ['context', 'answer']
+      truncation_field: ${model.data.train_ds.truncation_field}
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      truncation_augmentation: False
+      truncation_method: 'right' # Truncation from which position, Options: ['random', 'left', 'right'] 
       
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
