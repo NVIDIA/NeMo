@@ -106,24 +106,36 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         )
 
             metric_name = data_cfg.metric.name
-            metric = MetricStringToTorchMetric[metric_name]
+            metric_class = MetricStringToTorchMetric[metric_name]
+
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
             if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
-                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
-                    # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
+                if (
+                    hasattr(data_cfg, "src_file_name")
+                    and isinstance(data_cfg.src_file_name, ListConfig)
+                    and metric_name != 'rouge'
+                ):
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
                         for _ in range(len(data_cfg.src_file_name))
                     ]
-                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                elif (
+                    hasattr(data_cfg, "file_names")
+                    and isinstance(data_cfg.file_names, ListConfig)
+                    and metric_name != 'rouge'
+                ):
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
                         for _ in range(len(data_cfg.file_names))
                     ]
+                elif hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
+                    metric = [metric_class() for _ in range(len(data_cfg.src_file_name))]
+                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                    metric = [metric_class() for _ in range(len(data_cfg.file_names))]
                 else:
-                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                    metric = [metric_class(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
             else:
-                metric = [metric()]  # GLUE does need to specify average or num_classes.
+                metric = [metric_class()]  # GLUE does need to specify average or num_classes.
 
         return metric, metric_name
 
@@ -221,7 +233,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             else:
                 pred = class_labels.index(pred)
             if label not in class_labels:
-                raise ValueError(f"Ground truth labe; {label} is not in the class labels list : {class_labels}")
+                raise ValueError(f"Ground truth label {label} is not in the class labels list : {class_labels}")
             label = class_labels.index(label)
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
@@ -264,46 +276,26 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        # Get seq length of batch
         batch = next(dataloader_iter)
         if isinstance(batch, dict):
             # convert to list if not already converted.
             batch = self._process_batch(batch)
 
-        _, seq_length = batch[0].shape
-        _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+        # Get seq length of batch
+        encoder_seq_length = batch[0].size(1)
+        decoder_seq_length = batch[1].size(1)
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
+        return self._execute_fwd_bwd_function(
             data_iterator=data_iter,
-            model=[self.enc_dec_model],
-            num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             tensor_shape=tensor_shape,
-            decoder_seq_length=dec_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
+            decoder_seq_length=decoder_seq_length,
         )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor(0.0).cuda()
-
-        return loss_mean
 
     def inference_step(self, dataloader_iter, batch_idx: int, mode: str, dataloader_idx=0):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of the iterator
@@ -354,12 +346,16 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     _ = metric(pred, label)
 
             outputs = {
-                'loss': loss,
                 'preds': preds_text,
                 'labels': labels_text,
                 'categories': categories,
                 'inputs': input_text,
             }
+
+            if isinstance(loss, dict):
+                outputs.update(loss)
+            else:
+                outputs['loss'] = loss
             if mode == 'validation':
                 if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
                     self.validation_step_outputs[dataloader_idx].append(outputs)
