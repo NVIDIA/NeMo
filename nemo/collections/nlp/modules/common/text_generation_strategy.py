@@ -336,11 +336,18 @@ class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
 
     def tokenize_batch(self, sentences, max_len, add_BOS):
         context_tokens_tensor, context_length_tensor = super().tokenize_batch(sentences, max_len, add_BOS)
+
         def pad_text_to_speech_dims(text_tensor, pad_id):
             token_len = text_tensor.shape[1]
-            empty_padding = torch.ones((text_tensor.shape[0], 7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+            empty_padding = (
+                torch.ones((text_tensor.shape[0], 7, token_len), dtype=text_tensor.dtype, device=text_tensor.device)
+                * pad_id
+            )
             return torch.cat((text_tensor.unsqueeze(1), empty_padding), dim=1)
-        context_tokens_tensor = pad_text_to_speech_dims(context_tokens_tensor, 0 if not self.model.tokenizer.pad_id else self.model.tokenizer.pad_id)
+
+        context_tokens_tensor = pad_text_to_speech_dims(
+            context_tokens_tensor, 0 if not self.model.tokenizer.pad_id else self.model.tokenizer.pad_id
+        )
         return context_tokens_tensor, context_length_tensor
 
     def prepare_batch_at_step(

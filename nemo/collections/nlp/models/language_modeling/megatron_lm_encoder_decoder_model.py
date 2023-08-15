@@ -1071,7 +1071,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Setting up the sampling strategy
         sample_token_fn, sampling_kwargs = get_sampling_token_fn(sampling_method, sampling_kwargs)
         logging.info(f'Decoding using the {sampling_method} method...')
-        
+
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if not parallel_state.model_parallel_is_initialized():
 
@@ -1118,7 +1118,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         bos_id = tokenizer.bos_id if bos_id is None else bos_id
         # initial prompt can be given
         if predicted_tokens_dec is None:
-            predicted_tokens_dec = torch.LongTensor( [[bos_id for _ in range(8) ]] * global_batch_per_gpu).unsqueeze(1).to(device)
+            predicted_tokens_dec = (
+                torch.LongTensor([[bos_id for _ in range(8)]] * global_batch_per_gpu).unsqueeze(1).to(device)
+            )
         # collect log probs that were used in the sampling
         predicted_log_probs = torch.zeros((global_batch_per_gpu, 0), dtype=self.autocast_dtype).to(device)
 
@@ -1169,13 +1171,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     log_probs, token_ids = sample_token_fn(logits=output_tensor[:, -1, :, channel])
                     all_channel_log_probs.append(log_probs)
                     all_channel_token_ids.append(token_ids)
-                
-                all_channel_log_probs = torch.stack(all_channel_log_probs, dim=-1) # (batch_size, vocab_size, 8)
-                all_channel_token_ids = torch.stack(all_channel_token_ids, dim=-1) # (batch_size, 8)
+
+                all_channel_log_probs = torch.stack(all_channel_log_probs, dim=-1)  # (batch_size, vocab_size, 8)
+                all_channel_token_ids = torch.stack(all_channel_token_ids, dim=-1)  # (batch_size, 8)
 
                 predicted_tokens_dec = torch.cat(
-                        [predicted_tokens_dec.to(token_ids.device), all_channel_token_ids.unsqueeze(1)], dim=1
-                    )
+                    [predicted_tokens_dec.to(token_ids.device), all_channel_token_ids.unsqueeze(1)], dim=1
+                )
                 predicted_log_probs = torch.cat(
                     [predicted_log_probs.to(log_probs.device), all_channel_log_probs.unsqueeze(1)], dim=1
                 )
@@ -1213,7 +1215,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return predicted_tokens_dec, predicted_log_probs
 
-    
     def decode(
         self,
         tokens_enc,

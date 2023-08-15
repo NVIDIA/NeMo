@@ -26,7 +26,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory, IndexedCachedDataset, MMapIndexedDataset, IndexedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import (
+    IndexedCachedDataset,
+    IndexedDataset,
+    MMapIndexedDataset,
+    deallocate_indexed_dataset_memory,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -409,11 +414,17 @@ class GPTDataset(Dataset):
             sample = np.array(sample, dtype=np.int64)
             if is_speech:
                 sample = np.pad(
-                    sample, ((0,0),(0, self.seq_length + self.add_extra_token - sample_len)), mode='constant', constant_values=-1
+                    sample,
+                    ((0, 0), (0, self.seq_length + self.add_extra_token - sample_len)),
+                    mode='constant',
+                    constant_values=-1,
                 )
             else:
                 sample = np.pad(
-                    sample, (0, self.seq_length + self.add_extra_token - sample_len), mode='constant', constant_values=-1
+                    sample,
+                    (0, self.seq_length + self.add_extra_token - sample_len),
+                    mode='constant',
+                    constant_values=-1,
                 )
         return sample.astype(np.int64)
 
@@ -427,10 +438,10 @@ class GPTDataset(Dataset):
                 # text on the 1st - 7th layers should be between [vocab_size+offset, vocab_size+offset+1024)
                 #  where the offset is 1024 * layer_i
                 text[0] += self.vocab_size
-                labels = text[:,1:].clone().contiguous()
+                labels = text[:, 1:].clone().contiguous()
                 for l in range(1, text.shape[0]):
-                    text[l] += self.vocab_size + 1024*l
-                tokens = text[:,:-1].contiguous()
+                    text[l] += self.vocab_size + 1024 * l
+                tokens = text[:, :-1].contiguous()
             else:
                 tokens = text[:-1].contiguous()
                 labels = text[1:].contiguous()
@@ -686,7 +697,7 @@ def _build_index_mappings(
             # First compile and then import.
             assert doc_idx.dtype == np.int32
             if sizes.dtype != np.int32:
-                if np.max(np.abs(sizes)) < 2**31-1:
+                if np.max(np.abs(sizes)) < 2 ** 31 - 1:
                     sizes = sizes.astype(np.int32)
                 else:
                     raise NotImplementedError("Sizes needs to be int32?")

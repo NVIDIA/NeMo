@@ -1282,10 +1282,9 @@ def main():
                     tmp_cfg.masked_softmax_fusion = False
                 # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
                 tmp_cfg.precision = trainer.precision
-                tmp_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens
+                tmp_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056  # cfg.num_speech_tokens
                 tmp_cfg.seq_length = 2048
                 tmp_cfg.max_position_embeddings = 2048
-
 
         model = cls.restore_from(
             restore_path=model_filepath,

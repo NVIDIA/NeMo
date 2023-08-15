@@ -249,9 +249,9 @@ class IndexedDataset(torch.utils.data.Dataset):
         item = self[idx.item()]
 
         if length is None:
-            return item[:,offset:]
+            return item[:, offset:]
         else:
-            return item[:,offset:offset+length]
+            return item[:, offset : offset + length]
 
     def __len__(self):
         return self._len
