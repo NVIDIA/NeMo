@@ -120,7 +120,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      add_eos: False
+      add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       write_predictions_to_file: False
@@ -151,7 +151,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      add_eos: False
+      add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       write_predictions_to_file: False
