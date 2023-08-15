@@ -1419,6 +1419,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         gated_linear_unit = activation.endswith('glu')
         activation_func = activation_to_func(activation)
 
+        normalization = self.cfg.get('normalization', 'layernorm')
+        if normalization == 'layernorm':
+            normalization = 'LayerNorm'
+        elif normalization == 'rmsnorm':
+            normalization = 'RMSNorm'
+        else:
+            logging.warning(
+                f"The normalization type: {normalization} might not be supported in megatron core."
+                f"Supported types are LayerNorm and RMSNorm."
+            )
+
         init_method_std = self.cfg.get('init_method_std', 0.02)
         # default used in mcore
         init_method = init_method_normal(init_method_std)
@@ -1451,6 +1462,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'add_bias_linear': add_bias_linear,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
+            'normalization': normalization,
             'init_method': init_method,
             'output_layer_init_method': output_layer_init_method,
             'attention_softmax_in_fp32': attention_softmax_in_fp32,
@@ -1464,15 +1476,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # populate the transformer config dict
         for field in fields(TransformerConfig):
-            # model config has priority
-            if field.name in cfg:
+            # config mapping has priority
+            if field.name in config_mapping:
+                transformer_config_dict[field.name] = config_mapping[field.name]
+            # then config
+            elif field.name in cfg:
                 transformer_config_dict[field.name] = cfg[field.name]
             # then model parallel config
             elif field in fields(model_parallel_config):
                 transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
-            # then config mapping
-            elif field.name in config_mapping:
-                transformer_config_dict[field.name] = config_mapping[field.name]
             else:
                 logging.warning(
                     f"The model: {self} does not have field.name: {field.name} in its cfg. "
