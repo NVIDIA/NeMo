@@ -103,7 +103,7 @@ def register_hidden_transform(cls_name: str, class_path: str):
     logging.info(f"Registered hidden transform {cls_name} at {class_path}")
 
 
-def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig=None):
+def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None):
     """Build a MegatronHiddensModule from a configuration cfg"""
     # Build a hiddens module if config is provided.
     if cfg is None:

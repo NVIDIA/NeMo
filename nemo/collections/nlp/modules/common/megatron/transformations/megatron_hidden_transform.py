@@ -38,7 +38,7 @@ __all__ = ["MegatronBaseHiddenTransform", "MegatronGaussianHiddenTransform"]
 class MegatronBaseHiddenTransform(torch.nn.Module):
     """Base class to apply hidden state transformations"""
 
-    def __init__(self, name:str ="", model_parallel_cfg: ModelParallelConfig = None):
+    def __init__(self, name: str = "", model_parallel_cfg: ModelParallelConfig = None):
         super().__init__()
 
         self.name = name
@@ -92,8 +92,15 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
     Constructes a diagonal Gaussian distribution from the hidden states and samples from it using reparametrization.
     """
 
-    def __init__(self, hidden_size, ffn_hidden_size=None, min_logvar=-6, init_method_std=0.02, name="cond_gaussian",
-                 model_parallel_cfg: ModelParallelConfig = None):
+    def __init__(
+        self,
+        hidden_size,
+        ffn_hidden_size=None,
+        min_logvar=-6,
+        init_method_std=0.02,
+        name="cond_gaussian",
+        model_parallel_cfg: ModelParallelConfig = None,
+    ):
         super().__init__(name=name, model_parallel_cfg=model_parallel_cfg)
         # limit smaller allowed variance (for numerical stability)
         self.min_logvar = min_logvar
@@ -104,14 +111,14 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
 
         # project hiddens to mean and log variance (support tensor parallelism)
         self.hiddens_to_mean_logvar = tensor_parallel.ColumnParallelLinear(
-                hidden_size,
-                ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
-                gather_output=True, 
-                init_method=init_method_normal(init_method_std),
-                skip_bias_add=False,
-                bias=True,
-                config=self.model_parallel_cfg,
-            )
+            hidden_size,
+            ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
+            gather_output=True,
+            init_method=init_method_normal(init_method_std),
+            skip_bias_add=False,
+            bias=True,
+            config=self.model_parallel_cfg,
+        )
 
     @property
     def input_names(self):
