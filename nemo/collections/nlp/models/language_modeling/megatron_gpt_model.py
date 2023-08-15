@@ -1323,10 +1323,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Reset model parameters.
         for module in self.get_gpt_module_list():
             if self.cfg.get('mcore_gpt', False):
-                module.decoder.activations_checkpoint_granularity = None
-                module.decoder.activations_checkpoint_method = None
-                module.decoder.activations_checkpoint_num_layers = None
-                module.decoder.activations_checkpoint_layers_per_pipeline = None
+                module.decoder.config.recompute_granularity = None
+                module.decoder.config.recompute_method = None
+                module.decoder.config.recompute_num_layers = None
             else:
                 module.language_model.encoder.activations_checkpoint_granularity = None
                 module.language_model.encoder.activations_checkpoint_method = None
@@ -1347,15 +1346,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Restore model parameters.
         for module in self.get_gpt_module_list():
             if self.cfg.get('mcore_gpt', False):
-                module.decoder.activations_checkpoint_granularity = (
+                module.decoder.config.recompute_granularity = (
                     self.last_activations_checkpoint_granularity
                 )
-                module.decoder.activations_checkpoint_method = self.last_activations_checkpoint_method
-                module.decoder.activations_checkpoint_num_layers = (
+                module.decoder.config.recompute_method = self.last_activations_checkpoint_method
+                module.decoder.config.recompute_num_layers = (
                     self.last_activations_checkpoint_num_layers
-                )
-                module.decoder.activations_checkpoint_layers_per_pipeline = (
-                    self.last_activations_checkpoint_layers_per_pipeline
                 )
             else:
                 module.language_model.encoder.activations_checkpoint_granularity = (
