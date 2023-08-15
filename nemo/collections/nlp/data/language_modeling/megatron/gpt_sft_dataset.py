@@ -68,11 +68,11 @@ class GPTSFTDataset(Dataset):
         label_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
+        truncation_field: Field to use for truncation. (Options: key in context_key). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
-        truncation_augmentation: Do random truncation instead of only truncate from the end
+        truncation_augmentation: Do random truncation instead of only end truncation
         """
         self.tokenizer = tokenizer
         # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
