@@ -511,7 +511,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+        return self.predict_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
         self.validation_epoch_end(outputs)
@@ -571,6 +571,54 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return dataset, dataloader
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+        with torch.no_grad():
+            virtual_tokens, context_and_question_tokens, enc_mask, dec_input_raw, dec_input_mask_raw, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
+            dec_input = dec_input_raw * 1
+            dec_input_mask = dec_input_mask_raw * 1
+            dec_input_mask[:,:] = 1 # Does not really matter
+            
+            output_token_list = []
+            for t in range(labels.shape[2]-1):
+                print("Batch:{} Timestep:{}".format(batch_idx, t))
+                dec_input[:, :, t+1:] = self.tokenizer.pad_id # Not necessary, but just to be safe
+                output_tensor, enc_output, debug_tensors = self.forward(
+                    virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=None, speech_mask=speech_mask, inference=True,
+                )
+                output_tokens = output_tensor.argmax(dim=2) # (B,T,8)
+                output_tokens_curr_timestep = output_tokens[:, t]
+                output_token_list.append(output_tokens_curr_timestep)
+                output_tokens_curr_timestep_dec_compatible = output_tokens_curr_timestep * 1
+                print("output_tokens_curr_timestep_dec_compatible", output_tokens_curr_timestep_dec_compatible.shape, output_tokens_curr_timestep_dec_compatible.min(), output_tokens_curr_timestep_dec_compatible.max())
+                for _c in range(8):
+                    output_tokens_curr_timestep_dec_compatible[:,_c] = output_tokens_curr_timestep_dec_compatible[:,_c] + 30000 + (_c * 1024)
+                dec_input[:, :, t+1] = output_tokens_curr_timestep_dec_compatible * 1
+            
+            output_tokens_combined = torch.stack(output_token_list) #`` (T, B, 8)
+            output_tokens_combined = output_tokens_combined.permute(1, 2, 0) # (B, 8, T)
+            
+            batch_size = output_tokens_combined.shape[0]
+            for i in range(batch_size):
+                audio_len = (labels[i][0] != 0).sum().item()
+                step = batch_idx*batch_size+i
+                dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i,:,0:audio_len])
+                dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0,0]
+                self.logger.experiment.add_audio("Inf Dec Input Wav", dec_input_wav, step, 24000)
+                predicted_tokens = output_tokens_combined[i]
+                predicted_tokens = predicted_tokens[:,0:audio_len]
+                predicted_wav = self.additional_models['encodec'].decode([[predicted_tokens[None], None]])[0,0]
+                self.logger.experiment.add_audio("Inf Pred Wav", predicted_wav, step, 24000)
+            
+            return {
+                'loss' : torch.tensor(0.0).to(self.device)
+            }
+        
+
+
+
+            
+        
+
+    def predict_step_old(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
