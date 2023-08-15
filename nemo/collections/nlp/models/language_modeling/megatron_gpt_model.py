@@ -1322,11 +1322,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Reset model parameters.
         for module in self.get_gpt_module_list():
-            # TODO: @eharper how to update this for mcore
-            module.language_model.encoder.activations_checkpoint_granularity = None
-            module.language_model.encoder.activations_checkpoint_method = None
-            module.language_model.encoder.activations_checkpoint_num_layers = None
-            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
+            if self.cfg.get('mcore_gpt', False):
+                module.decoder.activations_checkpoint_granularity = None
+                module.decoder.activations_checkpoint_method = None
+                module.decoder.activations_checkpoint_num_layers = None
+                module.decoder.activations_checkpoint_layers_per_pipeline = None
+            else:
+                module.language_model.encoder.activations_checkpoint_granularity = None
+                module.language_model.encoder.activations_checkpoint_method = None
+                module.language_model.encoder.activations_checkpoint_num_layers = None
+                module.language_model.encoder.activations_checkpoint_layers_per_pipeline = None
 
     def _restore_activation_checkpointing_args(self):
         """ Restores the activation checkpointing parameters using the values saved by
@@ -1334,7 +1339,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             _reset_activation_checkpointing_args.
         """
         # Restore config values.
-        # TODO: @eharper how to update this for mcore
         self.cfg.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
         self.cfg.activations_checkpoint_method = self.last_activations_checkpoint_method
         self.cfg.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
@@ -1342,16 +1346,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Restore model parameters.
         for module in self.get_gpt_module_list():
-            module.language_model.encoder.activations_checkpoint_granularity = (
-                self.last_activations_checkpoint_granularity
-            )
-            module.language_model.encoder.activations_checkpoint_method = self.last_activations_checkpoint_method
-            module.language_model.encoder.activations_checkpoint_num_layers = (
-                self.last_activations_checkpoint_num_layers
-            )
-            module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
-                self.last_activations_checkpoint_layers_per_pipeline
-            )
+            if self.cfg.get('mcore_gpt', False):
+                module.decoder.activations_checkpoint_granularity = (
+                    self.last_activations_checkpoint_granularity
+                )
+                module.decoder.activations_checkpoint_method = self.last_activations_checkpoint_method
+                module.decoder.activations_checkpoint_num_layers = (
+                    self.last_activations_checkpoint_num_layers
+                )
+                module.decoder.activations_checkpoint_layers_per_pipeline = (
+                    self.last_activations_checkpoint_layers_per_pipeline
+                )
+            else:
+                module.language_model.encoder.activations_checkpoint_granularity = (
+                    self.last_activations_checkpoint_granularity
+                )
+                module.language_model.encoder.activations_checkpoint_method = self.last_activations_checkpoint_method
+                module.language_model.encoder.activations_checkpoint_num_layers = (
+                    self.last_activations_checkpoint_num_layers
+                )
+                module.language_model.encoder.activations_checkpoint_layers_per_pipeline = (
+                    self.last_activations_checkpoint_layers_per_pipeline
+                )
 
     def _reset_sequence_parallelism_args(self):
         """ Disables sequence parallelism completely and saves the values so that
