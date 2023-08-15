@@ -90,6 +90,14 @@ jobs:
         pip install Cython
         # install test requirements
         pip install -r requirements/requirements_test.txt
+        # Install git
+        apt-get install -y git
+        pip uninstall -y megatron-core
+        git clone https://github.com/NVIDIA/Megatron-LM.git
+        cd Megatron-LM
+        git checkout 0609f27fe8376f17ab65c001d3d8f35cd8175950
+        pip install .
+        cd ..
         # Build nemo as a wheel
         pip install build
         python -m build --no-isolation --wheel
@@ -100,14 +108,6 @@ jobs:
       run: |
         # Install NeMo Domain
         pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
-        # Install git
-        apt-get install -y git
-        pip uninstall -y megatron-core
-        git clone https://github.com/NVIDIA/Megatron-LM.git
-        cd Megatron-LM
-        git checkout 0609f27fe8376f17ab65c001d3d8f35cd8175950
-        pip install -e .
-        cd ..
         # Run import checks
         python tests/core_ptl/check_imports.py --domain "nlp"
         # Uninstall NeMo
