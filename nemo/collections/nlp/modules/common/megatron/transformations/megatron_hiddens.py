@@ -34,6 +34,15 @@ from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidde
 from nemo.utils import logging
 from nemo.utils.model_utils import import_class_by_path
 
+try:
+    from megatron.core import ModelParallelConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 __all__ = ["MegatronHiddensModule"]
 
 # a registry of all hidden transforms (maps name to class path)
@@ -94,7 +103,7 @@ def register_hidden_transform(cls_name: str, class_path: str):
     logging.info(f"Registered hidden transform {cls_name} at {class_path}")
 
 
-def get_hiddens_module(cfg=None):
+def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig=None):
     """Build a MegatronHiddensModule from a configuration cfg"""
     # Build a hiddens module if config is provided.
     if cfg is None:
@@ -111,6 +120,7 @@ def get_hiddens_module(cfg=None):
     for cur_list_cfg in transform_cfg:
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
+            cls_kwargs["model_parallel_cfg"] = model_parallel_cfg
             if not "cls_name" in cls_kwargs:
                 raise KeyError(f"Missing 'cls_name' in hidden transform {name}")
 
