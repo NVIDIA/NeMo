@@ -183,8 +183,6 @@ def main(cfg) -> None:
         trainer.ckpt_path = cfg.model.resume_from_checkpoint
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
-    trainer._checkpoint_connector = _CheckpointConnector(trainer)
-
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
@@ -206,6 +204,8 @@ def main(cfg) -> None:
         model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
     if 'inference' in cfg:
+        if not cfg.model.use_flash_attention:
+            cfg.inference.compute_attention_mask = True
         config = OmegaConf.to_container(cfg.inference, resolve=True)
         model.set_inference_config(config)
 
