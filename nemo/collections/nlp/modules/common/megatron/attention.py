@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -101,6 +101,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -111,7 +112,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
@@ -121,13 +121,10 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         headscale=False,
         position_embedding_type='learned_absolute',
         multi_query_attention=False,
-        activations_checkpoint_granularity=None,
-        sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         use_flash_attention=False,
     ):
-        super(ParallelAttention, self).__init__()
+        super(ParallelAttention, self).__init__(config=config)
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
@@ -162,53 +159,33 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
         )
 
-        async_tensor_model_parallel_allreduce = (
-            parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
-        )
-
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
             self.query_key_value = tensor_parallel.ColumnParallelLinear(
                 hidden_size,
                 3 * projection_size,
+                config=config,
                 gather_output=False,
                 init_method=init_method,
-                use_cpu_initialization=use_cpu_initialization,
-                params_dtype=self.dtype,
                 bias=bias,
-                sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
         else:
             assert attention_type == AttnType.cross_attn
             self.query = tensor_parallel.ColumnParallelLinear(
-                hidden_size,
-                projection_size,
-                gather_output=False,
-                init_method=init_method,
-                use_cpu_initialization=use_cpu_initialization,
-                params_dtype=self.dtype,
-                bias=bias,
-                sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
+                hidden_size, projection_size, config=config, gather_output=False, init_method=init_method, bias=bias,
             )
 
             self.key_value = tensor_parallel.ColumnParallelLinear(
                 hidden_size,
                 2 * projection_size,
+                config=config,
                 gather_output=False,
                 init_method=init_method,
-                use_cpu_initialization=use_cpu_initialization,
-                params_dtype=self.dtype,
                 bias=bias,
-                sequence_parallel_enabled=sequence_parallel,
-                async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
         self.core_attention = CoreAttention(
+            config=config,
             layer_number=self.layer_number,
             num_attention_heads=num_attention_heads,
             hidden_size=hidden_size,
@@ -220,7 +197,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             multi_query_attention=multi_query_attention,
-            sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
@@ -230,14 +206,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dense = tensor_parallel.RowParallelLinear(
             projection_size,
             hidden_size,
+            config=config,
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
-            use_cpu_initialization=use_cpu_initialization,
-            params_dtype=self.dtype,
             bias=bias,
-            sequence_parallel_enabled=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         self.headscale = headscale
@@ -263,11 +236,12 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
+        inference_mode=None,
     ):
         """Forward method with activation checkpointing."""
 
         def custom_forward(*inputs):
-            if len(inputs) == 7:
+            if len(inputs) == 8:
                 query_layer = inputs[0]
                 key_layer = inputs[1]
                 value_layer = inputs[2]
@@ -275,7 +249,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb = inputs[4]
                 relative_position_bias = inputs[5]
                 headscale_tensor = inputs[6]
-            elif len(inputs) == 8:
+                inference_mode = inputs[7]
+            elif len(inputs) == 9:
                 query_layer = inputs[0]
                 key_layer = inputs[1]
                 value_layer = inputs[2]
@@ -283,6 +258,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb = (inputs[4], inputs[5])
                 relative_position_bias = inputs[6]
                 headscale_tensor = inputs[7]
+                inference_mode = inputs[8]
             else:
                 raise ValueError('unexpected number of inputs')
             output_ = self.core_attention(
@@ -293,6 +269,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=headscale_tensor,
+                inference_mode=inference_mode,
             )
             return output_
 
@@ -523,6 +500,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
+                inference_mode=inference_max_sequence_len is not None and query_layer.shape[0] == 1,
             )
         else:
             context_layer = self.core_attention(
@@ -535,6 +513,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
+                inference_mode=inference_max_sequence_len is not None and query_layer.shape[0] == 1,
             )
 
         # =================
@@ -558,6 +537,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -566,7 +546,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        use_cpu_initialization=False,
         megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
@@ -574,11 +553,11 @@ class ParallelChunkedCrossAttention(MegatronModule):
         chunk_size=64,  # each chunk, how many tokens
         bias=True,
         headscale=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
     ):
-        super(ParallelChunkedCrossAttention, self).__init__()
+        super(ParallelChunkedCrossAttention, self).__init__(config=config)
         self.cross_attention = ParallelAttention(
+            config=config,
             init_method=init_method,
             output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
@@ -589,14 +568,12 @@ class ParallelChunkedCrossAttention(MegatronModule):
             precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
-            use_cpu_initialization=use_cpu_initialization,
             megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
             bias=bias,
             headscale=headscale,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
         )
         self.chunk_size = chunk_size
@@ -722,6 +699,7 @@ class CoreAttention(MegatronModule):
 
     def __init__(
         self,
+        config: ModelParallelConfig,
         layer_number,
         num_attention_heads,
         hidden_size,
@@ -732,21 +710,20 @@ class CoreAttention(MegatronModule):
         kv_channels=None,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        sequence_parallel=False,
         normalize_attention_scores=True,
         multi_query_attention=False,
         position_embedding_type='learned_absolute',
         use_flash_attention=False,
     ):
 
-        super(CoreAttention, self).__init__()
+        super(CoreAttention, self).__init__(config=config)
 
         self.precision = precision
         self.fp16 = False
         self.bf16 = False
-        if precision == 'bf16':
+        if precision in ['bf16', 'bf16-mixed']:
             self.bf16 = True
-        elif int(precision) == 16:
+        elif precision in [16, '16', '16-mixed']:
             self.fp16 = True
         self.multi_query_attention = multi_query_attention
         self.position_embedding_type = position_embedding_type
@@ -758,7 +735,7 @@ class CoreAttention(MegatronModule):
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
-        self.sequence_parallel = sequence_parallel
+        self.sequence_parallel = config.sequence_parallel
         # If True, will scale attention scores by 1 / sqrt(hidden_size_per_attention_head).
         # This arg is been provided mostly to support weight conversion of Huggingface models. (ex: T5v1.1)
         self.normalize_attention_scores = normalize_attention_scores
@@ -821,6 +798,7 @@ class CoreAttention(MegatronModule):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
+        inference_mode=None,
     ):
         b, np, sq, sk, hn = (
             query_layer.size(1),
@@ -878,7 +856,9 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        context_layer = self.attn_fn(query_layer, key_layer, value_layer, attention_mask, relative_position_bias)
+        context_layer = self.attn_fn(
+            query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode
+        )
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
@@ -892,7 +872,7 @@ class CoreAttention(MegatronModule):
 
         return context_layer
 
-    def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
+    def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 
@@ -948,7 +928,7 @@ class CoreAttention(MegatronModule):
 
         return context_layer
 
-    def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
+    def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
         value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
@@ -957,15 +937,18 @@ class CoreAttention(MegatronModule):
         query_layer = _cast_if_autocast_enabled(query_layer)
         key_layer = _cast_if_autocast_enabled(key_layer)
         value_layer = _cast_if_autocast_enabled(value_layer)
-        attention_mask = _cast_if_autocast_enabled(attention_mask)
         attention_bias = _cast_if_autocast_enabled(attention_bias)
 
-        if attention_bias is not None:
-            return self.flash_attention_triton(query_layer, key_layer, value_layer, attention_mask, attention_bias,)
-        else:
-            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask,)
+        is_causal = self.attn_mask_type == AttnMaskType.causal and not inference_mode
 
-    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask):
+        if attention_bias is not None:
+            return self.flash_attention_triton(
+                query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
+            )
+        else:
+            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal,)
+
+    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal):
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -978,13 +961,13 @@ class CoreAttention(MegatronModule):
             attention_mask_kv = torch.any(torch.eq(attention_mask, False), dim=2).squeeze(1)
         else:
             assert len(attention_mask.shape) == 2
-            attention_mask_q = attention_mask
-            attention_mask_kv = attention_mask
+            attention_mask_q = ~attention_mask
+            attention_mask_kv = ~attention_mask
 
         q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
         k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
         v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
-        is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
+
         context_layer = flash_attn_unpadded_func(
             q,
             k,
@@ -1004,7 +987,7 @@ class CoreAttention(MegatronModule):
         context_layer = context_layer.permute(0, 2, 1, 3)
         return context_layer
 
-    def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
+    def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
 
@@ -1016,15 +999,14 @@ class CoreAttention(MegatronModule):
             else:
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 assert len(attention_mask.shape) == 2
-                attention_mask_q = attention_mask.unsqueeze(1).unsqueeze(3)
-                attention_mask_kv = attention_mask.unsqueeze(1).unsqueeze(2)
+                attention_mask_q = (~attention_mask).unsqueeze(1).unsqueeze(3)
+                attention_mask_kv = (~attention_mask).unsqueeze(1).unsqueeze(2)
 
             if attention_bias.shape[2] == attention_mask_q.shape[2]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
             if attention_bias.shape[3] == attention_mask_kv.shape[3]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
-        is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
         context_layer = flash_attn_func(query_layer, key_layer, value_layer, attention_bias, is_causal,)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
