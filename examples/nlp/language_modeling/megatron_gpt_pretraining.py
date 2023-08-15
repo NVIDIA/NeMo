@@ -64,6 +64,9 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.rampup_batch_size = cfg.model.rampup_batch_size  # Missing from older checkpoints?
         gpt_cfg.override_vocab_size = cfg.model.override_vocab_size  # Missing from older checkpoints?
         gpt_cfg.output_size = cfg.model.output_size  # Missing from older checkpoints?
+        gpt_cfg.use_flash_attention = cfg.model.use_flash_attention  # Missing from older checkpoints?
+        # gpt_cfg.bias_activation_fusion = cfg.model.bias_activation_fusion  # Missing from older checkpoints?
+        # gpt_cfg.bias_dropout_add_fusion = cfg.model.bias_dropout_add_fusion  # Missing from older checkpoints?
         sft_cls = MegatronSpeechGPTModel
         gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
 

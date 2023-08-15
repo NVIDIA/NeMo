@@ -46,78 +46,78 @@ model:
   micro_batch_size: 4 # limited by GPU memory
   global_batch_size: 8 # will use more micro batches to reach global batch size
   rampup_batch_size: null # Should be a list of 3 values: [<start_batch_size>, <batch_size_increment>, <rampup_samples>]
-  tensor_model_parallel_size: 1 # intra-layer model parallelism
-  pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  virtual_pipeline_model_parallel_size: null # interleaved pipeline
+  tensor_model_parallel_size: 1 # TODO(jasoli): is this used? intra-layer model parallelism
+  pipeline_model_parallel_size: 1 # TODO(jasoli): is this used? inter-layer model parallelism
+  virtual_pipeline_model_parallel_size: null # TODO(jasoli): is this used? interleaved pipeline
 
   # model architecture
-  encoder_seq_length: 512
-  max_position_embeddings: ${.encoder_seq_length}
-  num_layers: 12
-  hidden_size: 768
-  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 12
-  init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
-  use_scaled_init_method: True # use scaled residuals initialization
+  # encoder_seq_length: 512
+  # max_position_embeddings: ${.encoder_seq_length}
+  # num_layers: 12
+  # hidden_size: 768
+  # ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  # num_attention_heads: 12
+  # init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  # use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
   attention_dropout: 0.1 # Dropout probability for attention
   ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
-  kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
-  apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
-  normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-  layernorm_epsilon: 1e-5
-  do_layer_norm_weight_decay: False # True means weight decay on all params
-  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
-  pre_process: True # add embedding
-  post_process: True # add pooler
-  persist_layer_norm: True # Use of persistent fused layer norm kernel.
-  bias: True # Whether to use bias terms in all weight matrices.
-  activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']
-  headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
-  transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-  openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
-  normalize_attention_scores: True # Whether to scale the output Q * K^T by 1 / sqrt(hidden_size_per_head). This arg is provided as a configuration option mostly for compatibility with models that have been weight-converted from HF. You almost always want to se this to True.
-  position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
-  rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
-  attention_type: 'multihead' # Attention type. Options ['multihead']
-  share_embeddings_and_output_weights: True # Share embedding and output layer weights.
-  overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
-  batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  # kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  # apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
+  # normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+  # layernorm_epsilon: 1e-5
+  # do_layer_norm_weight_decay: False # True means weight decay on all params
+  # make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  # pre_process: True # add embedding
+  # post_process: True # add pooler
+  # persist_layer_norm: True # Use of persistent fused layer norm kernel.
+  # bias: True # Whether to use bias terms in all weight matrices.
+  # activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']
+  # headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+  # transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+  # openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+  # normalize_attention_scores: True # Whether to scale the output Q * K^T by 1 / sqrt(hidden_size_per_head). This arg is provided as a configuration option mostly for compatibility with models that have been weight-converted from HF. You almost always want to se this to True.
+  # position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
+  # rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
+  # attention_type: 'multihead' # Attention type. Options ['multihead']
+  # share_embeddings_and_output_weights: True # Share embedding and output layer weights.
+  # overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  # batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
 
-  tokenizer:
-    library: 'megatron'
-    type: 'GPT2BPETokenizer'
-    model: null
-    vocab_file: null
-    merge_file: null
-    delimiter: null # only used for tabular tokenizer
-    sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+  # tokenizer:
+  #   library: 'megatron'
+  #   type: 'GPT2BPETokenizer'
+  #   model: null
+  #   vocab_file: null
+  #   merge_file: null
+  #   delimiter: null # only used for tabular tokenizer
+  #   sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
 
   # Mixed precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   hysteresis: 2 # Gradient scale hysteresis
-  fp32_residual_connection: False # Move residual connections to fp32
-  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+  # fp32_residual_connection: False # Move residual connections to fp32
+  # fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
-  grad_allreduce_chunk_size_mb: 125
+  # grad_allreduce_chunk_size_mb: 125
 
   # Fusion
-  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
-  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
-  bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
-  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
-  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
-  get_attention_mask_from_fusion: True # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
+  # grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
+  # gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
+  # bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+  # bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  # masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  # get_attention_mask_from_fusion: True # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
 
 
   # Miscellaneous
-  seed: 1234
+  # seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from
-  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
-  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+  # use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  # onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   sync_batch_comm: False # Enable stream synchronization after each p2p communication between pipeline stages
@@ -157,15 +157,15 @@ model:
 
   ## Transformer Engine
   transformer_engine: False
-  fp8: False # enables fp8 in TransformerLayer forward
-  fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
-  fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
-  fp8_margin: 0 # scaling margin
-  fp8_interval: 1 # scaling update interval
-  fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
-  fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
-  reduce_amax: True # Perform reduction to sync amax tensors across GPUs after every iteration
-  use_emha: False # Use fused multi-head attention for large sequence-length. Note this is not yet supported. Please set to False.
+  # fp8: False # enables fp8 in TransformerLayer forward
+  # fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
+  # fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
+  # fp8_margin: 0 # scaling margin
+  # fp8_interval: 1 # scaling update interval
+  # fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
+  # fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
+  # reduce_amax: True # Perform reduction to sync amax tensors across GPUs after every iteration
+  # use_emha: False # Use fused multi-head attention for large sequence-length. Note this is not yet supported. Please set to False.
 
   ## Flash Attention
   use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
@@ -189,7 +189,7 @@ model:
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
-    seq_length: ${model.encoder_seq_length}
+    seq_length: 2048
     skip_warmup: True
     num_workers: 2
     dataloader_type: single # cyclic
