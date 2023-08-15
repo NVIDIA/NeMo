@@ -99,20 +99,13 @@ jobs:
     - name: Install NeMo NLP
       run: |
         pip install --no-build-isolation "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
-    - name: Install megatron core
+    - name: Uninstall megatron core
       run: |
-        # Install git
-        apt-get install -y git
-        cd /
         pip uninstall -y megatron-core
-        git clone https://github.com/NVIDIA/Megatron-LM.git
-        cd Megatron-LM
-        git checkout 0609f27fe8376f17ab65c001d3d8f35cd8175950
-        pip install --no-build-isolation .
         echo "PYTHONPATH=/Megatron-LM:$PYTHONPATH" >> $GITHUB_ENV
     - name: Test NLP Domain Imports
       run: |
-        python --version
+        which python
         pip list
         echo $PATH
         echo $PYTHONPATH
