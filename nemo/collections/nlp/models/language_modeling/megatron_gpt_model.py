@@ -782,7 +782,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
             # Model forward pass
-            import ipdb; ipdb.set_trace()
             output_tensor = model(
                 batch['tokens'],
                 batch['position_ids'],
