@@ -113,7 +113,7 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${data.train_ds.prompt_template}
       tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
-      truncation_method: 'right' # Truncation from which position, Options: ['random', 'left', 'right'] 
+      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
 
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']

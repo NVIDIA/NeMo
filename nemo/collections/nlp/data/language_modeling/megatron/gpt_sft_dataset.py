@@ -72,7 +72,7 @@ class GPTSFTDataset(Dataset):
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
-        truncation_method: Truncation from which position. Options: ['random', 'left', 'right']
+        truncation_method: Truncation from which position. Options: ['left', 'right']
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -97,12 +97,10 @@ class GPTSFTDataset(Dataset):
         ), f'we need prompt_template to combine contexts and label {label_key}'
         # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
+        self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
         
         label_placeholder = f'{{{self.label_key}}}'
-        assert label_placeholder in self.prompt_template, f'{label_placeholder} is not found in {self.prompt_template}.'
         assert self.prompt_template[-len(label_placeholder) :] == label_placeholder, f'{label_placeholder} must be at the end of prompt_template.'
-        
-        self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
         
         # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
         if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
