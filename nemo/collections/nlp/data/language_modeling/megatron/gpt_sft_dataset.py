@@ -179,7 +179,7 @@ class GPTSFTDataset(Dataset):
 
         Returns:
             template_strings (List[str]): separated prompt_template with contexts/label placeholder filled with corresponding strings
-            template_keys (List[str]): strings point to placeholder keys or <template>
+            template_strings_keys (List[str]): strings point to placeholder keys or <template>
             
         Examples:
             prompt_template = 'Context:  {context} Question: {question} Answer: {label}'
@@ -191,7 +191,7 @@ class GPTSFTDataset(Dataset):
             # tokenizer.space_sensitive = False
             template_strings = ['Context:', ' xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] 
             
-            template_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
+            template_strings_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
         placeholders = [f'{{{k}}}' for k in self.prompt_template_keys]
 
@@ -214,22 +214,22 @@ class GPTSFTDataset(Dataset):
         template_with_space_reduced = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated]
         
         # convert placeholder to the corresponding string (preserve left spaces) and key 
-        template_strings, template_keys = [], []
+        template_strings, template_strings_keys = [], []
         for t in template_with_space_reduced:
             placeholder = t.lstrip(' ')
             left_spaces = ' ' * (len(t) - len(placeholder))
             template_strings.append(left_spaces + ph_to_s.get(placeholder, placeholder))
-            template_keys.append(ph_to_k.get(placeholder, '<template>'))
+            template_strings_keys.append(ph_to_k.get(placeholder, '<template>'))
         
-        return template_strings, template_keys
+        return template_strings, template_strings_keys
 
-    def _multiple_truncation(self, template_ids: List[List[int]], template_keys: List[str]):
+    def _multiple_truncation(self, template_ids: List[List[int]], template_ids_keys: List[str]):
         """
         Calculate total tokens and truncate multiple contexts in truncation_fields.
         
         Args:
             template_ids (List[List[int]]): the list of separate prompt_template ids.
-            template_keys (List[str]): strings point to placeholder keys or <template> (used to check truncation_fields).
+            template_ids_keys (List[str]): the list of placeholder keys or <template> (used to check key in truncation_fields).
 
         Returns:
             context_ids (List[int]): all context ids.
@@ -259,7 +259,7 @@ class GPTSFTDataset(Dataset):
                 for i in range(num_fields)[::-1]
             ]
 
-            for i, (ids, key) in enumerate(zip(template_ids, template_keys)):
+            for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                 if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
                     assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
@@ -283,11 +283,11 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        prompt_template_values = [example[c].strip() for c in self.prompt_template_keys]
+        prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
         
-        template_strings, template_keys = self._separate_template(prompt_template_values)
+        template_strings, template_strings_keys = self._separate_template(prompt_template_values)
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
-        context_ids, answer_ids = self._multiple_truncation(template_ids, template_keys)
+        context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
