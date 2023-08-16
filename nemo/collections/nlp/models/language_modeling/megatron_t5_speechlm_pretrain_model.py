@@ -69,7 +69,12 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+try:
+    from pynvml.smi import nvidia_smi
+except:
+    pass
 
+import pprint
 
 __all__ = ['MegatronT5SpeechLMModel']
 
@@ -356,6 +361,13 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             output_tensor = output_tensor.contiguous()
             
             if self.trainer.global_step % 100 == 0:
+                try:
+                    # Print GPU utilization
+                    nvsmi = nvidia_smi.getInstance()
+                    gpu_utilization = nvsmi.DeviceQuery('utilization.gpu, memory.used, memory.total')
+                    pprint.pprint(gpu_utilization)
+                except:
+                    pass
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
@@ -382,6 +394,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                             all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
                             predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[0,0]
                             self.logger.experiment.add_audio("Pred Wav", predicted_wav, self.global_step, 24000)
+                            
 
 
             def loss_func(output_tensor):

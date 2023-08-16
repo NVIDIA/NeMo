@@ -314,7 +314,8 @@ class SpeechLM_T5dataset(Dataset):
         self.exchange_indices_distributed = cfg.data.get('exchange_indices_distributed', False)
         self.speech_offset = cfg.data.get('speech_offset', 30000)
         self.speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
-        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.3)
+        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.4)
+        self.mask_length_poisson_lambda = cfg.data.get('mask_length_poisson_lambda', 3.5)
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
 
@@ -409,7 +410,7 @@ class SpeechLM_T5dataset(Dataset):
         return sample.astype(np.int64)
 
     def _mask_encoder_input(self, enc_input):
-        span_length = torch.poisson(torch.tensor([3.5]))
+        span_length = torch.poisson(torch.tensor([self.mask_length_poisson_lambda]))
         span_length = int(span_length.item())
         span_length = max(span_length, 1)
 
