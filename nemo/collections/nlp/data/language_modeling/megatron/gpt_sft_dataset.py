@@ -194,22 +194,19 @@ class GPTSFTDataset(Dataset):
             template_strings = ['Context:', 'xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] # tokenizer.space_sensitive = False
             template_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
-        # context placeholder
-        context_phs = [f'{{{ck}}}' for ck in self.context_keys]
-        for cph in context_phs:
-            assert cph in self.prompt_template, f'{cph} must in {self.prompt_template}'
+        # check have placeholders
+        placeholders = [f'{{{ck}}}' for ck in self.context_keys] + [f'{{{self.label_key}}}']
+        for ph in placeholders:
+            assert ph in self.prompt_template, f'{ph} is not found in {self.prompt_template}.'
 
-        # label placeholder
-        label_ph = f'{{{self.label_key}}}'
-        assert label_ph in self.prompt_template, f'{label_ph} must in {self.prompt_template}'
-        assert self.prompt_template.index(label_ph) == len(self.prompt_template) - len(
-            label_ph
-        ), f'{{{self.label_key}}} must be at the end of prompt_template.'
+        # check label placeholder at the end
+        label_ph = placeholders[-1]
+        assert self.prompt_template[-len(label_ph):] == label_ph, f'{label_ph} must be at the end of prompt_template.'
 
         # placeholder to string
-        ph_to_s = {ph: s for ph, s in zip(context_phs + [label_ph], contexts + [label])}
+        ph_to_s = {ph: s for ph, s in zip(placeholders, contexts + [label])}
         # placeholder to key
-        ph_to_k = {ph: k for ph, k in zip(context_phs + [label_ph], self.context_keys + [self.label_key])}
+        ph_to_k = {ph: k for ph, k in zip(placeholders, self.context_keys + [self.label_key])}
 
         # separate prompt_template based on `{placeholder}`
         separated_template = re.split('({.+?})', self.prompt_template)
@@ -236,7 +233,8 @@ class GPTSFTDataset(Dataset):
 
     def _multiple_truncation(self, template_ids: List[List[int]], template_keys: List[str]):
         """
-        Calculate total tokens and truncate multiple contexts in truncation_fields
+        Calculate total tokens and truncate multiple contexts in truncation_fields.
+        
         Args:
             template_ids (List[List[int]]): the list of separate prompt_template ids.
             template_keys (List[str]): strings point to placeholder keys or <template> (used to check truncation_fields).
