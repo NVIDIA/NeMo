@@ -194,23 +194,6 @@ class GPTSFTDataset(Dataset):
             template_strings = ['Context:', 'xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] # tokenizer.space_sensitive = False
             template_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
-        def merge_strings(parts: List[str], merge_right: List[str], merge_left: List[str]):
-            """
-            Merge string to the right string if it is in merge_right.
-            Merge string to the left  string if it is in merge_left.
-            """
-            merged_parts = []
-            m = None
-            for p in parts:
-                if p in merge_right:
-                    m = p if m is None else m + p
-                elif p in merge_left:
-                    merged_parts[-1] += p
-                else:
-                    merged_parts.append(p if m is None else m + p)
-                    m = None
-            return merged_parts
-        
         # check have placeholders
         placeholders = [f'{{{ck}}}' for ck in self.context_keys] + [f'{{{self.label_key}}}']
         for ph in placeholders:
@@ -225,20 +208,25 @@ class GPTSFTDataset(Dataset):
         # placeholder to key
         ph_to_k = {ph: k for ph, k in zip(placeholders, self.context_keys + [self.label_key])}
 
-        # separate prompt_template based on '{', '}', and space
-        separated_template = re.split('([ {}])', self.prompt_template)
-        merged_space_and_brackets_template = merge_strings(separated_template, merge_right=['{', '', ' '], merge_left=['}'])
-
-        # convert placeholder to the corresponding string and key
-        template_keys = [ph_to_k.get(t.strip(' '), '<template>') for t in merged_space_and_brackets_template]
-        template_strings = [' ' * (len(t) - len(t.lstrip(' '))) + ph_to_s.get(t.strip(' '), t.strip(' ')) for t in merged_space_and_brackets_template]
+        # separate prompt_template based on '<space>{placeholder}'
+        template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
+        # remove empty string
+        template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
 
         # deal with space_sensitive
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
-        template_strings = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_strings]
-
+        template_with_space_reduced = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated]
+        
+        # convert placeholder to the corresponding string and key
+        template_strings, template_keys = [], []
+        for t in template_with_space_reduced:
+            lstrip_t = t.lstrip(' ')
+            num_left_spaces = ' ' * (len(t) - len(lstrip_t))
+            template_strings.append(num_left_spaces + ph_to_s.get(lstrip_t, lstrip_t))
+            template_keys.append(ph_to_k.get(lstrip_t, '<template>'))
+        
         return template_strings, template_keys
 
     def _multiple_truncation(self, template_ids: List[List[int]], template_keys: List[str]):
