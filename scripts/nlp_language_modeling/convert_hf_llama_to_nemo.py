@@ -36,14 +36,18 @@ from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 #from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin,
+)
 from nemo.utils import AppState, logging
 #from nemo.utils.distributed import initialize_distributed
 #from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
@@ -98,36 +102,13 @@ def load_config(args, llama_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
+    # nemo_config.precision = 32
 
     # print(nemo_config)
     return nemo_config
 
 
 def convert(args):
-    if args.precision in ["32", "16"]:
-        precision = int(float(args.precision))
-
-    if args.precision == "bf16":
-        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-            precision = "bf16"
-        else:
-            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
-            precision = 16
-
-    if precision == 32:
-        dtype = torch.float32
-    elif precision == 16:
-        dtype = torch.float16
-    elif precision == "bf16":
-        dtype = torch.bfloat16
-    else:
-        dtype = torch.float32  # fallback
-
-    # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
-    trainer = Trainer(accelerator='cpu', precision=args.precision)
-    # checkpoint_path = megatron_lm_inject_model_parallel_rank(
-    #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
-    # )
     logging.info(f"loading checkpoint {args.in_file}")
     model = LlamaForCausalLM.from_pretrained(args.in_file)
     tokenizer = LlamaTokenizer.from_pretrained(args.in_file)
@@ -139,7 +120,53 @@ def convert(args):
        print(f"- {name}")
     
     nemo_config = load_config(args, hf_config)
+
+    if args.precision in ["32", "16"]:
+        precision = int(float(args.precision))
+
+    if args.precision in ["bf16", "bf16-mixed"]:
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            precision = args.precision
+        else:
+            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
+            precision = args.precision[2:] # prune bf in string
+
+    plugins = []
+    if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
+        scaler = None
+        if precision in [16, '16', '16-mixed']:
+            scaler = GradScaler(
+                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
+                hysteresis=nemo_config.get('hysteresis', 2),
+            )
+            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
+            plugin_precision = '16-mixed'
+        else:
+            plugin_precision = 'bf16-mixed'
+
+        if nemo_config.get('megatron_amp_O2', False):
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+
+    if precision == 32:
+        dtype = torch.float32
+    elif precision in [16, "16", "16-mixed"]:
+        dtype = torch.float16
+    elif precision == ["bf16", "bf16-mixed"]:
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32  # fallback
+
+    nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
+
+    # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
+    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision)
+    # checkpoint_path = megatron_lm_inject_model_parallel_rank(
+    #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
+    # )
 
     hidden_size = hf_config["hidden_size"]
     head_num = hf_config["num_attention_heads"]
@@ -153,7 +180,6 @@ def convert(args):
     # print(model.state_dict())
     param_to_weights = lambda param: param.float()
 
-    checkpoint = None                                                   # why?
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
 
@@ -193,8 +219,6 @@ def convert(args):
         v = model.state_dict()[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
         qkv_weights=torch.empty((0, head_size) + old_tensor_shape[1:])
         heads_per_group = head_num // num_query_groups
-        print(k.shape)
-        print(k[0:1,:,:].shape)
         for i in range(num_query_groups):
             qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i+1) * heads_per_group,:,:]))
             qkv_weights = torch.cat((qkv_weights, k[i:i+1,:,:]))
@@ -274,10 +298,16 @@ def convert(args):
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
 
+    del model
+
     model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
+
+    # cast to target precision and disable cpu init
     model = model.to(dtype=dtype)
+    model.cfg.use_cpu_initialization = False
+    
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
 

@@ -23,7 +23,9 @@ For the word-level ASS files, the text will be highlighted word-by-word, with th
 by the NFA alignemtns.
 """
 
+import math
 import os
+import soundfile as sf
 
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 from utils.data_prep import Segment, Token, Word
@@ -32,6 +34,7 @@ PLAYERRESX = 384
 PLAYERRESY = 288
 MARGINL = 10
 MARGINR = 10
+MARGINV = 20
 
 
 def seconds_to_ass_format(seconds_float):
@@ -56,6 +59,11 @@ def seconds_to_ass_format(seconds_float):
     return srt_format_time
 
 
+def rgb_list_to_hex_bgr(rgb_list):
+    r, g, b = rgb_list
+    return f"{b:x}{g:x}{r:x}"
+
+
 def make_ass_files(
     utt_obj, output_dir_root, ass_file_config,
 ):
@@ -68,8 +76,13 @@ def make_ass_files(
     if ass_file_config.resegment_text_to_fill_space:
         utt_obj = resegment_utt_obj(utt_obj, ass_file_config)
 
-    utt_obj = make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config,)
-    utt_obj = make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config,)
+    # get duration of the utterance, so we know the final timestamp of the final set of subtitles,
+    # which we will keep showing until the end
+    with sf.SoundFile(utt_obj.audio_filepath) as f:
+        audio_dur = f.frames / f.samplerate
+
+    utt_obj = make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur)
+    utt_obj = make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur)
 
     return utt_obj
 
@@ -107,7 +120,7 @@ def resegment_utt_obj(utt_obj, ass_file_config):
     approx_chars_per_line = (PLAYERRESX - MARGINL - MARGINR) / (
         ass_file_config.fontsize * 0.6
     )  # assume chars 0.6 as wide as they are tall
-    approx_lines_per_segment = (PLAYERRESY - ass_file_config.marginv) / (
+    approx_lines_per_segment = (PLAYERRESY - MARGINV) / (
         ass_file_config.fontsize * 1.15
     )  # assume line spacing is 1.15
     if approx_lines_per_segment > ass_file_config.max_lines_per_segment:
@@ -160,9 +173,7 @@ def resegment_utt_obj(utt_obj, ass_file_config):
     return utt_obj
 
 
-def make_word_level_ass_file(
-    utt_obj, output_dir_root, ass_file_config,
-):
+def make_word_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur):
 
     default_style_dict = {
         "Name": "Default",
@@ -183,16 +194,29 @@ def make_word_level_ass_file(
         "BorderStyle": "1",
         "Outline": "1",
         "Shadow": "0",
-        "Alignment": "2",
+        "Alignment": None,  # will specify below
         "MarginL": str(MARGINL),
         "MarginR": str(MARGINR),
-        "MarginV": str(ass_file_config.marginv),
+        "MarginV": str(MARGINV),
         "Encoding": "0",
     }
+
+    if ass_file_config.vertical_alignment == "top":
+        default_style_dict["Alignment"] = "8"  # text will be 'center-justified' and in the top of the screen
+    elif ass_file_config.vertical_alignment == "center":
+        default_style_dict["Alignment"] = "5"  # text will be 'center-justified' and in the middle of the screen
+    elif ass_file_config.vertical_alignment == "bottom":
+        default_style_dict["Alignment"] = "2"  # text will be 'center-justified' and in the bottom of the screen
+    else:
+        raise ValueError(f"got an unexpected value for ass_file_config.vertical_alignment")
 
     output_dir = os.path.join(output_dir_root, "ass", "words")
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, f"{utt_obj.utt_id}.ass")
+
+    already_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_already_spoken_rgb) + r"&}"
+    being_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_being_spoken_rgb) + r"&}"
+    not_yet_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_not_yet_spoken_rgb) + r"&}"
 
     with open(output_file, 'w') as f:
         default_style_top_line = "Format: " + ", ".join(default_style_dict.keys())
@@ -225,7 +249,7 @@ def make_word_level_ass_file(
                         words_in_first_segment.append(word_or_token)
                 break
 
-        text_before_speech = r"{\c&c7c1c2&}" + " ".join([x.text for x in words_in_first_segment]) + r"{\r}"
+        text_before_speech = not_yet_spoken_color_code + " ".join([x.text for x in words_in_first_segment]) + r"{\r}"
         subtitle_text = (
             f"Dialogue: 0,{seconds_to_ass_format(0)},{seconds_to_ass_format(words_in_first_segment[0].t_start)},Default,,0,0,0,,"
             + text_before_speech.rstrip()
@@ -247,16 +271,16 @@ def make_word_level_ass_file(
                     text_before = " ".join([x.text for x in words_in_segment[:word_i]])
                     if text_before != "":
                         text_before += " "
-                    text_before = r"{\c&H3d2e31&}" + text_before + r"{\r}"
+                    text_before = already_spoken_color_code + text_before + r"{\r}"
 
                     if word_i < len(words_in_segment) - 1:
                         text_after = " " + " ".join([x.text for x in words_in_segment[word_i + 1 :]])
                     else:
                         text_after = ""
-                    text_after = r"{\c&c7c1c2&}" + text_after + r"{\r}"
+                    text_after = not_yet_spoken_color_code + text_after + r"{\r}"
 
-                    aligned_text = r"{\c&H09ab39&}" + word.text + r"{\r}"
-                    aligned_text_off = r"{\c&H3d2e31&}" + word.text + r"{\r}"
+                    aligned_text = being_spoken_color_code + word.text + r"{\r}"
+                    aligned_text_off = already_spoken_color_code + word.text + r"{\r}"
 
                     subtitle_text = (
                         f"Dialogue: 0,{seconds_to_ass_format(word.t_start)},{seconds_to_ass_format(word.t_end)},Default,,0,0,0,,"
@@ -279,14 +303,33 @@ def make_word_level_ass_file(
                             )
                             f.write(subtitle_text + '\n')
 
+        # write final set of subtitles for text after speech has been spoken
+        words_in_final_segment = []
+        for segment_or_token in utt_obj.segments_and_tokens[::-1]:
+            if type(segment_or_token) is Segment:
+                final_segment = segment_or_token
+
+                for word_or_token in final_segment.words_and_tokens:
+                    if type(word_or_token) is Word:
+                        words_in_final_segment.append(word_or_token)
+                break
+
+        text_after_speech = already_spoken_color_code + " ".join([x.text for x in words_in_final_segment]) + r"{\r}"
+        # note: for now doing some extra padding with math.ceil(audio_dur)+1) to account for the fact that the video with subtitles can become
+        # longer than the original audio during the MP4 creation stage.
+        subtitle_text = (
+            f"Dialogue: 0,{seconds_to_ass_format(words_in_final_segment[-1].t_end)},{seconds_to_ass_format(math.ceil(audio_dur)+1)},Default,,0,0,0,,"
+            + text_after_speech.rstrip()
+        )
+
+        f.write(subtitle_text + '\n')
+
     utt_obj.saved_output_files[f"words_level_ass_filepath"] = output_file
 
     return utt_obj
 
 
-def make_token_level_ass_file(
-    utt_obj, output_dir_root, ass_file_config,
-):
+def make_token_level_ass_file(utt_obj, output_dir_root, ass_file_config, audio_dur):
 
     default_style_dict = {
         "Name": "Default",
@@ -307,16 +350,29 @@ def make_token_level_ass_file(
         "BorderStyle": "1",
         "Outline": "1",
         "Shadow": "0",
-        "Alignment": "2",
+        "Alignment": None,  # will specify below
         "MarginL": str(MARGINL),
         "MarginR": str(MARGINR),
-        "MarginV": str(ass_file_config.marginv),
+        "MarginV": str(MARGINV),
         "Encoding": "0",
     }
+
+    if ass_file_config.vertical_alignment == "top":
+        default_style_dict["Alignment"] = "8"  # text will be 'center-justified' and in the top of the screen
+    elif ass_file_config.vertical_alignment == "center":
+        default_style_dict["Alignment"] = "5"  # text will be 'center-justified' and in the middle of the screen
+    elif ass_file_config.vertical_alignment == "bottom":
+        default_style_dict["Alignment"] = "2"  # text will be 'center-justified' and in the bottom of the screen
+    else:
+        raise ValueError(f"got an unexpected value for ass_file_config.vertical_alignment")
 
     output_dir = os.path.join(output_dir_root, "ass", "tokens")
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, f"{utt_obj.utt_id}.ass")
+
+    already_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_already_spoken_rgb) + r"&}"
+    being_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_being_spoken_rgb) + r"&}"
+    not_yet_spoken_color_code = r"{\c&H" + rgb_list_to_hex_bgr(ass_file_config.text_not_yet_spoken_rgb) + r"&}"
 
     with open(output_file, 'w') as f:
         default_style_top_line = "Format: " + ", ".join(default_style_dict.keys())
@@ -360,7 +416,9 @@ def make_token_level_ass_file(
             )  # replace underscores used in subword tokens with spaces
             token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
 
-        text_before_speech = r"{\c&c7c1c2&}" + "".join([x.text_cased for x in tokens_in_first_segment]) + r"{\r}"
+        text_before_speech = (
+            not_yet_spoken_color_code + "".join([x.text_cased for x in tokens_in_first_segment]) + r"{\r}"
+        )
         subtitle_text = (
             f"Dialogue: 0,{seconds_to_ass_format(0)},{seconds_to_ass_format(tokens_in_first_segment[0].t_start)},Default,,0,0,0,,"
             + text_before_speech.rstrip()
@@ -391,16 +449,16 @@ def make_token_level_ass_file(
                 for token_i, token in enumerate(tokens_in_segment):
 
                     text_before = "".join([x.text_cased for x in tokens_in_segment[:token_i]])
-                    text_before = r"{\c&H3d2e31&}" + text_before + r"{\r}"
+                    text_before = already_spoken_color_code + text_before + r"{\r}"
 
                     if token_i < len(tokens_in_segment) - 1:
                         text_after = "".join([x.text_cased for x in tokens_in_segment[token_i + 1 :]])
                     else:
                         text_after = ""
-                    text_after = r"{\c&c7c1c2&}" + text_after + r"{\r}"
+                    text_after = not_yet_spoken_color_code + text_after + r"{\r}"
 
-                    aligned_text = r"{\c&H09ab39&}" + token.text_cased + r"{\r}"
-                    aligned_text_off = r"{\c&H3d2e31&}" + token.text_cased + r"{\r}"
+                    aligned_text = being_spoken_color_code + token.text_cased + r"{\r}"
+                    aligned_text_off = already_spoken_color_code + token.text_cased + r"{\r}"
 
                     subtitle_text = (
                         f"Dialogue: 0,{seconds_to_ass_format(token.t_start)},{seconds_to_ass_format(token.t_end)},Default,,0,0,0,,"
@@ -422,6 +480,42 @@ def make_token_level_ass_file(
                                 + text_after.rstrip()
                             )
                             f.write(subtitle_text + '\n')
+
+        # Write final set of subtitles for text after speech has been spoken.
+        # To do this, we need to collect 'tokens_in_final_segment' so that we know what the final line is.
+        tokens_in_final_segment = []
+        for segment_or_token in utt_obj.segments_and_tokens[::-1]:
+            # Collect tokens from final segment - will 'break' so we only look at the final one.
+            if type(segment_or_token) is Segment:
+                # 'segment_or_token' is known to be Segment, which has attribute 'words_and_tokens'
+                for word_or_token in segment_or_token.words_and_tokens:
+                    if type(word_or_token) is Token:
+                        if word_or_token.text != BLANK_TOKEN:
+                            tokens_in_final_segment.append(word_or_token)
+                    else:
+                        # 'word_or_token' is known to be a Word, which has attribute 'tokens'
+                        for token in word_or_token.tokens:
+                            if token.text != BLANK_TOKEN:
+                                tokens_in_final_segment.append(token)
+                break
+
+        for token in tokens_in_final_segment:
+            token.text_cased = token.text_cased.replace(
+                "▁", " "
+            )  # replace underscores used in subword tokens with spaces
+            token.text_cased = token.text_cased.replace(SPACE_TOKEN, " ")  # space token with actual space
+
+        text_after_speech = (
+            already_spoken_color_code + "".join([x.text_cased for x in tokens_in_final_segment]) + r"{\r}"
+        )
+        # note: for now doing some extra padding with math.ceil(audio_dur)+1) to account for the fact that the video with subtitles can become
+        # longer than the original audio during the MP4 creation stage.
+        subtitle_text = (
+            f"Dialogue: 0,{seconds_to_ass_format(tokens_in_final_segment[-1].t_end)},{seconds_to_ass_format(math.ceil(audio_dur)+1)},Default,,0,0,0,,"
+            + text_after_speech.rstrip()
+        )
+
+        f.write(subtitle_text + '\n')
 
     utt_obj.saved_output_files[f"tokens_level_ass_filepath"] = output_file
 

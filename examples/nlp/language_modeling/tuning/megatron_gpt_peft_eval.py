@@ -83,9 +83,9 @@ def main(cfg) -> None:
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         find_unused_parameters=False,
     )
-    if cfg.trainer.precision in [16, "bf16"]:
+    if cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
         scaler = None
-        if cfg.trainer.precision == 16:
+        if cfg.trainer.precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
                 init_scale=cfg.model.get("native_amp_init_scale", 2 ** 32),
                 growth_interval=cfg.model.get("native_amp_growth_interval", 1000),
@@ -94,10 +94,14 @@ def main(cfg) -> None:
                 if cfg.model.pipeline_model_parallel_size > 1
                 else True,  # turn off the grad scale for pipeline parallel LM model
             )
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
+            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
+            plugin_precision = '16-mixed'
         else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
+            plugin_precision = 'bf16-mixed'
+        if megatron_amp_o2 and not with_distributed_adam:
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device="cuda", scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device="cuda", scaler=scaler))
 
     if cfg.get("cluster_type", None) == "BCP":
         plugins.append(TorchElasticEnvironment())
@@ -127,6 +131,7 @@ def main(cfg) -> None:
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
+        peft_model_cfg.activations_checkpoint_layers_per_pipeline = None
         if peft_model_cfg.get("use_flash_attention", False):
             peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
@@ -167,40 +172,12 @@ def main(cfg) -> None:
     )
 
     model.freeze()
-    _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
-    request_dl = DataLoader(
-        dataset=_test_ds[0],
-        batch_size=peft_model_cfg.data.test_ds.global_batch_size,
-        collate_fn=_test_ds[0].collate_fn,
-    )
+    if not cfg.model.get('use_flash_attention', False):
+        cfg.inference.compute_attention_mask = True
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
-    response = trainer.predict(model, request_dl)
 
-    if model.global_rank == 0:
-        print("***************************")
-        if cfg.inference.outfile_path is not None:
-            with open(cfg.inference.outfile_path, "w", encoding="utf-8") as f:
-                for batch in response:
-                    batch_sentences = [s for s in batch['sentences']]
-                    batch_tokens = [s for s in batch['tokens']]
-                    if cfg.inference.compute_logprob:
-                        batch_logprob = [s.tolist() for s in batch['logprob']]
-                        for s, t, l in zip(batch_sentences, batch_tokens, batch_logprob):
-                            if cfg.inference.get("verbose", False):
-                                d = {
-                                    'sentence': s,
-                                    'tokens_with_logprobs': ', '.join([f"{_t} {_l:.4f}" for _t, _l in zip(t, l)]),
-                                }
-                                f.write(json.dumps(d, sort_keys=True, indent=2) + '\n')
-                    else:
-                        for s in batch_sentences:
-                            d = {'sentence': s}
-                            f.write(json.dumps(d) + '\n')
-            print("predictions saved to {}".format(cfg.inference.outfile_path))
-        else:
-            print(response)
-    print("***************************")
+    trainer.test(model)
 
 
 if __name__ == "__main__":
