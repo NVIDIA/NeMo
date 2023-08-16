@@ -45,7 +45,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 try:
-    from group_norm import GroupNormOpt
+    from apex.contrib.group_norm import GroupNorm
 
     OPT_GROUP_NORM = True
 except Exception:
@@ -132,7 +132,7 @@ def normalization(channels, act=""):
     :return: an nn.Module for normalization.
     """
     if OPT_GROUP_NORM:
-        return GroupNormOpt(32, channels, act=act)
+        return GroupNorm(32, channels, act=act)
 
     return nn.GroupNorm(32, channels)
 

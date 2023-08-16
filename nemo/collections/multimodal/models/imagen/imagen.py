@@ -52,7 +52,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from group_norm import GroupNormOpt
+    from apex.contrib.group_norm import GroupNorm
 
     OPT_GROUP_NORM = True
 except Exception:

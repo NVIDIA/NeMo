@@ -40,6 +40,7 @@ else:
         QKVStableAttention,
         QKVStableMaskedAttention,
     )
+
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import (
     Downsample,
     Upsample,
@@ -65,8 +66,7 @@ def check_cuda():
 
 
 try:
-    from flash_attn.flash_attention import FlashAttention
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_func, flash_attn_unpadded_kvpacked_func
+    from flash_attn import flash_attn_varlen_func, flash_attn_varlen_kvpacked_func
 
     flash_attn_installed = check_cuda()
 except ImportError:
@@ -614,7 +614,7 @@ class FusedCrossAttentionBlock(TextConditionedBlock):
             cu_seqlens_k[1:] = th.cumsum(mask.sum(dim=1), dim=0)
             cu_seqlens_k += cu_seqlens_q
 
-            out = flash_attn_unpadded_kvpacked_func(
+            out = flash_attn_varlen_kvpacked_func(
                 q, kv_full_unpadded, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0
             )
             h = rearrange(out, '(b s) h d -> b (h d) s', b=batch_size, h=self.num_heads)
@@ -699,7 +699,7 @@ class SelfAttentionBlock(nn.Module):
             v = rearrange(v, 'b (h d) s -> (b s) h d', h=self.num_heads)
             cu_seqlens_q = th.arange(0, (b + 1) * max_seqlen_q, step=max_seqlen_q, dtype=th.int32, device=q.device)
             cu_seqlens_k = th.arange(0, (b + 1) * max_seqlen_k, step=max_seqlen_k, dtype=th.int32, device=k.device)
-            h = flash_attn_unpadded_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0)
+            h = flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0)
             h = rearrange(h, '(b s) h d -> b (h d) s', b=b, h=self.num_heads)
         else:
             h, _ = self.attention(qkv)
@@ -793,7 +793,7 @@ class CrossAttentionBlock(TextConditionedBlock):
             cu_seqlens_k = th.zeros((batch_size + 1), dtype=th.int32, device=q.device)
             cu_seqlens_k[1:] = th.cumsum(mask.sum(dim=1), dim=0)
 
-            out = flash_attn_unpadded_kvpacked_func(
+            out = flash_attn_varlen_kvpacked_func(
                 q, kv_unpadded, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0
             )
             h = rearrange(out, '(b s) h d -> b (h d) s', b=batch_size, h=self.num_heads)

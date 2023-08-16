@@ -155,6 +155,9 @@ class MultimodalModel(ModelPT, Exportable):
                     cfg.unet_config.from_pretrained = None
                 if cfg.get('first_stage_config') and cfg.get('first_stage_config').get('from_pretrained'):
                     cfg.first_stage_config.from_pretrained = None
+                ## Now when we covert ckpt to nemo, let's always get rid of those _orig_mod
+                if cfg.get('inductor'):
+                    cfg.inductor = False
                 ## Append some dummy configs that DB didn't support
                 if not cfg.get('channels_last'):
                     cfg.channels_last = True
@@ -182,14 +185,6 @@ class MultimodalModel(ModelPT, Exportable):
                     new_key = new_key.replace('vae', 'first_stage_model')
                     new_key = new_key.replace('text_encoder', 'cond_stage_model')
                     new_key = new_key.replace('.noise_scheduler', '')
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
-
-            # compatibility for inductor in inference
-            if not cfg.get('inductor', False):
-                new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace('._orig_mod', '', 1)
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
 
