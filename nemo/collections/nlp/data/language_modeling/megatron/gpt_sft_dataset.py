@@ -186,12 +186,24 @@ class GPTSFTDataset(Dataset):
             template_keys (List[str]): strings point to placeholder keys or <template>
             
         Examples:
-            prompt_template = 'Context: {context} Question: {question} Answer: {label}'
-            contexts = ['xxx', 'yyy']
-            label = ['zzz']
+            prompt_template = 'Context:  {context} Question: {question} Answer: {label}'
+            contexts = ['After Washington had returned to Williamsburg...', 'What did Washington do in Williamsburg?']
+            label = ['He surprised the Canadians on May 2.']
             
-            template_strings = ['Context:', ' xxx', ' Question:', ' yyy', ' Answer:', ' zzz'] # tokenizer.space_sensitive = True
-            template_strings = ['Context:', 'xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] # tokenizer.space_sensitive = False
+            # tokenizer.space_sensitive = True
+            template_strings = [
+                'Context:', '  After Washington had returned to Williamsburg...', 
+                ' Question:', ' What did Washington do in Williamsburg?', 
+                ' Answer:', ' He surprised the Canadians on May 2.'
+            ] 
+            
+            # tokenizer.space_sensitive = False
+            template_strings = [
+                'Context:', ' After Washington had returned to Williamsburg...', 
+                'Question:', 'What did Washington do in Williamsburg?', 
+                'Answer:', 'He surprised the Canadians on May 2.'
+            ] 
+            
             template_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
         # check have placeholders
@@ -209,17 +221,20 @@ class GPTSFTDataset(Dataset):
         ph_to_k = {ph: k for ph, k in zip(placeholders, self.context_keys + [self.label_key])}
 
         # separate prompt_template based on '<space>{placeholder}'
+        # self.prompt_template = "Context:{context}  Passage: {passage}\n\nQuestion:{question} {label}"
+        # template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
         template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
-        # remove empty string
         template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
-
+        
         # deal with space_sensitive
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
+        # template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
+        # template_with_space_reduced = ['Context:', '{context}', ' Passage:', '{passage}', '\n\nQuestion:', '{question}', '{label}']
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
         template_with_space_reduced = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated]
         
-        # convert placeholder to the corresponding string and key
+        # convert placeholder to the corresponding string (preserve left spaces) and key 
         template_strings, template_keys = [], []
         for t in template_with_space_reduced:
             lstrip_t = t.lstrip(' ')
