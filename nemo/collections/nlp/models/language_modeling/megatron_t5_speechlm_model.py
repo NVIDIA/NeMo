@@ -98,12 +98,14 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
         for _ in range(7):
-            list_of_speech_heads.append(MegatronTokenLevelHead(speech_codebook_size, False))
-            list_of_speech_tokens_embeddings.append(
-                tensor_parallel.VocabParallelEmbedding(
-                    speech_codebook_size, embedding_dim=self.word_embeddings.embedding_dim
-                )
+            _speech_head_embedding = tensor_parallel.VocabParallelEmbedding(
+                speech_codebook_size, embedding_dim=self.word_embeddings.embedding_dim
             )
+            _speech_head_embedding.weight.data.fill_(0)
+            _speech_head_embedding.shared = True
+            list_of_speech_tokens_embeddings.append(_speech_head_embedding)
+            list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
+
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(list_of_speech_tokens_embeddings)
 

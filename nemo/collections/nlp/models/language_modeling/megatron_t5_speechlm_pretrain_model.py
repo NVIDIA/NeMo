@@ -109,12 +109,14 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
         for _ in range(7):
-            list_of_speech_heads.append(MegatronTokenLevelHead(speech_codebook_size, False))
-            list_of_speech_tokens_embeddings.append(
-                tensor_parallel.VocabParallelEmbedding(
-                    speech_codebook_size, embedding_dim=self.word_embeddings.embedding_dim
-                )
+            _speech_head_embedding = tensor_parallel.VocabParallelEmbedding(
+                speech_codebook_size, embedding_dim=self.word_embeddings.embedding_dim
             )
+            _speech_head_embedding.weight.data.fill_(0)
+            _speech_head_embedding.shared = True
+            list_of_speech_tokens_embeddings.append(_speech_head_embedding)
+            list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
+
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(list_of_speech_tokens_embeddings)
 
@@ -278,8 +280,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
             t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = 2048 
-            t5_cfg.max_position_embeddings = 2048
+            t5_cfg.seq_length = cfg.data.get('seq_length', 2048) 
+            t5_cfg.max_position_embeddings = cfg.data.get('seq_length', 2048)
 
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),

@@ -645,7 +645,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
                     speech_logits = torch.zeros([*token_logits.shape[:-1], self.speech_codebook_size, speech_layers],device=token_logits.device)
-                    # import ipdb; ipdb.set_trace()
                     for i in range(speech_layers):
                         speech_residual_model = self.speech_residual_model_2
                         if i == 0:
