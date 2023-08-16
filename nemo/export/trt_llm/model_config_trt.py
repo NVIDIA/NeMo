@@ -18,6 +18,7 @@ def model_config_to_tensorrt_llm(
     max_output_len: int = 200,
     max_batch_size: int = 1,
     max_beam_width: int = 1,
+    max_prompt_embedding_table_size=0,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -42,4 +43,5 @@ def model_config_to_tensorrt_llm(
             max_batch_size=max_batch_size,
             max_beam_width=max_beam_width,
             parallel_build=False,
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )

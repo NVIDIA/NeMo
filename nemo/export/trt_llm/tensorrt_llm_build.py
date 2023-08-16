@@ -188,6 +188,7 @@ def build(
     max_input_len=200,
     max_output_len=200,
     max_beam_width=1,
+    max_prompt_embedding_table_size=0,
     parallel_build=False,
     gpus_per_node=1,
     output_dir="/tmp/ammo/",
@@ -221,7 +222,7 @@ def build(
     args.int8_kv_cache = False
     args.random_seed = None
     args.paged_kv_cache = False
-    args.max_prompt_embedding_table_size = 0
+    args.max_prompt_embedding_table_size = max_prompt_embedding_table_size
     args.use_inflight_batching = False
     args.use_lookup_plugin = False
     args.tokens_per_block = 64

@@ -588,6 +588,7 @@ class LMHeadModelBuilder(ModelBuilder):
         max_output_len: int = 200,
         max_beam_width: int = 1,
         parallel_build: bool = False,
+        max_prompt_embedding_table_size=0,
         output_dir: str = "/tmp/ammo/",
     ):
         """Builds the model and generate the tensorrt_llm engine.
@@ -614,19 +615,20 @@ class LMHeadModelBuilder(ModelBuilder):
             # A hot fix to TRT for performance improvement.
             os.environ["__LUNOWUD"] = "-peep:transpose_elim=off"
         build(
-            self,
-            self.rank,
-            self._tensor_parallel,
-            trt_dtype_to_str(self._dtype),
-            timing_cache,
-            log_level,
-            max_batch_size,
-            max_input_len,
-            max_output_len,
-            max_beam_width,
-            parallel_build,
-            torch.cuda.device_count(),
-            output_dir,
+            tensorrt_llm_model=self,
+            rank=self.rank,
+            world_size=self._tensor_parallel,
+            dtype=trt_dtype_to_str(self._dtype),
+            timing_cache=timing_cache,
+            log_level=log_level,
+            max_batch_size=max_batch_size,
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
+            max_beam_width=max_beam_width,
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            parallel_build=parallel_build,
+            gpus_per_node=torch.cuda.device_count(),
+            output_dir=output_dir,
             quantization=self.quantization,
         )
 
