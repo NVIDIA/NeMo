@@ -753,6 +753,7 @@ class MegatronBaseModel(NLPModel):
         # maps NeMo model configs to ModelParallelConfig from megatron core
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
+            "use_cpu_initialization": self.cfg.get('use_cpu_initialization', False),
             "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
             "bf16": precision == 'bf16' and megatron_amp_O2,
             "params_dtype": params_dtype,
