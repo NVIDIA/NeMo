@@ -31,12 +31,12 @@ from tqdm import tqdm
 from nemo.collections.asr.data.audio_to_text import _TarredAudioToTextDataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     BaseTokenizer,
     EnglishCharsTokenizer,
     EnglishPhonemesTokenizer,
 )
-from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
@@ -1794,7 +1794,6 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
 
         self.pad_multiple = pad_multiple
 
-
     def add_log_mel(self, **kwargs):
         self.log_mel_folder = kwargs.pop('log_mel_folder', None)
 
@@ -1991,11 +1990,9 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
             audio_shifted = self.pitch_shift(
                 features.cpu().detach().numpy(), self.sample_rate, rel_audio_path_as_text_id
             )
-            assert audio_shifted.size() == features.size(), "{} != {}".format(
-                audio_shifted.size(), features.size()
-            )
+            assert audio_shifted.size() == features.size(), "{} != {}".format(audio_shifted.size(), features.size())
 
-         # Audio features
+        # Audio features
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         # Text features
@@ -2036,7 +2033,7 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
                         my_var.__setitem__(voiced_item.name, v)
                     except Exception as e:
                         print(f"{voiced_filepath} could not be loaded as {e}")
-                        non_exist_voiced_index.append((i, voiced_item.name, voiced_filepath))    
+                        non_exist_voiced_index.append((i, voiced_item.name, voiced_filepath))
                 else:
                     non_exist_voiced_index.append((i, voiced_item.name, voiced_filepath))
 
