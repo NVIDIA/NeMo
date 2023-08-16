@@ -610,7 +610,9 @@ class ASRTarredDatasetBuilder:
             if 'label' in entry:
                 new_entry['label'] = entry['label']
 
-            if 'text' in entry:
+            if 'normalized_text' in entry:
+                new_entry['normalized_text'] = entry['normalized_text']
+            elif 'text' in entry:
                 new_entry['text'] = entry['text']
 
             if 'offset' in entry:
@@ -618,6 +620,12 @@ class ASRTarredDatasetBuilder:
 
             if 'lang' in entry:
                 new_entry['lang'] = entry['lang']
+
+            if 'speaker' in entry:
+                new_entry['speaker'] = entry['speaker']
+
+            if 'embedding_id' in entry:
+                new_entry['embedding_id'] = entry['embedding_id']
 
             new_entries.append(new_entry)
 

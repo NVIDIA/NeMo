@@ -103,6 +103,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.ds_class_name = self.ds_class.split(".")[-1]
             if not self.ds_class in [
                 "nemo.collections.tts.data.dataset.TTSDataset",
+                "nemo.collections.tts.data.dataset.TarredTTSDataset",
                 "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset",
                 "nemo.collections.tts.torch.data.TTSDataset",
             ]:
@@ -633,7 +634,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         elif cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        if self.ds_class == "nemo.collections.tts.data.dataset.TTSDataset":
+        if self.ds_class in ["nemo.collections.tts.data.dataset.TTSDataset", "nemo.collections.tts.data.dataset.TarredTTSDataset"]:
             phon_mode = contextlib.nullcontext()
             if hasattr(self.vocab, "set_phone_prob"):
                 phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
