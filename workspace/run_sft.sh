@@ -5,7 +5,12 @@ MEGATRON_CKPT=/media/data3/pretrained_models/megatron_gpt/gpt_pretrain_220m_len_
 ASR_MODEL="stt_en_fastconformer_transducer_large"
 
 TRAIN_MANIFESTS=/media/data/datasets/LibriSpeech/train_clean_100_cleaned.json
-VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean.json
+TRAIN_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_300.json
+TRAIN_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_150_r.json
+TRAIN_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_140_r.json
+VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_300.json
+VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_150_r.json
+VAL_MANIFESTS=/media/data/datasets/LibriSpeech/dev_clean_140_r.json
 
 python -m pdb -c continue run_sft_audio_lm.py --config-path="../examples/multimodel/conf/speechllm/" --config-name "modularized_speech_gpt_config" \
     model.pretrained_audio_model=$ASR_MODEL \

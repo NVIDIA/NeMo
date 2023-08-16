@@ -18,6 +18,7 @@ from functools import partial
 from typing import Dict, Optional, Union
 
 import torch
+from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -26,7 +27,12 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.multimodal.data.audio_text_qa_dataset import AudioQuestionAnswerDataset
+from nemo.collections.common.metrics import MetricStringToTorchMetric
+from nemo.collections.multimodal.data.audio_text_qa_dataset import (
+    AudioQuestionAnswerDataset,
+    get_aqa_dataset_from_config,
+)
+from nemo.collections.multimodal.modules.common.audio_text_generation_utils import generate
 from nemo.collections.multimodal.modules.speechllm_perception import AudioPerceptionModel
 from nemo.collections.multimodal.parts.utils.data_utils import get_num_samples_from_files
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -46,6 +52,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_iterator_k_split,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
+    get_computeprob_response,
     get_default_length_params,
     get_default_sampling_params,
     megatron_gpt_generate,
@@ -58,10 +65,14 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, L
 from nemo.utils import AppState, logging, model_utils
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
     HAVE_APEX = True
-
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
@@ -166,7 +177,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         self._optimizer_param_groups = param_groups
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
-    def prepare_llm_input(self, audio_batch):
+    def inject_perception_input(self, encoded, encoded_len, input_ids, input_length):
         def _concat_embs(embs1, emb1_lens, embs2, emb2_lens):
             concat_emb = []
             concat_len = []
@@ -181,39 +192,10 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             concat_len = torch.stack(concat_len, dim=0)
             return concat_emb, concat_len
 
-        def _shift_labels_by_emb_len(labels, label_lens, emb_lens, max_len, pad_token=0):
-            shifted_labels = []
-            for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
-                shifted_label = torch.full([max_len], pad_token, device=label.device)
-                shifted_label[emb_len : emb_len + label_len] = label[:label_len]
-                shifted_labels.append(shifted_label)
-            shifted_labels = torch.stack(shifted_labels, dim=0)
-            return shifted_labels
-
-        input_signal = audio_batch['audio_signal']
-        input_signal_length = audio_batch['audio_signal_length']
-
-        input_ids, input_length, labels, loss_mask = (
-            audio_batch['tokens'],
-            audio_batch['tokens_length'],
-            audio_batch['labels'],
-            audio_batch['loss_mask'],
-        )
-
-        # [b, t, c]
-        encoded, encoded_len = self.perception(
-            input_signal=input_signal,
-            input_signal_length=input_signal_length,
-            processed_signal=None,
-            processed_signal_length=None,
-        )
         # [b, t, c]
         lm_embedding = self.model.language_model.embedding
         input_embeds = lm_embedding.word_embeddings(input_ids)
         encoder_input, encoder_length = _concat_embs(encoded, encoded_len, input_embeds, input_length)
-        labels = _shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_input.shape[1], pad_token=0)
-        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
-        loss_mask = _shift_labels_by_emb_len(loss_mask, input_length, encoded_len, encoder_input.shape[1], pad_token=0)
 
         b = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
@@ -233,9 +215,57 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             encoder_input = encoder_input + position_embeddings
         else:
             encoder_input = encoder_input
-        encoder_input = encoder_input.transpose(0, 1).contiguous()
+        encoder_max_length = encoder_input.shape[1]
+        if lm_embedding.transpose_batch_sequence:
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+        return encoder_input, attention_mask, encoder_length, position_ids, encoder_max_length
+
+    def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
+        shifted_labels = []
+        for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
+            shifted_label = torch.full([max_len], pad_token, device=label.device)
+            shifted_label[emb_len : emb_len + label_len] = label[:label_len]
+            shifted_labels.append(shifted_label)
+        shifted_labels = torch.stack(shifted_labels, dim=0)
+        return shifted_labels
+
+    def _get_text_embeddings(self, text_tokens, position_ids):
+        lm_embedding = self.model.language_model.embedding
+        text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
+        if hasattr(lm_embedding, 'position_embeddings'):
+            position_embeddings = lm_embedding.position_embeddings(position_ids)
+            text_embeddings = text_embeddings + position_embeddings
+        return text_embeddings.transpose(0, 1)
+
+    def prepare_llm_input(self, audio_batch):
+
+        input_signal = audio_batch['audio_signal']
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+        encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
+            encoded, encoded_len, input_ids, input_length
+        )
+        labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
+        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+        loss_mask = self._shift_labels_by_emb_len(
+            loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
+        )
 
         return encoder_input, attention_mask, labels, loss_mask, encoder_length
 
@@ -258,6 +288,44 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         )
 
         return output, loss_mask
+
+    def get_forward_output_only_func(self):
+        def fwd_output_only_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+            extra_arg = {}
+            # take the batch produced by prepare_batch_at_step
+            (
+                tokens,
+                input_embeddings,
+                attention_mask,
+                position_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+            tokens = tokens.cuda()
+            position_ids = position_ids.cuda()
+            if attention_mask is not None:
+                attention_mask = attention_mask.cuda()
+                attention_mask = attention_mask[0:1]
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            output_tensor = model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=input_embeddings,
+                attention_mask=attention_mask,
+                **extra_arg,
+            )
+
+            if isinstance(output_tensor, tuple):
+                output_tensor = output_tensor[1]  # get logits only
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
@@ -315,36 +383,14 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             manifest_filepath = data_cfg.manifest_filepath
 
         if not is_train:
-            dataset = AudioQuestionAnswerDataset(
+            dataset = get_aqa_dataset_from_config(
                 manifest_filepath=manifest_filepath,
+                config=data_cfg,
                 tokenizer=self.tokenizer,
-                sample_rate=data_cfg.sample_rate,
-                int_values=data_cfg.get('int_values', False),
                 augmentor=augmentor,
-                max_duration=getattr(data_cfg, 'max_duration', None),
-                min_duration=getattr(data_cfg, 'min_duration', None),
-                max_utts=getattr(data_cfg, 'max_utts', -1),
-                trim=getattr(data_cfg, 'trim_silence', False),
-                channel_selector=getattr(data_cfg, 'channel_selector', None),
-                max_seq_length=data_cfg.max_seq_length,
-                min_seq_length=data_cfg.min_seq_length,
-                add_bos=data_cfg.get('add_bos', False),
-                add_eos=data_cfg.get('add_eos', True),
-                add_sep=data_cfg.get('add_sep', False),
                 sep_id=self.sep_id,
-                max_num_samples=data_cfg.get('max_num_samples', None),
-                seed=data_cfg.get('seed', 1234),
-                separate_prompt_and_response_with_newline=data_cfg.get(
-                    'separate_prompt_and_response_with_newline', True
-                ),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
-                truncation_field=data_cfg.get('truncation_field', 'context'),
-                pad_to_max_length=False,
-                prompt_template=data_cfg.get('prompt_template', None),
                 virtual_tokens=self.virtual_tokens,
-                tokens_to_generate=data_cfg.get(
-                    'tokens_to_generate', 0
-                ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
             )
             return [dataset]
 
@@ -373,36 +419,15 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             for file_path, num_samples in zip(manifest_filepath, num_train_samples_per_dataset):
-                dataset = AudioQuestionAnswerDataset(
+                dataset = get_aqa_dataset_from_config(
                     manifest_filepath=file_path,
+                    config=data_cfg,
                     tokenizer=self.tokenizer,
-                    sample_rate=data_cfg.sample_rate,
-                    int_values=data_cfg.get('int_values', False),
                     augmentor=augmentor,
-                    max_duration=getattr(data_cfg, 'max_duration', None),
-                    min_duration=getattr(data_cfg, 'min_duration', None),
-                    max_utts=getattr(data_cfg, 'max_utts', -1),
-                    trim=getattr(data_cfg, 'trim_silence', False),
-                    channel_selector=getattr(data_cfg, 'channel_selector', None),
-                    max_seq_length=data_cfg.max_seq_length,
-                    min_seq_length=data_cfg.min_seq_length,
-                    add_bos=data_cfg.get('add_bos', False),
-                    add_eos=data_cfg.get('add_eos', True),
-                    add_sep=data_cfg.get('add_sep', False),
                     sep_id=self.sep_id,
-                    max_num_samples=num_samples[0],
-                    seed=data_cfg.get('seed', 1234),
-                    separate_prompt_and_response_with_newline=data_cfg.get(
-                        'separate_prompt_and_response_with_newline', True
-                    ),
                     answer_only_loss=self.cfg.get('answer_only_loss', True),
-                    truncation_field=data_cfg.get('truncation_field', 'context'),
-                    pad_to_max_length=False,
-                    prompt_template=data_cfg.get('prompt_template', None),
                     virtual_tokens=self.virtual_tokens,
-                    tokens_to_generate=data_cfg.get(
-                        'tokens_to_generate', 0
-                    ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+                    num_samples=num_samples[0],
                 )
                 datasets.append(dataset)
 
@@ -522,3 +547,97 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
         else:
             super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=strict)
+
+    def setup_metric(self, data_cfg):
+        metric_name = "exact_string_match"
+        if not hasattr(data_cfg, "metric"):
+            metric = MetricStringToTorchMetric["exact_string_match"]
+        else:
+            if not hasattr(data_cfg.metric, "name"):
+                raise ValueError("Metric name is not provided in the metric config.")
+            if data_cfg.metric.name == "loss":
+                return None, "loss"
+            if data_cfg.metric.name not in MetricStringToTorchMetric:
+                raise KeyError(
+                    f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                )
+            if data_cfg.metric.name in self._metrics_require_string2category_map:
+                if data_cfg.metric.average is None:
+                    raise ValueError(
+                        f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                    )
+            if (
+                data_cfg.metric.get('labels_are_strings', False)
+                and data_cfg.metric.name in self._metrics_require_string2category_map
+            ):
+                if data_cfg.metric.num_classes is None:
+                    raise ValueError(
+                        "Number of classes is not provided in the metric section within the data config. "
+                        f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
+                    )
+                if data_cfg.metric.get('class_labels', None) is None or not isinstance(
+                    data_cfg.metric.get('class_labels', None), ListConfig
+                ):
+                    raise ValueError(
+                        "Class labels are not provided properly in the metric section witnin the data config. "
+                        f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
+                    )
+                if len(data_cfg.metric.get('class_labels', None)) != data_cfg.metric.num_classes:
+                    raise ValueError(
+                        f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
+                    )
+
+            metric_name = data_cfg.metric.name
+            metric_cls = MetricStringToTorchMetric[metric_name]
+            if 'rouge' not in data_cfg.metric.name and 'wer' not in data_cfg.metric.name:
+                metric = [metric_cls(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+            else:
+                metric = [metric_cls()]
+        return metric, metric_name
+
+    def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
+        inference_config = self.get_inference_config()
+        # need to overwrite some configuration, make it immutable
+        inference_config = inference_config.copy()
+        if self.cfg.data.get('end_string', None):
+            inference_config['end_strings'] = [self.cfg.data.end_string]
+
+        global_batch_size_per_gpu = batch['tokens'].size(0)
+        num_micro_batches_before_decode = get_num_microbatches()
+
+        compute_logprob = inference_config.get('compute_logprob', False)
+        if compute_logprob:
+            inference_config['inputs'] = batch
+            inference_config['tokens_to_generate'] = 1
+            inference_config['all_probs'] = True
+            inference_config["add_BOS"] = False
+            inference_config['greedy'] = True
+            response = generate(self, **inference_config)
+            response = get_computeprob_response(self.tokenizer, response, batch)
+        else:
+            # for megatron_gpt_eval.py
+            if isinstance(batch, list):
+                inference_config['inputs'] = batch
+            else:
+                # peft_eval.py
+                inference_config['inputs'] = (
+                    batch['contexts'].cuda(),
+                    batch['context_lengths'].cuda(),
+                    batch['audio_signal'].cuda(),
+                    batch['audio_signal_length'].cuda(),
+                )
+            response = generate(self, **inference_config)
+
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_size_per_gpu // num_micro_batches_before_decode,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+        # add audio offsets to context lengths for properly decoding only the response
+        batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_length_to_add']
+
+        return response

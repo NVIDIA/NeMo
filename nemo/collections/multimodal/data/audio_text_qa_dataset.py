@@ -22,6 +22,7 @@ import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
+from omegaconf import DictConfig
 from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
@@ -172,9 +173,12 @@ class AudioQuestionAnswerDataset(Dataset):
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
         index_by_file_id: bool = False,
+        input_key: str = 'input',
+        output_key: str = 'output',
+        end_string: Optional[str] = None,
     ):
-        self.input_key = 'input'
-        self.output_key = 'output'
+        self.input_key = input_key
+        self.output_key = output_key
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -192,6 +196,7 @@ class AudioQuestionAnswerDataset(Dataset):
         self.add_bos = add_bos
         self.add_eos = add_eos
         self.add_sep = add_sep
+        self.end_string = end_string
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             self.bos_id = tokenizer.bos_id
@@ -280,6 +285,9 @@ class AudioQuestionAnswerDataset(Dataset):
         function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
         """
 
+        if self.end_string:
+            output += self.end_string
+
         if self.prompt_template is not None:
             assert f'{{{self.input_key}}}' in self.prompt_template
             assert f'{{{self.output_key}}}' in self.prompt_template
@@ -320,7 +328,8 @@ class AudioQuestionAnswerDataset(Dataset):
             total_ids += 1
         if self.add_sep:
             total_ids += 1
-        if self.add_eos:
+        # Only training need to consider eos token
+        if self.add_eos and self.tokens_to_generate == 0:
             total_ids += 1
 
         # If the total number of token is greater than the max, we will try to truncate the answer
@@ -359,6 +368,7 @@ class AudioQuestionAnswerDataset(Dataset):
             'answer_start_idx': answer_start_idx,
             'context_ids': context_ids,
             'context_length': len(context_ids),
+            'answer_ids': answer_ids,
         }
 
         return processed_example
@@ -384,6 +394,7 @@ class AudioQuestionAnswerDataset(Dataset):
         return item
 
     def _collate_fn(self, batch):
+        text_pad_id = self.pad_id
         sample_ids = [x["idx"] for x in batch]
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
 
@@ -395,6 +406,7 @@ class AudioQuestionAnswerDataset(Dataset):
         labels = [item['input_ids'][1:] for item in batch]
         contexts = [item['context_ids'] for item in batch]
         context_lengths = torch.LongTensor([item['context_length'] for item in batch])
+        answers = [item['answer_ids'] for item in batch]
         loss_mask = [self._build_loss_mask(item)[1:] for item in batch]
 
         max_length = max([len(x) for x in input_ids]) + self.tokens_to_generate
@@ -408,12 +420,11 @@ class AudioQuestionAnswerDataset(Dataset):
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_length = torch.LongTensor([len(x) for x in input_ids])
-        input_ids = torch.LongTensor(
-            self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
-        )
-        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
+        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=text_pad_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
+        answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=text_pad_id))
 
         batch = {
             'sample_ids': sample_ids,
@@ -426,6 +437,7 @@ class AudioQuestionAnswerDataset(Dataset):
             'position_ids': position_ids,
             'contexts': contexts,
             'context_lengths': context_lengths,
+            'answers': answers,
             'max_length': torch.LongTensor(max_length),
         }
 
@@ -1004,3 +1016,48 @@ class RandomizedChainDataset(ChainDataset):
                 # so that the other datasets get a chance to yield too
                 if idx >= len(d) - 1:
                     break
+
+
+def get_aqa_dataset_from_config(
+    manifest_filepath: str,
+    config: DictConfig,
+    tokenizer,
+    augmentor,
+    sep_id: Optional[int] = None,
+    answer_only_loss: bool = True,
+    virtual_tokens: int = 0,
+    num_samples: Optional[List[int]] = None,
+):
+    dataset = AudioQuestionAnswerDataset(
+        manifest_filepath=manifest_filepath,
+        tokenizer=tokenizer,
+        sample_rate=config.sample_rate,
+        int_values=config.get('int_values', False),
+        augmentor=augmentor,
+        max_duration=getattr(config, 'max_duration', None),
+        min_duration=getattr(config, 'min_duration', None),
+        max_utts=getattr(config, 'max_utts', -1),
+        trim=getattr(config, 'trim_silence', False),
+        channel_selector=getattr(config, 'channel_selector', None),
+        max_seq_length=config.max_seq_length,
+        min_seq_length=config.min_seq_length,
+        add_bos=config.get('add_bos', False),
+        add_eos=config.get('add_eos', True),
+        add_sep=config.get('add_sep', False),
+        sep_id=sep_id,
+        max_num_samples=num_samples,
+        seed=config.get('seed', 1234),
+        separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
+        answer_only_loss=answer_only_loss,
+        truncation_field=config.get('truncation_field', 'context'),
+        pad_to_max_length=config.get('pad_to_max_length', False),
+        prompt_template=config.get('prompt_template', None),
+        virtual_tokens=virtual_tokens,
+        tokens_to_generate=config.get(
+            'tokens_to_generate', 0
+        ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+        input_key=config.get('input_key', 'input'),
+        output_key=config.get('output_key', 'output'),
+        end_string=config.get('end_string', None),
+    )
+    return dataset

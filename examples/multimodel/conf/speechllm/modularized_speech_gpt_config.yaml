@@ -25,7 +25,7 @@ trainer:
   max_epochs: 9999
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10 # frequency with which training steps are logged 
-  val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
+  val_check_interval: 1 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
 
@@ -49,7 +49,7 @@ exp_manager:
     model_parallel_size: ${model.tensor_model_parallel_size}
     always_save_nemo: False
     save_best_model: True
-  create_early_stopping_callback: True
+  create_early_stopping_callback: False
   early_stopping_callback_params:
     monitor: "val_loss"
     mode: "min"
@@ -189,6 +189,8 @@ model:
     # preprocessor: null
 
   data:
+    # end_string: null
+    end_string: "[EOS]"
     train_ds:
       # Example of how to specify paths to multiple datasets
       # manifest_filepath:
@@ -215,7 +217,9 @@ model:
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       context_key: 'input'
       label_key: 'output'
-      add_eos: True
+      # add_eos: True
+      add_eos: False
+      end_string: ${model.data.end_string}
       add_sep: False
       add_bos: False
       separate_prompt_and_response_with_newline: False
@@ -248,6 +252,7 @@ model:
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
       add_eos: ${model.data.train_ds.add_eos}
+      end_string: ${model.data.end_string}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
@@ -260,9 +265,9 @@ model:
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
 
-      log_every_n_steps: null
+      log_every_n_steps: 1
       metric:
-        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+        name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
@@ -280,6 +285,7 @@ model:
     #   context_key: 'input'
     #   label_key: 'output'
     #   add_eos: ${model.data.train_ds.add_eos}
+    #  end_string: ${model.data.end_string}
     #   add_sep: ${model.data.train_ds.add_sep}
     #   add_bos: ${model.data.train_ds.add_bos}
     #   separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
