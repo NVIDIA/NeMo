@@ -8,8 +8,8 @@ trainer:
   logger: False
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 1000
-  max_steps: -1
+  # max_epochs: 1000
+  max_steps: 100000
   log_every_n_steps: 10
   val_check_interval: 1000
   gradient_clip_val: 1.0
@@ -90,7 +90,7 @@ model:
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
     # data_prefix: ["/datap/misc/BinaryDataset/books3/Books3_shuf_text_document"]
-    data_prefix: [1, "/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", 1, "/datap/misc/BinaryDataset/t5binaries/my-t5_test_bert_tokenizer_text_document"]
+    data_prefix: [1, "/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", 1, "/datap/misc/BinaryDataset/t5binaries/my-t5_00_bert_tokenizer_text_document"]
     # data_prefix: ["/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document"]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: ["lazy", "mmap"]

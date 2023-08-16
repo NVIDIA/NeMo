@@ -671,7 +671,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         global_batch_size = self.cfg.global_batch_size
         
         #TODO: remove hardcoding
-        max_train_steps = 100000
+        max_train_steps = self.trainer.max_steps
         eval_iters = 100
         test_iters = 100
         print("MAX TRAIN STEPS: ", max_train_steps)
