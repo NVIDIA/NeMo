@@ -1304,6 +1304,7 @@ def main():
             trainer=trainer,
             map_location=torch.device("cpu"),
             save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
         )
         model.to(dtype=dtype)
 
