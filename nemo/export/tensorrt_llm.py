@@ -60,6 +60,7 @@ class TensorRTLLM(ITritonDeployable):
         n_gpus=1,
         max_input_len=200,
         max_output_len=200,
+        max_prompt_embedding_table_size=0,
         max_batch_size=32,
         quantization=None,
     ):
@@ -92,6 +93,7 @@ class TensorRTLLM(ITritonDeployable):
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
+            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
