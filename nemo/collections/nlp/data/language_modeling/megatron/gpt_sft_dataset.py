@@ -201,7 +201,7 @@ class GPTSFTDataset(Dataset):
 
         # check label placeholder at the end
         label_ph = placeholders[-1]
-        assert self.prompt_template[-len(label_ph):] == label_ph, f'{label_ph} must be at the end of prompt_template.'
+        assert self.prompt_template[-len(label_ph) :] == label_ph, f'{label_ph} must be at the end of prompt_template.'
 
         # placeholder to string
         ph_to_s = {ph: s for ph, s in zip(placeholders, contexts + [label])}
