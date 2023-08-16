@@ -194,6 +194,7 @@ class GPTSFTDataset(Dataset):
             template_strings = ['Context:', 'xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] # tokenizer.space_sensitive = False
             template_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
+
         def merge_strings(parts: List[str], merge_right: List[str], merge_left: List[str]):
             """
             Merge string to the right string if it is in merge_right.
@@ -210,7 +211,7 @@ class GPTSFTDataset(Dataset):
                     merged_parts.append(p if m is None else m + p)
                     m = None
             return merged_parts
-        
+
         # check have placeholders
         placeholders = [f'{{{ck}}}' for ck in self.context_keys] + [f'{{{self.label_key}}}']
         for ph in placeholders:
@@ -227,11 +228,16 @@ class GPTSFTDataset(Dataset):
 
         # separate prompt_template based on '{', '}', and space
         separated_template = re.split('([ {}])', self.prompt_template)
-        merged_space_and_brackets_template = merge_strings(separated_template, merge_right=['{', '', ' '], merge_left=['}'])
+        merged_space_and_brackets_template = merge_strings(
+            separated_template, merge_right=['{', '', ' '], merge_left=['}']
+        )
 
         # convert placeholder to the corresponding string and key
         template_keys = [ph_to_k.get(t.strip(' '), '<template>') for t in merged_space_and_brackets_template]
-        template_strings = [' ' * (len(t) - len(t.lstrip(' '))) + ph_to_s.get(t.strip(' '), t.strip(' ')) for t in merged_space_and_brackets_template]
+        template_strings = [
+            ' ' * (len(t) - len(t.lstrip(' '))) + ph_to_s.get(t.strip(' '), t.strip(' '))
+            for t in merged_space_and_brackets_template
+        ]
 
         # deal with space_sensitive
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
