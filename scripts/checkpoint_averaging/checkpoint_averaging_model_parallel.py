@@ -57,6 +57,8 @@ def main():
 
     # repeating for all ranks
     for rank_dir in os.listdir(args.checkpoint_dir):
+        if not rank_dir.startswith('mp_rank_'):
+            continue
         logging.info("Processing %s", rank_dir)
         full_checkpoint_dir = os.path.join(args.checkpoint_dir, rank_dir)
         checkpoint_paths = [
