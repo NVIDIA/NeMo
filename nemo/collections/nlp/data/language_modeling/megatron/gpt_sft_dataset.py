@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import List, Optional
 
-import re
 import numpy as np
 import torch
 from datasets import load_dataset
@@ -205,17 +205,17 @@ class GPTSFTDataset(Dataset):
         assert self.prompt_template.index(label_ph) == len(self.prompt_template) - len(
             label_ph
         ), f'{{{self.label_key}}} must be at the end of prompt_template.'
-        
+
         # placeholder to string
-        ph_to_s = {ph: s for ph, s in zip(context_phs+[label_ph], contexts+[label])}
+        ph_to_s = {ph: s for ph, s in zip(context_phs + [label_ph], contexts + [label])}
         # placeholder to key
-        ph_to_k = {ph: k for ph, k in zip(context_phs+[label_ph], self.context_keys+[self.label_key])}
-        
+        ph_to_k = {ph: k for ph, k in zip(context_phs + [label_ph], self.context_keys + [self.label_key])}
+
         # separate prompt_template based on `{placeholder}`
         separated_template = re.split('({.+?})', self.prompt_template)
         # remove empty string `''`
         separated_template = [s for s in separated_template if len(s) > 0]
-        
+
         # convert placeholder to context_string
         # add leading space for each context_string if needed
         template_strings, template_keys = [], []
