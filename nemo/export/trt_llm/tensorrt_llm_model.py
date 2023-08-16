@@ -588,7 +588,7 @@ class LMHeadModelBuilder(ModelBuilder):
         max_output_len: int = 200,
         max_beam_width: int = 1,
         parallel_build: bool = False,
-        max_prompt_embedding_table_size=0,
+        max_prompt_embedding_table_size: int = 0,
         output_dir: str = "/tmp/ammo/",
     ):
         """Builds the model and generate the tensorrt_llm engine.

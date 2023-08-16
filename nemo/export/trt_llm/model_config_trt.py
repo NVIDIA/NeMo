@@ -18,7 +18,7 @@ def model_config_to_tensorrt_llm(
     max_output_len: int = 200,
     max_batch_size: int = 1,
     max_beam_width: int = 1,
-    max_prompt_embedding_table_size=0,
+    max_prompt_embedding_table_size: int = 0,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -30,6 +30,7 @@ def model_config_to_tensorrt_llm(
         max_output_len: The max output sequence length.
         max_batch_size: The max batch size.
         max_beam_width: The max beam search width.
+        max_prompt_embedding_table_size: The max prompt embedding table size.
     """
     if os.path.exists(engine_dir):
         shutil.rmtree(engine_dir)
