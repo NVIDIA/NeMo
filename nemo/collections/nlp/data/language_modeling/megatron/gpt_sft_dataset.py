@@ -41,7 +41,6 @@ class GPTSFTDataset(Dataset):
         sep_id: int = None,
         max_num_samples: int = None,
         seed: int = 1234,
-        context_key: str = "text",
         label_key: str = "answer",
         answer_only_loss: bool = True,
         truncation_field: str = "text",
@@ -66,10 +65,9 @@ class GPTSFTDataset(Dataset):
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         seed: int = 1234,
-        context_key: Keys to use for the context in your JSONL file. Can be multiple key separated with ','.
         label_key: Key to use for the label in your JSONL file
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: keys in context_key). Field to be used for truncation if the combined length exceeds the max sequence length.
+        truncation_field: Field to use for truncation. (Options: keys in prompt_template). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
@@ -86,7 +84,6 @@ class GPTSFTDataset(Dataset):
         self.sep_id = sep_id
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.context_keys = context_key.split(',')
         self.label_key = label_key
         self.answer_only_loss = answer_only_loss
         self.truncation_fields = truncation_field.split(',')
@@ -97,21 +94,23 @@ class GPTSFTDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         assert (
             self.prompt_template is not None
-        ), f'we need prompt_template to combine contexts {context_keys} and label {label_key}'
+        ), f'we need prompt_template to combine contexts and label {label_key}'
         # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-
-        # Legacy checkpoints has self.truncation_fields = ['context'] and self.context_keys = ['input']
-        if (
-            len(self.truncation_fields) == 1
-            and len(self.context_keys) == 1
-            and self.context_keys[0] == 'input'
-            and self.truncation_fields[0] == 'context'
-        ):
-            self.truncation_fields[0] = self.context_keys[0]
+        
+        label_placeholder = f'{{{self.label_key}}}'
+        assert label_placeholder in self.prompt_template, f'{label_placeholder} is not found in {self.prompt_template}.'
+        assert self.prompt_template[-len(label_placeholder) :] == label_placeholder, f'{label_placeholder} must be at the end of prompt_template.'
+        
+        self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
+        
+        # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
+        if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+            self.truncation_fields[0] = self.prompt_template_keys[0]
+            
         assert set(self.truncation_fields).issubset(
-            self.context_keys
-        ), f'truncation_fields {self.truncation_fields} must in {self.context_keys}'
+            self.prompt_template_keys
+        ), f'truncation_fields {self.truncation_fields} must in {self.prompt_template_keys}'
 
         if hf_dataset:
             self.indexed_dataset = load_dataset(
@@ -173,13 +172,12 @@ class GPTSFTDataset(Dataset):
             raise e
         return self._process_example(example)
 
-    def _separate_template(self, contexts: List[str], label: str):
+    def _separate_template(self, prompt_template_values: List[str]):
         """
         Combine contexts and label based on prompt_template into a list of strings and a list of keys.
 
         Args:
-            contexts (List[str]): the list of context strings in jsonl file.
-            label (str): the label string in jsonl file.
+            prompt_template_values (List[str]): the list of context and label strings extrated from jsonl file with prompt_template_keys.
 
         Returns:
             template_strings (List[str]): separated prompt_template with contexts/label placeholder filled with corresponding strings
@@ -187,60 +185,43 @@ class GPTSFTDataset(Dataset):
             
         Examples:
             prompt_template = 'Context:  {context} Question: {question} Answer: {label}'
-            contexts = ['After Washington had returned to Williamsburg...', 'What did Washington do in Williamsburg?']
-            label = ['He surprised the Canadians on May 2.']
+            prompt_template_values = ['xxx', 'yyy', 'zzz']
             
             # tokenizer.space_sensitive = True
-            template_strings = [
-                'Context:', '  After Washington had returned to Williamsburg...', 
-                ' Question:', ' What did Washington do in Williamsburg?', 
-                ' Answer:', ' He surprised the Canadians on May 2.'
-            ] 
+            template_strings = ['Context:', '  xxx', ' Question:', ' yyy', ' Answer:', ' zzz'] 
             
             # tokenizer.space_sensitive = False
-            template_strings = [
-                'Context:', ' After Washington had returned to Williamsburg...', 
-                'Question:', 'What did Washington do in Williamsburg?', 
-                'Answer:', 'He surprised the Canadians on May 2.'
-            ] 
+            template_strings = ['Context:', ' xxx', 'Question:', 'yyy', 'Answer:', 'zzz'] 
             
             template_keys = ['<template>', 'context', '<template>', 'question', '<template>', 'label']
         """
-        # check have placeholders
-        placeholders = [f'{{{ck}}}' for ck in self.context_keys] + [f'{{{self.label_key}}}']
-        for ph in placeholders:
-            assert ph in self.prompt_template, f'{ph} is not found in {self.prompt_template}.'
-
-        # check label placeholder at the end
-        label_ph = placeholders[-1]
-        assert self.prompt_template[-len(label_ph) :] == label_ph, f'{label_ph} must be at the end of prompt_template.'
+        placeholders = [f'{{{k}}}' for k in self.prompt_template_keys]
 
         # placeholder to string
-        ph_to_s = {ph: s for ph, s in zip(placeholders, contexts + [label])}
+        ph_to_s = {ph: s for ph, s in zip(placeholders, prompt_template_values)}
         # placeholder to key
-        ph_to_k = {ph: k for ph, k in zip(placeholders, self.context_keys + [self.label_key])}
+        ph_to_k = {ph: k for ph, k in zip(placeholders, self.prompt_template_keys)}
 
         # separate prompt_template based on '<space>{placeholder}'
-        # self.prompt_template = "Context:{context}  Passage: {passage}\n\nQuestion:{question} {label}"
-        # template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
+        # examples:
+        #   self.prompt_template = "Context:{context}  Passage: {passage}\n\nQuestion:{question} {label}"
+        #   template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
         template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
         template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
         
-        # deal with space_sensitive
+        # remove space if we have leading space and tokenizer is not space_sensitive
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
-        # template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
-        # template_with_space_reduced = ['Context:', '{context}', ' Passage:', '{passage}', '\n\nQuestion:', '{question}', '{label}']
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
         template_with_space_reduced = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated]
         
         # convert placeholder to the corresponding string (preserve left spaces) and key 
         template_strings, template_keys = [], []
         for t in template_with_space_reduced:
-            lstrip_t = t.lstrip(' ')
-            num_left_spaces = ' ' * (len(t) - len(lstrip_t))
-            template_strings.append(num_left_spaces + ph_to_s.get(lstrip_t, lstrip_t))
-            template_keys.append(ph_to_k.get(lstrip_t, '<template>'))
+            placeholder = t.lstrip(' ')
+            left_spaces = ' ' * (len(t) - len(placeholder))
+            template_strings.append(left_spaces + ph_to_s.get(placeholder, placeholder))
+            template_keys.append(ph_to_k.get(placeholder, '<template>'))
         
         return template_strings, template_keys
 
@@ -270,8 +251,8 @@ class GPTSFTDataset(Dataset):
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
             num_fields = len(self.truncation_fields)
-            # Sorted equal divide length to each field
-            # Examples:
+            # sorted equal divide length to each field
+            # examples:
             #   truncation_length_total = 3
             #   num_fields = 11
             #   truncation_length_list = [3,4,4]
@@ -280,23 +261,22 @@ class GPTSFTDataset(Dataset):
                 for i in range(num_fields)[::-1]
             ]
 
-            for i, (ids, key) in enumerate(zip(context_ids, template_keys[:-1])):
+            for i, (ids, key) in enumerate(zip(template_ids, template_keys)):
                 if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
                     assert len(ids) >= truncation_length, f'{key} is not long enough to truncate.'
-                    if self.truncation_method == 'random':
-                        ids_offset = random.randint(0, truncation_length)
-                    elif self.truncation_method == 'left':
-                        ids_offset = truncation_length
+                    if self.truncation_method == 'left':
+                        window_offset = truncation_length
                     elif self.truncation_method == 'right':
-                        ids_offset = 0
+                        window_offset = 0
                     else:
                         raise ValueError(f'{self.truncation_method} is not supported')
 
-                    ids_length = len(ids) - truncation_length
-                    context_ids[i] = ids[ids_offset : ids_offset + ids_length]
+                    window_length = len(ids) - truncation_length
+                    template_ids[i] = ids[window_offset : window_offset + window_length]
 
-        context_ids = [i for ids in context_ids for i in ids]
+        context_ids = [i for ids in template_ids[:-1] for i in ids]
+        label_ids = template_ids[-1]
         return context_ids, label_ids
 
     def _process_example(self, example):
@@ -305,10 +285,9 @@ class GPTSFTDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        contexts = [example[c].strip(' ') for c in self.context_keys]
-        label = example[self.label_key]
-
-        template_strings, template_keys = self._separate_template(contexts, label)
+        prompt_template_values = [example[c].strip() for c in self.prompt_template_keys]
+        
+        template_strings, template_keys = self._separate_template(prompt_template_values)
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         context_ids, answer_ids = self._multiple_truncation(template_ids, template_keys)
 
@@ -343,7 +322,7 @@ class GPTSFTDataset(Dataset):
             input_ids = input_ids[: self.max_seq_length]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in self.context_keys + [self.label_key]}
+        metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
 
         processed_example = {
             'input_ids': input_ids,

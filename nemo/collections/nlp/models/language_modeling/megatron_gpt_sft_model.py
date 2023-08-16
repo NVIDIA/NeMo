@@ -278,7 +278,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 sep_id=self.sep_id,
                 max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
-                context_key=data_cfg.get('context_key', 'text'),
                 label_key=data_cfg.get('label_key', 'answer'),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
                 truncation_field=data_cfg.get('truncation_field', 'text'),
