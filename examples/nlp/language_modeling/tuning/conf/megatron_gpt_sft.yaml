@@ -103,7 +103,7 @@ model:
       truncation_field: 'input' # Options: keys in context_key
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: null # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      truncation_method: 'random' # Truncation from which position, Options: ['random', 'left', 'right'] 
+      truncation_method: 'right' # Truncation from which position, Options: ['random', 'left', 'right'] 
       
     validation_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
