@@ -92,20 +92,20 @@ class GPTSFTDataset(Dataset):
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
-        assert (
-            self.prompt_template is not None
-        ), f'we need prompt_template to combine contexts and label {label_key}'
+        assert self.prompt_template is not None, f'we need prompt_template to combine contexts and label {label_key}'
         # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
-        
+
         label_placeholder = f'{{{self.label_key}}}'
-        assert self.prompt_template[-len(label_placeholder) :] == label_placeholder, f'{label_placeholder} must be at the end of prompt_template.'
-        
+        assert (
+            self.prompt_template[-len(label_placeholder) :] == label_placeholder
+        ), f'{label_placeholder} must be at the end of prompt_template.'
+
         # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
         if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
             self.truncation_fields[0] = self.prompt_template_keys[0]
-            
+
         assert set(self.truncation_fields).issubset(
             self.prompt_template_keys
         ), f'truncation_fields {self.truncation_fields} must in {self.prompt_template_keys}'
@@ -206,14 +206,16 @@ class GPTSFTDataset(Dataset):
         #   template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
         template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
         template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
-        
+
         # remove space if we have leading space and tokenizer is not space_sensitive
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
-        template_with_space_reduced = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated]
-        
-        # convert placeholder to the corresponding string (preserve left spaces) and key 
+        template_with_space_reduced = [
+            s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
+        ]
+
+        # convert placeholder to the corresponding string (preserve left spaces) and key
         template_strings, template_strings_keys = [], []
         for t in template_with_space_reduced:
             placeholder = t.lstrip(' ')
