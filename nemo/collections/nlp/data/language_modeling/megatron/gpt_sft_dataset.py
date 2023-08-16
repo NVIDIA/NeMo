@@ -217,8 +217,10 @@ class GPTSFTDataset(Dataset):
         # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
         # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
-        template_with_space_reduced = [s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated]
-        
+        template_with_space_reduced = [
+            s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
+        ]
+
         # convert placeholder to the corresponding string and key
         template_strings, template_keys = [], []
         for t in template_with_space_reduced:
@@ -226,7 +228,7 @@ class GPTSFTDataset(Dataset):
             num_left_spaces = ' ' * (len(t) - len(lstrip_t))
             template_strings.append(num_left_spaces + ph_to_s.get(lstrip_t, lstrip_t))
             template_keys.append(ph_to_k.get(lstrip_t, '<template>'))
-        
+
         return template_strings, template_keys
 
     def _multiple_truncation(self, template_ids: List[List[int]], template_keys: List[str]):
