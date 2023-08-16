@@ -86,10 +86,10 @@ class GPTSFTDataset(Dataset):
         self.sep_id = sep_id
         self.max_num_samples = max_num_samples
         self.seed = seed
-        self.context_keys = context_keys.split(',')
+        self.context_keys = context_key.split(',')
         self.label_key = label_key
         self.answer_only_loss = answer_only_loss
-        self.truncation_fields = truncation_fields.split(',')
+        self.truncation_fields = truncation_field.split(',')
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
