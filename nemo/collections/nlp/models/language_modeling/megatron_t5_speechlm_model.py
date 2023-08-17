@@ -202,8 +202,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
             t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = 2048 
-            t5_cfg.max_position_embeddings = 2048
+            # t5_cfg.seq_length = 2048 
+            # t5_cfg.max_position_embeddings = 2048
+            t5_cfg.seq_length = 1536
+            t5_cfg.max_position_embeddings = 1536
 
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),
@@ -578,6 +580,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             dec_input_mask[:,:] = 1 # Does not really matter
             
             output_token_list = []
+
             for t in range(labels.shape[2]-1):
                 print("Batch:{} Timestep:{}".format(batch_idx, t))
                 dec_input[:, :, t+1:] = self.tokenizer.pad_id # Not necessary, but just to be safe
@@ -586,16 +589,17 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 )
                 output_tokens = output_tensor.argmax(dim=2) # (B,T,8)
                 output_tokens_curr_timestep = output_tokens[:, t]
-                output_token_list.append(output_tokens_curr_timestep)
+                output_token_list.append(output_tokens_curr_timestep) #for later predicting audio
                 output_tokens_curr_timestep_dec_compatible = output_tokens_curr_timestep * 1
                 print("output_tokens_curr_timestep_dec_compatible", output_tokens_curr_timestep_dec_compatible.shape, output_tokens_curr_timestep_dec_compatible.min(), output_tokens_curr_timestep_dec_compatible.max())
                 for _c in range(8):
                     output_tokens_curr_timestep_dec_compatible[:,_c] = output_tokens_curr_timestep_dec_compatible[:,_c] + 30000 + (_c * 1024)
                 dec_input[:, :, t+1] = output_tokens_curr_timestep_dec_compatible * 1
             
-            output_tokens_combined = torch.stack(output_token_list) #`` (T, B, 8)
+            output_tokens_combined = torch.stack(output_token_list) # (T, B, 8)
             output_tokens_combined = output_tokens_combined.permute(1, 2, 0) # (B, 8, T)
             
+            # predicting audio 
             batch_size = output_tokens_combined.shape[0]
             for i in range(batch_size):
                 audio_len = (labels[i][0] != 0).sum().item()
