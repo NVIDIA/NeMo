@@ -51,6 +51,7 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
+  model_seq_length: 2048
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
@@ -119,10 +120,10 @@ model:
     betas:
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 100
-      constant_steps: 0
-      min_lr: 0.0
-      monitor: val_loss
-      reduce_on_plateau: false
+    # sched:
+    #   name: CosineAnnealing
+    #   warmup_steps: 100
+    #   constant_steps: 0
+    #   min_lr: 0.0
+    #   monitor: val_loss
+    #   reduce_on_plateau: false

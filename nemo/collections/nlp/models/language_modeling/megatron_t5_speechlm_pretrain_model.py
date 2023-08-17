@@ -280,8 +280,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
             t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = cfg.data.get('seq_length', 2048) 
-            t5_cfg.max_position_embeddings = cfg.data.get('seq_length', 2048)
+            t5_cfg.seq_length = cfg.get('model_seq_length', 2048) 
+            t5_cfg.max_position_embeddings = cfg.get('model_seq_length', 2048)
 
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),
@@ -290,6 +290,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             save_restore_connector=NLPSaveRestoreConnector(),
         )
         print(f"self.frozen_model {self.frozen_model}")
+        # import ipdb; ipdb.set_trace()
     
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
