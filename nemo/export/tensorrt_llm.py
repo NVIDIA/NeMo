@@ -27,6 +27,7 @@ from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from .trt_llm.nemo_utils import nemo_to_model_config, get_tokenzier
 from .trt_llm.quantization_utils import naive_quantization
 from .trt_llm.tensorrt_llm_run import generate, load
+from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
 
 class TensorRTLLM(ITritonDeployable):
@@ -53,14 +54,22 @@ class TensorRTLLM(ITritonDeployable):
             except:
                 raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
 
+    def extract_prompt_embeddings(self, prompt_checkpoint_path):
+        if is_nemo_file(prompt_checkpoint_path):
+            vtokens_embeddings = get_prompt_embedding_table(prompt_checkpoint_path)
+            np.save(os.path.join(self.model_dir, "prompt_embeddings.npy"), torch_to_numpy(vtokens_embeddings))
+        else:
+            raise FileNotFoundError("file: {0} does not exist or is not a nemo file.".format(prompt_checkpoint_path))
+
     def export(
         self,
         nemo_checkpoint_path,
+        prompt_checkpoint_path=None,
         delete_existing_files=True,
         n_gpus=1,
         max_input_len=200,
         max_output_len=200,
-        max_prompt_embedding_table_size=0,
+        max_prompt_embedding_table_size=100,
         max_batch_size=32,
         quantization=None,
     ):
@@ -79,12 +88,15 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        nemo_export_dir = os.path.join(self.model_dir, "/nemo/")
+        nemo_export_dir = os.path.join(self.model_dir, "/tmp_nemo/")
         model_configs, self.tokenizer = nemo_to_model_config(in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir)
 
         for model_config in model_configs:
             if quantization is not None:
                 naive_quantization(model_config, quantization)
+
+        if prompt_checkpoint_path is None:
+            max_prompt_embedding_table_size = 0
 
         model_config_to_tensorrt_llm(
             model_configs,
@@ -95,6 +107,9 @@ class TensorRTLLM(ITritonDeployable):
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
+
+        if prompt_checkpoint_path is not None:
+            self.extract_prompt_embeddings(prompt_checkpoint_path)
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         shutil.rmtree(nemo_export_dir)
@@ -130,3 +145,4 @@ class TensorRTLLM(ITritonDeployable):
         output_texts = self.forward(input_texts)
         output = cast_output(output_texts, np.bytes_)
         return {"outputs": output}
+
