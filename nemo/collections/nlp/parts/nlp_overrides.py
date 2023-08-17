@@ -295,7 +295,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
-        if getattr(self.lightning_module, 'mcore_gpt'):
+        if getattr(self.lightning_module, 'mcore_gpt', False):
             return
 
         # legacy state dict logic, does not use megatron core
