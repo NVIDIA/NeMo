@@ -316,6 +316,7 @@ class SpeechLM_T5dataset(Dataset):
         self.speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
         self.mask_context_prob = cfg.data.get('mask_context_prob', 0.4)
         self.mask_length_poisson_lambda = cfg.data.get('mask_length_poisson_lambda', 3.5)
+        self.create_loss_mask = cfg.data.get('create_loss_mask', False)
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
 
@@ -443,8 +444,11 @@ class SpeechLM_T5dataset(Dataset):
         # TODO add pad id condition as well for enc_input?
         enc_mask = (enc_input[0] != self.mask_id).long()
         dec_mask = (labels[0] != self.pad_id ).long()
-        # loss_mask = (enc_input[0] == self.mask_id ).long()
-        loss_mask = torch.ones_like(dec_mask)
+        
+        if self.create_loss_mask:
+            loss_mask = (enc_input[0] == self.mask_id ).long()
+        else:
+            loss_mask = torch.ones_like(dec_mask)
 
         return {
             'enc_input': enc_input,
@@ -469,8 +473,11 @@ class SpeechLM_T5dataset(Dataset):
         enc_input[1:] = 0
         enc_mask = (enc_input[0] != self.mask_id).long()
         dec_mask = (labels[0] != self.pad_id ).long()
-        # loss_mask = (enc_input[0] == self.mask_id ).long()
-        loss_mask = torch.ones_like(dec_mask)
+        
+        if self.create_loss_mask:
+            loss_mask = (enc_input[0] == self.mask_id ).long()
+        else:
+            loss_mask = torch.ones_like(dec_mask)
 
         return {
             'enc_input': enc_input,

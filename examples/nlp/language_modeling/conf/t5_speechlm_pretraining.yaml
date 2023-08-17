@@ -101,6 +101,7 @@ model:
     mask_length_poisson_lambda: 3.5
     speech_offset: 30000
     speech_codebook_size: 1024
+    create_loss_mask: False
     skip_warmup: True
     num_workers: 2
     dataloader_type: single # cyclic
