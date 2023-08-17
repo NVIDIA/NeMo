@@ -176,8 +176,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         i = 0
         print(f"copy_dataset len === {len(copy_dataset)}")
         for json_line in tqdm(copy_dataset):
-            if i > 1000:
-                break
+            # if i > 1000:
+            #     break
             i+=1
 
             # Read example dict or load the information for a single example from .json file
