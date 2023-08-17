@@ -1277,7 +1277,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             for index, module in enumerate(self.get_gpt_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                 # TODO: do we need this?
                 # when using interleaved, model is GPTModel, so we need to remove the 'model.' prefix
@@ -1295,10 +1294,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 }
                 module.load_state_dict(checkpoint_state_dict, strict=True)
 
-            # reset virtual pipeline model parallel rank
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-
         # legacy checkpointing for interleaved
         else:
             if isinstance(self.model, list):
@@ -1315,16 +1310,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         The sharded tensor mapping is defined in the GPTModel class from mcore.
         """
 
-        # TODO: does this work?
         if self.mcore_gpt:
-            prefix = f'{prefix}model.'
-            module_prefix = prefix
+            module_prefix = f'{prefix}model.'
             sharded_state_dict = {}
             for index, module in enumerate(self.get_gpt_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    module_prefix = f'{prefix}_{index}'
-                model_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
-                sharded_state_dict.update(model_sharded_state_dict)
+                    # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    module_prefix = f'{prefix}.'
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict[f'model_{index}'] = module_sharded_state_dict
+                else:
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict.update(module_sharded_state_dict)
+
+            # reset vp rank
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
             return sharded_state_dict
 
