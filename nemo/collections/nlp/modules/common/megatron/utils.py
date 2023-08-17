@@ -40,7 +40,6 @@ try:
 
 except (ImportError, ModuleNotFoundError):
 
-
     HAVE_MEGATRON_CORE = False
 
 
