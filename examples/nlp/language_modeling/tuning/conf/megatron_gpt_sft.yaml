@@ -119,7 +119,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      add_eos: False
+      add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
@@ -150,7 +150,7 @@ model:
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
       label_key: ${model.data.train_ds.label_key}
-      add_eos: False
+      add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
       separate_prompt_and_response_with_newline: ${model.data.train_ds.separate_prompt_and_response_with_newline}
