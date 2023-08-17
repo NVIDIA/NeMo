@@ -46,6 +46,9 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
     T_batch = T_batch.to(viterbi_device)
     U_batch = U_batch.to(viterbi_device)
 
+    # obtain probs_greedy_tokens_tensor - will use later to calculate confidence metrics
+    probs_greedy_tokens_tensor = log_probs_batch.max(dim=2, keepdim=False)[0]
+
     # make tensor that we will put at timesteps beyond the duration of the audio
     padding_for_log_probs = V_NEGATIVE_NUM * torch.ones((B, T_max, 1), device=viterbi_device)
     # make log_probs_padded tensor of shape (B, T_max, V +1 ) where all of
@@ -118,6 +121,8 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
     # trace backpointers
     alignments_batch = []
+    probs_viterbi_tokens_batch = []
+    probs_greedy_tokens_batch = []
     for b in range(B):
         T_b = int(T_batch[b])
         U_b = int(U_batch[b])
@@ -127,10 +132,22 @@ def viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
         else:
             current_u = int(torch.argmax(v_prev[b, U_b - 2 : U_b])) + U_b - 2
         alignment_b = [current_u]
+        current_v = y_batch[b, current_u]
+        probs_viterbi_tokens_b = torch.zeros((T_max), dtype=torch.float32, device=viterbi_device)
+        probs_viterbi_tokens_b[:-1] = log_probs_batch[b, T_max - 1, current_v]
+
         for t in range(T_max - 1, 0, -1):
             current_u = current_u - int(backpointers_rel[b, t, current_u])
-            alignment_b.insert(0, current_u)
-        alignment_b = alignment_b[:T_b]
-        alignments_batch.append(alignment_b)
+            current_v = y_batch[b, current_u]
 
-    return alignments_batch
+            alignment_b.insert(0, current_u)
+            probs_viterbi_tokens_b[t] = float(log_probs_batch[b, t - 1, current_v])
+
+        alignment_b = alignment_b[:T_b]
+        probs_viterbi_tokens_b = probs_viterbi_tokens_b[:T_b]
+
+        alignments_batch.append(alignment_b)
+        probs_viterbi_tokens_batch.append(probs_viterbi_tokens_b)
+        probs_greedy_tokens_batch.append(probs_greedy_tokens_tensor[b, :T_b])
+
+    return alignments_batch, probs_viterbi_tokens_batch, probs_greedy_tokens_batch

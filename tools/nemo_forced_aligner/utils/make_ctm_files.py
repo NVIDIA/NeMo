@@ -105,7 +105,10 @@ def make_ctm(
                     # replace any spaces with <space> so we dont introduce extra space characters to our CTM files
                     text = text.replace(" ", SPACE_TOKEN)
 
-                    f_ctm.write(f"{utt_obj.utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text}\n")
+                    f_ctm.write(
+                        # for now saving the new confidence metrics in these CTM files, although this will prevent Gecko displaying the text properly
+                        f"{utt_obj.utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text} {boundary_info_.alignment_prob_len_normed} {boundary_info_.viterbi_greedy_prob_diff_len_normed}\n"
+                    )
 
     utt_obj.saved_output_files[f"{alignment_level}_level_ctm_filepath"] = os.path.join(
         output_dir, f"{utt_obj.utt_id}.ctm"

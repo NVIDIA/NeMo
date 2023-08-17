@@ -22,12 +22,12 @@ from typing import List, Optional
 import torch
 from omegaconf import OmegaConf
 from utils.data_prep import (
-    add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
     get_batch_variables,
     get_manifest_lines_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
+    update_utt_obj_with_alignment_info,
 )
 from utils.make_ass_files import make_ass_files
 from utils.make_ctm_files import make_ctm_files
@@ -327,11 +327,17 @@ def main(cfg: AlignmentConfig):
             buffered_chunk_params,
         )
 
-        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+        alignments_batch, probs_viterbi_tokens_batch, probs_greedy_tokens_batch = viterbi_decoding(
+            log_probs_batch, y_batch, T_batch, U_batch, viterbi_device
+        )
 
-        for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
+        for utt_obj, alignment_utt, probs_viterbi_tokens_utt, probs_greedy_tokens_utt in zip(
+            utt_obj_batch, alignments_batch, probs_viterbi_tokens_batch, probs_greedy_tokens_batch
+        ):
 
-            utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
+            utt_obj = update_utt_obj_with_alignment_info(
+                utt_obj, alignment_utt, probs_viterbi_tokens_utt, probs_greedy_tokens_utt, output_timestep_duration
+            )
 
             if "ctm" in cfg.save_output_file_formats:
                 utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)

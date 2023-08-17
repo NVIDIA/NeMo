@@ -189,6 +189,24 @@ def restore_token_case(word, word_tokens):
     return word_tokens_cased
 
 
+def get_alignment_prob_len_normed_in_interval(probs_viterbi_token_utt, timestep_start, timestep_end):
+    """Returns the length-normalized alignment probability between timestep_start and timestep_end."""
+    return probs_viterbi_token_utt[timestep_start : timestep_end + 1].sum() / (timestep_end - timestep_start + 1)
+
+
+def get_viterbi_greedy_prob_diff_len_normed_in_interval(
+    probs_viterbi_tokens_utt, probs_greedy_tokens_utt, timestep_start, timestep_end
+):
+    """
+    Returns the length-normalized difference between viterbi alignment probability and greedy alignment probability,
+    between timestep_start and timestep_end.
+    """
+    viterbi_prob = probs_viterbi_tokens_utt[timestep_start : timestep_end + 1].sum()
+    greedy_prob = probs_greedy_tokens_utt[timestep_start : timestep_end + 1].sum()
+
+    return (viterbi_prob - greedy_prob) / (timestep_end - timestep_start + 1)
+
+
 @dataclass
 class Token:
     text: str = None
@@ -197,6 +215,15 @@ class Token:
     s_end: int = None
     t_start: float = None
     t_end: float = None
+    # this is the sum of the log probabilities of the tokens in the viterbi alignment,
+    # divided by the length of the alignment
+    # -> a more positive value correlates with a better alignment
+    alignment_prob_len_normed: float = None
+    # this is the sum of the log probabilities of the tokens in the viterbi alignment,
+    # minus the sum of the log probabilities of the tokens in the greedy alignment,
+    # divided by the length of the alignment
+    # -> a more positive value correlates with a better alignment
+    viterbi_greedy_prob_diff_len_normed: float = None
 
 
 @dataclass
@@ -206,6 +233,15 @@ class Word:
     s_end: int = None
     t_start: float = None
     t_end: float = None
+    # this is the sum of the log probabilities of the tokens in the viterbi alignment,
+    # divided by the length of the alignment
+    # -> a more positive value correlates with a better alignment
+    alignment_prob_len_normed: float = None
+    # this is the sum of the log probabilities of the tokens in the viterbi alignment,
+    # minus the sum of the log probabilities of the tokens in the greedy alignment,
+    # divided by the length of the alignment
+    # -> a more positive value correlates with a better alignment
+    viterbi_greedy_prob_diff_len_normed: float = None
     tokens: List[Token] = field(default_factory=list)
 
 
@@ -216,6 +252,15 @@ class Segment:
     s_end: int = None
     t_start: float = None
     t_end: float = None
+    # this is the sum of the log probabilities of the tokens in the viterbi alignment,
+    # divided by the length of the alignment
+    # -> a more positive value correlates with a better alignment
+    alignment_prob_len_normed: float = None
+    # this is the sum of the log probabilities of the tokens in the viterbi alignment,
+    # minus the sum of the log probabilities of the tokens in the greedy alignment,
+    # divided by the length of the alignment
+    # -> a more positive value correlates with a better alignment
+    viterbi_greedy_prob_diff_len_normed: float = None
     words_and_tokens: List[Union[Word, Token]] = field(default_factory=list)
 
 
@@ -585,7 +630,9 @@ def get_utt_obj(
         raise RuntimeError("Cannot get tokens of this model.")
 
 
-def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration):
+def update_utt_obj_with_alignment_info(
+    utt_obj, alignment_utt, probs_viterbi_tokens_utt, probs_greedy_tokens_utt, output_timestep_duration
+):
     """
     Function to add t_start and t_end (representing time in seconds) to the Utterance object utt_obj.
     Args:
@@ -593,6 +640,10 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
             constituent segments/words/tokens.
         alignment_utt: a list of ints indicating which token does the alignment pass through at each 
             timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
+        probs_viterbi_tokens_utt: a list of floats indicating the probability of the viterbi token at
+            each timestep.
+        probs_greedy_tokens_utt: a list of floats indicating the probability of the overall most likely token
+            (of all tokens in the model's vocabulary) at each timestep.
         output_timestep_duration: a float indicating the duration of a single output timestep from
             the ASR Model.
 
@@ -607,6 +658,9 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
     # num_to_last_appearance and use that to update all of
     # the t_start and t_end values in utt_obj.
     # We will put t_start = t_end = -1 for tokens that are skipped (should only be blanks)
+
+    # once we know the t_start and t_end, we also calculate the alignment_prob_len_normed
+    # and viterbi_greedy_prob_diff_len_normed
 
     num_to_first_alignment_appearance = dict()
     num_to_last_alignment_appearance = dict()
@@ -628,12 +682,34 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
             segment = segment_or_token
             segment.t_start = num_to_first_alignment_appearance[segment.s_start] * output_timestep_duration
             segment.t_end = (num_to_last_alignment_appearance[segment.s_end] + 1) * output_timestep_duration
+            segment.alignment_prob_len_normed = get_alignment_prob_len_normed_in_interval(
+                probs_viterbi_tokens_utt,
+                int(segment.t_start / output_timestep_duration),
+                int(segment.t_end / output_timestep_duration),
+            )
+            segment.viterbi_greedy_prob_diff_len_normed = get_viterbi_greedy_prob_diff_len_normed_in_interval(
+                probs_viterbi_tokens_utt,
+                probs_greedy_tokens_utt,
+                int(segment.t_start / output_timestep_duration),
+                int(segment.t_end / output_timestep_duration),
+            )
 
             for word_or_token in segment.words_and_tokens:
                 if type(word_or_token) is Word:
                     word = word_or_token
                     word.t_start = num_to_first_alignment_appearance[word.s_start] * output_timestep_duration
                     word.t_end = (num_to_last_alignment_appearance[word.s_end] + 1) * output_timestep_duration
+                    word.alignment_prob_len_normed = get_alignment_prob_len_normed_in_interval(
+                        probs_viterbi_tokens_utt,
+                        int(word.t_start / output_timestep_duration),
+                        int(word.t_end / output_timestep_duration),
+                    )
+                    word.viterbi_greedy_prob_diff_len_normed = get_viterbi_greedy_prob_diff_len_normed_in_interval(
+                        probs_viterbi_tokens_utt,
+                        probs_greedy_tokens_utt,
+                        int(word.t_start / output_timestep_duration),
+                        int(word.t_end / output_timestep_duration),
+                    )
 
                     for token in word.tokens:
                         if token.s_start in num_to_first_alignment_appearance:
@@ -645,6 +721,19 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
                             token.t_end = (
                                 num_to_last_alignment_appearance[token.s_end] + 1
                             ) * output_timestep_duration
+
+                            token.alignment_prob_len_normed = get_alignment_prob_len_normed_in_interval(
+                                probs_viterbi_tokens_utt,
+                                int(token.t_start / output_timestep_duration),
+                                int(token.t_end / output_timestep_duration),
+                            )
+                            token.viterbi_greedy_prob_diff_len_normed = get_viterbi_greedy_prob_diff_len_normed_in_interval(
+                                probs_viterbi_tokens_utt,
+                                probs_greedy_tokens_utt,
+                                int(token.t_start / output_timestep_duration),
+                                int(token.t_end / output_timestep_duration),
+                            )
+
                         else:
                             token.t_end = -1
                 else:
@@ -656,6 +745,17 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
                     if token.s_end in num_to_last_alignment_appearance:
                         token.t_end = (num_to_last_alignment_appearance[token.s_end] + 1) * output_timestep_duration
+                        token.alignment_prob_len_normed = get_alignment_prob_len_normed_in_interval(
+                            probs_viterbi_tokens_utt,
+                            int(token.t_start / output_timestep_duration),
+                            int(token.t_end / output_timestep_duration),
+                        )
+                        token.viterbi_greedy_prob_diff_len_normed = get_viterbi_greedy_prob_diff_len_normed_in_interval(
+                            probs_viterbi_tokens_utt,
+                            probs_greedy_tokens_utt,
+                            int(token.t_start / output_timestep_duration),
+                            int(token.t_end / output_timestep_duration),
+                        )
                     else:
                         token.t_end = -1
 
@@ -668,6 +768,17 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
             if token.s_end in num_to_last_alignment_appearance:
                 token.t_end = (num_to_last_alignment_appearance[token.s_end] + 1) * output_timestep_duration
+                token.alignment_prob_len_normed = get_alignment_prob_len_normed_in_interval(
+                    probs_viterbi_tokens_utt,
+                    int(token.t_start / output_timestep_duration),
+                    int(token.t_end / output_timestep_duration),
+                )
+                token.viterbi_greedy_prob_diff_len_normed = get_viterbi_greedy_prob_diff_len_normed_in_interval(
+                    probs_viterbi_tokens_utt,
+                    probs_greedy_tokens_utt,
+                    int(token.t_start / output_timestep_duration),
+                    int(token.t_end / output_timestep_duration),
+                )
             else:
                 token.t_end = -1
 
