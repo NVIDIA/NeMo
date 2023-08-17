@@ -1067,7 +1067,7 @@ class CoreAttention(MegatronModule):
                 q_len = (~attention_mask).sum(-1).squeeze()
                 kv_len = (~attention_mask).sum(-1).squeeze()
 
-        is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[1] == key_layer.shape[1]
+        is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[0] == key_layer.shape[0]
         
         if self.position_embedding_type == 'alibi':
             bias_type = 'alibi'
