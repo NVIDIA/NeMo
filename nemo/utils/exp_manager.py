@@ -343,8 +343,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         cfg.resume_from_checkpoint,
     )
 
-    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
     checkpoint_name = name
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
     if checkpoint_name is None or checkpoint_name == '':
@@ -569,15 +567,17 @@ def check_resume(
 
         end_checkpoints = list(checkpoint_dir.rglob("*end.ckpt"))
         last_checkpoints = list(checkpoint_dir.rglob("*last.ckpt"))
-        if not checkpoint_dir.exists():
+        if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if resume_ignore_no_checkpoint:
-                # logging.warning(
-                #     f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Training from scratch."
-                # )
-                return
+                warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
+                if checkpoint == None:
+                    warn += "Training from scratch."
+                elif checkpoint == resume_from_checkpoint:
+                    warn += f"Training from {resume_from_checkpoint}."
+                logging.warning(warn)
             else:
                 raise NotFoundError(
-                    f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
+                    f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
                 )
         elif len(end_checkpoints) > 0:
             if resume_past_end:
@@ -586,17 +586,10 @@ def check_resume(
                         checkpoint = end_checkpoints[0]
                     else:
                         raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
-                logging.info(f"Resuming from {end_checkpoints[0]}")
             else:
                 raise ValueError(
                     f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
                 )
-        elif not len(last_checkpoints) > 0:
-            if resume_ignore_no_checkpoint:
-                logging.warning(f"There were no checkpoints found in {checkpoint_dir}. Training from scratch.")
-                return
-            else:
-                raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
         elif len(last_checkpoints) > 1:
             if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
                 checkpoint = last_checkpoints[0]
@@ -604,30 +597,31 @@ def check_resume(
             else:
                 raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
         else:
-            logging.info(f"Resuming from {last_checkpoints[0]}")
             checkpoint = last_checkpoints[0]
 
     # PTL 2.0 supports ckpt_path instead of resume_from_checkpoint as the trainer flag
-    trainer.ckpt_path = str(checkpoint)
+    if checkpoint is not None:
+        trainer.ckpt_path = str(checkpoint)
+        logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
-    if is_global_rank_zero():
-        # Check to see if any files exist that need to be moved
-        files_to_move = []
-        for child in Path(log_dir).iterdir():
-            if child.is_file():
-                files_to_move.append(child)
+        if is_global_rank_zero():
+            # Check to see if any files exist that need to be moved
+            files_to_move = []
+            for child in Path(log_dir).iterdir():
+                if child.is_file():
+                    files_to_move.append(child)
 
-        if len(files_to_move) > 0:
-            # Move old files to a new folder
-            other_run_dirs = Path(log_dir).glob("run_*")
-            run_count = 0
-            for fold in other_run_dirs:
-                if fold.is_dir():
-                    run_count += 1
-            new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
-            new_run_dir.mkdir()
-            for _file in files_to_move:
-                move(str(_file), str(new_run_dir))
+            if len(files_to_move) > 0:
+                # Move old files to a new folder
+                other_run_dirs = Path(log_dir).glob("run_*")
+                run_count = 0
+                for fold in other_run_dirs:
+                    if fold.is_dir():
+                        run_count += 1
+                new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
+                new_run_dir.mkdir()
+                for _file in files_to_move:
+                    move(str(_file), str(new_run_dir))
 
 
 def check_explicit_log_dir(
