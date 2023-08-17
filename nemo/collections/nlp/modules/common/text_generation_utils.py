@@ -701,7 +701,7 @@ def sample_sequence_batch(
 
             if parallel_state.is_pipeline_last_stage():
 
-                if compute_logprob:
+                if compute_logprob or all_probs:
                     output = output[0]['logits']
                     output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                     assert output is not None
@@ -751,7 +751,7 @@ def sample_sequence_batch(
                 # Insert either new predicted or next prompt token
                 tokens[:, context_length] = new_tokens
 
-                if compute_logprob:
+                if compute_logprob or all_probs:
                     if output_logits is None:
                         output = F.log_softmax(output[:, :context_length, :], 2)
 
@@ -789,7 +789,7 @@ def sample_sequence_batch(
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
                 group = parallel_state.get_pipeline_model_parallel_group()
                 torch.distributed.broadcast(done, src, group)
-                if compute_logprob:
+                if compute_logprob or all_probs:
                     if all_probs:
                         yield tokens, lengths, output_logits, full_logits
                     else:
