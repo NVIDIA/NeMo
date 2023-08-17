@@ -180,6 +180,7 @@ class AudioEncoder(object):
     def __init__(self, args):
         self.args = args
         self.token_id_offset = args.audio_token_id_offset
+        self.codebook_size = args.n_tokens_per_codebook
 
     def initializer(self):
         pass
@@ -230,13 +231,14 @@ class AudioEncoder(object):
         if self.args.n_codebooks_to_use is not None:
             codes = codes[:self.args.n_codebooks_to_use, :]    # [N, T] if you use [:N, :], you will get [N, T] even if N=1
         codes = np.squeeze(codes)  # remove the empty dimension if num_codebooks == 1
-
-        if self.token_id_offset > 0:
-            codes = codes + self.token_id_offset
         
         # flatten
         if self.args.flatten_audio_codebooks and (self.args.n_codebooks_to_use > 1):
             codes = self.flatten_codebooks(codes)      # [T]  
+
+        # add offset if needed
+        if self.token_id_offset > 0:
+            codes = codes + self.token_id_offset
         
         # pack it in right format append eod if needed
         doc_ids = []
@@ -391,6 +393,7 @@ def get_args():
     group = parser.add_argument_group(title='audio Tokenizer')
     group.add_argument('--flatten_audio_codebooks', action='store_true', help='flatten audio codebooks')
     group.add_argument('--n_codebooks_to_use', type=int, default=None, help='number of codebooks to use')
+    group.add_argument('--n_tokens_per_codebook', type=int, default=None, help='number of tokens per codebook')
     group.add_argument('--append_eod_for_audio', action='store_true', help='append eod for audio')
     group.add_argument('--audio_token_id_offset', type=int, default=256003, help='audio token id offset')
 
@@ -473,7 +476,7 @@ def main():
         if json_file.endswith('.gz'):
             fin = gzip.open(json_file, 'r')
         else:
-            fin = open(args.input, 'r', encoding='utf-8')
+            fin = open(json_file, 'r', encoding='utf-8')
 
         encoded_docs = pool.imap(encoder.encode, fin, 25)
 

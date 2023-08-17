@@ -91,11 +91,11 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-from nemo.collections.multimodal.models.featex_for_speechllm import FeatExWrapperModel
+from nemo.collections.multimodal.models.featex_for_speechllm import RQFeatExModel, EmbFeatExModel, KmeansFeatExModel
 
 @dataclass
 class ParallelTranscriptionConfig:
-    model_cfg: DictConfig = DictConfig({'model': None})  # name
+    model_cfg: DictConfig = DictConfig({'model_path': None})  # name
     predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
     out_save_dir: str = MISSING
     out_manifest_dir: str = MISSING
@@ -146,12 +146,18 @@ def match_train_config(predict_ds, train_ds):
 
 
 class FeaturePredictionWriter(BasePredictionWriter):
-    def __init__(self, dataset, save_dir: str, output_file: str):
+    def __init__(
+            self, 
+            dataset, 
+            save_dir: str, 
+            output_file: str, 
+            key_for_out_manifest: str = 'audio_codes'):
         super().__init__(write_interval="batch")
         self.save_dir = save_dir
         self.outf = open(output_file, 'w', encoding='utf-8')
         self.dataset = dataset
         self.samples_num = 0
+        self.key_for_out_manifest = key_for_out_manifest
 
     def write_on_batch_end(
         self,
@@ -175,7 +181,7 @@ class FeaturePredictionWriter(BasePredictionWriter):
             item["audio_filepath"] = sample.audio_file
             item["duration"] = sample.duration
             item["text"] = sample.text_raw
-            item["audio_codes"] = feature_filepath
+            item[self.key_for_out_manifest] = feature_filepath
             self.outf.write(json.dumps(item) + "\n")
             self.samples_num += 1
         return
@@ -188,28 +194,16 @@ class FeaturePredictionWriter(BasePredictionWriter):
 
 @hydra_runner(config_name="TranscriptionConfig", schema=ParallelTranscriptionConfig)
 def main(cfg: ParallelTranscriptionConfig):
-    if isinstance(cfg.model_cfg.model, str):
-        if cfg.model_cfg.model.endswith(".nemo"):
-            logging.info("Attempting to initialize from .nemo file")
-            model = ModelPT.restore_from(restore_path=cfg.model, map_location="cpu")
-        elif cfg.model_cfg.model.endswith(".ckpt"):
-            logging.info("Attempting to initialize from .ckpt file")
-            model = ModelPT.load_from_checkpoint(checkpoint_path=cfg.model, map_location="cpu")
-        else:
-            logging.info(
-                "Attempting to initialize from a pretrained model as the model name does not have the extension of .nemo or .ckpt"
-            )
-            model = ModelPT.from_pretrained(model_name=cfg.model_cfg.model, map_location="cpu")
-        trainer = ptl.Trainer(**cfg.trainer)
-    else:
-        # asr_model is just to get the dataloader facilities
-        dummy_trainer = ptl.Trainer(**cfg.trainer)
-        asr_model = ASRModel.from_pretrained(model_name='stt_en_conformer_ctc_small', trainer=dummy_trainer)
-        
-        # feat-ex model
-        logging.info("Attempting to initialize from model_cfg.model")
-        trainer = ptl.Trainer(**cfg.trainer)
-        model = FeatExWrapperModel(cfg.model_cfg.model, trainer=trainer)
+    # load an asr_model is just to get the dataloader facilities
+    dummy_trainer = ptl.Trainer(**cfg.trainer)
+    asr_model = ASRModel.from_pretrained(model_name='stt_en_conformer_ctc_small', trainer=dummy_trainer)
+    
+    # now, for the actual feat-ex model
+    trainer = ptl.Trainer(**cfg.trainer)
+    
+    # model = RQFeatExModel(cfg.model_cfg.model, trainer=trainer)
+    # model = EmbFeatExModel(cfg.model_cfg, trainer=trainer)
+    model = KmeansFeatExModel(cfg.model_cfg, trainer=trainer)
 
     # trainer = ptl.Trainer(**cfg.trainer)
     cfg.predict_ds.return_sample_id = True
@@ -221,7 +215,7 @@ def main(cfg: ParallelTranscriptionConfig):
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
     global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.out_manifest_dir, f"manifest_feature_{global_rank}.json")
-    predictor_writer = FeaturePredictionWriter(dataset=data_loader.dataset, save_dir=cfg.out_save_dir, output_file=output_file)
+    predictor_writer = FeaturePredictionWriter(dataset=data_loader.dataset, save_dir=cfg.out_save_dir, output_file=output_file, key_for_out_manifest=cfg.key_for_out_manifest)
     trainer.callbacks.extend([predictor_writer])
 
     predictions = trainer.predict(model=model, dataloaders=data_loader, return_predictions=cfg.return_predictions)

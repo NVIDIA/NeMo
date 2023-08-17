@@ -46,8 +46,8 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
     """
     # First inject sequence length
-    with open_dict(cfg):
-        cfg.model.encoder_seq_length = gpt_cfg.encoder_seq_length
+    # with open_dict(cfg):
+    #     cfg.model.encoder_seq_length = gpt_cfg.encoder_seq_length
 
     OmegaConf.set_struct(gpt_cfg, True)
     OmegaConf.resolve(cfg)
@@ -66,6 +66,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
                 f"megatron_amp_O2 ({amp_O2})"
             )
         # gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
+        gpt_cfg.encoder_seq_length = cfg.model.encoder_seq_length
         gpt_cfg.micro_batch_size = cfg.model.micro_batch_size
         gpt_cfg.global_batch_size = cfg.model.global_batch_size
         gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
