@@ -17,10 +17,7 @@ import math
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    init_method_normal, 
-    ApexGuardDefaults,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
 
 try:
     from megatron.core import ModelParallelConfig, tensor_parallel
