@@ -31,6 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidde
 from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hidden_transform import (
     MegatronBaseHiddenTransform,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.utils import logging
 from nemo.utils.model_utils import import_class_by_path
 
@@ -40,6 +41,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+    # fake missing classes with None attributes
+    ModelParallelConfig = ApexGuardDefaults()
 
     HAVE_MEGATRON_CORE = False
 

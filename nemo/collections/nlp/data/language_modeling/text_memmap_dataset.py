@@ -223,7 +223,10 @@ class TextMemMapDataset(Dataset):
     def _fetch_sample_from_memmap(self, mdata, i, j):
         """Fetchs the text sample. Can be overriden by child-classes to support loading of partial samples and alternative decode methods"""
         # load text sample by slicing memmap data[i:j]
-        text = mdata[i:j].tobytes().decode("utf-8")
+        try:
+            text = mdata[i:j].tobytes().decode("utf-8")
+        except:
+            text = ""
 
         return text
 

@@ -17,7 +17,10 @@ import math
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    init_method_normal, 
+    ApexGuardDefaults,
+)
 
 try:
     from megatron.core import ModelParallelConfig, tensor_parallel
@@ -25,12 +28,11 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+    # fake missing classes with None attributes
+    ModelParallelConfig = ApexGuardDefaults()
+    tensor_parallel = ApexGuardDefaults()
 
     HAVE_MEGATRON_CORE = False
-
-
-if not HAVE_MEGATRON_CORE:
-    raise NotImplementedError("Megatron Core is required to use Megatron Hidden Transformations")
 
 __all__ = ["MegatronBaseHiddenTransform", "MegatronGaussianHiddenTransform"]
 
