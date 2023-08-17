@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import gc
+import itertools
 import os
 import re
 from dataclasses import fields
@@ -22,7 +23,7 @@ import omegaconf
 import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.functional import F
@@ -68,7 +69,7 @@ class MegatronBaseModel(NLPModel):
 
     - Initialize the model parallel world for nemo.
     - Turn on all of the nvidia optimizations.
-    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the 
+    - If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the
       correct size for tensor model parallelism.
     - If using distributed optimizer, configure to be compatible
       with O2 level optimizations and/or model parallelism.
@@ -99,6 +100,9 @@ class MegatronBaseModel(NLPModel):
         self.tokenizer = None
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
+
+        # set the megatron core model parallel config
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
@@ -373,7 +377,7 @@ class MegatronBaseModel(NLPModel):
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
         if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+            self.trainer.precision_plugin, MixedPrecisionPlugin
         ):
             precision_plugin = self.trainer.precision_plugin
 
@@ -408,7 +412,7 @@ class MegatronBaseModel(NLPModel):
         if self.gc_interval > 0 and (self.trainer.global_step % self.gc_interval == 0):
             gc.collect()
 
-    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+    def on_validation_batch_end(self, outputs, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         super().on_validation_batch_end(outputs, batch, batch_idx, dataloader_idx)
 
         if self.gc_interval > 0:
@@ -422,9 +426,8 @@ class MegatronBaseModel(NLPModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate contiguous buffers to avoid extra copies
+            # Allocate contiguous buffer to avoid extra copies
             optim_kwargs['contiguous_grad_buffer'] = True
-            optim_kwargs['contiguous_param_buffer'] = True
 
             # Make sure optimizer state is in FP32
             optim_dtype = torch.float32
@@ -524,7 +527,8 @@ class MegatronBaseModel(NLPModel):
             self._optimizer.init_params(reversed(no_overlap_params))
 
             # Initialize contiguous parameter buffer
-            self._optimizer.init_param_buffer()
+            if self._optimizer.contiguous_param_buffer:
+                self._optimizer.init_param_buffer()
 
         if self._scheduler is None:
             return self._optimizer
@@ -548,6 +552,10 @@ class MegatronBaseModel(NLPModel):
                 * get_num_microbatches()
             )
         return int(consumed_samples)
+
+    def _compute_consumed_samples_after_training_step(self):
+        # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
         try:
@@ -595,12 +603,15 @@ class MegatronBaseModel(NLPModel):
         if self.cfg.get('use_emha', False):
             raise ValueError('use_emha is not yet supported please set to False')
 
-        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
-            assert (
-                self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-            ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
-                'Make sure the number of model chunks is the same across all pipeline stages.'
-            )
+        vp_size = self.cfg.get('virtual_pipeline_model_parallel_size', None)
+
+        if vp_size is not None:
+            if vp_size == 1:
+                self.cfg['virtual_pipeline_model_parallel_size'] = None
+            else:
+                assert (
+                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
             if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
@@ -791,3 +802,20 @@ class MegatronBaseModel(NLPModel):
             )
 
         return model_parallel_config
+
+    def _prefetch(self, iterator):
+        """Checks if the iterator still has elements to return.
+        Used in models using dataloader_iter to prefetch the next batch before fwd_bwd func
+        is called to avoid PP rank 2 from wait indefinitely to get outpits from PP 1
+        """
+        elements = []
+        num_microbatches = get_num_microbatches()
+        for _ in range(num_microbatches):
+            try:
+                element = next(iterator)
+                elements.append(element)
+            except StopIteration:
+                return iterator, True
+
+        # return a new iterator with the prefetched element reinserted at the front
+        return itertools.chain(elements, iterator), False

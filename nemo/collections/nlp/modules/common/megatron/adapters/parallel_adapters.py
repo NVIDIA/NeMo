@@ -17,7 +17,6 @@
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
 
 import torch
 import torch.nn as nn
