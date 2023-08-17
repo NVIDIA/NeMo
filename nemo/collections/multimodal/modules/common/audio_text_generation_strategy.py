@@ -43,20 +43,13 @@ except (ImportError, ModuleNotFoundError):
 END_OF_SEQ = '<|endoftext|>'
 
 
+def switch(val1, val2, boolean):
+    boolean = boolean.type_as(val1)
+    boolean = boolean.unsqueeze(0).unsqueeze(-1)
+    return (1 - boolean) * val1 + boolean * val2
+
+
 class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerationStrategy):
-    def __init__(self, model, audio_signal, audio_signal_length, **kwargs):
-        super().__init__(model)
-
-        encoded, encoded_len = self.model.perception(
-            input_signal=audio_signal,
-            input_signal_length=audio_signal_length,
-            processed_signal=None,
-            processed_signal_length=None,
-        )
-        self.audio_feats = encoded
-        self.audio_feat_lens = encoded_len
-        self.audio_length_to_add = encoded_len
-
     def init_batch(
         self,
         context_tokens: torch.Tensor,
@@ -69,8 +62,13 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         # Move to GPU.
         micro_batch_size = context_tokens.shape[0]
 
-        audio_feats = self.audio_feats
-        audio_feat_lens = self.audio_feat_lens
+        audio_feats, audio_feat_lens = self.model.perception(
+            input_signal=audio_signal,
+            input_signal_length=audio_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
         encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(
             audio_feats, audio_feat_lens, context_tokens, context_lengths
         )
@@ -81,7 +79,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
         )
 
-        return new_context_tokens, encoder_input
+        return new_context_tokens, encoder_input, audio_feat_lens
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
@@ -98,6 +96,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         maxlen: int,
         micro_batch_size: int,
         step: int,
+        context_lengths: int,
         context_length: int,
         compute_attention_mask: bool,
     ) -> Tuple[List[torch.Tensor], List[int]]:
@@ -114,6 +113,8 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
             positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
             embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
+            started = context_lengths <= context_length
+            embeddings2use = switch(input_embeddings[context_length - 1].unsqueeze(0), embeddings2use, started)
 
         """Prepare batch for each of the inference steps"""
         setkey_value_array = torch.tensor(

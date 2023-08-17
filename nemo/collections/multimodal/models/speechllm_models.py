@@ -638,6 +638,6 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         )
 
         # add audio offsets to context lengths for properly decoding only the response
-        batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_length_to_add']
+        batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_feat_lens']
 
         return response

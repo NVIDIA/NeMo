@@ -198,11 +198,6 @@ class AudioQuestionAnswerDataset(Dataset):
         self.add_sep = add_sep
         self.end_string = end_string
 
-        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
-            self.bos_id = tokenizer.bos_id
-        else:
-            self.bos_id = None
-
         if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             self.eos_id = tokenizer.eos_id
         else:
@@ -219,6 +214,11 @@ class AudioQuestionAnswerDataset(Dataset):
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = 0
+
+        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+            self.bos_id = tokenizer.bos_id
+        else:
+            self.bos_id = self.pad_id
 
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
@@ -355,7 +355,7 @@ class AudioQuestionAnswerDataset(Dataset):
         input_ids = input_ids + answer_ids
 
         if self.add_bos:
-            input_ids = [self.tokenizer.bos_id] + input_ids
+            input_ids = [self.bos_id] + input_ids
             answer_start_idx += 1
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]

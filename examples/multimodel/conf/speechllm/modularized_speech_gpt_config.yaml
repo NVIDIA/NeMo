@@ -25,7 +25,7 @@ trainer:
   max_epochs: 9999
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10 # frequency with which training steps are logged 
-  val_check_interval: 1 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
+  val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
 
@@ -190,7 +190,7 @@ model:
 
   data:
     # end_string: null
-    end_string: "[EOS]"
+    end_string: "$$"
     train_ds:
       # Example of how to specify paths to multiple datasets
       # manifest_filepath:
@@ -228,7 +228,7 @@ model:
       prompt_template: "Q: {input}\nA: {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
-      max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+      max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
       min_duration: 0.1
       # tarred datasets
       is_tarred: false
