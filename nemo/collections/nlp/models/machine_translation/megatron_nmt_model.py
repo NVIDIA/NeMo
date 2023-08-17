@@ -307,7 +307,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             data_iterator=data_iter,
             forward_only=forward_only,
             tensor_shape=tensor_shape,
-            micro_batch_size=get_micro_batch_size(),
             decoder_seq_length=decoder_seq_length,
         )
 
