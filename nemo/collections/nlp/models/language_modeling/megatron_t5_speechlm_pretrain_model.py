@@ -126,6 +126,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
 
         self.frozen_model.enc_dec_model.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
+        self.frozen_model.enc_dec_model.cross_entropy_type = 'regular'
 
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
