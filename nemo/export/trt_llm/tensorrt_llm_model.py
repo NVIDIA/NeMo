@@ -614,6 +614,8 @@ class LMHeadModelBuilder(ModelBuilder):
         if self.quantization == QUANTIZATION_FP8 or self.quantization == QUANTIZATION_INT8_SQ:
             # A hot fix to TRT for performance improvement.
             os.environ["__LUNOWUD"] = "-peep:transpose_elim=off"
+
+        self._use_prompt_tuning = max_prompt_embedding_table_size > 0
         build(
             tensorrt_llm_model=self,
             rank=self.rank,
