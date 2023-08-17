@@ -274,7 +274,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         # TODO: add a distributed checkpoint attribute
         # check if using distributed checkpointing
-        if getattr(self.lightning_module, 'mcore_gpt'):
+        if getattr(self.lightning_module, 'mcore_gpt', False):
             # converts the optimizer states to their sharded equivalents
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
@@ -347,7 +347,7 @@ class NLPDDPStrategy(DDPStrategy):
             raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
 
         # Check if using distributed checkpointing
-        if getattr(self.lightning_module, 'mcore_gpt'):
+        if getattr(self.lightning_module, 'mcore_gpt', False):
 
             # Distributed checkpoints must be directories.
             if not fs.isdir(checkpoint_path):
@@ -375,7 +375,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
-        if getattr(self.lightning_module, 'mcore_gpt'):
+        if getattr(self.lightning_module, 'mcore_gpt', False):
             if self.is_global_zero:
                 shutil.rmtree(ckpt_to_dir(filepath))
 
