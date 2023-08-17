@@ -693,6 +693,8 @@ def sample_sequence_batch(
                         logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
                     )
                     probs = F.softmax(logits, dim=-1)
+                    # TODO(zhehuai)
+                    probs = probs.nan_to_num(1.0)
                     prev = torch.multinomial(probs, num_samples=1).view(-1)
 
                 # Clamp the predicted out of vocabulary tokens
