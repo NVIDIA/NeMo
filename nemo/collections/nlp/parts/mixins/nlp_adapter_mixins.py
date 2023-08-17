@@ -14,8 +14,9 @@
 
 from typing import List, Optional, Tuple, Union
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, AdapterConfig
-from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin, _prepare_default_adapter_config
 from nemo.utils import logging, logging_mode, model_utils
+from omegaconf import OmegaConf, open_dict
 
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
@@ -66,11 +67,30 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, AdapterModuleMixin):
-                for peft_name, peft_cfg in zip(names, cfgs):
+
+        for peft_name, peft_cfg in zip(names, cfgs):
+            for _, module in self.named_modules():
+                if isinstance(module, AdapterModuleMixin):
                     if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(name=peft_name, cfg=peft_cfg)
+
+            # Update the model.cfg with information about the new adapter from cfg
+            module_name, adapter_name = self.resolve_adapter_module_name_(peft_name)
+            with open_dict(self.cfg):
+                # Construct the minimum config required to be updated by adapter implementations
+                if 'adapters' not in self.cfg:
+                    self.cfg.adapters = OmegaConf.create({})
+
+                self.cfg.adapters = _prepare_default_adapter_config(
+                    global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key, cfg=self.cfg.adapters,
+                )
+
+                # Inject the module name in the adapter metadata cfg
+                gcfg = self.adapter_global_cfg_key
+                mcfg = self.adapter_metadata_cfg_key
+                self.cfg.adapters[gcfg][mcfg]['modules'][adapter_name] = module_name
+
+                self.cfg.adapters[adapter_name] = OmegaConf.create(peft_cfg)
+
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
-
