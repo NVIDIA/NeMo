@@ -42,6 +42,7 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
         self.tokenizer = None
         self.prompt_table = None
+        self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
         self.gpu_id = gpu_id
@@ -51,6 +52,7 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
         self.tokenizer = None
         self.prompt_table = None
+        self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
 
@@ -68,6 +70,7 @@ class TensorRTLLM(ITritonDeployable):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
         if path.exists():
             self.prompt_table = torch.from_numpy(np.load(path.name))
+            self.task_vocab_size = self.prompt_table.shape[1]
             self.prompt_table = self.prompt_table.view((self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2]))
             dtype = self.config['builder_config']['precision']
             self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
@@ -147,7 +150,7 @@ class TensorRTLLM(ITritonDeployable):
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
-            return generate(self.model, input_texts, tasks, max_output_len, self.prompt_table)
+            return generate(self.model, input_texts, tasks, max_output_len, self.prompt_table, self.task_vocab_size)
 
     @property
     def get_triton_input(self):

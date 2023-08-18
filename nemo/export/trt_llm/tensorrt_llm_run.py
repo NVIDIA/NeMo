@@ -126,7 +126,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None,
+    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None, task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -164,7 +164,10 @@ def _forward(
         if prompt_table is None:
             ptuning_args = []
         else:
-            task_vocab_size = torch.tensor([prompt_table.shape[1]],
+            if task_vocab_size is None:
+                raise Exception("task_vocab_size cannot be None")
+            
+            task_vocab_size = torch.tensor([task_vocab_size],
                                            dtype=torch.int32,
                                            device="cuda")
 
@@ -245,7 +248,7 @@ def load(
 
 
 def forward(
-    host_context: TensorrtLLMHostContext, input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None,
+    host_context: TensorrtLLMHostContext, input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None, task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
 
@@ -262,12 +265,12 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, tasks, max_output_len, prompt_table)
+        return _forward(input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, tasks, max_output_len, prompt_table)
+            future = executor.submit(_forward, input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -278,7 +281,7 @@ def forward(
 
 
 def generate(
-    host_context: TensorrtLLMHostContext, input_texts: List[torch.IntTensor], tasks=None, max_output_len: int=200,  prompt_table=None,
+    host_context: TensorrtLLMHostContext, input_texts: List[torch.IntTensor], tasks=None, max_output_len: int=200,  prompt_table=None, task_vocab_size=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -288,7 +291,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(host_context, input_tensors, tasks, max_output_len, prompt_table)
+    output_tensor = forward(host_context, input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
