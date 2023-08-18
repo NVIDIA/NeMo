@@ -166,7 +166,7 @@ def _forward(
         else:
             if task_vocab_size is None:
                 raise Exception("task_vocab_size cannot be None")
-            
+
             task_vocab_size = torch.tensor([task_vocab_size],
                                            dtype=torch.int32,
                                            device="cuda")
