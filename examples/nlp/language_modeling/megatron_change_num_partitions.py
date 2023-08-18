@@ -1022,6 +1022,8 @@ def main():
                                 save_restore_connector=save_restore_connector,
                                 return_config=True,
                             )
+                            if "neva" in args.model_class:
+                                tmp_cfg.mm_cfg.llm.from_pretrained = None
 
                             # Force model onto CPU
                             tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
@@ -1269,6 +1271,8 @@ def main():
             save_restore_connector=save_restore_connector,
             return_config=True,
         )
+        if "neva" in args.model_class:
+            tmp_cfg.mm_cfg.llm.from_pretrained = None
 
         tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
 
@@ -1277,6 +1281,7 @@ def main():
             trainer=trainer,
             map_location=torch.device("cpu"),
             save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
         )
         model.to(dtype=dtype)
 

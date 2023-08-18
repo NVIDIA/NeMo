@@ -452,8 +452,12 @@ class MegatronBaseModel(NLPModel):
 
             # if using tensor parallel only, we automatically use async grad all-reduce
             # if using pipeline parallel or sequence parallel or gradient accumulation fusion, then we disable it
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and not (
-                self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) == 1
+                and not (
+                    self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+                )
+                and self.cfg.get('async_grad_allreduce', True)
             ):
                 async_grad_allreduce = True
             else:
@@ -627,6 +631,7 @@ class MegatronBaseModel(NLPModel):
                 parallel_state.get_pipeline_model_parallel_world_size() > 1
                 and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
                 and self.cfg.get('share_embeddings_and_output_weights', True)
+                and ("llm" in self.cfg and self.cfg.llm.get('share_embeddings_and_output_weights', True))
             ):
                 # substract the embedding weights on the last stage
                 num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])

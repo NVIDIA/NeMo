@@ -71,7 +71,7 @@ except (ImportError, ModuleNotFoundError):
 class CLIPVisionTransformer(MegatronModule):
     """Vision Transformer Model."""
 
-    def __init__(self, model_cfg, pre_process=True, post_process=True):
+    def __init__(self, model_cfg, pre_process=True, post_process=True, skip_head=False):
         super(CLIPVisionTransformer, self).__init__()
 
         scaled_init_method = (
@@ -81,10 +81,10 @@ class CLIPVisionTransformer(MegatronModule):
         )
 
         self.hidden_size = model_cfg.hidden_size
-        self.output_dim = model_cfg.output_dim
         self.global_average_pool = model_cfg.global_average_pool
         self.pre_process = pre_process
         self.post_process = post_process
+        self.skip_head = skip_head
 
         if model_cfg.get("class_token_length") is None or model_cfg.get("class_token_length") <= 0:
             class_token = False
@@ -100,7 +100,8 @@ class CLIPVisionTransformer(MegatronModule):
             single_token_output=False,
         )
 
-        if self.post_process:
+        if self.post_process and not skip_head:
+            self.output_dim = model_cfg.output_dim
             self.head = torch.nn.Linear(self.hidden_size, self.output_dim, bias=False,)
 
     def set_input_tensor(self, input_tensor):
@@ -110,7 +111,7 @@ class CLIPVisionTransformer(MegatronModule):
     def forward(self, input):
         hidden_states = self.backbone(input)
 
-        if self.post_process:
+        if self.post_process and not self.skip_head:
             if self.global_average_pool:
                 hidden_states = hidden_states.mean(dim=1)
             else:
@@ -126,7 +127,6 @@ class CLIPTextTransformer(MegatronModule):
     def __init__(self, model_cfg, padded_vocab_size, pre_process=True, post_process=True):
         super(CLIPTextTransformer, self).__init__()
 
-        self.output_dim = model_cfg.output_dim
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = model_cfg.fp16_lm_cross_entropy
@@ -202,6 +202,7 @@ class CLIPTextTransformer(MegatronModule):
             self.position_ids = torch.arange(model_cfg.max_position_embeddings).expand(1, -1).cuda()
 
         if self.post_process:
+            self.output_dim = model_cfg.output_dim
             self.head = torch.nn.Linear(model_cfg.hidden_size, self.output_dim, bias=False,)
 
         self.attn_mask = self.build_attention_mask(model_cfg.max_position_embeddings)

@@ -1,0 +1,18 @@
+name: nemo_neva
+infer:
+  out_dir: ./out/
+  vision:
+    min_batch_size: 1
+    opt_batch_size: 1
+    max_batch_size: 1
+    clip: openai/clip-vit-large-patch14
+  llm:
+    tekit_path: /tekit
+    tensor_parallelism: 1
+    max_input_len: 2048
+    max_output_len: 1024
+    max_batch_size: 1
+
+model:
+  precision: bf16
+  restore_from_path: /path/to/pretrained.nemo

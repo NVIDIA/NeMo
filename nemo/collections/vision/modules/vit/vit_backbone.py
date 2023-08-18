@@ -136,7 +136,7 @@ def twod_interpolate_position_embeddings_hook(
 
     key = prefix + "weight"
 
-    assert key in state_dict
+    assert key in state_dict, f"{key} not in {state_dict.keys()}"
     if key in state_dict:
         input_param = state_dict[key]
 

@@ -36,6 +36,8 @@ from nemo.collections.multimodal.models.controlnet.controlnet import MegatronCon
 from nemo.collections.multimodal.models.dreambooth.dreambooth import MegatronDreamBooth
 from nemo.collections.multimodal.models.imagen.imagen import MegatronImagen
 from nemo.collections.multimodal.models.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
+from nemo.collections.multimodal.models.kosmos.megatron_kosmos_model import MegatronKosmosModel
+from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
 from nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
@@ -162,6 +164,14 @@ def convert(local_rank, rank, world_size, args):
         model = MegatronImagen.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     elif args.model_type == 'controlnet':
         model = MegatronControlNet.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
+    elif args.model_type == 'kosmos':
+        model = MegatronKosmosModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
+    elif args.model_type == 'neva':
+        model = MegatronNevaModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         )
     else:
