@@ -189,13 +189,6 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
-        # Raise error if using multiple dataloaders
-        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
-        if type(self._test_dl) == list and len(self._test_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if isinstance(self.model, list):
@@ -528,9 +521,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
             if metric_name != 'loss':
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
-                metric_fn = (
-                    self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-                )
+                # TODO(zhehuai)
+                metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[dataloader_idx]
                 if metric_label_key in deduplicated_outputs['metadata'][0]:
                     labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
                 else:

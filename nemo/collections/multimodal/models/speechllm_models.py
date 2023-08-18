@@ -383,16 +383,18 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             manifest_filepath = data_cfg.manifest_filepath
 
         if not is_train:
-            dataset = get_aqa_dataset_from_config(
-                manifest_filepath=manifest_filepath,
-                config=data_cfg,
-                tokenizer=self.tokenizer,
-                augmentor=augmentor,
-                sep_id=self.sep_id,
-                answer_only_loss=self.cfg.get('answer_only_loss', True),
-                virtual_tokens=self.virtual_tokens,
-            )
-            return [dataset]
+            return [
+                get_aqa_dataset_from_config(
+                    manifest_filepath=manifest_file,
+                    config=data_cfg,
+                    tokenizer=self.tokenizer,
+                    augmentor=augmentor,
+                    sep_id=self.sep_id,
+                    answer_only_loss=self.cfg.get('answer_only_loss', True),
+                    virtual_tokens=self.virtual_tokens,
+                )
+                for manifest_file in manifest_filepath
+            ]
 
         else:
             datasets = []
