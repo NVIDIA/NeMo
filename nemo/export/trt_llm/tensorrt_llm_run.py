@@ -126,7 +126,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor], max_output_len: int, ptuning_args=[],
+    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int, prompt_table=None,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -160,6 +160,23 @@ def _forward(
                 torch.nested.nested_tensor(input_tensors, dtype=torch.int32), pad_id
             ).cuda()
             input_lengths = torch.IntTensor(input_lengths).cuda()
+
+        if prompt_table is None:
+            ptuning_args = []
+        else:
+            task_vocab_size = torch.tensor([prompt_table.shape[1]],
+                                           dtype=torch.int32,
+                                           device="cuda")
+
+            if tasks is not None:
+                tasks = torch.tensor([int(t) for t in tasks.split(',')],
+                                     dtype=torch.int32,
+                                     device="cuda")
+                assert tasks.shape[0] == line_encoded.shape[0], "Number of supplied tasks must match input batch size"
+            else:
+                tasks = torch.zeros([line_encoded.size(0)]).cuda()
+
+            ptuning_args = [prompt_table, tasks, task_vocab_size]
 
         with torch.no_grad():
             decoder.setup(batch_size, max_input_length=max_length, max_new_tokens=max_output_len)
@@ -228,7 +245,7 @@ def load(
 
 
 def forward(
-    input_tensors: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext, ptuning_args=[],
+    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int, host_context: TensorrtLLMHostContext, prompt_table=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
 
@@ -245,12 +262,12 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, max_output_len, ptuning_args)
+        return _forward(input_tensors, tasks, max_output_len, prompt_table)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, max_output_len, ptuning_args)
+            future = executor.submit(_forward, input_tensors, tasks, max_output_len, prompt_table)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -261,7 +278,7 @@ def forward(
 
 
 def generate(
-    input_texts: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext, ptuning_args=[],
+    input_texts: List[torch.IntTensor], tasks=None, max_output_len: int, host_context: TensorrtLLMHostContext, prompt_table=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -271,7 +288,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, max_output_len, host_context, ptuning_args)
+    output_tensor = forward(input_tensors, tasks, max_output_len, host_context, prompt_table)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]

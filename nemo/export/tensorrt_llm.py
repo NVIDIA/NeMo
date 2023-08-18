@@ -15,6 +15,7 @@
 import os
 import shutil
 from pathlib import Path
+import json
 
 import numpy as np
 from pytriton.decorators import batch
@@ -23,6 +24,7 @@ import torch
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import str_ndarray2list, cast_output
+import tensorrt_llm
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from .trt_llm.nemo_utils import nemo_to_model_config, get_tokenzier
@@ -39,40 +41,44 @@ class TensorRTLLM(ITritonDeployable):
         self.model_dir = model_dir
         self.model = None
         self.tokenizer = None
-        self.ptuning_args = []
+        self.prompt_table = None
         self.n_gpus = None
+        self.config = None
         self.gpu_id = gpu_id
         self._load()
 
     def _load(self):
-        self.tokenizer = None
         self.model = None
-        self.ptuning_args = []
+        self.tokenizer = None
+        self.prompt_table = None
+        self.n_gpus = None
+        self.config = None
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
             try:
+                self._load_config_file()
                 self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                 self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir, gpu_id=self.gpu_id)
-
+                self._load_prompt_table()
             except:
                 raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
 
-    '''
-    def _load_ptuning_params(self, task_size):
+    def _load_prompt_table(self):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
         if path.exists():
-            prompt_table = torch.from_numpy(np.load(path.name))
-            task_vocab_size = torch.tensor([prompt_table.shape[1]],
-                                            dtype=torch.int32,
-                                            device="cuda")
+            self.prompt_table = torch.from_numpy(np.load(path.name))
+            self.prompt_table = self.prompt_table.view((self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2]))
+            dtype = self.config['builder_config']['precision']
+            self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
+        else:
+            self.prompt_table = None
 
-            prompt_table = prompt_table.view((prompt_table.shape[0] * prompt_table.shape[1], prompt_table.shape[2]))
-            prompt_table = prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
-            tasks = torch.zeros([task_size]).cuda()
-
-        return [prompt_table, tasks, task_vocab_size]
-    '''
+    def _load_config_file(self):
+        engine_dir = Path(self.model_dir)
+        config_path = engine_dir / 'config.json'
+        with open(config_path, 'r') as f:
+            self.config = json.load(f)
 
     def _extract_prompt_embeddings(self, prompt_checkpoint_path):
         if is_nemo_file(prompt_checkpoint_path):
@@ -135,19 +141,17 @@ class TensorRTLLM(ITritonDeployable):
         shutil.rmtree(nemo_export_dir)
         self._load()
 
-    def forward(self, input_texts, input_len=0, max_output_len=200):
+    def forward(self, input_texts, tasks=None, max_output_len=200):
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
-            if input_len > 0:
+            if len(input_texts) > 0:
                 input_tokens = self.tokenizer.encode(input_texts + "\n")
-                input_tokens = input_tokens * (int(input_len / len(input_tokens)) + 1)
-                input_text = self.tokenizer.decode(input_tokens[: input_len])
-                print(f"Overriding with dummy input: len {input_len}, text: {input_text}")
+                input_text = self.tokenizer.decode(input_tokens)
                 input_texts = [input_text]
-            return generate(input_texts, max_output_len, self.model, self.ptuning_args)
+            return generate(input_texts, tasks, max_output_len, self.model, self.prompt_table)
 
     @property
     def get_triton_input(self):
