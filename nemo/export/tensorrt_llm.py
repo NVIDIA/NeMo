@@ -67,7 +67,7 @@ class TensorRTLLM(ITritonDeployable):
     def _load_prompt_table(self):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
         if path.exists():
-            self.prompt_table = torch.from_numpy(np.load(path.name))
+            self.prompt_table = torch.from_numpy(np.load(path))
             self.prompt_table = self.prompt_table.view((self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2]))
             dtype = self.config['builder_config']['precision']
             self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
