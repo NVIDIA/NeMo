@@ -66,7 +66,7 @@ def _mask_encoder_input(enc_input, mask_id):
 def getitem_from_speech(tokens, tokenizer):
     speech_codebook_size = 1024
     for _i in range(tokens.shape[0]):
-        tokens[_i] = tokens[_i] + 29184 + (_i * speech_codebook_size)
+        tokens[_i] = tokens[_i] + 30000 + (_i * speech_codebook_size)
 
     enc_input = tokens[:, 1:] * 1
     dec_input = tokens[:, :-1] * 1
@@ -74,7 +74,7 @@ def getitem_from_speech(tokens, tokenizer):
     
     for _i in range(1, tokens.shape[0]):
         # bring other layers back in range (0, 1024)
-        labels[_i] = labels[_i] - 29184 - (_i * speech_codebook_size)
+        labels[_i] = labels[_i] - 30000 - (_i * speech_codebook_size)
 
     enc_input = _mask_encoder_input(enc_input, tokenizer.mask_id)
 
@@ -105,7 +105,7 @@ def unprocess_encoder_input(enc_input):
     unprocessed_enc_input = enc_input.clone()
     for _i in range(enc_input.shape[0]):
         mask_indices = (enc_input[_i] != 103).long()
-        unprocessed_enc_input[_i] = enc_input[_i] - 29184 - (_i * 1024)
+        unprocessed_enc_input[_i] = enc_input[_i] - 30000 - (_i * 1024)
         unprocessed_enc_input[_i] = unprocessed_enc_input[_i] * mask_indices
     
     return unprocessed_enc_input    
@@ -159,7 +159,8 @@ def main(cfg) -> None:
     #     print(f"cfg.model.restore_path is None")
     #     model = MegatronT5SpeechLMModel(cfg.model, trainer=trainer)
 
-    checkpoint_path = "/datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch102000.ckpt"
+    # checkpoint_path = "/datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch102000.ckpt"
+    checkpoint_path = "/datap/misc//Step60k.ckpt"
     # model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path="/datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch40000.ckpt", trainer=trainer, cfg=cfg.model)
     model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model)
     model.eval()
@@ -239,7 +240,7 @@ def main(cfg) -> None:
                     output_token_list.append(output_tokens_curr_timestep[0])
                     output_tokens_curr_timestep_deccompatible = output_tokens_curr_timestep * 1
                     for _c in range(8):
-                        output_tokens_curr_timestep_deccompatible[:,_c] = output_tokens_curr_timestep_deccompatible[:,_c] + 29184 + (_c * 1024)
+                        output_tokens_curr_timestep_deccompatible[:,_c] = output_tokens_curr_timestep_deccompatible[:,_c] + 30000 + (_c * 1024)
 
                     dec_input[:, :, t+1] = output_tokens_curr_timestep_deccompatible * 1
                     
