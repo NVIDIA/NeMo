@@ -50,7 +50,13 @@ class TextGenerationStrategy:
 
     def __init__(self, model):
         self.model = model
-        self.model.eval()
+        if self.model.training:
+            # TODO in the future this should raise an exception
+            warnings.warn(
+                "Generation started while the model is in training mode, switching to eval mode "
+                "(this situation may raise an exception in future versions, please call `eval()` before generation)"
+            )
+            self.model.eval()
         self._end_of_generation_cache = None
 
     def forward_step(self, batch, tensor_shape):
