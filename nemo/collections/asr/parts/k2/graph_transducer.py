@@ -20,6 +20,11 @@ import torch.nn.functional as F
 
 from nemo.core.classes.loss import Loss
 from nemo.core.utils.k2_guard import k2
+from nemo.utils.exceptions import NeMoBaseException
+
+
+class GraphLossError(NeMoBaseException):
+    pass
 
 
 def force_float32_context() -> ContextManager:
@@ -475,6 +480,77 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
             # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
             scores = log_probs.flatten().index_select(-1, indices)
+            # fix weights for the arcs to the last state
+            scores[target_fsas_vec.labels == -1] = 0
+
+            target_fsas_vec.scores = scores
+            scores = -1 * target_fsas_vec.get_tot_scores(use_double_scores=self.double_scores, log_semiring=True)
+            return scores
+
+
+class GraphFactorizedTransducerMSELoss(GraphRnntLoss):
+    def __init__(
+        self, clamp_prob=1e-20, use_grid_implementation=True, connect_composed=False, double_scores=False, cast_to_float32=False,
+    ):
+        super().__init__(
+            blank=0,  # force 0 for graphs; forward takes blank logits separately
+            use_grid_implementation=use_grid_implementation,
+            connect_composed=connect_composed,
+            double_scores=double_scores,
+            cast_to_float32=cast_to_float32
+        )
+        self.clamp_prob = clamp_prob
+
+    def forward(
+        self,
+        blank_logits: torch.Tensor,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+        logits_lengths: torch.Tensor,
+        target_lengths: torch.Tensor,
+    ) -> torch.Tensor:
+        # logits: B x Source x Target+1 x (C+1)
+        # vector_size_with_blank = logits.shape[-1]
+        # targets: B x Target x C
+        cast_context = force_float32_context() if self.cast_to_float32 else nullcontext()
+        with cast_context:
+            batch_size, enc_max_length, predict_max_length = blank_logits.shape
+            num_features = targets.shape[-1]
+            assert predictions.shape[1] == enc_max_length and predictions.shape[2] == predict_max_length
+            mse_loss_framewise = F.mse_loss(
+                predictions,
+                torch.cat(
+                    (
+                        targets,
+                        torch.zeros(batch_size, 1, num_features, device=predictions.device, dtype=predictions.dtype),
+                    ),
+                    dim=1,
+                ).unsqueeze(1),
+                reduction="none",
+            ).mean(dim=-1)
+            log_scores_logits = -mse_loss_framewise  # reinterpret as logprob
+
+            blank_logprob = F.logsigmoid(blank_logits)
+            scale_prob = torch.clamp(1 - torch.exp(blank_logprob), min=self.clamp_prob)
+            log_scores_logits = log_scores_logits + torch.log(scale_prob)
+
+            target_fsas_vec = self.get_graphs_batched(
+                logits_lengths,
+                torch.full((batch_size, predict_max_length), 1, dtype=torch.int32, device=targets.device),
+                target_lengths,
+                vocab_size=2,
+            )
+
+            rnnt_like_logprobs = torch.stack((blank_logprob, log_scores_logits,), dim=-1,)
+
+            with torch.no_grad():
+                indices = self.get_logits_indices(target_fsas_vec, rnnt_like_logprobs.shape)
+                # transition to the last state
+                # use 0 index (for valid index_select) and manually assign score after index_select for this case
+                indices[target_fsas_vec.labels == -1] = 0
+
+            # NB: do not assign scores -> modify, k2 will not update all scores correctly (modify -> assign)
+            scores = rnnt_like_logprobs.flatten().index_select(-1, indices)
             # fix weights for the arcs to the last state
             scores[target_fsas_vec.labels == -1] = 0
 
