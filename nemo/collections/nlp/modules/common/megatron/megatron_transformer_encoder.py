@@ -170,10 +170,10 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         # convert to Megatron mask
         if self.use_flash_attention:
             enc_attn_mask_3d = enc_attn_mask < 0.5
-
-        enc_attn_mask_3d = attn_mask_postprocess(build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
-        ))
+        else:
+            enc_attn_mask_3d = attn_mask_postprocess(build_attention_mask_3d(
+                source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
+            ))
 
         # transformer encoder
         enc_output = self.model(
