@@ -92,6 +92,7 @@ class GPTSFTDataset(Dataset):
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
+        self.truncation_method = truncation_method
         
         if hf_dataset:
             self.indexed_dataset = load_dataset(
