@@ -337,11 +337,8 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
     def unprocess_encoder_input(self, enc_input):
         assert enc_input.dim() == 2
         unprocessed_enc_input = enc_input.clone()
-        for _i in range(enc_input.shape[0]):
-            mask_indices = (enc_input[_i] != 103).long()
-            unprocessed_enc_input[_i] = enc_input[_i] - 30000 - (_i * 1024)
-            unprocessed_enc_input[_i] = unprocessed_enc_input[_i] * mask_indices
-        
+        unprocessed_enc_input[0] = unprocessed_enc_input[0] - 30000
+        unprocessed_enc_input = torch.clip(unprocessed_enc_input, 0, 1023)
         return unprocessed_enc_input
 
     def get_forward_output_and_loss_func(self):
@@ -495,7 +492,12 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         assert tokens.dim() == 3
         for i in range(tokens.size()[1]):
             include_channel_flag = (torch.sum(tokens[:, i, :], dim=1) > 0).float()
-            cur = self.word_embeddings(tokens[:, i, :])
+            if i == 0:
+                # Embed first layer using word embeddings
+                cur = self.word_embeddings(tokens[:, i, :])
+            else:
+                # Embed other layers using speech embeddings
+                cur = self.frozen_model.enc_dec_model.speech_tokens_embeddings[i-1](tokens[:, i, :])
             cur = cur * include_channel_flag.unsqueeze(1).unsqueeze(2)
             if out is None:
                 out = cur

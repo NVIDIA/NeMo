@@ -428,16 +428,10 @@ class SpeechLM_T5dataset(Dataset):
     def _getitem_from_speech(self, tokens):
         assert tokens.ndim == 2
 
-        for _i in range(tokens.shape[0]):
-            tokens[_i] = tokens[_i] + self.speech_offset + (_i * self.speech_codebook_size)
-        
+        tokens[0] = tokens[0] + self.speech_offset # add speech offset to the first codebook
         enc_input = tokens[:, 1:] * 1 # to avoid changing the original tensor
         dec_input = tokens[:, :-1] * 1
         labels = tokens[:, 1:] * 1
-        for _i in range(1, tokens.shape[0]):
-            # bring other layers back in range (0, 1024)
-            labels[_i] = labels[_i] - self.speech_offset - (_i * self.speech_codebook_size)
-            # dec_input[_i] = dec_input[_i] - self.speech_offset - (_i * self.speech_codebook_size)
 
         enc_input = self._mask_encoder_input(enc_input)
 
