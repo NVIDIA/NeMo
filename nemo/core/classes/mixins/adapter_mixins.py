@@ -22,7 +22,6 @@ import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterConfig
 from nemo.utils import logging, model_utils
 
 # Global registry of all adapters

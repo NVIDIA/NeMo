@@ -100,13 +100,9 @@ class MLPInfusedAdapter(InfusedAdapter):
 
     pass
 
-@dataclass
-class AdapterConfig:
-    # superclass for all adapter config dataclasses
-    _target_: str
 
 @dataclass
-class InfusedAdapterConfig(AdapterConfig):
+class InfusedAdapterConfig:
     in_features: int
     _target_: str = "{0}.{1}".format(InfusedAdapter.__module__, InfusedAdapter.__name__)
 
@@ -230,7 +226,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class ParallelLinearAdapterConfig(AdapterConfig):
+class ParallelLinearAdapterConfig:
     in_features: int
     out_features: int
     dim: int
@@ -399,7 +395,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class PromptEncoderAdapterConfig(AdapterConfig):
+class PromptEncoderAdapterConfig:
     virtual_tokens: int
     bottleneck_dim: int
     embedding_dim: int
