@@ -68,6 +68,8 @@ class T5LMAdaptedDataset(GPTDataset):
         pivot_mean=0.25,
         pivot_distribution=LengthDistribution.uniform,
         add_eos=False,
+        add_eos_to_enc=False,
+        debug=False,
     ):
         # get random split index
         if pivot_distribution == LengthDistribution.truncated_normal and (pivot_mean < 0.0 or pivot_mean > 1.0):
@@ -95,13 +97,15 @@ class T5LMAdaptedDataset(GPTDataset):
             ).astype(np.int64)
         else:
             tokens_enc = np.array(sample[:split_idx]).astype(np.int64)
+            if add_eos_to_enc:
+                tokens_enc = np.concatenate([tokens_enc, [tokenizer.eos_id]])
         # The decoder sequence is never truncated and is always of max decoder length.
         # TODO: Fix the max_seq_length_decoder check for GPT
-        offset = 1 if add_eos else 0
+        offset = int(add_eos) + int(add_eos_to_enc)
         if max_seq_length_decoder is not None:
             tokens_dec = sample[split_idx : split_idx + max_seq_length_decoder - offset]
         else:
-            tokens_dec = sample[split_idx:]
+            tokens_dec = sample[split_idx: split_idx + max_seq_length_encoder - offset]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
         if max_seq_length_decoder is not None:

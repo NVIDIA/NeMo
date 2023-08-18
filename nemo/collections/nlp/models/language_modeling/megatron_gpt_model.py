@@ -545,6 +545,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = next(dataloader_iter)
+
+                # tokens = batch['tokens'][0]
+                # seg_ids = torch.cumsum(tokens==3, 0)
+                # for i in range(seg_ids[-1].item() + 1):
+                #    doc = tokens[seg_ids == i]
+                #    text = self.tokenizer.ids_to_text(doc.cpu().numpy().tolist())
+                #    print("========================================")
+                #    print(i)
+                #    print(text)
+                #    print("========================================")
+                # import pdb; pdb.set_trace()
+
                 for k in batch.keys():
                     if self.get_attention_mask_from_fusion:
                         batch[k] = batch[k].cuda(non_blocking=True) if k not in ['attention_mask'] else None
@@ -809,7 +821,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             batch_sampler=batch_sampler,
             num_workers=self.cfg.data.num_workers,
             pin_memory=True,
-            persistent_workers=True,
+            persistent_workers=self.cfg.data.num_workers>0,
         )
 
     def setup(self, stage=None):

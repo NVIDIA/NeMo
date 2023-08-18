@@ -814,6 +814,10 @@ def get_dataset(
             use_prefix_noncausal_mask=cfg.get("attn_mask_type", "causal") == "padding",
             sentinel_tokens=sentinel_tokens,
             shuffle_documents=cfg.data.get("shuffle_documents", False),
+            add_eos_to_enc=cfg.data.get("add_eos_to_enc", False),
+            debug=cfg.data.get("debug", False),
+            force_sep_tokens=cfg.data.get("force_sep_tokens", False),
+            use_v2_format=cfg.data.get("use_v2_format", False),
             **kwargs,
         )
     else:

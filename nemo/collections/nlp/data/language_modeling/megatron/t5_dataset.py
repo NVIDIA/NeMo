@@ -59,7 +59,8 @@ class T5Dataset(Dataset):
         documents=None,
         skip_masking_id=None,
         sentinel_tokens=None,
-        shuffle_documents: bool = True
+        shuffle_documents: bool = True,
+        force_sep_tokens: bool = False,
     ):
         super().__init__()
         # Params to store.
@@ -137,6 +138,8 @@ class T5Dataset(Dataset):
         self.vocab_id_list = self.tokenizer.vocab
         self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
 
+        self.force_sep_tokens = force_sep_tokens
+
         self._build()
 
     def _build(self):
@@ -158,6 +161,8 @@ class T5Dataset(Dataset):
             return self.sample_idx.shape[0] - 1
 
     def _get_sample(self, idx):
+        # if getattr(self, 'debug', False):
+        #     import pdb; pdb.set_trace()
         if self.respect_document_boundaries:
             start_index, end_index, seq_length = self.samples_mapping[idx]
             sample = []
@@ -184,6 +189,13 @@ class T5Dataset(Dataset):
                     sample_list.append(self.indexed_dataset.get(self.doc_idx[i]))
                 # And finally add the relevant portion of last document.
                 sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
+
+                if self.force_sep_tokens:
+                    for i in range(len(sample_list)-1):
+                        # We ignore the case where the last document happens to be included as a whole,
+                        # which should have low probabilicy.
+                        sample_list[i] = np.concatenate([sample_list[i], [self.sep_id]])
+                    sample_list[i] = sample_list[i][:-(len(sample_list)-1)]
                 sample = np.concatenate(sample_list)
                 sample.astype(np.int64)
             seq_length = len(sample)
@@ -267,6 +279,7 @@ class T5Dataset(Dataset):
         eos_id,
         pad_id,
         skip_masking_id=None,
+        use_v2_format=False,
     ):
         """Build training sample.
         Arguments:
@@ -335,7 +348,11 @@ class T5Dataset(Dataset):
             (output_tokens, masked_positions, masked_labels, _, masked_spans) = lm_pred
 
         # Padding.
-        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = T5Dataset.pad_and_convert_to_numpy(
+        if use_v2_format:
+            pad_and_convert_fn = T5Dataset.pad_and_convert_to_numpy_v2
+        else:
+            pad_and_convert_fn = T5Dataset.pad_and_convert_to_numpy
+        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_fn(
             output_tokens=output_tokens,
             masked_positions=masked_positions,
             masked_labels=masked_labels,
@@ -437,6 +454,90 @@ class T5Dataset(Dataset):
         loss_mask = np.array(loss_mask, dtype=np.int64)
 
         return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
+
+    @classmethod
+    def pad_and_convert_to_numpy_v2(
+        cls,
+        output_tokens,
+        masked_positions,
+        masked_labels,
+        sentinel_tokens,
+        bos_id,
+        eos_id,
+        pad_id,
+        max_seq_length,
+        max_seq_length_dec,
+        masked_spans=None,
+    ):
+        """Pad sequences and convert them to numpy.
+
+        Only consider decoder-only models. We will keep corrupting the spans until the maximum length is met.
+        This will improve sample utilization compared with specifying a small sequencel length in advance.
+        """
+        sentinel_tokens = collections.deque(sentinel_tokens)
+        t5_input = []
+        t5_decoder_out = []
+        (start_index, end_index) = (0, None)
+
+        if masked_spans is not None:
+            for span in masked_spans:
+                flag = sentinel_tokens.popleft()
+
+                # The minimum length to add is to only append the necessary context to the inputs.
+                # We will stop if executing the following steps exceeds the length limit.
+                end_index = span.index[0]
+                min_added_length = len(t5_input) + len(t5_decoder_out) + end_index - start_index + len(span.label) + 2
+                # Leaving space for one bos token at the end of the context.
+                if min_added_length > max_seq_length - 1:
+                    break
+
+                # Append the same tokens in decoder input and output
+                t5_decoder_out.append(flag)
+                t5_decoder_out.extend(span.label)
+
+                t5_input.extend(output_tokens[start_index:end_index])
+                t5_input.append(flag)
+
+                # the next start index is the token after the last span token
+                start_index = span.index[-1] + 1
+
+        # Add the remaining tokens to the t5 input
+        # Minus one to append bos in the end.
+        delta = max_seq_length - (len(t5_input) + len(t5_decoder_out)) - 1
+        t5_input.extend(output_tokens[start_index:start_index+delta])
+        t5_input.append(bos_id)
+
+        # Encoder-side padding mask.
+        num_tokens = len(t5_input)
+        # TODO: Checking max_seq_length_dec is a hack. Fix this later by potentially passing an explicit flag if you want to get the batch for decoder-only training.
+        padding_length = 0 if max_seq_length_dec is None else max_seq_length - num_tokens
+        assert padding_length >= 0, padding_length
+        assert len(masked_positions) == len(masked_labels)
+
+        # Tokens..
+        filler = [pad_id] * padding_length
+        tokens_enc = np.array(t5_input + filler, dtype=np.int64)
+
+        # Decoder-side padding mask.
+        num_tokens_dec = len(t5_decoder_out)
+        # TODO: Checking max_seq_length_dec is a hack. Fix this later by potentially passing an explicit flag if you want to get the batch for decoder-only training.
+        padding_length_dec = 0 if max_seq_length_dec is None else max_seq_length_dec - num_tokens_dec
+        assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
+
+        # Labels mask.
+        labels = t5_decoder_out + ([pad_id] * padding_length_dec)
+        labels = np.array(labels, dtype=np.int64)
+
+        # Create attention masks
+        enc_mask = (tokens_enc != pad_id).astype(np.int64)
+        dec_mask = (labels != pad_id).astype(np.int64)
+
+        # Loss mask
+        loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
+        loss_mask = np.array(loss_mask, dtype=np.int64)
+
+        # We just pass a placeholder for the decoder-out, which is only useful for encoder-decoder models.
+        return tokens_enc, labels, labels, enc_mask, dec_mask, loss_mask
 
 
 class MockT5Dataset(Dataset):
