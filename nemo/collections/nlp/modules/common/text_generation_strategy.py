@@ -238,8 +238,9 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
-    def __init__(self, model):
+    def __init__(self, model, **kwargs):
         super().__init__(model)
+        self.force_causal_attention_mask = kwargs.get('force_causal_attention_mask', False)
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
         """initialize the batch data before the inference steps."""
@@ -250,7 +251,7 @@ class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         )
         context_lengths = context_length.tolist()
         # Get the attention mask and postition ids.
-        if self.model.cfg.get('attn_mask_type', 'causal') == 'padding':
+        if self.model.cfg.get('attn_mask_type', 'causal') == 'padding' and not self.force_causal_attention_mask:
             for i, l in enumerate(context_lengths):
                 self.attention_mask[i][:, : l - 1] = 1.0
 
@@ -380,7 +381,7 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronUGPTModel):
-        return UGPTModelTextGenerationStrategy(model)
+        return UGPTModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
