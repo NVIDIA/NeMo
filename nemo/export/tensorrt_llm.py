@@ -151,7 +151,7 @@ class TensorRTLLM(ITritonDeployable):
                 input_tokens = self.tokenizer.encode(input_texts + "\n")
                 input_text = self.tokenizer.decode(input_tokens)
                 input_texts = [input_text]
-            return generate(input_texts, tasks, max_output_len, self.model, self.prompt_table)
+            return generate(self.model, input_texts, tasks, max_output_len, self.prompt_table)
 
     @property
     def get_triton_input(self):

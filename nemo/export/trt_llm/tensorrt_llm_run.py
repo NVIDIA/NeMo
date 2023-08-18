@@ -245,7 +245,7 @@ def load(
 
 
 def forward(
-    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, host_context: TensorrtLLMHostContext, prompt_table=None,
+    host_context: TensorrtLLMHostContext, input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
 
@@ -278,7 +278,7 @@ def forward(
 
 
 def generate(
-    input_texts: List[torch.IntTensor], tasks=None, max_output_len: int=200, host_context: TensorrtLLMHostContext, prompt_table=None,
+    host_context: TensorrtLLMHostContext, input_texts: List[torch.IntTensor], tasks=None, max_output_len: int=200,  prompt_table=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -288,7 +288,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, tasks, max_output_len, host_context, prompt_table)
+    output_tensor = forward(host_context, input_tensors, tasks, max_output_len, prompt_table)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
