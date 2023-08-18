@@ -61,6 +61,7 @@ class TestNemoExport:
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
         assert no_error, "At least one model couldn't be served successfully."
 
+    @pytest.mark.unit
     def test_trt_llm_export_ptuned(self):
         """Here we test the trt-llm transfer and infer function"""
 
