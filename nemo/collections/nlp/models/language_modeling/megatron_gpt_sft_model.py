@@ -402,7 +402,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
-        if data_cfg.get("write_predictions_to_file", False):
+        if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
             # add_BOS and tokens_to_generate are set in dataset
             if self.get_inference_config() is None:
