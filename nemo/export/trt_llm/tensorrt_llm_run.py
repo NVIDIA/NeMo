@@ -126,7 +126,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int, prompt_table=None,
+    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -278,7 +278,7 @@ def forward(
 
 
 def generate(
-    input_texts: List[torch.IntTensor], tasks=None, max_output_len: int, host_context: TensorrtLLMHostContext, prompt_table=None,
+    input_texts: List[torch.IntTensor], tasks=None, max_output_len: int=200, host_context: TensorrtLLMHostContext, prompt_table=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
