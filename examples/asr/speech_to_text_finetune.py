@@ -71,7 +71,7 @@ from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf/finetune", config_name="fintune_with_existing_tokenizer")
+@hydra_runner(config_path="conf", config_name="speech_to_text_finetune")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
