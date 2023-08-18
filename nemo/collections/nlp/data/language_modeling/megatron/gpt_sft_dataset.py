@@ -228,7 +228,7 @@ class GPTSFTDataset(Dataset):
             left_spaces = ' ' * (len(t) - len(placeholder))
             template_strings.append(left_spaces + ph_to_s.get(placeholder, placeholder))
             template_strings_keys.append(ph_to_k.get(placeholder, '<template>'))
-        
+
         return template_strings, template_strings_keys
 
     def _multiple_truncation(self, template_ids: List[List[int]], template_ids_keys: List[str]):
@@ -292,7 +292,7 @@ class GPTSFTDataset(Dataset):
         BOS, EOS, and SEP, are added if specified.
         """
         prompt_template_values = [example[c].strip(' ') for c in self.prompt_template_keys]
-        
+
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
         template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
         context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
