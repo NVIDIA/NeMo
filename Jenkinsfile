@@ -2677,7 +2677,7 @@ pipeline {
         model.global_batch_size=4 \
         model.data.data_impl=text_mmap \
         model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
-        model.data.splits_string='800,100,100' \
+        model.data.splits_string=\'800,100,100\' \
         model.data.whole_word_masking=False \
         model.tokenizer.library=sentencepiece \
         model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
@@ -2721,7 +2721,7 @@ pipeline {
         model.global_batch_size=4 \
         model.data.data_impl=text_mmap \
         model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
-        model.data.splits_string='800,100,100' \
+        model.data.splits_string=\'800,100,100\' \
         model.data.whole_word_masking=False \
         model.tokenizer.library=sentencepiece \
         model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
