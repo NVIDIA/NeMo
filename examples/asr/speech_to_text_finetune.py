@@ -63,12 +63,12 @@ import copy
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
-from pytorch_lightning.utilities import rank_zero_only
 
 
 @hydra_runner(config_path="conf/finetune", config_name="fintune_with_existing_tokenizer")
@@ -82,7 +82,7 @@ def main(cfg):
         raise NotImplementedError(
             "Currently for simplicity of single script for all model types, we only support `init_from_nemo_model` and `init_from_pretrained_model`"
         )
-    
+
     @rank_zero_only
     def get_base_model(cfg):
         nemo_model_path = cfg.get('init_from_nemo_model', None)
@@ -93,7 +93,7 @@ def main(cfg):
             asr_model = ASRModel.restore_from(restore_path=nemo_model_path)
         elif pretrained_name is not None:
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
-        
+
         return asr_model
 
     asr_model = get_base_model(cfg)
