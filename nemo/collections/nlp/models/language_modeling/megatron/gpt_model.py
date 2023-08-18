@@ -296,7 +296,7 @@ class GPTModel(MegatronModule):
 
         if self.post_process:
             if loss_mask is not None:
-                loss_lm_output = lm_output[loss_mask.transpose(0, 1)==1].unsqueeze(1)
+                loss_lm_output = lm_output.transpose(0, 1)[loss_mask==1].unsqueeze(1)
                 loss_labels = labels[loss_mask==1].unsqueeze(0)
             else:
                 loss_lm_output = lm_output
