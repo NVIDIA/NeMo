@@ -13,21 +13,24 @@
 # limitations under the License.
 import io
 import itertools
+import json
 import os
 import pickle
 import random
 import re
 from typing import Callable, List, Union
 
+import boto3
 import torch.distributed as dist
 import webdataset as wds
 from botocore.config import Config
 from PIL import Image
-from webdataset import WebDataset
+from webdataset import WebDataset, warn_and_continue
 from webdataset.filters import _shuffle
 from webdataset.utils import pytorch_worker_info
 
 from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch, WDSUrlsRandomSampler
+from nemo.collections.multimodal.data.common.webdataset_s3 import WebDataset as WebDatasetS3
 from nemo.core.classes import IterableDataset as NeMoIterableDataset
 from nemo.utils import logging
 
@@ -124,7 +127,6 @@ class WebDatasetCommon(NeMoIterableDataset):
         self.consumed_samples = consumed_samples
 
         self.local_root_path = self.webdata_cfg.local_root_path
-        logging.info(f'Read Webdataset locally. Data stores at {self.local_root_path}')
         if is_train:
             dataset_path = dataset_cfg.train.dataset_path
             self.augmentations = dataset_cfg.train.get("augmentations", None)
@@ -133,6 +135,22 @@ class WebDatasetCommon(NeMoIterableDataset):
             dataset_path = dataset_cfg.validation.dataset_path
             self.augmentations = dataset_cfg.validation.get("augmentations", None)
             self.filterings = dataset_cfg.validation.get("filterings", None)
+
+        if "boto3" in dataset_cfg:
+            logging.info(f'Init boto3 using credentials file at {dataset_cfg.boto3.credentials_file}')
+            self.use_boto3 = True
+            assert dataset_cfg.boto3.credentials_file is not None
+            with open(dataset_cfg.boto3.credentials_file) as fin:
+                self.credentials = json.load(fin)
+            config = Config(connect_timeout=30, signature_version="s3", retries={"max_attempts": 999999})
+            self.s3 = boto3.client('s3', **self.credentials, config=config)
+            self.bucket = dataset_cfg.boto3.bucket
+            self.local_root_path = ""
+        else:
+            logging.info(f'Read Webdataset locally. Data stores at {self.local_root_path}')
+            self.use_boto3 = False
+            self.s3 = None
+            self.bucket = None
 
         # wdinfo in a dict containing webdata information
         self.wdinfo = dict()
@@ -155,6 +173,19 @@ class WebDatasetCommon(NeMoIterableDataset):
             train_info['chunk_size'] = self.webdata_cfg.get("chunk_size", 1000)
             train_info['total_key_count'] = train_info['chunk_size'] * len(train_info['tar_files'])
 
+        self.data_parallel_size = parallel_state.get_data_parallel_world_size()
+        chunk_size = train_info['chunk_size']
+
+        num_workers = dataset_cfg.get("num_workers") or 1
+        self.consumed_urls = (
+            consumed_samples
+            // (self.data_parallel_size * num_workers)
+            // chunk_size
+            * (self.data_parallel_size * num_workers)
+        )
+        self.consumed_samples = self.consumed_urls * chunk_size
+        self.skip_ahead = consumed_samples - self.consumed_samples
+
         decode_fn = pil_loader if decode_fn is None else decode_fn
         shards_train_list = train_info["tar_files"]
         num_shards = len(shards_train_list)
@@ -169,8 +200,8 @@ class WebDatasetCommon(NeMoIterableDataset):
             logging.info(f'Estimated {self.filterings.estimated_portion} will be remaining after filtering')
             train_info["total_key_count"] = int(train_info["total_key_count"] * self.filterings.estimated_portion)
 
-        from webdataset import warn_and_continue
-
+        # WDS Dataset Pipeline
+        # DetShuffle -> Decode -> Filter -> Map -> Compose
         train_dataset, epoch = self._get_webdataset_and_epoch()
         train_dataset = train_dataset.compose(detshuffle2(bufsize=shuffle_buffer_size, epoch=epoch))
         train_dataset = train_dataset.decode(decode_fn, handler=warn_and_continue)
@@ -179,8 +210,7 @@ class WebDatasetCommon(NeMoIterableDataset):
             if self.filterings.resolution is not None:
                 train_dataset = train_dataset.select(filter_fn)
 
-        # traindataset.to_tuple("").map_tuple(fns)
-        train_dataset = train_dataset.map(map_fn)
+        train_dataset = train_dataset.map(map_fn, handler=warn_and_continue)
         if not isinstance(compose_fn, list):
             compose_fn = [compose_fn]
         for fn in compose_fn:
@@ -220,20 +250,37 @@ class WebDatasetCommon(NeMoIterableDataset):
                 consumed_samples=self.consumed_samples,
                 data_parallel_rank=parallel_state.get_data_parallel_rank(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                num_workers=self.dataset_cfg.get("num_workers") or 1,
                 drop_last=True,
                 data_sharding=self.dataset_cfg.train.get("data_sharding", True),
             )
             epoch = shards_train_list.epoch
 
-        train_dataset = WebDataset(
-            shards_train_list, handler=warn_and_continue, resampled=self.infinite_sampler or False,
-        )
+        if self.use_boto3:
+            train_dataset = WebDatasetS3(
+                shards_train_list,
+                handler=warn_and_continue,
+                resampled=self.infinite_sampler or False,
+                load_from_object_store=self.use_boto3,
+                s3_client=self.s3,
+                s3_bucket_name=self.bucket,
+            )
+        else:
+            train_dataset = WebDataset(
+                shards_train_list, handler=warn_and_continue, resampled=self.infinite_sampler or False,
+            )
 
         return train_dataset, epoch
 
     def __iter__(self):
-        return self._dataset.__iter__()
+        ds_iter = self._dataset.__iter__()
+        while self.skip_ahead > 0 and not self.infinite_sampler:
+            try:
+                _ = next(ds_iter)
+                self.skip_ahead -= self.data_parallel_size * self.num_workers
+            except StopIteration:
+                self.skip_ahead = 0
+        return ds_iter
 
     def __len__(self):
-        world_size = get_world_size()
-        return self._dataset.total_images // world_size
+        return self._dataset.total_images

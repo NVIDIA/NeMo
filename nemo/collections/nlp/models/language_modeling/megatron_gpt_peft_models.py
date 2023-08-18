@@ -40,6 +40,8 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         self.base_keys = self.get_all_keys()
         self.init_peft_modules()
         self.adapter_keys = self.get_all_keys() - self.base_keys
+        if self.megatron_amp_O2:
+            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
@@ -62,6 +64,9 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                         module.add_adapter(
                             name=peft_key, cfg=peft_cfg,
                         )
+                if self.megatron_amp_O2:
+                    for adapter_name in getattr(module, 'adapter_layer', []):
+                        module.adapter_layer[adapter_name] = module.adapter_layer[adapter_name].to(self.autocast_dtype)
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
@@ -69,7 +74,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         super().setup(stage)
         self.setup_complete = True
 
-    def get_all_keys(self,):
+    def get_all_keys(self,):  # TODO (yuya): why just state_dict?
         """ 
         Returns all the keys in the model
         """
@@ -103,7 +108,11 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys
+            if self.megatron_amp_O2:
+                adapter_keys = set(key.replace("model.", "model.module.", 1) for key in self.adapter_keys)
+            else:
+                adapter_keys = self.adapter_keys
+            assert set(state_dict.keys()) == adapter_keys
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)

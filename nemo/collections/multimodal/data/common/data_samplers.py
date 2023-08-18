@@ -15,6 +15,7 @@ from multiprocessing import Value
 
 import torch
 from webdataset.pytorch import IterableDataset
+from nemo.utils import logging
 
 
 class SharedEpoch:
@@ -37,6 +38,7 @@ class WDSUrlsRandomSampler(IterableDataset):
         consumed_samples: int,
         data_parallel_rank: int,
         data_parallel_size: int,
+        num_workers: int,
         drop_last: bool,
         data_sharding: bool,
     ):
@@ -57,9 +59,13 @@ class WDSUrlsRandomSampler(IterableDataset):
         self.urls = urls
         self.total_urls = total_urls
         self.chunk_size = chunk_size
-        self.consumed_samples = consumed_samples
-        assert consumed_samples % data_parallel_size == 0
-        self.consumed_urls = consumed_samples // data_parallel_size // chunk_size * data_parallel_size
+
+        if consumed_samples % data_parallel_size == 0:
+            logging.warning("Multimodal data resuming will be approximate!")
+        self.consumed_urls = (
+            consumed_samples // (data_parallel_size * num_workers) // chunk_size * (data_parallel_size * num_workers)
+        )
+        self.consumed_samples = self.consumed_urls * chunk_size
 
         self.data_parallel_rank = data_parallel_rank
         self.data_parallel_size = data_parallel_size
@@ -76,12 +82,16 @@ class WDSUrlsRandomSampler(IterableDataset):
             return (self.total_urls + self.data_parallel_size - 1) // self.data_parallel_size
 
     def __iter__(self):
+        worker_id, num_workers = 0, 1
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is not None:
             worker_id, num_workers = worker_info.id, worker_info.num_workers
 
         self.consumed_urls = (
-            self.consumed_samples // self.data_parallel_size // self.chunk_size * self.data_parallel_size
+            self.consumed_samples
+            // (self.data_parallel_size * num_workers)
+            // self.chunk_size
+            * (self.data_parallel_size * num_workers)
         )
 
         if self.drop_last or self.remaining_urls == 0:
