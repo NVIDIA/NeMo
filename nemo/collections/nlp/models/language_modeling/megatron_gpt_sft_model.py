@@ -400,7 +400,20 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super().validation_step(itertools.chain([batch]), batch_idx)
+
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
+
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.eval()
+
+        loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, True)
+
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.train()
 
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
@@ -428,10 +441,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         if mode == 'validation':
             if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
-                self.validation_step_outputs[dataloader_idx][-1] = outputs
+                self.validation_step_outputs[dataloader_idx].append(outputs)
             else:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
-                self.validation_step_outputs[-1] = outputs
+                self.validation_step_outputs.append(outputs)
         else:
             if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
                 self.test_step_outputs[dataloader_idx][-1] = outputs
