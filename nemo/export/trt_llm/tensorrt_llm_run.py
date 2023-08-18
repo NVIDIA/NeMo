@@ -245,7 +245,7 @@ def load(
 
 
 def forward(
-    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int, host_context: TensorrtLLMHostContext, prompt_table=None,
+    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, host_context: TensorrtLLMHostContext, prompt_table=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
 
