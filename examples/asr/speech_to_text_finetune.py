@@ -66,8 +66,9 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
+from pytorch_lightning.utilities import rank_zero_only
 
 
 @hydra_runner(config_path="conf/finetune", config_name="fintune_with_existing_tokenizer")
@@ -81,8 +82,21 @@ def main(cfg):
         raise NotImplementedError(
             "Currently for simplicity of single script for all model types, we only support `init_from_nemo_model` and `init_from_pretrained_model`"
         )
+    
+    @rank_zero_only
+    def get_base_model(cfg):
+        nemo_model_path = cfg.get('init_from_nemo_model', None)
+        pretrained_name = cfg.get('init_from_pretrained_model', None)
+        if nemo_model_path is not None and pretrained_name is not None:
+            raise ValueError("Only pass `init_from_nemo_model` or `init_from_pretrained_model` but not both")
+        elif nemo_model_path is not None:
+            asr_model = ASRModel.restore_from(restore_path=nemo_model_path)
+        elif pretrained_name is not None:
+            asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
+        
+        return asr_model
 
-    asr_model = ASRModel.maybe_init_from_pretrained_checkpoint(cfg)
+    asr_model = get_base_model(cfg)
     vocab_size = asr_model.tokenizer.vocab_size
 
     # if new tokenizer is provided, use it
@@ -90,8 +104,9 @@ def main(cfg):
         decoder = copy.deepcopy(asr_model.decoder)
         joint_state = copy.deepcopy(asr_model.joint)
 
-        if cfg.model.tokenizer.tokenizer_dir is None:
-            raise ValueError("tokenizer_dir must be specified if update_tokenizer is True")
+        if cfg.model.tokenizer.dir is None:
+            raise ValueError("dir must be specified if update_tokenizer is True")
+        logging.info("Using the tokenizer provided through config")
         asr_model.change_vocabulary(
             new_tokenizer_dir=cfg.model.tokenizer.dir, new_tokenizer_type=cfg.model.tokenizer.type
         )
@@ -106,6 +121,7 @@ def main(cfg):
         logging.info("Reusing the tokenizer from the loaded model.")
 
     # Setup Data
+    cfg = model_utils.convert_model_config_to_dict_config(cfg)
     asr_model.setup_training_data(cfg.model.train_ds)
     asr_model.setup_validation_data(cfg.model.validation_ds)
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
