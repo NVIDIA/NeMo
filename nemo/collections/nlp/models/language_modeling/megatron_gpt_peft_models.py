@@ -45,6 +45,8 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
             return self.model.pre_process
+        elif hasattr(self, "model") and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
+            return self.model.module.pre_process
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
 
@@ -228,7 +230,8 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # for Float16Model or BFloat16Model models
             ]
         )
         # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)
