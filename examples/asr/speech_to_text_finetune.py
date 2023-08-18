@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,50 +13,41 @@
 # limitations under the License.
 
 """
-# Preparing the Tokenizer for the dataset
-Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts/tokenizers/ in order to prepare the tokenizer.
+This script can used to fine-tune a speech-to-text model of any instance type when users want to 
+fine-tune an existing model without changing its core architecture but may change the tokenizer. 
+One can mention the pretrained model in two ways: 
+1) `init_from_nemo_model` or 
+2) `init_from_pretrained_model` in the configuration.
 
+To update the model architecture in conjunction with other modifications, it is advisable to use the primary 'speech_to_text_rnnt/ctc_*.py' script.
+
+Note: To create a single script for all model types, we currently only support two types of 
+initializations:
+1) `init_from_nemo_model`, and
+2) `init_from_pretrained_model`,
+but not `init_from_ptl_ckpt`.
+
+To train with prior base model tokenizer keep `model.tokenizer.update_tokenizer` as false else
+make it true and provide tokenizer dir along with tokenizer type.
+
+To fine-tune the model, use the following commands:
+
+For initialization from a NEMO model:
 ```sh
-python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
-        --manifest=<path to train manifest files, seperated by commas>
-        OR
-        --data_file=<path to text data, seperated by commas> \
-        --data_root="<output directory>" \
-        --vocab_size=<number of tokens in vocabulary> \
-        --tokenizer=<"spe" or "wpe"> \
-        --no_lower_case \
-        --spe_type=<"unigram", "bpe", "char" or "word"> \
-        --spe_character_coverage=1.0 \
-        --log
+python <NEMO_ROOT>/examples/asr/speech_to_text_finetune.py \
+    init_from_nemo_model=<path_to_nemo_model>
 ```
 
-# Training the model
+For initialization from a pretrained model:
 ```sh
-python speech_to_text_rnnt_bpe.py \
-    # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
-    model.train_ds.manifest_filepath=<path to train manifest> \
-    model.validation_ds.manifest_filepath=<path to val/test manifest> \
-    model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
-    model.tokenizer.type=<either bpe or wpe> \
-    trainer.devices=-1 \
-    trainer.accelerator="gpu" \
-    trainer.strategy="ddp" \
-    trainer.max_epochs=100 \
-    model.optim.name="adamw" \
-    model.optim.lr=0.001 \
-    model.optim.betas=[0.9,0.999] \
-    model.optim.weight_decay=0.0001 \
-    model.optim.sched.warmup_steps=2000
-    exp_manager.create_wandb_logger=True \
-    exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
-    exp_manager.wandb_logger_kwargs.project="<Name of project>"
+python <NEMO_ROOT>/examples/asr/speech_to_text_finetune.py \
+    init_from_pretrained_model=<pretrained_model_name>
 ```
 
-# Fine-tune a model
+# Fine-Tune a Model
 
-For documentation on fine-tuning this model, please visit -
+For documentation on fine-tuning this model, please visit:
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
-
 """
 
 import copy
@@ -85,10 +76,15 @@ def main(cfg):
 
     @rank_zero_only
     def get_base_model(cfg):
+        asr_model = None
         nemo_model_path = cfg.get('init_from_nemo_model', None)
         pretrained_name = cfg.get('init_from_pretrained_model', None)
         if nemo_model_path is not None and pretrained_name is not None:
             raise ValueError("Only pass `init_from_nemo_model` or `init_from_pretrained_model` but not both")
+        elif nemo_model_path is None and pretrained_name is None:
+            raise ValueError(
+                "Both `init_from_nemo_model` and `init_from_pretrained_model cannot be None, should pass atleast one of them"
+            )
         elif nemo_model_path is not None:
             asr_model = ASRModel.restore_from(restore_path=nemo_model_path)
         elif pretrained_name is not None:
