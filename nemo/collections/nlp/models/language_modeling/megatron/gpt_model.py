@@ -267,6 +267,7 @@ class GPTModel(MegatronModule):
         input_ids,
         position_ids,
         attention_mask,
+        loss_mask=None,
         labels=None,
         token_type_ids=None,
         layer_past=None,
@@ -294,9 +295,15 @@ class GPTModel(MegatronModule):
         )
 
         if self.post_process:
-            return post_language_model_processing(
-                lm_output,
-                labels,
+            if loss_mask is not None:
+                loss_lm_output = lm_output[loss_mask.transpose(0, 1)==1].unsqueeze(1)
+                loss_labels = labels[loss_mask==1].unsqueeze(0)
+            else:
+                loss_lm_output = lm_output
+                loss_labels = labels
+            post_process_result = post_language_model_processing(
+                loss_lm_output,
+                loss_labels,
                 self.language_model.output_layer.weight
                 if not self.share_embeddings_and_output_weights
                 else self.word_embeddings_weight(),
@@ -308,6 +315,12 @@ class GPTModel(MegatronModule):
                 sequence_parallel=self.sequence_parallel,
                 gradient_accumulation_fusion=self.config.gradient_accumulation_fusion,
             )
+            if loss_mask is not None:
+                res = torch.zeros_like(labels).type_as(post_process_result)
+                res[loss_mask==1] = post_process_result
+                return res
+            else:
+                return post_process_result
         else:
             return lm_output
 
