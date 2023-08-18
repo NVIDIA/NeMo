@@ -525,7 +525,7 @@ class GraphFactorizedTransducerMSELoss(GraphRnntLoss):
                         torch.zeros(batch_size, 1, num_features, device=predictions.device, dtype=predictions.dtype),
                     ),
                     dim=1,
-                ).unsqueeze(1),
+                ).unsqueeze(1).expand(-1, enc_max_length, -1, -1),
                 reduction="none",
             ).mean(dim=-1)
             log_scores_logits = -mse_loss_framewise  # reinterpret as logprob
