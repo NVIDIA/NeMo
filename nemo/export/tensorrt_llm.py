@@ -147,10 +147,6 @@ class TensorRTLLM(ITritonDeployable):
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
-            if len(input_texts) > 0:
-                input_tokens = self.tokenizer.encode(input_texts + "\n")
-                input_text = self.tokenizer.decode(input_tokens)
-                input_texts = [input_text]
             return generate(self.model, input_texts, tasks, max_output_len, self.prompt_table)
 
     @property
