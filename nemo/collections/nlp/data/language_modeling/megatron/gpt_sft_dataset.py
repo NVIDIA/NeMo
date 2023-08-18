@@ -93,7 +93,7 @@ class GPTSFTDataset(Dataset):
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
         self.truncation_method = truncation_method
-        
+
         if hf_dataset:
             self.indexed_dataset = load_dataset(
                 'json', data_files=file_path, cache_dir=index_mapping_dir, num_proc=memmap_workers, split='train'
@@ -106,15 +106,17 @@ class GPTSFTDataset(Dataset):
                 index_mapping_dir=index_mapping_dir,
                 workers=memmap_workers,
             )
-        
+
         # Validate prompt template
         self._maybe_validate_prompt_template()
-        
+
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
-        
+
     def _maybe_validate_prompt_template(self):
-        assert self.prompt_template is not None, f'we need prompt_template to combine contexts and label {self.label_key}'
+        assert (
+            self.prompt_template is not None
+        ), f'we need prompt_template to combine contexts and label {self.label_key}'
         # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
@@ -132,7 +134,6 @@ class GPTSFTDataset(Dataset):
             self.prompt_template_keys
         ), f'truncation_fields {self.truncation_fields} must in {self.prompt_template_keys}'
 
-        
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
             self.samples_mapping = get_samples_mapping(
