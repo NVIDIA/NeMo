@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
+import torch
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import str_ndarray2list, cast_output
@@ -38,6 +39,7 @@ class TensorRTLLM(ITritonDeployable):
         self.model_dir = model_dir
         self.model = None
         self.tokenizer = None
+        self.ptuning_args = []
         self.n_gpus = None
         self.gpu_id = gpu_id
         self._load()
@@ -45,19 +47,37 @@ class TensorRTLLM(ITritonDeployable):
     def _load(self):
         self.tokenizer = None
         self.model = None
+        self.ptuning_args = []
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
             try:
                 self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                 self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir, gpu_id=self.gpu_id)
+
             except:
                 raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
 
-    def extract_prompt_embeddings(self, prompt_checkpoint_path):
+    '''
+    def _load_ptuning_params(self, task_size):
+        path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
+        if path.exists():
+            prompt_table = torch.from_numpy(np.load(path.name))
+            task_vocab_size = torch.tensor([prompt_table.shape[1]],
+                                            dtype=torch.int32,
+                                            device="cuda")
+
+            prompt_table = prompt_table.view((prompt_table.shape[0] * prompt_table.shape[1], prompt_table.shape[2]))
+            prompt_table = prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
+            tasks = torch.zeros([task_size]).cuda()
+
+        return [prompt_table, tasks, task_vocab_size]
+    '''
+
+    def _extract_prompt_embeddings(self, prompt_checkpoint_path):
         if is_nemo_file(prompt_checkpoint_path):
             vtokens_embeddings = get_prompt_embedding_table(prompt_checkpoint_path)
-            np.save(os.path.join(self.model_dir, "prompt_embeddings.npy"), torch_to_numpy(vtokens_embeddings))
+            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), torch_to_numpy(vtokens_embeddings))
         else:
             raise FileNotFoundError("file: {0} does not exist or is not a nemo file.".format(prompt_checkpoint_path))
 
@@ -109,7 +129,7 @@ class TensorRTLLM(ITritonDeployable):
         )
 
         if prompt_checkpoint_path is not None:
-            self.extract_prompt_embeddings(prompt_checkpoint_path)
+            self._extract_prompt_embeddings(prompt_checkpoint_path)
 
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         shutil.rmtree(nemo_export_dir)
@@ -127,7 +147,7 @@ class TensorRTLLM(ITritonDeployable):
                 input_text = self.tokenizer.decode(input_tokens[: input_len])
                 print(f"Overriding with dummy input: len {input_len}, text: {input_text}")
                 input_texts = [input_text]
-            return generate(input_texts, max_output_len, self.model)
+            return generate(input_texts, max_output_len, self.model, self.ptuning_args)
 
     @property
     def get_triton_input(self):

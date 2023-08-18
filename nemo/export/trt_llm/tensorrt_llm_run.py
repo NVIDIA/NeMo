@@ -126,7 +126,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor], max_output_len: int
+    input_tensors: List[torch.IntTensor], max_output_len: int, ptuning_args=[],
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -171,6 +171,7 @@ def _forward(
                     line_encoded,
                     input_lengths,
                     sampling_config,
+                    *ptuning_args,
                 )
 
             torch.cuda.synchronize()
@@ -227,7 +228,7 @@ def load(
 
 
 def forward(
-    input_tensors: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext
+    input_tensors: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext, ptuning_args=[],
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
 
@@ -244,12 +245,12 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, max_output_len)
+        return _forward(input_tensors, max_output_len, ptuning_args)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, max_output_len)
+            future = executor.submit(_forward, input_tensors, max_output_len, ptuning_args)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -260,7 +261,7 @@ def forward(
 
 
 def generate(
-    input_texts: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext
+    input_texts: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext, ptuning_args=[],
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -270,7 +271,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, max_output_len, host_context)
+    output_tensor = forward(input_tensors, max_output_len, host_context, ptuning_args)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
