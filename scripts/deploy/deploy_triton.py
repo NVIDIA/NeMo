@@ -37,7 +37,7 @@ def get_args(argv):
     parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
     parser.add_argument("--optimized", default="True", type=str, help="Use TRT-LLM for inference")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
-    parser.add_arugment("--num_gpu", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("--num_gpu", default=1, type=int, help="Number of GPUs for the deployment")
     parser.add_argument(
         "--dtype",
         choices=["bf16", "fp16", "fp8", "int8"],
