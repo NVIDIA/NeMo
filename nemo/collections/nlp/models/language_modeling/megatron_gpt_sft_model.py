@@ -409,7 +409,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 self.set_inference_config(inference_config={})
             self._inference_config['add_BOS'] = data_cfg.add_bos
             self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
-            
+
             output = self.predict_step(batch, batch_idx, dataloader_idx)
             inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
             labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
@@ -419,7 +419,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             ]
         else:
             inputs_text, labels_text, preds_text = [], [], []
-            
+
         outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
@@ -427,7 +427,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             'inputs': inputs_text,  # [str]
             'metadata': metadata,  # [dict]
         }
-            
+
         if mode == 'validation':
             if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
