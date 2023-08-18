@@ -296,8 +296,8 @@ class GPTModel(MegatronModule):
 
         if self.post_process:
             if loss_mask is not None:
-                loss_lm_output = lm_output.transpose(0, 1)[loss_mask==1].unsqueeze(1)
-                loss_labels = labels[loss_mask==1].unsqueeze(0)
+                loss_lm_output = lm_output.transpose(0, 1)[loss_mask == 1].unsqueeze(1)
+                loss_labels = labels[loss_mask == 1].unsqueeze(0)
             else:
                 loss_lm_output = lm_output
                 loss_labels = labels
@@ -317,7 +317,7 @@ class GPTModel(MegatronModule):
             )
             if loss_mask is not None:
                 res = torch.zeros_like(labels).type_as(post_process_result)
-                res[loss_mask==1] = post_process_result
+                res[loss_mask == 1] = post_process_result
                 return res
             else:
                 return post_process_result
