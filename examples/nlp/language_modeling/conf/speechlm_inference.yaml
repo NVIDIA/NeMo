@@ -25,7 +25,7 @@ exp_manager:
   wandb_logger_kwargs:
     project: PromptLearning-T5
     name: ${name}
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
