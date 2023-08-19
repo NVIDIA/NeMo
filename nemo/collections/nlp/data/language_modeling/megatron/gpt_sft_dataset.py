@@ -21,11 +21,8 @@ import torch
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
+from nemo.collections.tts.parts.utils.tts_dataset_utils import general_padding, get_base_dir
 from nemo.core.classes import Dataset
-from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    get_base_dir,
-    general_padding
-)
 
 __all__ = ['GPTSFTDataset']
 
@@ -99,12 +96,12 @@ class GPTSFTDataset(Dataset):
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
-        if self.prompt_template is not None:  #jasoli: Should be None at the first stage
+        if self.prompt_template is not None:  # jasoli: Should be None at the first stage
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
 
-        self.speech_offset = 256000 #TODO: Fix hardcode
+        self.speech_offset = 256000  # TODO: Fix hardcode
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
             Path(sup_data_path).mkdir(parents=True, exist_ok=True)
@@ -174,12 +171,14 @@ class GPTSFTDataset(Dataset):
             audio_filepath = example["answer"]
             # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
             # TODO: fix hardcode
-            rel_audio_path = Path(audio_filepath).relative_to("/home/datasets/jasoli/speech_t5/LibriTTS/").with_suffix("")
+            rel_audio_path = (
+                Path(audio_filepath).relative_to("/home/datasets/jasoli/speech_t5/LibriTTS/").with_suffix("")
+            )
             # TODO: fix hardcode with split and join
             rel_audio_path_as_text_id = "_".join(str(rel_audio_path).replace("/", "_").split("_")[1:])
 
             # Convert to codes
-            codec_codes, codec_codes_length = None, None # Codes
+            codec_codes, codec_codes_length = None, None  # Codes
             codec_path = self.codec_folder / f"{rel_audio_path_as_text_id}.pt"
 
             if codec_path.exists():
@@ -190,7 +189,7 @@ class GPTSFTDataset(Dataset):
                 torch.save(codec_codes, codec_path)
 
             for i in range(codec_codes.shape[0]):
-                codec_codes[i] = (codec_codes[i] + self.speech_offset+i*1024).long()
+                codec_codes[i] = (codec_codes[i] + self.speech_offset + i * 1024).long()
 
             context_ids = []
             answer_ids = codec_codes  # 8 x speech_length
@@ -236,7 +235,7 @@ class GPTSFTDataset(Dataset):
                     answer_ids = answer_ids[: -min(truncation_length, answer_length)]
             elif self.truncation_field == "context":
                 # TODO: Not implemented for speech codes
-                raise("Not implemented for speech")
+                raise ("Not implemented for speech")
                 context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
         # if len(context_ids) > self.max_seq_length:
@@ -354,7 +353,7 @@ class GPTSFTDataset(Dataset):
         max_length += 1  # Since we remove 1 from tokens and labels, add 1 here
         assert max_length <= self.max_seq_length + 1
 
-        (tokens, labels, loss_mask, contexts, context_lengths, speech_mask_list) = ([],[],[],[],[],[])
+        (tokens, labels, loss_mask, contexts, context_lengths, speech_mask_list) = ([], [], [], [], [], [])
 
         def pad_text_to_speech_dims(text_tensor, pad_id):
             token_len = text_tensor.shape[0]
@@ -364,7 +363,9 @@ class GPTSFTDataset(Dataset):
         # import ipdb;ipdb.set_trace()
         for i in range(len(batch)):
             # Should pad_id be eos_id?
-            input_id_padded = general_padding(input_ids[i], input_lengths[i], max_length, pad_value=self.tokenizer.pad_id)
+            input_id_padded = general_padding(
+                input_ids[i], input_lengths[i], max_length, pad_value=self.tokenizer.pad_id
+            )
             if len(input_id_padded.shape) < 2:
                 input_id_padded = pad_text_to_speech_dims(input_id_padded, self.tokenizer.pad_id)
             tokens.append(input_id_padded[:, :-1])
@@ -377,8 +378,8 @@ class GPTSFTDataset(Dataset):
 
             # context_lengths.append(torch.LongTensor([context_length[i]]))
 
-            loss_mask_i = torch.LongTensor(self._build_loss_mask_2(input_lengths[i]-1, answer_start_idx[i]))
-            loss_mask_i_padded = general_padding(loss_mask_i, input_lengths[i]-1, max_length-1, pad_value=0)
+            loss_mask_i = torch.LongTensor(self._build_loss_mask_2(input_lengths[i] - 1, answer_start_idx[i]))
+            loss_mask_i_padded = general_padding(loss_mask_i, input_lengths[i] - 1, max_length - 1, pad_value=0)
             loss_mask.append(loss_mask_i_padded)
 
             speech_mask = loss_mask_i_padded if len(input_ids[i].shape) >= 2 else torch.zeros(loss_mask_i_padded.shape)

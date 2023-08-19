@@ -26,7 +26,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory, IndexedCachedDataset, MMapIndexedDataset, IndexedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import (
+    IndexedCachedDataset,
+    IndexedDataset,
+    MMapIndexedDataset,
+    deallocate_indexed_dataset_memory,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -80,17 +85,9 @@ def build_dataset(cfg, data_prefix, data_impl, num_samples, seq_length, seed, sk
 
 
 def build_train_valid_test_datasets(
-    cfg,
-    data_prefix,
-    data_impl,
-    splits_string,
-    train_valid_test_num_samples,
-    seq_length,
-    seed,
-    skip_warmup,
-    tokenizer,
+    cfg, data_prefix, data_impl, splits_string, train_valid_test_num_samples, seq_length, seed, skip_warmup, tokenizer,
 ):
-    
+
     if isinstance(data_prefix, DictConfig):
         assert (
             data_prefix.get('train') is not None
@@ -194,15 +191,7 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
-    cfg,
-    data_prefix,
-    data_impl,
-    splits_string,
-    train_valid_test_num_samples,
-    seq_length,
-    seed,
-    skip_warmup,
-    tokenizer,
+    cfg, data_prefix, data_impl, splits_string, train_valid_test_num_samples, seq_length, seed, skip_warmup, tokenizer,
 ):
     """Build train, valid, and test datasets."""
 
@@ -330,7 +319,7 @@ class SpeechLM_T5dataset(Dataset):
         splits = self.indexed_dataset.sizes
         if isinstance(self.indexed_dataset, IndexedDataset):
             splits = self.indexed_dataset.sizes[1::2]
-        
+
         self.num_samples = num_samples
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
@@ -382,10 +371,10 @@ class SpeechLM_T5dataset(Dataset):
                 self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + self.add_extra_token)
             )
             if sample_list[0].ndim == 2:
-                sample = np.concatenate(sample_list, axis=1) # (8, 513)
+                sample = np.concatenate(sample_list, axis=1)  # (8, 513)
             else:
-                sample = np.concatenate(sample_list) #(513)
-        
+                sample = np.concatenate(sample_list)  # (513)
+
         if sample.ndim == 1:
             sample_len = len(sample)
         else:
@@ -398,7 +387,10 @@ class SpeechLM_T5dataset(Dataset):
             if sample.ndim == 1:
                 sample = np.array(sample, dtype=np.int64)
                 sample = np.pad(
-                    sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=0
+                    sample,
+                    (0, self.seq_length + self.add_extra_token - len(sample)),
+                    mode='constant',
+                    constant_values=0,
                 )
             else:
                 sample = np.array(sample, dtype=np.int64)
@@ -422,14 +414,14 @@ class SpeechLM_T5dataset(Dataset):
         masked_spans = torch.randperm(n_spans)[:n_masked_spans]
         for i in masked_spans:
             enc_input[:, i * span_length : (i + 1) * span_length] = self.mask_id
-        
+
         return enc_input
 
     def _getitem_from_speech(self, tokens):
         assert tokens.ndim == 2
 
-        tokens[0] = tokens[0] + self.speech_offset # add speech offset to the first codebook
-        enc_input = tokens[:, 1:] * 1 # to avoid changing the original tensor
+        tokens[0] = tokens[0] + self.speech_offset  # add speech offset to the first codebook
+        enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
         dec_input = tokens[:, :-1] * 1
         labels = tokens[:, 1:] * 1
 
@@ -437,10 +429,10 @@ class SpeechLM_T5dataset(Dataset):
 
         # TODO add pad id condition as well for enc_input?
         enc_mask = (enc_input[0] != self.mask_id).long()
-        dec_mask = (labels[0] != self.pad_id ).long()
-        
+        dec_mask = (labels[0] != self.pad_id).long()
+
         if self.create_loss_mask:
-            loss_mask = (enc_input[0] == self.mask_id ).long()
+            loss_mask = (enc_input[0] == self.mask_id).long()
         else:
             loss_mask = torch.ones_like(dec_mask)
 
@@ -459,17 +451,17 @@ class SpeechLM_T5dataset(Dataset):
         assert tokens.ndim == 1
         tokens = torch.tile(tokens, (8, 1))
         tokens[1:] = 0
-        
-        enc_input = tokens[:, 1:] * 1 # to avoid changing the original tensor
+
+        enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
         dec_input = tokens[:, :-1] * 1
         labels = tokens[:, 1:] * 1
         enc_input = self._mask_encoder_input(enc_input)
         enc_input[1:] = 0
         enc_mask = (enc_input[0] != self.mask_id).long()
-        dec_mask = (labels[0] != self.pad_id ).long()
-        
+        dec_mask = (labels[0] != self.pad_id).long()
+
         if self.create_loss_mask:
-            loss_mask = (enc_input[0] == self.mask_id ).long()
+            loss_mask = (enc_input[0] == self.mask_id).long()
         else:
             loss_mask = torch.ones_like(dec_mask)
 
@@ -489,12 +481,11 @@ class SpeechLM_T5dataset(Dataset):
             item = self._getitem_from_speech(tokens)
         else:
             item = self._getitem_from_text(tokens)
-        
+
         item['speech_mask'] = torch.ones_like(item['enc_input'][0]) * is_speech
         item['position_ids'] = torch.arange(item['enc_input'].shape[1], dtype=torch.long)
 
         return item
-        
 
 
 def _build_index_mappings(
@@ -600,7 +591,7 @@ def _build_index_mappings(
             # First compile and then import.
             assert doc_idx.dtype == np.int32
             if sizes.dtype != np.int32:
-                if np.max(np.abs(sizes)) < 2**31-1:
+                if np.max(np.abs(sizes)) < 2 ** 31 - 1:
                     sizes = sizes.astype(np.int32)
                 else:
                     raise NotImplementedError("Sizes needs to be int32?")

@@ -130,7 +130,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        #TODO Fix hardcoded 9000 = num speech tokens
+        # TODO Fix hardcoded 9000 = num speech tokens
         self.pseudo_token_ids_start = self.pseudo_token_ids[0] + 9000 if self.pseudo_token_ids else None
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
@@ -302,7 +302,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = (input_ids >= self.pseudo_token_ids_start)
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():

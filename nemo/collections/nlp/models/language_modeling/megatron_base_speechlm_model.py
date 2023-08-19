@@ -77,7 +77,6 @@ class MegatronSpeechLMBaseModel(MegatronBaseModel, TextGeneration):
             # TODO: Handle this when moving GPT prompt learning to the base class.
             self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
 
-        
         self._reduced_loss_buffer = []
         self._inference_config = None
 
@@ -121,7 +120,7 @@ class MegatronSpeechLMBaseModel(MegatronBaseModel, TextGeneration):
         state_dict_ = {}
         state_dict_["frozen_model_enc_dec_model"] = self.frozen_model.enc_dec_model.state_dict()
         state_dict_["word_embeddings"] = self.word_embeddings.state_dict()
-        
+
         return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
@@ -131,13 +130,11 @@ class MegatronSpeechLMBaseModel(MegatronBaseModel, TextGeneration):
         """
         self.frozen_model.enc_dec_model.load_state_dict(state_dict["frozen_model_enc_dec_model"], strict)
         self.word_embeddings.load_state_dict(state_dict["word_embeddings"], strict)
-        
-    
+
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
         self.save_to(save_path=self.cfg.nemo_path)
 
-    
     def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
         # This should happen only on the last batch of the dataset.
         if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():

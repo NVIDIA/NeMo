@@ -248,7 +248,7 @@ class IndexedDataset(torch.utils.data.Dataset):
         # print(f":{idx}|{offset}|{length}")
         item = self[idx.item()]
         # print(f":{idx}|{offset}|{length}|{item.shape}")
-        split = item[:,offset:offset+length]
+        split = item[:, offset : offset + length]
         return split
 
     def __len__(self):
