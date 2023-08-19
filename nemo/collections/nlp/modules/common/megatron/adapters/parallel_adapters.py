@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.collections.nlp.modules.common.prompt_encoder import InferenceTable
 from nemo.core.classes.mixins import adapter_mixin_strategies
+from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -102,7 +103,7 @@ class MLPInfusedAdapter(InfusedAdapter):
 
 
 @dataclass
-class InfusedAdapterConfig:
+class InfusedAdapterConfig(AdapterConfig):
     in_features: int
     _target_: str = "{0}.{1}".format(InfusedAdapter.__module__, InfusedAdapter.__name__)
 
@@ -226,7 +227,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class ParallelLinearAdapterConfig:
+class ParallelLinearAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
@@ -395,7 +396,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
 
 @dataclass
-class PromptEncoderAdapterConfig:
+class PromptEncoderAdapterConfig(AdapterConfig):
     virtual_tokens: int
     bottleneck_dim: int
     embedding_dim: int

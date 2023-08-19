@@ -41,6 +41,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -68,7 +69,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTSFTModel']
 
 
-class MegatronGPTSFTModel(MegatronGPTModel):
+class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
     """
     Megatron GPT Supervised Fine-Tuning
     """

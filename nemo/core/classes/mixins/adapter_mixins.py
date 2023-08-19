@@ -42,6 +42,11 @@ class AdapterRegistryInfo:
         self.adapter_class_path = f'{self.adapter_class.__module__}.{self.adapter_class.__name__}'
 
 
+class AdapterConfig:
+    # superclass for all adapter config dataclasses
+    pass
+
+
 def register_adapter(base_class: type, adapter_class: type):
     """
     Registers a pair (Base class, Adapter class) into the adapter registry, used for de-referencing.
@@ -608,7 +613,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                     f"Finished setup of adapter : '{full_adapter_name}'. Enabled: {adapter_cfg.get('enabled', True)}."
                 )
 
-    def add_adapter(self, name: str, cfg: DictConfig):
+    def add_adapter(self, name: str, cfg: Union[DictConfig, AdapterConfig]):
         """
         Add an Adapter module to this model.
 

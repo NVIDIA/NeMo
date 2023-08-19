@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from typing import List, Optional, Tuple, Union
-from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin, _prepare_default_adapter_config
+from nemo.core.classes.mixins.adapter_mixins import AdapterConfig, AdapterModelPTMixin, AdapterModuleMixin, _prepare_default_adapter_config
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName
 from nemo.utils import logging, logging_mode, model_utils
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import OmegaConf, open_dict
 
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
@@ -49,7 +50,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
-    def add_adapters(self, names: Union[str, List[str]], cfgs: Union[DictConfig, List[DictConfig]]):
+    def add_adapters(self, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
 
