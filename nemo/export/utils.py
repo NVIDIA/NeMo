@@ -73,33 +73,37 @@ def unpack_nemo_ckpt(
 
 
 def prompt_convert(prompt_config, prompt_weights):
-    prompt_templates = prompt_config["task_templates"]
+    if "task_templates" in prompt_config:
+        prompt_templates = prompt_config["task_templates"]
+        actual_task_id = 0
+        vtokens_embeddings = []
+        vtokens_len = []
+        for task_name_id, prompt_task in enumerate(prompt_templates):
+            prompt_task_name = prompt_task["taskname"]
+            LOGGER.info(f"Task {actual_task_id}: {prompt_task['taskname']}")
+            prompt_task_weights = prompt_weights["prompt_table"].get(
+                f"prompt_table.{prompt_task_name}.prompt_embeddings.weight"
+            )
+            if prompt_task_weights is None:
+                continue
+            vtokens_embeddings.append(prompt_task_weights)
+            vtokens_len.append(prompt_task_weights.shape[0])
+            actual_task_id += 1
 
-    actual_task_id = 0
-    vtokens_embeddings = []
-    vtokens_len = []
-    for task_name_id, prompt_task in enumerate(prompt_templates):
-        prompt_task_name = prompt_task["taskname"]
-        LOGGER.info(f"Task {actual_task_id}: {prompt_task['taskname']}")
-        prompt_task_weights = prompt_weights["prompt_table"].get(
-            f"prompt_table.{prompt_task_name}.prompt_embeddings.weight"
-        )
-        if prompt_task_weights is None:
-            continue
-        vtokens_embeddings.append(prompt_task_weights)
-        vtokens_len.append(prompt_task_weights.shape[0])
-        actual_task_id += 1
+        max_vtoken_len = max(vtokens_len)
+        embedding_dim = vtokens_embeddings[0].shape[1]
 
-    max_vtoken_len = max(vtokens_len)
-    embedding_dim = vtokens_embeddings[0].shape[1]
+        # pad tasks to longest task embedding table
+        for i, vtoken_emb_table in enumerate(vtokens_embeddings):
+            padded_table = torch.zeros((max_vtoken_len, embedding_dim))
+            padded_table[: vtoken_emb_table.shape[0], :] = vtoken_emb_table
+            vtokens_embeddings[i] = padded_table
 
-    # pad tasks to longest task embedding table
-    for i, vtoken_emb_table in enumerate(vtokens_embeddings):
-        padded_table = torch.zeros((max_vtoken_len, embedding_dim))
-        padded_table[: vtoken_emb_table.shape[0], :] = vtoken_emb_table
-        vtokens_embeddings[i] = padded_table
+        vtokens_embeddings = torch.stack(vtokens_embeddings)
+    else:
+        vtokens_embeddings = prompt_weights["prompt_table"]
 
-    return torch.stack(vtokens_embeddings)
+    return vtokens_embeddings
 
 
 def torch_to_numpy(x):
