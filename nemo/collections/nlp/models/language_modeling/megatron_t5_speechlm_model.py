@@ -113,6 +113,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset+speech_codebook_size)
         self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size)
 
+        self.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
 
@@ -258,14 +259,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         return loss_mean
 
-    def convert_tokens_to_range(self, tokens, only_first_layer=False):
-        # convert labels to range [0, vocab_size]
+    def convert_tokens_to_range(self, tokens):
+        # convert tokens to range [0, 1024]
         output_tokens = tokens.clone() 
-        for i in range(tokens.shape[0]):
-            if only_first_layer and i > 0:
-                break
-            output_tokens[i] = tokens[i] - 30000 - (i * 1024)
-        #clip values between 0 and 1023
+        output_tokens[0] = output_tokens[0] - self.speech_offset
         output_tokens = torch.clamp(output_tokens, min=0, max=1023)
         return output_tokens
 
@@ -285,7 +282,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
                         audio_len = (labels[0][0] != 0).sum().item()
-                        labels_to_1024 = self.convert_tokens_to_range(labels[0,:,0:audio_len], only_first_layer=True)
+                        labels_to_1024 = self.convert_tokens_to_range(labels[0,:,0:audio_len])
                         label_wav = self.additional_models['encodec'].decode([[labels_to_1024[None], None]])[0,0]
                         dec_input_to_1024 = self.convert_tokens_to_range(dec_input[0,:,0:audio_len])
                         dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0,0]
@@ -401,14 +398,15 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         out = None
         if tokens.dim() > 2:
             for i in range(tokens.size()[1]): #for 8 channels
-                non_zero_flag = tokens[:, i, :] != 0 # (B, T)
-                cur = self.embed_input(tokens[:, i, :], taskname_ids, inference) # (B, T, D)
-                if i > 0:
-                    # do not add embeddings of zero tokens of other channels (except the first channel)
-                    cur = cur * non_zero_flag.unsqueeze(2)
-                if out is None:
-                    out = cur
+                if i == 0:
+                    # Embed first layer using word embeddings
+                    out = self.embed_input(tokens[:, i, :], taskname_ids, inference) # (B, T, D)
                 else:
+                    # Embed other layers using speech embeddings
+                    cur = self.frozen_model.enc_dec_model.speech_tokens_embeddings[i-1](tokens[:, i, :])
+                    # do not add embeddings of zero tokens of other channels (except the first channel)
+                    non_zero_flag = tokens[:, i, :] != 0 # (B, T)
+                    cur = cur * non_zero_flag.unsqueeze(2)
                     out = out + cur
         else:
             out = self.embed_input(tokens, taskname_ids, inference)
