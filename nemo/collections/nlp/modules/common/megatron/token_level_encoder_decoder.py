@@ -501,18 +501,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         else:
             dec_input = None
             for i in range(dec_input_ids.size()[1]):
-                # For text inputs, only include 1st channel embeddings. Zero-out others.
-                include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
                 if i == 0:
                     # For the first channel (text + first layer of speech), use the decoder embedding layer
-                    current = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
+                    dec_input = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
                 else:
                     # For the rest of the channels (speech), use the speech embedding layer. No need for position, since already added in first layer.
                     current = self.speech_tokens_embeddings[i-1](dec_input_ids[:, i, :]).permute(1, 0, 2)
-                current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
-                if dec_input is None:
-                    dec_input = current
-                else:
+                    # For text inputs, only include 1st channel embeddings. Zero-out others.
+                    include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
+                    current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
                     dec_input = dec_input + current
 
         return dec_input
