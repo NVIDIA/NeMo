@@ -52,15 +52,12 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
         with open(config_path, "r") as f:
             config = json.load(f)
         use_gpt_attention_plugin = config["plugin_config"]["gpt_attention_plugin"]
-        inflight_batching_gpt_attention_plugin = config["plugin_config"][
-            "inflight_batching_gpt_attention_plugin"
-        ]
+        inflight_batching_gpt_attention_plugin = config["plugin_config"]["inflight_batching_gpt_attention_plugin"]
         remove_input_padding = config["plugin_config"]["remove_input_padding"]
         dtype = config["builder_config"]["precision"]
         world_size = config["builder_config"]["tensor_parallel"]
         assert world_size == tensorrt_llm.mpi_world_size(), (
-            f"Engine world size ({world_size}) != Runtime world size"
-            f" ({tensorrt_llm.mpi_world_size()})"
+            f"Engine world size ({world_size}) != Runtime world size" f" ({tensorrt_llm.mpi_world_size()})"
         )
         num_heads = config["builder_config"]["num_heads"] // world_size
         hidden_size = config["builder_config"]["hidden_size"] // world_size
@@ -103,9 +100,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
-        decoder = tensorrt_llm.runtime.GenerationSession(
-            model_config, engine_buffer, runtime_mapping
-        )
+        decoder = tensorrt_llm.runtime.GenerationSession(model_config, engine_buffer, runtime_mapping)
 
         tokenizer.pad_token = tokenizer.eos_token
         pad_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
@@ -126,7 +121,11 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None, task_vocab_size=None,
+    input_tensors: List[torch.IntTensor],
+    tasks=None,
+    max_output_len: int = 200,
+    prompt_table=None,
+    task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -143,14 +142,10 @@ def _forward(
         max_input_len = tensorrt_llm_worker_context.max_input_len
 
         batch_size = len(input_tensors)
-        assert (
-            batch_size <= max_batch_size
-        ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+        assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
         input_lengths = [t.shape[0] for t in input_tensors]
         max_length = max(input_lengths)
-        assert (
-            max_length <= max_input_len
-        ), f"input length {max_length} exceedng max input length {max_input_len}"
+        assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
         pad_id = sampling_config.pad_id
 
         if decoder.remove_input_padding:
@@ -167,14 +162,10 @@ def _forward(
             if task_vocab_size is None:
                 raise Exception("task_vocab_size cannot be None")
 
-            task_vocab_size = torch.tensor([task_vocab_size],
-                                           dtype=torch.int32,
-                                           device="cuda")
+            task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
 
             if tasks is not None:
-                tasks = torch.tensor([int(t) for t in tasks.split(',')],
-                                     dtype=torch.int32,
-                                     device="cuda")
+                tasks = torch.tensor([int(t) for t in tasks.split(',')], dtype=torch.int32, device="cuda")
                 assert tasks.shape[0] == line_encoded.shape[0], "Number of supplied tasks must match input batch size"
             else:
                 tasks = torch.zeros([line_encoded.size(0)]).cuda()
@@ -208,7 +199,10 @@ def _forward(
 
 
 def load(
-    tokenizer: PreTrainedTokenizer, engine_dir: str = "/tmp/ammo", num_beams: int = 1, gpu_id=None,
+    tokenizer: PreTrainedTokenizer,
+    engine_dir: str = "/tmp/ammo",
+    num_beams: int = 1,
+    gpu_id=None,
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
@@ -248,20 +242,21 @@ def load(
 
 
 def forward(
-    host_context: TensorrtLLMHostContext, input_tensors: List[torch.IntTensor], tasks=None, max_output_len: int=200, prompt_table=None, task_vocab_size=None,
+    host_context: TensorrtLLMHostContext,
+    input_tensors: List[torch.IntTensor],
+    tasks=None,
+    max_output_len: int = 200,
+    prompt_table=None,
+    task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
 
     batch_size = len(input_tensors)
     max_batch_size = host_context.max_batch_size
-    assert (
-        batch_size <= max_batch_size
-    ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+    assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
     max_length = max([t.shape[0] for t in input_tensors])
     max_input_len = host_context.max_input_len
-    assert (
-        max_length <= max_input_len
-    ), f"input length {max_length} exceedng max input length {max_input_len}"
+    assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
@@ -281,16 +276,19 @@ def forward(
 
 
 def generate(
-    host_context: TensorrtLLMHostContext, input_texts: List[torch.IntTensor], tasks=None, max_output_len: int=200,  prompt_table=None, task_vocab_size=None,
+    host_context: TensorrtLLMHostContext,
+    input_texts: List[torch.IntTensor],
+    tasks=None,
+    max_output_len: int = 200,
+    prompt_table=None,
+    task_vocab_size=None,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-    input_tensors = [
-        torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
-    ]
+    input_tensors = [torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts]
     output_tensor = forward(host_context, input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
     assert output_tensor is not None
 

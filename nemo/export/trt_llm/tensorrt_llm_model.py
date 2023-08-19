@@ -11,30 +11,16 @@ import tensorrt as trt
 import torch
 from tensorrt_llm._common import default_net
 from tensorrt_llm._utils import str_dtype_to_trt
-from tensorrt_llm.functional import (
-    RaggedTensor,
-    Tensor,
-    assertion,
-    expand_mask,
-    gather_last_token_logits,
-    shape,
-)
+from tensorrt_llm.functional import RaggedTensor, Tensor, assertion, expand_mask, gather_last_token_logits, shape
 from tensorrt_llm.layers import ColumnLinear, InflightBatchingParam
 from tensorrt_llm.module import Module, ModuleList
 
 from .decoder import build_decoder_layer
 from .model_config import QUANTIZATION_FP8, QUANTIZATION_INT8_SQ, ModelConfig
 from .quantization_utils import quantize_linear
-from .tensor_utils import (
-    get_tensor_parallel_group,
-    trt_dtype_to_str,
-)
+from .tensor_utils import get_tensor_parallel_group, trt_dtype_to_str
 from .tensorrt_llm_build import build
-from .tensorrt_llm_utils import (
-    build_embedding_from_config,
-    build_layernorm_from_config,
-    print_tensorrt_llm,
-)
+from .tensorrt_llm_utils import build_embedding_from_config, build_layernorm_from_config, print_tensorrt_llm
 
 
 class ModelBuilder(Module):
@@ -61,12 +47,8 @@ class ModelBuilder(Module):
         self._use_prompt_tuning = False
 
         # TODO: support use_prompt_tuning and use_parallel_embedding.
-        self.vocab_embedding = build_embedding_from_config(
-            model_config.vocab_embedding, self._dtype
-        )
-        self.positional_embedding = build_embedding_from_config(
-            model_config.positional_embedding, self._dtype
-        )
+        self.vocab_embedding = build_embedding_from_config(model_config.vocab_embedding, self._dtype)
+        self.positional_embedding = build_embedding_from_config(model_config.positional_embedding, self._dtype)
         self.layers = ModuleList(
             [
                 build_decoder_layer(
@@ -117,12 +99,8 @@ class ModelBuilder(Module):
 
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids.data, -1))
-        hidden_states = RaggedTensor.from_row_lengths(
-            hidden_states, input_ids.row_lengths, input_ids.max_row_length
-        )
-        for idx, (layer, past, pointers) in enumerate(
-            zip(self.layers, past_key_value, kv_cache_block_pointers)
-        ):
+        hidden_states = RaggedTensor.from_row_lengths(hidden_states, input_ids.row_lengths, input_ids.max_row_length)
+        for idx, (layer, past, pointers) in enumerate(zip(self.layers, past_key_value, kv_cache_block_pointers)):
             hidden_states = layer(
                 hidden_states,
                 past_key_value=past,
@@ -135,9 +113,7 @@ class ModelBuilder(Module):
                 kv_cache_block_pointers=pointers,
                 inflight_batching_args=inflight_batching_args,
                 past_key_value_pointers=(
-                    None
-                    if inflight_batching_args is None
-                    else inflight_batching_args.past_key_value_pointers[idx]
+                    None if inflight_batching_args is None else inflight_batching_args.past_key_value_pointers[idx]
                 ),
             )
 
@@ -290,9 +266,7 @@ class LMHeadModelBuilder(ModelBuilder):
         cache_indirection = None
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
         remove_input_padding = default_net().plugin_config.remove_input_padding
-        use_inflight_batching_gpt_attention_plugin = (
-            default_net().plugin_config.inflight_batching_gpt_attention_plugin
-        )
+        use_inflight_batching_gpt_attention_plugin = default_net().plugin_config.inflight_batching_gpt_attention_plugin
 
         if remove_input_padding:
             input_ids = Tensor(

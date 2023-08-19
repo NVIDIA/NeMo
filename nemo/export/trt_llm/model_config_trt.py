@@ -4,9 +4,7 @@ import os
 import shutil
 from typing import List
 
-from .model_config import (
-    ModelConfig,
-)
+from .model_config import ModelConfig
 from .tensorrt_llm_model import LMHeadModelBuilder
 
 

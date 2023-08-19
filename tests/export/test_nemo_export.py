@@ -77,18 +77,18 @@ class TestNemoExport:
                 )
 
             if Path(model_info["checkpoint"]).exists():
-                #try:
-                if "ptuned" in model_info:
-                    for task, path in model_info["ptuned"].items():
-                        print("Task: {0} and path: {1}".format(task, path))
-                        Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
-                        trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                        trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], prompt_checkpoint_path=path, n_gpus=1)
-                        #output = trt_llm_exporter.forward(["test1", "how about test 2"])
-                        #print("output 1: ", output)
-                #except:
-                 #   print("Error in TensorRT LLM.")
-                 #   no_error = False
+                try:
+                    if "ptuned" in model_info:
+                        for task, path in model_info["ptuned"].items():
+                            print("Task: {0} and path: {1}".format(task, path))
+                            Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
+                            trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+                            trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], prompt_checkpoint_path=path, n_gpus=1)
+                            output = trt_llm_exporter.forward(["test1", "how about test 2"])
+                            print("output 1: ", output)
+                except:
+                    print("Error in TensorRT LLM.")
+                    no_error = False
 
                 test_at_least_one = True
 
@@ -106,7 +106,7 @@ class TestNemoExport:
         ] = "/opt/checkpoints/GPT-843M-base/megatron_converted_843m_tp1_pp1.nemo"
 
         self.test_data["GPT-2B-HF-base"] = {}
-        self.test_data["GPT-2B-HF-base"]["location"] = "Selene"
+        self.test_data["GPT-2B-HF-base"]["location"] = "HF"
         self.test_data["GPT-2B-HF-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-hf-base/trt_llm_model/"
         self.test_data["GPT-2B-HF-base"]["checkpoint_dir"] = "/tmp/GPT-2B-hf-base/nemo_checkpoint/"
         self.test_data["GPT-2B-HF-base"]["checkpoint"] = (

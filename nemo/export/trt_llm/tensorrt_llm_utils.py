@@ -5,18 +5,11 @@ import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, RmsNorm
 from tensorrt_llm.module import Module
 
-from .model_config import (
-    LAYERNORM_DEFAULT,
-    LAYERNORM_RMS,
-    EmbeddingConfig,
-    LayernormConfig,
-)
+from .model_config import LAYERNORM_DEFAULT, LAYERNORM_RMS, EmbeddingConfig, LayernormConfig
 from .tensor_utils import get_tensor_parallel_group
 
 
-def build_embedding_from_config(
-    config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1
-):
+def build_embedding_from_config(config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1):
     """Returns the tensorrt_llm embedding layer from the embedding config."""
     # If the config is empty, return an empty impl.
     if config is None:
@@ -56,20 +49,10 @@ def print_tensorrt_llm(name: str, tensorrt_llm_module: Module):
         print(f"{name}.weight:\n{tensorrt_llm_module.weight._value}")
     if hasattr(tensorrt_llm_module, "bias") and tensorrt_llm_module.bias:
         print(f"{name}.bias:\n{tensorrt_llm_module.bias._value}")
-    if (
-        hasattr(tensorrt_llm_module, "activation_scaling_factor")
-        and tensorrt_llm_module.activation_scaling_factor
-    ):
-        print(
-            f"{name}.activation_scaling_factor:\n{tensorrt_llm_module.activation_scaling_factor._value}"
-        )
-    if (
-        hasattr(tensorrt_llm_module, "weights_scaling_factor")
-        and tensorrt_llm_module.weights_scaling_factor
-    ):
-        print(
-            f"{name}.weights_scaling_factor:\n{tensorrt_llm_module.weights_scaling_factor._value}"
-        )
+    if hasattr(tensorrt_llm_module, "activation_scaling_factor") and tensorrt_llm_module.activation_scaling_factor:
+        print(f"{name}.activation_scaling_factor:\n{tensorrt_llm_module.activation_scaling_factor._value}")
+    if hasattr(tensorrt_llm_module, "weights_scaling_factor") and tensorrt_llm_module.weights_scaling_factor:
+        print(f"{name}.weights_scaling_factor:\n{tensorrt_llm_module.weights_scaling_factor._value}")
 
     for k, v in tensorrt_llm_module.named_children():
         print_tensorrt_llm(f"{name}.{k}({v._get_name()})", v)

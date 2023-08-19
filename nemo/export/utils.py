@@ -13,19 +13,18 @@
 # limitations under the License.
 
 
+import datetime
+import logging
 import os
 import pathlib
 import tarfile
-import typing
-import datetime
-import logging
 import tempfile
+import typing
 from pathlib import Path
 
 import numpy as np
 import torch
 import yaml
-
 
 log_format = "%(asctime)s %(name)s [%(levelname)s] %(message)s"
 logging.basicConfig(format=log_format)
@@ -56,17 +55,12 @@ def unpack_nemo_ckpt(
 
                     return prefix == abs_directory
 
-                def safe_extract(tar,
-                                 path=".",
-                                 members=None,
-                                 *,
-                                 numeric_owner=False):
+                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
 
                     for member in tar.getmembers():
                         member_path = os.path.join(path, member.name)
                         if not is_within_directory(path, member_path):
-                            raise Exception(
-                                "Attempted Path Traversal in Tar File")
+                            raise Exception("Attempted Path Traversal in Tar File")
 
                     tar.extractall(path, members, numeric_owner=numeric_owner)
 
@@ -88,7 +82,8 @@ def prompt_convert(prompt_config, prompt_weights):
         prompt_task_name = prompt_task["taskname"]
         LOGGER.info(f"Task {actual_task_id}: {prompt_task['taskname']}")
         prompt_task_weights = prompt_weights["prompt_table"].get(
-            f"prompt_table.{prompt_task_name}.prompt_embeddings.weight")
+            f"prompt_table.{prompt_task_name}.prompt_embeddings.weight"
+        )
         if prompt_task_weights is None:
             continue
         vtokens_embeddings.append(prompt_task_weights)
@@ -101,7 +96,7 @@ def prompt_convert(prompt_config, prompt_weights):
     # pad tasks to longest task embedding table
     for i, vtoken_emb_table in enumerate(vtokens_embeddings):
         padded_table = torch.zeros((max_vtoken_len, embedding_dim))
-        padded_table[:vtoken_emb_table.shape[0], :] = vtoken_emb_table
+        padded_table[: vtoken_emb_table.shape[0], :] = vtoken_emb_table
         vtokens_embeddings[i] = padded_table
 
     return torch.stack(vtokens_embeddings)
@@ -125,10 +120,11 @@ def is_nemo_file(path):
             pc = Path(path)
             if pc.exists():
                 if pc.is_file():
-                    if path[-5: len(path)] == ".nemo":
+                    if path[-5 : len(path)] == ".nemo":
                         flag = True
 
     return flag
+
 
 def get_prompt_embedding_table(prompt_checkpoint_path):
 

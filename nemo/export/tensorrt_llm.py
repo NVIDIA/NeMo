@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import shutil
 from pathlib import Path
-import json
 
 import numpy as np
+import tensorrt_llm
+import torch
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
-import torch
 
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import str_ndarray2list, cast_output
-import tensorrt_llm
+from nemo.deploy.utils import cast_output, str_ndarray2list
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from .trt_llm.nemo_utils import nemo_to_model_config, get_tokenzier
+from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.quantization_utils import naive_quantization
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
@@ -71,17 +71,27 @@ class TensorRTLLM(ITritonDeployable):
         if path.exists():
             self.prompt_table = torch.from_numpy(np.load(path))
             self.task_vocab_size = self.prompt_table.shape[1]
-            self.prompt_table = self.prompt_table.view((self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2]))
+            self.prompt_table = self.prompt_table.view(
+                (self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2])
+            )
             dtype = self.config['builder_config']['precision']
             self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
+
+            if self.prompt_table.shape[1] != self.config["builder_config"]["hidden_size"]:
+                raise Exception(
+                    "Dimension of the prompt table and the hidden size do not match. Please make sure to use the correct prompt table."
+                )
         else:
             self.prompt_table = None
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)
         config_path = engine_dir / 'config.json'
-        with open(config_path, 'r') as f:
-            self.config = json.load(f)
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+        else:
+            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
 
     def _extract_prompt_embeddings(self, prompt_checkpoint_path):
         if is_nemo_file(prompt_checkpoint_path):
@@ -118,7 +128,9 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
 
         nemo_export_dir = os.path.join(self.model_dir, "/tmp_nemo/")
-        model_configs, self.tokenizer = nemo_to_model_config(in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir)
+        model_configs, self.tokenizer = nemo_to_model_config(
+            in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir
+        )
 
         for model_config in model_configs:
             if quantization is not None:
@@ -168,4 +180,3 @@ class TensorRTLLM(ITritonDeployable):
         output_texts = self.forward(input_texts)
         output = cast_output(output_texts, np.bytes_)
         return {"outputs": output}
-

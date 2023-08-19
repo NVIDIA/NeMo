@@ -81,9 +81,7 @@ def build_rank_engine(
     if args.paged_kv_cache:
         network.plugin_config.enable_paged_kv_cache()
     if args.use_inflight_batching:
-        network.plugin_config.set_inflight_batching_gpt_attention_plugin(
-            dtype=args.use_inflight_batching
-        )
+        network.plugin_config.set_inflight_batching_gpt_attention_plugin(dtype=args.use_inflight_batching)
 
     if args.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
@@ -160,9 +158,7 @@ def _build_impl(rank, tensorrt_llm_model, args):
     )
 
     engine_name = get_engine_name(MODEL_NAME, args.dtype, args.world_size, cur_rank)
-    engine = build_rank_engine(
-        tensorrt_llm_model, builder, builder_config, engine_name, cur_rank, args
-    )
+    engine = build_rank_engine(tensorrt_llm_model, builder, builder_config, engine_name, cur_rank, args)
     assert engine is not None, f"Failed to build engine for rank {cur_rank}"
 
     if cur_rank == 0:

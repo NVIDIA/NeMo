@@ -2,14 +2,7 @@ from typing import Optional
 
 from tensorrt_llm.models.gptj.model import GPTJAttention
 
-from ..model_config import (
-    LINEAR_COLUMN,
-    LINEAR_ROW,
-    AttentionConfig,
-    LayernormConfig,
-    LinearConfig,
-    MLPConfig,
-)
+from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
 from .decoder import DecoderLayer, DecoderLayerConfigBuilder
 
 
