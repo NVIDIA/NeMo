@@ -62,9 +62,7 @@ def _nemo_decode(
             start_time = datetime.datetime.now()
             checkpoint_dir_path = temp_dir / "unpacked"
             nemo_dir = unpack_nemo_ckpt(args.in_file, checkpoint_dir_path)
-            LOGGER.info(
-                "Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time
-            )
+            LOGGER.info("Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time)
 
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
             nemo_dir, load_checkpoints_to_cpu=not args.load_checkpoints_on_gpu
@@ -95,11 +93,7 @@ def get_model_config(weights_dir: Path) -> GPT2Config:
 
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
-    model_path = (
-        tokenizer_dir_or_path / "tokenizer.model"
-        if tokenizer_dir_or_path.is_dir()
-        else tokenizer_dir_or_path
-    )
+    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
     return build_tokenizer(tokenizer_config)
 
@@ -134,9 +128,7 @@ def nemo_to_model_config(
     vocab_size = gpt_model_config.vocab_size
     hidden_size = gpt_model_config.n_embd
     model_config_template.vocab_embedding = EmbeddingConfig(
-        weight=get_tensor_from_file(
-            weights_dir, "wte", shape=[vocab_size, hidden_size], dtype=dtype
-        )
+        weight=get_tensor_from_file(weights_dir, "wte", shape=[vocab_size, hidden_size], dtype=dtype)
     )
 
     model_config_template.final_layernorm = LayernormConfig(
@@ -163,15 +155,11 @@ def nemo_to_model_config(
                 )
             )
 
-    lm_head_weight = get_tensor_from_file(
-        weights_dir, "lm_head.weight", shape=[vocab_size, hidden_size], dtype=dtype
-    )
+    lm_head_weight = get_tensor_from_file(weights_dir, "lm_head.weight", shape=[vocab_size, hidden_size], dtype=dtype)
 
     if model_configs[0].vocab_size_padded != model_configs[0].vocab_size:
         pad_width = model_configs[0].vocab_size_padded - model_configs[0].vocab_size
-        lm_head_weight = np.pad(
-            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-        )
+        lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
     for i in range(gpus):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)

@@ -9,13 +9,7 @@ from tensorrt_llm._utils import str_dtype_to_trt
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from .decoder import build_decoder_layer_config
-from .model_config import (
-    LINEAR_COLUMN,
-    EmbeddingConfig,
-    LayernormConfig,
-    LinearConfig,
-    ModelConfig,
-)
+from .model_config import LINEAR_COLUMN, EmbeddingConfig, LayernormConfig, LinearConfig, ModelConfig
 from .tensor_utils import split, torch_to_numpy_with_dtype
 
 
@@ -50,10 +44,7 @@ def _check_model_compatibility(model: nn.Module) -> Tuple[bool, bool]:
             num_layer_norm += 1
 
     return (
-        1 <= num_embeddings
-        and num_embeddings <= 2
-        and num_module_list == 1
-        and num_layer_norm == 1,
+        1 <= num_embeddings and num_embeddings <= 2 and num_module_list == 1 and num_layer_norm == 1,
         num_embeddings > 1,
     )
 
@@ -100,18 +91,12 @@ def torch_to_model_config(
     for name, module in transformer.named_children():
         if type(module) == nn.Embedding:
             if name != "wpe":
-                model_config_template.vocab_embedding = EmbeddingConfig.from_nn_module(
-                    module, dtype=dtype
-                )
+                model_config_template.vocab_embedding = EmbeddingConfig.from_nn_module(module, dtype=dtype)
             else:
                 assert has_positional_embedding
-                model_config_template.positional_embedding = EmbeddingConfig.from_nn_module(
-                    module, dtype=dtype
-                )
+                model_config_template.positional_embedding = EmbeddingConfig.from_nn_module(module, dtype=dtype)
         if type(module) in [nn.LayerNorm, LlamaRMSNorm]:
-            model_config_template.final_layernorm = LayernormConfig.from_nn_module(
-                module, dtype=dtype
-            )
+            model_config_template.final_layernorm = LayernormConfig.from_nn_module(module, dtype=dtype)
 
     model_configs = []
     for i in range(gpus):
@@ -124,9 +109,7 @@ def torch_to_model_config(
             for layer in module:
                 for i in range(gpus):
                     model_configs[i].layers.append(
-                        build_decoder_layer_config(
-                            layer, decoder_type, rank=i, tensor_parallel=gpus, dtype=dtype
-                        )
+                        build_decoder_layer_config(layer, decoder_type, rank=i, tensor_parallel=gpus, dtype=dtype)
                     )
 
     if hasattr(model, "lm_head"):
@@ -137,9 +120,7 @@ def torch_to_model_config(
 
     if model_configs[0].vocab_size_padded != model_configs[0].vocab_size:
         pad_width = model_configs[0].vocab_size_padded - model_configs[0].vocab_size
-        lm_head_weight = np.pad(
-            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-        )
+        lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
     for i in range(gpus):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)

@@ -7,9 +7,7 @@ class GPTNextDecoderLayer(DecoderLayer):
     def build_attention(self, layer):
         rotary_pct = layer.rotary_pct
         position_embedding_type = (
-            PositionEmbeddingType.learned_absolute
-            if rotary_pct == 0.0
-            else PositionEmbeddingType.rope
+            PositionEmbeddingType.learned_absolute if rotary_pct == 0.0 else PositionEmbeddingType.rope
         )
         bias_qkv = layer.attention.qkv.bias is not None
         bias_dense = layer.attention.dense.bias is not None

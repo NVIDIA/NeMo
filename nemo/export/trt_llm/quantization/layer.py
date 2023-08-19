@@ -3,17 +3,7 @@
 
 import tensorrt as trt
 from tensorrt_llm._utils import int32_array
-from tensorrt_llm.functional import (
-    allgather,
-    allreduce,
-    cast,
-    concat,
-    constant,
-    matmul,
-    mul,
-    shape,
-    slice,
-)
+from tensorrt_llm.functional import allgather, allreduce, cast, concat, constant, matmul, mul, shape, slice
 from tensorrt_llm.layers import Linear, RowLinear
 from tensorrt_llm.parameter import Parameter
 from tensorrt_llm.quantization.functional import dequantize, quantize
@@ -118,9 +108,7 @@ class Int8SmoothQuantRowLinear(RowLinear):
     """
 
     def __init__(self, in_features, out_features, bias=True, dtype=None, tp_group=None, tp_size=1):
-        super().__init__(
-            in_features, out_features, bias=bias, dtype=dtype, tp_group=tp_group, tp_size=tp_size
-        )
+        super().__init__(in_features, out_features, bias=bias, dtype=dtype, tp_group=tp_group, tp_size=tp_size)
         self.activation_scaling_factor = Parameter(shape=(1,), dtype=trt.float32)
 
         self.weights_scaling_factor = Parameter(shape=(self.out_features,), dtype=trt.float32)

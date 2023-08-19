@@ -9,17 +9,9 @@ from tensorrt_llm.layers import MLP, GatedMLP
 from tensorrt_llm.module import Module
 from transformers.activations import ACT2FN
 
-from ..model_config import (
-    QUANTIZATION_NONE,
-    AttentionConfig,
-    DecoderLayerConfig,
-    LayernormConfig,
-    MLPConfig,
-)
+from ..model_config import QUANTIZATION_NONE, AttentionConfig, DecoderLayerConfig, LayernormConfig, MLPConfig
 from ..quantization_utils import quantize_linear
-from ..tensor_utils import (
-    get_tensor_parallel_group,
-)
+from ..tensor_utils import get_tensor_parallel_group
 from ..tensorrt_llm_utils import build_layernorm_from_config
 
 
@@ -187,12 +179,8 @@ class DecoderLayer(Module, ABC):
 
     def quantize(self, layer: DecoderLayerConfig):
         """Quantizes the decoder layer based on the layer config."""
-        self.attention.qkv = quantize_linear(
-            self.attention.qkv, self.quantization, layer.attention.qkv
-        )
-        self.attention.dense = quantize_linear(
-            self.attention.dense, self.quantization, layer.attention.dense
-        )
+        self.attention.qkv = quantize_linear(self.attention.qkv, self.quantization, layer.attention.qkv)
+        self.attention.dense = quantize_linear(self.attention.dense, self.quantization, layer.attention.dense)
         self.mlp.fc = quantize_linear(self.mlp.fc, self.quantization, layer.mlp.fc)
         self.mlp.proj = quantize_linear(self.mlp.proj, self.quantization, layer.mlp.proj)
 
@@ -246,9 +234,7 @@ class DecoderLayer(Module, ABC):
 
         hidden_states = self.post_attention_forward(residual, hidden_states, attention_output.data)
 
-        hidden_states = RaggedTensor.from_row_lengths(
-            hidden_states, input_lengths, max_input_length
-        )
+        hidden_states = RaggedTensor.from_row_lengths(hidden_states, input_lengths, max_input_length)
 
         if use_cache:
             return (hidden_states, presents)

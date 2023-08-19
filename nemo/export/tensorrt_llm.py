@@ -12,21 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import shutil
 from pathlib import Path
 
 import numpy as np
+import tensorrt_llm
+import torch
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
 
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import str_ndarray2list, cast_output
+from nemo.deploy.utils import cast_output, str_ndarray2list
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from .trt_llm.nemo_utils import nemo_to_model_config, get_tokenzier
+from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
 from .trt_llm.quantization_utils import naive_quantization
 from .trt_llm.tensorrt_llm_run import generate, load
+from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
 
 class TensorRTLLM(ITritonDeployable):
@@ -37,30 +41,78 @@ class TensorRTLLM(ITritonDeployable):
         self.model_dir = model_dir
         self.model = None
         self.tokenizer = None
+        self.prompt_table = None
+        self.task_vocab_size = None
         self.n_gpus = None
+        self.config = None
         self.gpu_id = gpu_id
         self._load()
 
     def _load(self):
-        self.tokenizer = None
         self.model = None
+        self.tokenizer = None
+        self.prompt_table = None
+        self.task_vocab_size = None
+        self.n_gpus = None
+        self.config = None
 
         folders = os.listdir(self.model_dir)
         if len(folders) > 0:
             try:
+                self._load_config_file()
                 self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
                 self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir, gpu_id=self.gpu_id)
+                self._load_prompt_table()
             except:
                 raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
+
+    def _load_prompt_table(self):
+        path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
+        if path.exists():
+            self.prompt_table = torch.from_numpy(np.load(path))
+            if len(self.prompt_table.shape) > 2:
+                self.task_vocab_size = self.prompt_table.shape[1]
+                self.prompt_table = self.prompt_table.view(
+                    (self.prompt_table.shape[0] * self.prompt_table.shape[1], self.prompt_table.shape[2])
+                )
+            else:
+                self.task_vocab_size = 1
+
+            dtype = self.config['builder_config']['precision']
+            self.prompt_table = self.prompt_table.cuda().to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype))
+
+            if self.prompt_table.shape[1] != self.config["builder_config"]["hidden_size"]:
+                raise Exception(
+                    "Dimension of the prompt table and the hidden size do not match. Please make sure to use the correct prompt table."
+                )
+        else:
+            self.prompt_table = None
+
+    def _load_config_file(self):
+        engine_dir = Path(self.model_dir)
+        config_path = engine_dir / 'config.json'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+        else:
+            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
+
+    def _extract_prompt_embeddings(self, prompt_checkpoint_path):
+        if is_nemo_file(prompt_checkpoint_path):
+            vtokens_embeddings = get_prompt_embedding_table(prompt_checkpoint_path)
+            np.save(os.path.join(self.model_dir, "__prompt_embeddings__.npy"), torch_to_numpy(vtokens_embeddings))
+        else:
+            raise FileNotFoundError("file: {0} does not exist or is not a nemo file.".format(prompt_checkpoint_path))
 
     def export(
         self,
         nemo_checkpoint_path,
+        prompt_checkpoint_path=None,
         delete_existing_files=True,
         n_gpus=1,
         max_input_len=200,
         max_output_len=200,
-        max_prompt_embedding_table_size=0,
+        max_prompt_embedding_table_size=100,
         max_batch_size=32,
         quantization=None,
     ):
@@ -79,12 +131,17 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        nemo_export_dir = os.path.join(self.model_dir, "/nemo/")
-        model_configs, self.tokenizer = nemo_to_model_config(in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir)
+        nemo_export_dir = os.path.join(self.model_dir, "/tmp_nemo/")
+        model_configs, self.tokenizer = nemo_to_model_config(
+            in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir
+        )
 
         for model_config in model_configs:
             if quantization is not None:
                 naive_quantization(model_config, quantization)
+
+        if prompt_checkpoint_path is None:
+            max_prompt_embedding_table_size = 0
 
         model_config_to_tensorrt_llm(
             model_configs,
@@ -96,23 +153,20 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
 
+        if prompt_checkpoint_path is not None:
+            self._extract_prompt_embeddings(prompt_checkpoint_path)
+
         shutil.copy(os.path.join(nemo_export_dir, "tokenizer.model"), self.model_dir)
         shutil.rmtree(nemo_export_dir)
         self._load()
 
-    def forward(self, input_texts, input_len=0, max_output_len=200):
+    def forward(self, input_texts, tasks=None, max_output_len=200):
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
-            if input_len > 0:
-                input_tokens = self.tokenizer.encode(input_texts + "\n")
-                input_tokens = input_tokens * (int(input_len / len(input_tokens)) + 1)
-                input_text = self.tokenizer.decode(input_tokens[: input_len])
-                print(f"Overriding with dummy input: len {input_len}, text: {input_text}")
-                input_texts = [input_text]
-            return generate(input_texts, max_output_len, self.model)
+            return generate(self.model, input_texts, tasks, max_output_len, self.prompt_table, self.task_vocab_size)
 
     @property
     def get_triton_input(self):

@@ -67,9 +67,7 @@ class LayernormConfig:
         """Converts an nn.Module to an LayernormConfig."""
         layernorm_type = LAYERNORM_RMS if type(module) == LlamaRMSNorm else LAYERNORM_DEFAULT
 
-        config = LayernormConfig(
-            weight=torch_to_numpy_with_dtype(module.weight, dtype), layernorm_type=layernorm_type
-        )
+        config = LayernormConfig(weight=torch_to_numpy_with_dtype(module.weight, dtype), layernorm_type=layernorm_type)
         if layernorm_type == LAYERNORM_DEFAULT:
             config.bias = torch_to_numpy_with_dtype(module.bias, dtype)
 
@@ -88,9 +86,7 @@ class LinearConfig:
     prequant_scaling_factor: np.array = None
 
     @staticmethod
-    def from_nn_module(
-        module: nn.Module, linear_type: str, rank=0, tensor_parallel=1, dtype=trt.float16
-    ):
+    def from_nn_module(module: nn.Module, linear_type: str, rank=0, tensor_parallel=1, dtype=trt.float16):
         """Converts an nn.Module to an LinearConfig."""
         weight = torch_to_numpy_with_dtype(module.weight, dtype)
         if "Conv1D" in type(module).__name__:
@@ -119,9 +115,7 @@ class LinearConfig:
         return config
 
     @staticmethod
-    def from_qkv_nn_modules(
-        qkv_modules: List[nn.Module], rank=0, tensor_parallel=1, dtype=trt.float16
-    ):
+    def from_qkv_nn_modules(qkv_modules: List[nn.Module], rank=0, tensor_parallel=1, dtype=trt.float16):
         """Converts the qkv modules to an LinearConfig."""
         config = LinearConfig()
         config.linear_type = LINEAR_COLUMN
@@ -146,9 +140,7 @@ class LinearConfig:
             )
             config.bias = np.ascontiguousarray(
                 split(
-                    torch_to_numpy_with_dtype(qkv_module.bias, dtype=dtype).reshape(
-                        3, qkv_shape[-1] // 3
-                    ),
+                    torch_to_numpy_with_dtype(qkv_module.bias, dtype=dtype).reshape(3, qkv_shape[-1] // 3),
                     tensor_parallel,
                     rank,
                     dim=-1,
@@ -165,9 +157,7 @@ class LinearConfig:
             k_weight = qkv_modules[1].weight
             v_weight = qkv_modules[2].weight
 
-            qkv_weight = torch_to_numpy_with_dtype(
-                torch.stack([q_weight, k_weight, v_weight]), dtype
-            )
+            qkv_weight = torch_to_numpy_with_dtype(torch.stack([q_weight, k_weight, v_weight]), dtype)
 
             q_emb = qkv_weight.shape[1]
             model_emb = qkv_weight.shape[2]
@@ -315,9 +305,7 @@ class MLPConfig:
                 [1, 0],
             )
         )
-        mlp.proj.bias = get_tensor_from_file(
-            weights_dir, f"layers.{layer_id}.mlp.dense_4h_to_h.bias", dtype=dtype
-        )
+        mlp.proj.bias = get_tensor_from_file(weights_dir, f"layers.{layer_id}.mlp.dense_4h_to_h.bias", dtype=dtype)
         return mlp
 
 
@@ -386,9 +374,7 @@ class DecoderLayerConfig:
         layer_config.attention = AttentionConfig.from_nemo(
             weights_dir, gpt_config, layer_id, rank, tensor_parallel, dtype
         )
-        layer_config.mlp = MLPConfig.from_nemo(
-            weights_dir, gpt_config, layer_id, rank, tensor_parallel, dtype
-        )
+        layer_config.mlp = MLPConfig.from_nemo(weights_dir, gpt_config, layer_id, rank, tensor_parallel, dtype)
 
         return layer_config
 
@@ -521,9 +507,7 @@ def load_model_configs(model_config_dir: Union[str, Path]) -> List[ModelConfig]:
                     tensor_parallel = config_tensor_parallel
                     model_configs = [{}] * tensor_parallel
                 else:
-                    assert (
-                        tensor_parallel == config_tensor_parallel
-                    ), "tensor_parallel not aligned between configs"
+                    assert tensor_parallel == config_tensor_parallel, "tensor_parallel not aligned between configs"
 
                 model_configs[config_rank] = model_config
 

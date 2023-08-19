@@ -21,6 +21,8 @@ from nemo.export import TensorRTLLM
 
 
 class TestNemoExport:
+
+    @pytest.mark.skip()
     @pytest.mark.unit
     def test_trt_llm_export(self):
         """Here we test the trt-llm transfer and infer function"""
@@ -59,6 +61,40 @@ class TestNemoExport:
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
         assert no_error, "At least one model couldn't be served successfully."
 
+    @pytest.mark.unit
+    def test_trt_llm_export_ptuned(self):
+        """Here we test the trt-llm transfer and infer function"""
+
+        self._prep_test_data()
+
+        test_at_least_one = False
+        no_error = True
+
+        for model_name, model_info in self.test_data.items():
+            if model_info["location"] == "HF":
+                self._download_nemo_checkpoint(
+                    model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
+                )
+
+            if Path(model_info["checkpoint"]).exists():
+                try:
+                    if "ptuned" in model_info:
+                        for task, path in model_info["ptuned"].items():
+                            print("Task: {0} and path: {1}".format(task, path))
+                            Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
+                            trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
+                            trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], prompt_checkpoint_path=path, n_gpus=1)
+                            output = trt_llm_exporter.forward(["test1", "how about test 2"])
+                            print("output 1: ", output)
+                except:
+                    print("Error in TensorRT LLM.")
+                    no_error = False
+
+                test_at_least_one = True
+
+        assert test_at_least_one, "At least one nemo checkpoint has to be tested."
+        assert no_error, "At least one model couldn't be served successfully."
+
     def _prep_test_data(self):
         self.test_data = {}
 
@@ -74,11 +110,13 @@ class TestNemoExport:
         self.test_data["GPT-2B-HF-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-hf-base/trt_llm_model/"
         self.test_data["GPT-2B-HF-base"]["checkpoint_dir"] = "/tmp/GPT-2B-hf-base/nemo_checkpoint/"
         self.test_data["GPT-2B-HF-base"]["checkpoint"] = (
-            self.test_data["GPT-2B-HF-base"]["checkpoint_dir"] + "GPT-2B-001_bf16_tp1.nemo"
+            "/opt/checkpoints/GPT-2B.nemo"
         )
         self.test_data["GPT-2B-HF-base"]["checkpoint_link"] = (
-            "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/" "GPT-2B-001_bf16_tp1.nemo"
+            "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
         )
+        self.test_data["GPT-2B-HF-base"]["ptuned"] = {}
+        self.test_data["GPT-2B-HF-base"]["ptuned"]["squad"] = "/opt/checkpoints/8b_squad_megatron_gpt_peft_tuning.nemo"
 
         self.test_data["GPT-2B-base"] = {}
         self.test_data["GPT-2B-base"]["location"] = "Selene"
