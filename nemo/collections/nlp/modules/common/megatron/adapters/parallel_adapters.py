@@ -166,7 +166,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.dropout = nn.Dropout(dropout)
         else:
             self.dropout = None
-
+        
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
 
@@ -401,7 +401,7 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         self.position_embeddings = None
         self.mlp = None
         self.position_embedding_strategy = position_embedding_strategy
-        assert self.position_embedding_strategy in ["add", "concat", "mlpconcat", "biasadd", None]
+        assert self.position_embedding_strategy in ["add", "concat", "mlpconcat", "biasadd", "r", None]
         if self.position_embedding_strategy == "concat":
             in_features += dim_position_embeddings
         elif self.position_embedding_strategy == "mlpconcat":
@@ -414,6 +414,10 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             assert (
                 in_features == dim_position_embeddings
             ), "adapter input feature size should match position emb size to add"
+        elif self.position_embedding_strategy == "r":
+            self.r = torch.nn.Linear(dim, dim, bias=False)
+            self.r.weight.data.fill_(0.0)
+            self.r.weight.data.fill_diagonal_(1.0)
         super().__init__(
             in_features,
             out_features,
@@ -478,6 +482,8 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             x = self.layer_norm(x)
 
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        if self.position_embedding_strategy == "r":
+            x = self.r(x)
         x = self.activation(x)
         x, _ = self.linear_out(x)
         if self.norm_position == 'post':
