@@ -101,7 +101,7 @@ def prompt_convert(prompt_config, prompt_weights):
 
         vtokens_embeddings = torch.stack(vtokens_embeddings)
     else:
-        vtokens_embeddings = prompt_weights["prompt_table"]
+        vtokens_embeddings = prompt_weights["prompt_embeddings_weights"]
 
     return vtokens_embeddings
 
