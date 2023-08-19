@@ -314,12 +314,6 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
                 dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
                 dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
                 is_speech = True if doc["answer_type"] == "SPEECH" else False
-                if is_speech:
-                    # Bring dec labels for layers 1 to 8 back to 0 to 1024 range
-                    assert dec_labels.dim() == 2
-                    for _i in range(1, dec_labels.size(0)):
-                        # -1 to ignore EOS token
-                        dec_labels[_i,:-1] = dec_labels[_i,:-1] - self.speech_offset - (_i*1024)
 
                 self.examples.append((
                     taskname_id, 
@@ -494,10 +488,9 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         codec_codes_length = torch.tensor(codec_codes.shape[1]).long()
 
-        # Convert codes to codes corresponding to megatron embedding layer
-        for i in range(codec_codes.shape[0]):
-            codec_codes[i] = (codec_codes[i] + self.speech_offset+i*1024).long()
-
+        # Add speech offset to first layer (First layer has both speech and text tokens)
+        codec_codes[0] = codec_codes[0] + self.speech_offset
+        
         return codec_codes
         
 

@@ -8,8 +8,8 @@ trainer:
   logger: False
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 1000
-  max_steps: -1
+  # max_epochs: 1000
+  max_steps: 100000
   log_every_n_steps: 10
   val_check_interval: 1000
   gradient_clip_val: 1.0
@@ -51,6 +51,7 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
+  model_seq_length: 2048
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
@@ -90,12 +91,17 @@ model:
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
     # data_prefix: ["/datap/misc/BinaryDataset/books3/Books3_shuf_text_document"]
-    data_prefix: [1, "/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", 1, "/datap/misc/BinaryDataset/t5binaries/my-t5_test_bert_tokenizer_text_document"]
+    data_prefix: [1, "/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document", 1, "/datap/misc/BinaryDataset/t5binaries/my-t5_00_bert_tokenizer_text_document"]
     # data_prefix: ["/datap/misc/BinaryDataset/librilight/eng_librivox_22khz_encodec_pt_filepath_document"]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: ["lazy", "mmap"]
     splits_string: 900,50,50
-    seq_length: 512
+    seq_length: 1536
+    mask_context_prob: 0.4
+    mask_length_poisson_lambda: 3.5
+    speech_offset: 30000
+    speech_codebook_size: 1024
+    create_loss_mask: False
     skip_warmup: True
     num_workers: 2
     dataloader_type: single # cyclic
@@ -115,10 +121,10 @@ model:
     betas:
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 100
-      constant_steps: 0
-      min_lr: 0.0
-      monitor: val_loss
-      reduce_on_plateau: false
+    # sched:
+    #   name: CosineAnnealing
+    #   warmup_steps: 100
+    #   constant_steps: 0
+    #   min_lr: 0.0
+    #   monitor: val_loss
+    #   reduce_on_plateau: false

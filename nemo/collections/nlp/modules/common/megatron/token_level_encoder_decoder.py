@@ -141,6 +141,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.tokens_head_bias = tokens_head_bias
+        self.cross_entropy_type = "vocab_parallel"
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -500,15 +501,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         else:
             dec_input = None
             for i in range(dec_input_ids.size()[1]):
-                # For text inputs, only include 1st channel embeddings. Zero-out others.
-                include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
-                current = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
-                current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
-                if dec_input is None:
-                    dec_input = current
+                if i == 0:
+                    # For the first channel (text + first layer of speech), use the decoder embedding layer
+                    dec_input = self.decoder_embedding(dec_input_ids[:, i, :], dec_position_ids, token_type_ids=token_type_ids)
                 else:
+                    # For the rest of the channels (speech), use the speech embedding layer. No need for position, since already added in first layer.
+                    current = self.speech_tokens_embeddings[i-1](dec_input_ids[:, i, :]).permute(1, 0, 2)
+                    # For text inputs, only include 1st channel embeddings. Zero-out others.
+                    include_channel_flag = (torch.sum(dec_input_ids[:, i, :], dim=1) > 0).float() # [B]
+                    current = current * include_channel_flag.unsqueeze(0).unsqueeze(2)
                     dec_input = dec_input + current
-                break
+
         return dec_input
 
     def forward(
@@ -645,7 +648,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
                     speech_logits = torch.zeros([*token_logits.shape[:-1], self.speech_codebook_size, speech_layers],device=token_logits.device)
-                    # import ipdb; ipdb.set_trace()
                     for i in range(speech_layers):
                         speech_residual_model = self.speech_residual_model_2
                         if i == 0:
@@ -668,21 +670,25 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     label_smoothing = self.label_smoothing if self.training else 0.0
 
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
+                    _cross_entropy_function = vocab_parallel_cross_entropy
+                    if self.cross_entropy_type == "regular":
+                        _cross_entropy_function = regular_cross_entropy
+
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels[0, :, :], label_smoothing)
+                        tokens_loss = _cross_entropy_function(token_logits, labels[0, :, :], label_smoothing)
                     else:
                         if labels.dim() == 2:
-                            tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
+                            tokens_loss = _cross_entropy_function(token_logits.float(), labels, label_smoothing)
                         elif labels.dim() == 3:
                             # print("first layer labels", labels[0, :, :].shape, labels[0, :, :].min(), labels[0, :, :].max(), labels[0, 0, :5])
                             # print("token logits", token_logits.shape, token_logits[0,0].argmax())
-                            tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels[0, :, :], label_smoothing)
+                            tokens_loss = _cross_entropy_function(token_logits.float(), labels[0, :, :], label_smoothing)
                             logging.debug(f"token_loss: {tokens_loss}")
                             logging.debug(f"token_loss: {torch.all(torch.isfinite(tokens_loss))}")
                             for i in range(speech_layers):
                                 # What is labels[:7, :, :] if this is text? (It is all zeros)
-                                curr_codebook_loss = vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
+                                curr_codebook_loss = _cross_entropy_function(speech_logits[:,:,:,i].float(), labels[i+1, :, :], label_smoothing) * speech_mask.T
                                 tokens_loss += curr_codebook_loss
                                 logging.debug(f"token_loss_{i}: {tokens_loss}")
                                 logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
@@ -748,3 +754,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             self.speech_residual_model_2.load_state_dict(state_dict["speech_residual_model_2"], strict=strict)
         
 
+def regular_cross_entropy(logits, target, label_smoothing=0.0):
+    """Helper function for the cross entropy."""
+    return torch.nn.functional.cross_entropy(logits.permute(1,2,0), target.permute(1,0), reduction="none", label_smoothing=label_smoothing).permute(1,0)
