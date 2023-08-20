@@ -106,15 +106,16 @@ class TensorRTLLM(ITritonDeployable):
 
     def export(
         self,
-        nemo_checkpoint_path,
-        prompt_checkpoint_path=None,
-        delete_existing_files=True,
-        n_gpus=1,
-        max_input_len=200,
-        max_output_len=200,
-        max_prompt_embedding_table_size=100,
-        max_batch_size=32,
-        quantization=None,
+        nemo_checkpoint_path: str,
+        model_type: str,
+        prompt_checkpoint_path: str=None,
+        delete_existing_files: bool=True,
+        n_gpus: int=1,
+        max_input_len: int=200,
+        max_output_len: int=200,
+        max_prompt_embedding_table_size: int=100,
+        max_batch_size: int=32,
+        quantization: bool=None,
     ):
         if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
             for files in os.listdir(self.model_dir):
@@ -133,7 +134,7 @@ class TensorRTLLM(ITritonDeployable):
 
         nemo_export_dir = os.path.join(self.model_dir, "/tmp_nemo/")
         model_configs, self.tokenizer = nemo_to_model_config(
-            in_file=nemo_checkpoint_path, decoder_type="gptnext", gpus=n_gpus, nemo_export_dir=nemo_export_dir
+            in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
 
         for model_config in model_configs:
