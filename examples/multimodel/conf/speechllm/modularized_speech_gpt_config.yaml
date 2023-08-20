@@ -68,6 +68,7 @@ model:
   freeze_llm: True
   freeze_audio_encoder: False
   freeze_matcher: False
+  load_audio_encoder: True
 
   global_batch_size: 128
   micro_batch_size: 4
@@ -190,7 +191,7 @@ model:
 
   data:
     # end_string: null
-    end_string: "$$"
+    end_string: "~"
     train_ds:
       # Example of how to specify paths to multiple datasets
       # manifest_filepath:
@@ -240,7 +241,6 @@ model:
 
     validation_ds:
       manifest_filepath: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-      names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False

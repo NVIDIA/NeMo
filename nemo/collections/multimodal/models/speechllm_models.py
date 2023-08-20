@@ -526,8 +526,11 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             strict=False,
         )
         # load am
-        model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
-        logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
+        if cfg.model.get('load_audio_encoder', True):
+            model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+            logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
+        else:
+            logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
         return model
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
