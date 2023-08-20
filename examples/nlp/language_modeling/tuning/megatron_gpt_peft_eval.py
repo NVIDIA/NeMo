@@ -241,8 +241,30 @@ def main(cfg) -> None:
         "max_length": 30,
         "min_length": 1,
     }
+    sampling_params: SamplingParam = {
+        "use_greedy": True,
+        "temperature": 1.0,
+        "top_k": 0,
+        "top_p": 0.9,
+        "repetition_penalty": 1.0,
+        "add_BOS": True,
+        "all_probs": False,
+        "compute_logprob": False,
+        "end_strings": []
+    }
+    # sampling_params: SamplingParam = {
+    #     "use_greedy": True,
+    #     "temperature": 1.0,
+    #     "top_k": 0,
+    #     "top_p": 1.0,
+    #     "repetition_penalty": 1.0,
+    #     "add_BOS": True,
+    #     "all_probs": False,
+    #     "compute_logprob": False,
+    #     "end_strings": ["<|endoftext|>", "<extra_id_1>"],
+    # }
     input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
-    output = model.generate(input_tuple, length_params)
+    output = model.generate(input_tuple, length_params, sampling_params)
     # output = model.generate(["Hello world"], length_params)
     print(output)
 
