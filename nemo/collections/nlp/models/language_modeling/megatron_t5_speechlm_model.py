@@ -21,7 +21,8 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+# from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset_new import T5SpeechLMDatasetNew
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -205,8 +206,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
             t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            # t5_cfg.seq_length = 2048 
-            # t5_cfg.max_position_embeddings = 2048
             t5_cfg.seq_length = 1536
             t5_cfg.max_position_embeddings = 1536
 
@@ -521,7 +520,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
-        dataset = T5SpeechLMDataset(
+        dataset = T5SpeechLMDatasetNew(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,
             sample_rate=self.cfg.data.get('sample_rate', 24000),
@@ -584,17 +583,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             for t in range(labels.shape[2]-1):
                 print("Batch:{} Timestep:{}".format(batch_idx, t))
                 dec_input[:, :, t+1:] = self.tokenizer.pad_id # Not necessary, but just to be safe
-                output_tensor, enc_output, debug_tensors = self.forward(
+                output_logits, _, _ = self.forward(
                     virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=None, speech_mask=speech_mask, inference=True,
                 )
-                output_tokens = output_tensor.argmax(dim=2) # (B,T,8)
+                output_tokens = output_logits.argmax(dim=2) # (B,T,8)
                 output_tokens_curr_timestep = output_tokens[:, t]
                 output_token_list.append(output_tokens_curr_timestep) #for later predicting audio
-                output_tokens_curr_timestep_dec_compatible = output_tokens_curr_timestep * 1
-                print("output_tokens_curr_timestep_dec_compatible", output_tokens_curr_timestep_dec_compatible.shape, output_tokens_curr_timestep_dec_compatible.min(), output_tokens_curr_timestep_dec_compatible.max())
-                for _c in range(8):
-                    output_tokens_curr_timestep_dec_compatible[:,_c] = output_tokens_curr_timestep_dec_compatible[:,_c] + 30000 + (_c * 1024)
-                dec_input[:, :, t+1] = output_tokens_curr_timestep_dec_compatible * 1
+                dec_input[:, :, t+1] = output_tokens_curr_timestep * 1
             
             output_tokens_combined = torch.stack(output_token_list) # (T, B, 8)
             output_tokens_combined = output_tokens_combined.permute(1, 2, 0) # (B, 8, T)
