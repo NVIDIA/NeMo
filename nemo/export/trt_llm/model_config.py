@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import is_gated_activation
-from transformers import GPT2Config
+from transformers import LlamaConfig, PretrainedConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from .tensor_utils import get_tensor_from_file, split, torch_to_numpy_with_dtype
@@ -183,7 +183,7 @@ class AttentionConfig:
     @staticmethod
     def from_nemo(
         weights_dir: Path,
-        gpt_config: GPT2Config,
+        llm_config: PretrainedConfig,
         layer_id: int,
         rank: int = 0,
         tensor_parallel: int = 1,
@@ -193,7 +193,7 @@ class AttentionConfig:
 
         attention = AttentionConfig()
         attention.qkv = LinearConfig(linear_type=LINEAR_COLUMN)
-        n_embd = gpt_config.n_embd
+        n_embd = llm_config.n_embd
         c_attn_out_dim = 3 * n_embd // tensor_parallel
         attention.qkv.weight = np.ascontiguousarray(
             np.transpose(
@@ -244,17 +244,17 @@ class MLPConfig:
     @staticmethod
     def from_nemo(
         weights_dir: Path,
-        gpt_config: GPT2Config,
+        llm_config: PretrainedConfig,
         layer_id: int,
         rank: int = 0,
         tensor_parallel: int = 1,
         dtype: trt.DataType = trt.bfloat16,
     ):
         """Converts the nemo weights and config to `MLPConfig`."""
-        n_embd = gpt_config.n_embd
-        inter_size = gpt_config.intermediate_size
+        n_embd = llm_config.n_embd
+        inter_size = llm_config.intermediate_size
 
-        mlp = MLPConfig(hidden_act=gpt_config.activation_function)
+        mlp = MLPConfig(hidden_act=llm_config.activation_function)
         mlp.fc = LinearConfig(linear_type=LINEAR_COLUMN)
         mlp.fc.weight = np.ascontiguousarray(
             np.transpose(
@@ -276,11 +276,17 @@ class MLPConfig:
         gated = is_gated_activation(mlp.hidden_act)
         if gated:
             mlp.gate = LinearConfig(linear_type=LINEAR_COLUMN)
+            layer_name = (
+                f"layers.{layer_id}.mlp.dense_h_to_4h_2.weight.{rank}"
+                if isinstance(llm_config, LlamaConfig)
+                else f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}"
+            )
+
             mlp.gate.weight = np.ascontiguousarray(
                 np.transpose(
                     get_tensor_from_file(
                         weights_dir,
-                        f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}",
+                        layer_name,
                         shape=[n_embd, inter_size // tensor_parallel],
                         dtype=dtype,
                     ),
@@ -334,7 +340,7 @@ class DecoderLayerConfig:
     @staticmethod
     def from_nemo(
         weights_dir: Path,
-        gpt_config: GPT2Config,
+        llm_config: PretrainedConfig,
         decoder_type: str,
         layer_id: int,
         rank: int = 0,
@@ -344,11 +350,14 @@ class DecoderLayerConfig:
         """Converts the nemo weights and config to `DecoderLayerConfig`."""
         layer_config = DecoderLayerConfig(
             decoder_type=decoder_type,
-            num_attention_heads=gpt_config.n_head,
-            max_position_embeddings=gpt_config.n_positions,
-            rotary_pct=gpt_config.rotary_pct,
+            num_attention_heads=llm_config.n_head,
+            max_position_embeddings=llm_config.n_positions,
+            rotary_pct=llm_config.rotary_pct if hasattr(llm_config, "rotary_pct") else 0,
         )
         layer_config.input_layernorm = LayernormConfig()
+        layer_config.input_layernorm.layernorm_type = (
+            LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
+        )
         layer_config.input_layernorm.weight = get_tensor_from_file(
             weights_dir,
             f"layers.{layer_id}.input_layernorm.weight",
@@ -360,6 +369,9 @@ class DecoderLayerConfig:
             dtype=dtype,
         )
         layer_config.post_layernorm = LayernormConfig()
+        layer_config.post_layernorm.layernorm_type = (
+            LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
+        )
         layer_config.post_layernorm.weight = get_tensor_from_file(
             weights_dir,
             f"layers.{layer_id}.post_attention_layernorm.weight",
@@ -372,9 +384,9 @@ class DecoderLayerConfig:
         )
 
         layer_config.attention = AttentionConfig.from_nemo(
-            weights_dir, gpt_config, layer_id, rank, tensor_parallel, dtype
+            weights_dir, llm_config, layer_id, rank, tensor_parallel, dtype
         )
-        layer_config.mlp = MLPConfig.from_nemo(weights_dir, gpt_config, layer_id, rank, tensor_parallel, dtype)
+        layer_config.mlp = MLPConfig.from_nemo(weights_dir, llm_config, layer_id, rank, tensor_parallel, dtype)
 
         return layer_config
 

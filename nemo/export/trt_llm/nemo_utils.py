@@ -12,9 +12,11 @@ from typing import List, Tuple
 
 import numpy as np
 from tensorrt_llm._utils import str_dtype_to_trt
-from transformers import GPT2Config, PreTrainedTokenizer
+from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from .model_config import (
+    LAYERNORM_DEFAULT,
+    LAYERNORM_RMS,
     LINEAR_COLUMN,
     DecoderLayerConfig,
     EmbeddingConfig,
@@ -36,7 +38,8 @@ def _nemo_decode(
     processes: int = 1,
     storage_type: str = "bfloat16",
     load_checkpoints_on_gpu: bool = False,
-) -> Tuple[GPT2Config, PreTrainedTokenizer]:
+    decoder_type: str = "gptnext",
+) -> Tuple[PretrainedConfig, PreTrainedTokenizer]:
     """Decodes the NEMO file and save the weights to out_dir."""
     args = argparse.Namespace()
     args.in_file = in_file
@@ -46,6 +49,7 @@ def _nemo_decode(
     args.storage_type = storage_type
     args.load_checkpoints_on_gpu = load_checkpoints_on_gpu
     args.verbose = False
+    args.decoder_type = decoder_type
 
     input_path = Path(args.in_file)
     if not input_path.exists():
@@ -69,10 +73,10 @@ def _nemo_decode(
         )
 
         start_time = datetime.datetime.now()
-        gpt_model_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
+        llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
-        return gpt_model_config, tokenizer
+        return llm_config, tokenizer
 
 
 def get_model_config(weights_dir: Path) -> GPT2Config:
@@ -107,7 +111,7 @@ def nemo_to_model_config(
     if os.path.exists(nemo_export_dir):
         shutil.rmtree(nemo_export_dir)
 
-    gpt_model_config, tokenizer = _nemo_decode(
+    llm_model_config, tokenizer = _nemo_decode(
         in_file=in_file,
         out_dir=nemo_export_dir,
         tensor_parallelism=gpus,
@@ -125,8 +129,8 @@ def nemo_to_model_config(
 
     dtype = str_dtype_to_trt(dtype_str)
 
-    vocab_size = gpt_model_config.vocab_size
-    hidden_size = gpt_model_config.n_embd
+    vocab_size = llm_model_config.vocab_size
+    hidden_size = llm_model_config.n_embd
     model_config_template.vocab_embedding = EmbeddingConfig(
         weight=get_tensor_from_file(weights_dir, "wte", shape=[vocab_size, hidden_size], dtype=dtype)
     )
@@ -136,17 +140,21 @@ def nemo_to_model_config(
         bias=get_tensor_from_file(weights_dir, "final_layernorm.bias", dtype=dtype),
     )
 
+    model_config_template.final_layernorm.layernorm_type = (
+        LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
+    )
+
     model_configs = []
     for i in range(gpus):
         model_configs.append(copy.deepcopy(model_config_template))
         model_configs[i].rank = i
 
-    for i in range(gpt_model_config.n_layer):
+    for i in range(llm_model_config.n_layer):
         for j in range(gpus):
             model_configs[j].layers.append(
                 DecoderLayerConfig.from_nemo(
                     weights_dir=weights_dir,
-                    gpt_config=gpt_model_config,
+                    llm_config=llm_model_config,
                     decoder_type=decoder_type,
                     layer_id=i,
                     rank=j,

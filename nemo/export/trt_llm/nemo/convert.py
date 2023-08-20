@@ -210,6 +210,17 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             split_vals = np.split(gate, split_factor, axis=cat_dim)
             save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
+        # Ammo modification
+    elif "mlp.dense_h_to_4h_2.weight" in key or "mlp.dense_h_to_4h_2.bias" in key:
+        cat_dim = -1
+        val = np.concatenate(vals, axis=cat_dim)
+        split_vals = np.split(val, split_factor, axis=cat_dim)
+        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+        if act_range is not None and int8_outputs == "all":
+            base_key = key.replace(".weight", "")
+            vals_i8 = generate_int8(val, act_range, multi_query_mode=multi_query_mode)
+            write_int8(vals_i8, saved_dir, base_key, cat_dim, tp_rank, split_factor)
+
     elif "attention.query_key_value.bias" in key:
         if local_dim is None:
             local_dim = vals[0].shape[-1] // 3

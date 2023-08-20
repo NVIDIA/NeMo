@@ -24,14 +24,14 @@ import typing
 
 import torch
 import yaml
-from transformers import GPT2Config
+from transformers import GPT2Config, LlamaConfig
 
 from .convert import cpu_map_location, gpu_map_location
 
 LOGGER = logging.getLogger(__name__)
 
 
-def nemo_to_gpt_config(nemo_model_config, vocab_size, eos_id, bos_id):
+def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_type):
     convertion_dict = {
         "activation_function": "activation",
         "layer_norm_epsilon": "layernorm_epsilon",
@@ -49,7 +49,9 @@ def nemo_to_gpt_config(nemo_model_config, vocab_size, eos_id, bos_id):
     kwargs["eos_token_id"] = eos_id
     kwargs["bos_token_id"] = bos_id
 
-    return GPT2Config(**kwargs)
+    llm_config = LlamaConfig if decoder_type == "llama" else GPT2Config
+
+    return llm_config(**kwargs)
 
 
 def add_special_tokens_to_tokenizer(tokenizer):

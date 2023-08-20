@@ -13,10 +13,10 @@ import numpy as np
 import torch
 from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
-from transformers import GPT2Tokenizer, T5Tokenizer
+from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer
 
 from .convert import cpu_map_location, gpu_map_location, split_and_save_weight
-from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_gpt_config
+from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +64,9 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
-        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu"),
+        "split_gated_activation": (
+            "swiglu" in nemo_model_config.get("activation", "gelu") and args.decoder_type != "llama"
+        ),
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "use_attention_nemo_shape": True,
         "transpose_weights": True,
@@ -139,19 +141,24 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     # AMMO modification.
     tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
     tokenizer = build_tokenizer(tokenizer_config)
-    gpt_model_config = nemo_to_gpt_config(
-        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id
+    llm_config = nemo_to_llm_config(
+        nemo_model_config,
+        vocab_size,
+        tokenizer.eos_token_id,
+        tokenizer.bos_token_id,
+        args.decoder_type,
     )
 
     config = configparser.ConfigParser()
-    config["gpt"] = {k: str(v) for k, v in vars(gpt_model_config).items()}
-    config["gpt"]["storage_dtype"] = args.storage_type
+    model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
+    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
+    config[model_name]["storage_dtype"] = args.storage_type
     config_path = out_dir / "config.ini"
     with config_path.open("w") as config_file:
         config.write(config_file)
 
     # AMMO modification.
-    return gpt_model_config, tokenizer
+    return llm_config, tokenizer
 
 
 def create_out_dir(args):
