@@ -2712,6 +2712,7 @@ pipeline {
         model.encoder.activations_checkpoint_method='block' \
         model.encoder.activations_checkpoint_num_layers=1 \
         model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
         model.decoder.num_attention_heads=8 \
         model.decoder.activation='swiglu' \
         model.decoder.masked_softmax_fusion=False \
