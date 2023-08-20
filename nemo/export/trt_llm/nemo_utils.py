@@ -118,6 +118,7 @@ def nemo_to_model_config(
         processes=1,
         storage_type=dtype_str,
         load_checkpoints_on_gpu=False,
+        decoder_type=decoder_type,
     )
 
     weights_dir = Path(nemo_export_dir)
