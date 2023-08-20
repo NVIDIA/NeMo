@@ -170,21 +170,40 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
         Randomly initialize the peft params and add them to the appropriate modules.
         """
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
+        assert not self.mcore_gpt or hasattr(
+            self, 'name_key_to_mcore_target'
+        ), "some of the PEFT modules are not supported in megatron core mode yet."
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for layer in self.model.language_model.encoder.layers:
+        if self.mcore_gpt:
+            layers = self.model.decoder.layers
+        else:
+            layers = self.model.language_model.encoder.layers
+        for layer in layers:
             if layer.layer_number in self.layer_selection:
-                for _, module in layer.named_modules():
-                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for name, module in layer.named_modules():
+                    if self.mcore_gpt:
                         for peft_key in self.peft_name_keys:
-                            peft_cfg = self.name_key_to_cfg[peft_key]
                             if (
-                                model_utils.import_class_by_path(peft_cfg._target_)
-                                in module.get_accepted_adapter_types()
-                            ):
-                                module.add_adapter(
-                                    name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
-                                )
+                                name.split(".")[-1] == self.name_key_to_mcore_target[peft_key]
+                            ):  # could also use regex here to match a template
+                                swap_mcore_mixin(module, self.name_key_to_mcore_mixin[peft_key])
+                                peft_cfg = self.name_key_to_cfg[peft_key]
+                                if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                                    module.add_adapter(
+                                        name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config,
+                                    )
+                    else:
+                        if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                            for peft_key in self.peft_name_keys:
+                                peft_cfg = self.name_key_to_cfg[peft_key]
+                                if (
+                                    model_utils.import_class_by_path(peft_cfg._target_)
+                                    in module.get_accepted_adapter_types()
+                                ):
+                                    module.add_adapter(
+                                        name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
+                                    )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
