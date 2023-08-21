@@ -171,6 +171,8 @@ class TextMemMapDataset(Dataset):
         # figure out size of the dataset
         self._size = self.midx_bins[-1]
 
+    
+
     def __del__(self):
         if self.mdata_midx_list:
             for mdata, midx in self.mdata_midx_list:
@@ -178,6 +180,21 @@ class TextMemMapDataset(Dataset):
 
     def __len__(self):
         return self._size
+
+    # fake get function
+    def get(self, idx, offset=0, length=None):
+        """ Retrieves a single item from the dataset with the option to only
+        return a portion of the item.
+
+        get(idx) is the same as [idx] but get() does not support slicing.
+        """
+        return self.__getitem__(idx)
+        # ptr, size = self._index[idx]
+        # if length is None:
+        #     length = size - offset
+        # ptr += offset * np.dtype(self._index.dtype).itemsize
+        # np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=length, offset=ptr)
+        # return np_array
 
     def __getitem__(self, idx):
         """
@@ -427,6 +444,7 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir
 
     # create data map
     if _index_file_exists(idx_fn):
+        print(idx_fn)
         return False
     else:
         logging.info(f"Building indexing for fn = {fn}")

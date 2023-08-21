@@ -12,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import asyncio
+import os
+import torch
+import threading
+from functools import partial
 import json
 import os
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -36,6 +42,13 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+    print('CORE INSTALLED')
+except:
+    pass
 mp.set_start_method("spawn", force=True)
 """
 This is the script to run inference with a PEFT model or an SFT Model.
@@ -66,6 +79,15 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 	inference.greedy=True \
 	inference.outfile_path=\'<path_to_jsonl_output_file>'  
 
+    python /data/NeMo/examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
+        model.restore_from_path=/data/megatron_converted_2b_tp1_pp1.nemo \
+        model.peft.restore_from_path=/data/megatron_gpt_peft_tuning.nemo \
+        model.data.test_ds.file_names=['/models/dataset/squad/squad_subsamples_formatted_tn/100/1_squad_val.jsonl'] \
+        model.data.test_ds.global_batch_size=1 \
+        model.data.test_ds.micro_batch_size=1 \
+        model.data.test_ds.names=['squad'] \
+        model.data.test_ds.tokens_to_generate=30 
+    
 """
 
 
@@ -201,6 +223,41 @@ def main(cfg) -> None:
         else:
             print(response)
     print("***************************")
+
+    # Third method of running text generation, use inference server
+    from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+
+    if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+        if cfg.web_server:
+            if cfg.chat:
+                defaults = {
+                    'user': cfg.chatbot_config.user,
+                    'assistant': cfg.chatbot_config.assistant,
+                    'system': cfg.chatbot_config.system,
+                }
+                web_ui = partial(
+                    get_chatbot_demo,
+                    defaults=defaults,
+                    value=cfg.chatbot_config.value,
+                    attributes=cfg.chatbot_config.attributes,
+                )
+            else:
+                web_ui = get_demo
+            loop = asyncio.new_event_loop()
+            thread = threading.Thread(
+                target=web_ui,
+                daemon=True,
+                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+            )
+            thread.start()
+        server = MegatronServer(model.cuda())
+        server.run("0.0.0.0", port=cfg.port)
+
+    while True:
+        choice = torch.cuda.LongTensor(1)
+        torch.distributed.broadcast(choice, 0)
+        if choice[0].item() == 0:
+            generate(model.cuda())
 
 
 if __name__ == "__main__":

@@ -28,6 +28,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_indexed_dataset_compatibility
+
 from nemo.core import Dataset
 from nemo.utils import logging
 
@@ -45,7 +47,7 @@ def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length,
     def _build_dataset(current_data_prefix, current_num_samples):
         delay_data_mmap = cfg.data.get('delay_data_mmap', False)
         indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup, delay_data_mmap)
-        total_num_of_documents = indexed_dataset.sizes.shape[0]
+        total_num_of_documents = len(indexed_dataset)#.sizes.shape[0]
         # Print stats about the splits.
         logging.info(' > dataset split:')
         logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
@@ -125,18 +127,19 @@ def build_train_valid_test_datasets(
             tokenizer,
             "train",
         )
-        validation_ds = build_dataset(
-            cfg,
-            trainer,
-            data_prefix["validation"],
-            data_impl,
-            int(train_valid_test_num_samples[1]),
-            seq_length,
-            seed,
-            skip_warmup,
-            tokenizer,
-            "valid",
-        )
+        validation_ds = None
+        # validation_ds = None build_dataset(
+        #     cfg,
+        #     trainer,
+        #     data_prefix["validation"],
+        #     data_impl,
+        #     int(train_valid_test_num_samples[1]),
+        #     seq_length,
+        #     seed,
+        #     skip_warmup,
+        #     tokenizer,
+        #     "valid",
+        # )
         test_ds = build_dataset(
             cfg,
             trainer,
@@ -149,7 +152,7 @@ def build_train_valid_test_datasets(
             tokenizer,
             "test",
         )
-        return train_ds, validation_ds, test_ds
+        return train_ds, test_ds, test_ds
 
     else:
         # Single dataset.
@@ -282,7 +285,12 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap=Fa
 
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap=delay_data_mmap)
+    if data_impl in ['text_mmap', 'csv_mmap']:
+        # make csv/text memmap compatible with Megatron sampling
+        make_indexed_dataset_compatibility(indexed_dataset)
+    assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
+    print('>>>>', len(indexed_dataset), indexed_dataset[0])
     logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
@@ -382,6 +390,7 @@ class GPTDataset(Dataset):
             )
         else:
             # Otherwise, get the rest of the initial document.
+            # print(offset_f)
             sample_list = [self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)]
             # Loop over all in between documents and add the entire document.
             for i in range(doc_index_f + 1, doc_index_l):
@@ -554,6 +563,7 @@ def _build_index_mappings(
        training sample.
     shuffle-idx: maps the sample index into a random index into sample-idx.
     """
+    print('DOCS:', documents)
     # Number of tokens in each epoch and number of required epochs.
     tokens_per_epoch = _num_tokens(documents, sizes)
     num_epochs = _num_epochs(tokens_per_epoch, seq_length, num_samples, add_extra_token)
