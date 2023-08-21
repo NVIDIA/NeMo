@@ -35,6 +35,11 @@ class TestNemoExport:
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
                 )
 
+            print(
+                "Path: {0} and model: {1} is next ...".format(
+                    model_info["checkpoint"], model_name
+                )
+            )
             if Path(model_info["checkpoint"]).exists():
                 for n_gpu in model_info["total_gpus"]:
                     print(
