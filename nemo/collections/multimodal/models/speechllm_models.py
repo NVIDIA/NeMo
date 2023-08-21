@@ -474,6 +474,9 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             matcher_cfg = gpt_cfg.perception.matcher
             matcher_cfg.feat_in = audio_cfg.encoder.d_model
             gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
+            override_vocab_size = cfg.model.get('override_vocab_size', None)
+            if override_vocab_size is not None:
+                gpt_cfg.override_vocab_size = override_vocab_size
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -536,6 +539,19 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
         return model
 
+    def _build_vocab(self):
+        """
+        Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
+        """
+        if self._cfg.get('override_vocab_size', None) is not None:
+            self.padded_vocab_size = self._cfg.override_vocab_size
+        else:
+            self.padded_vocab_size = self._vocab_size_with_padding(
+                orig_vocab_size=self.tokenizer.vocab_size,
+                make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
+                tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
+            )
+
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.setup_complete:
             # Once setup is complete we only need adapter and perception model.
@@ -557,6 +573,14 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             print(f"loading state_dict: {state_dict.keys()}")
             super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
         else:
+            if self.cfg.get('override_vocab_size', False):
+                exclude_list = [
+                    "model.language_model.embedding.word_embeddings.weight",
+                    "model.language_model.output_layer.weight",
+                ]
+            else:
+                exclude_list = []
+            state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
             super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=strict)
 
     def setup_metric(self, data_cfg):
