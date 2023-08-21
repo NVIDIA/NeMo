@@ -394,6 +394,9 @@ class ConvSubsampling(torch.nn.Module):
         # Unsqueeze Channel Axis
         if self.conv2d_subsampling:
             x = x.unsqueeze(1)
+        # Transpose to Channel First mode
+        else:
+            x = x.transpose(1, 2)
 
         # split inputs if chunking_factor is set
         if self.subsampling_conv_chunking_factor != -1 and self.conv2d_subsampling:
@@ -426,6 +429,7 @@ class ConvSubsampling(torch.nn.Module):
         if self.conv2d_subsampling:
             b, c, t, f = x.size()
             x = self.out(x.transpose(1, 2).reshape(b, t, -1))
+        # Transpose to Channel Last mode
         else:
             x = x.transpose(1, 2)
 
