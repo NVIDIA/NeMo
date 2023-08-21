@@ -72,7 +72,9 @@ def get_args():
     parser.add_argument(
         "--num_workers", default=1, type=int, help="Number of parallel threads to use. If -1 all CPUs are used."
     )
-    parser.add_argument("--batch_size", type=int, help="Batch size for jobs. Defaults to 'auto' if not provided.")
+    parser.add_argument(
+        "--joblib_batch_size", type=int, help="Batch size for joblib workers. Defaults to 'auto' if not provided."
+    )
     parser.add_argument(
         "--max_entries", default=0, type=int, help="If provided, maximum number of entries in the manifest to process."
     )
@@ -113,7 +115,7 @@ def main():
     normalized_text_key = args.normalized_text_key
     lower_case = args.lower_case
     num_workers = args.num_workers
-    batch_size = args.batch_size
+    batch_size = args.joblib_batch_size
     max_entries = args.max_entries
     overwrite = args.overwrite
 
