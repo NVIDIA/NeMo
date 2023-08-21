@@ -119,7 +119,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
-            peft_state_dict[k] = state_dict[k]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -130,7 +129,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
+            return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
@@ -418,7 +417,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             # there should be no params in the state_dict
             return {}
         else:
-            return self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
+            return self.model.state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """ 
