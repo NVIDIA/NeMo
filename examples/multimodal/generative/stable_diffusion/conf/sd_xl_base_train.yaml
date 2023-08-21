@@ -57,6 +57,7 @@ model:
   capture_cudagraph_iters: -1
   scale_by_std: False
   channels_last: True
+  fsdp: True
 
   loss_fn_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.loss.StandardDiffusionLoss

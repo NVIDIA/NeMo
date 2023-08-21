@@ -28,6 +28,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
+    NLPFSDPStrategy,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -62,12 +63,25 @@ def main(cfg) -> None:
         torch.autocast.__init__ = amp_autocast_init
 
     plugins = []
-
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
-    )
+    if cfg.model.get('fsdp', False):
+        assert not with_distributed_adam, 'Distributed optimizer cannot be used with FSDP.'
+        if cfg.model.get('megatron_amp_o2', False):
+            logging.info('Torch/FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
+            cfg.model.megatron_amp_O2 = False
+        strategy = NLPFSDPStrategy(
+            limit_all_gathers=cfg.model.get('limit_all_gathers', True),
+            cpu_offload=cfg.model.get('cpu_offload', False),
+            use_transformer_engine=cfg.model.get('transformer_engine', False),
+            param_dtype=cfg.trainer.precision,
+            reduce_dtype=cfg.model.get('fsdp_grad_reduce_dtype', 32),
+            sharding_strategy=cfg.model.get('fsdp_sharding_strategy', 'full'),
+        )
+    else:
+        strategy = NLPDDPStrategy(
+            no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
+            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+            find_unused_parameters=False,
+        )
 
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
@@ -105,7 +119,6 @@ def main(cfg) -> None:
 
 
     model = MegatronDiffusionEngine(cfg.model, trainer)
-
     trainer.fit(model)
 
 
