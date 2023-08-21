@@ -518,10 +518,14 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         else:
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", None)
+        if num_query_groups is None:
+            num_query_groups = cfg.num_attention_heads
+        qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
 
         adapter_cfg = LoraKQVAdapterConfig(
             in_features=cfg.hidden_size,
-            out_features=3 * projection_size,
+            out_features=qkv_projection_size,
             dim=lora_cfg.adapter_dim,
             norm_position=None,
             norm_type=None,
@@ -563,6 +567,10 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         else:
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", None)
+        if num_query_groups is None:
+            num_query_groups = cfg.num_attention_heads
+        qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
         position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
         if position_embedding_strategy is None:
             dim_position_embeddings = 0
@@ -579,7 +587,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
 
         adapter_cfg = LoraKQVAdapterWeightTyingConfig(
             in_features=cfg.hidden_size,
-            out_features=3 * projection_size,
+            out_features=qkv_projection_size,
             dim=lora_cfg.adapter_dim,
             norm_position=None,
             norm_type=None,
