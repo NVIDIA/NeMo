@@ -50,10 +50,10 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-__all__ = ['MegatronT5FinetuneModel']
+__all__ = ['MegatronT5SFTModel']
 
 
-class MegatronT5FinetuneModel(MegatronT5Model):
+class MegatronT5SFTModel(MegatronT5Model):
     """Finetune Model that Inherits from MegatronT5Model instead."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -320,9 +320,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             )
 
             # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-            preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-            labels_text = MegatronT5FinetuneModel.ids_to_text(batch['labels'], self.tokenizer)
-            input_text = MegatronT5FinetuneModel.ids_to_text(batch['text_enc'], self.tokenizer)
+            preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+            labels_text = MegatronT5SFTModel.ids_to_text(batch['labels'], self.tokenizer)
+            input_text = MegatronT5SFTModel.ids_to_text(batch['text_enc'], self.tokenizer)
 
             if not batch_has_lang_information:
                 categories = [None] * len(preds_text)
