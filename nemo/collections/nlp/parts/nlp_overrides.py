@@ -346,11 +346,6 @@ class NLPDDPStrategy(DDPStrategy):
             which makes it convenient to have the loading logic happen at the strategy level.
         """
 
-        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        fs = get_filesystem(checkpoint_path)
-        if not fs.exists(checkpoint_path):
-            raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
-
         # Check if using distributed checkpointing
         if (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -377,8 +372,12 @@ class NLPDDPStrategy(DDPStrategy):
 
         # Legacy model parallel checkpointing logic, does not use megatron core
         else:
-            torch.cuda.empty_cache()
+            # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+            fs = get_filesystem(checkpoint_path)
             checkpoint_path = inject_model_parallel_rank(checkpoint_path)
+            if not fs.exists(checkpoint_path):
+                raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+            torch.cuda.empty_cache()
             return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
