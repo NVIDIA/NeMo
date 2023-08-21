@@ -42,7 +42,7 @@ class TestNemoExport:
                 try:
                     Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
                     trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                    trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
+                    trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], model_type=model_info["model_type"], n_gpus=1)
                     output = trt_llm_exporter.forward(["test1", "how about test 2"])
                     print("output 1: ", output)
                 except:
@@ -50,7 +50,7 @@ class TestNemoExport:
                     no_error = False
 
                 try:
-                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"], gpu_id=1)
+                    trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                     output = trt_llm_exporter2.forward(["Let's see how this works", "Did you get the result yet?"])
                     print("output 2: ", output)
                 except:
@@ -99,6 +99,7 @@ class TestNemoExport:
         self.test_data = {}
 
         self.test_data["GPT-843M-base"] = {}
+        self.test_data["GPT-843M-base"]["model_type"] = "gptnext"
         self.test_data["GPT-843M-base"]["location"] = "Selene"
         self.test_data["GPT-843M-base"]["trt_llm_model_dir"] = "/tmp/GPT-843M-base/trt_llm_model/"
         self.test_data["GPT-843M-base"][
@@ -106,6 +107,7 @@ class TestNemoExport:
         ] = "/opt/checkpoints/GPT-843M-base/megatron_converted_843m_tp1_pp1.nemo"
 
         self.test_data["GPT-2B-HF-base"] = {}
+        self.test_data["GPT-2B-HF-base"]["model_type"] = "gptnext"
         self.test_data["GPT-2B-HF-base"]["location"] = "HF"
         self.test_data["GPT-2B-HF-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-hf-base/trt_llm_model/"
         self.test_data["GPT-2B-HF-base"]["checkpoint_dir"] = "/tmp/GPT-2B-hf-base/nemo_checkpoint/"
@@ -119,21 +121,32 @@ class TestNemoExport:
         self.test_data["GPT-2B-HF-base"]["ptuned"]["squad"] = "/opt/checkpoints/8b_squad_megatron_gpt_peft_tuning.nemo"
 
         self.test_data["GPT-2B-base"] = {}
+        self.test_data["GPT-2B-base"]["model_type"] = "gptnext"
         self.test_data["GPT-2B-base"]["location"] = "Selene"
         self.test_data["GPT-2B-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-base/trt_llm_model/"
         self.test_data["GPT-2B-base"]["checkpoint"] = "/opt/checkpoints/GPT-2B-base/megatron_converted_2b_tp1_pp1.nemo"
 
         self.test_data["GPT-8B-base"] = {}
+        self.test_data["GPT-8B-base"]["model_type"] = "gptnext"
         self.test_data["GPT-8B-base"]["location"] = "Selene"
         self.test_data["GPT-8B-base"]["trt_llm_model_dir"] = "/tmp/GPT-8B-base/trt_llm_model/"
         self.test_data["GPT-8B-base"]["checkpoint"] = "/opt/checkpoints/GPT-8B-base/megatron_converted_8b_tp4_pp1.nemo"
 
         self.test_data["GPT-43B-base"] = {}
+        self.test_data["GPT-43B-base"]["model_type"] = "gptnext"
         self.test_data["GPT-43B-base"]["location"] = "Selene"
         self.test_data["GPT-43B-base"]["trt_llm_model_dir"] = "/tmp/GPT-43B-base/trt_llm_model/"
         self.test_data["GPT-43B-base"][
             "checkpoint"
         ] = "/opt/checkpoints/GPT-43B-base/megatron_converted_43b_tp8_pp1.nemo"
+
+        self.test_data["LLAMA2-7B-base"] = {}
+        self.test_data["LLAMA2-7B-base"]["model_type"] = "llama"
+        self.test_data["LLAMA2-7B-base"]["location"] = "Selene"
+        self.test_data["LLAMA2-7B-base"]["trt_llm_model_dir"] = "/tmp/LLAMA2-7B-base/trt_llm_model/"
+        self.test_data["LLAMA2-7B-base"][
+            "checkpoint"
+        ] = "/opt/checkpoints/LLAMA2-7B-base/llama2-7b.nemo"
 
     def _download_nemo_checkpoint(self, checkpoint_link, checkpoint_dir, checkpoint_path):
         if not Path(checkpoint_path).exists():
