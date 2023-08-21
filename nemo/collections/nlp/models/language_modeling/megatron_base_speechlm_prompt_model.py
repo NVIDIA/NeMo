@@ -238,7 +238,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         state_dict_["word_embeddings"] = self.word_embeddings.state_dict()
         if self.prompt_encoder is not None:
             state_dict_["prompt_encoder"] = self.prompt_encoder.state_dict()
-        
+
         return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
@@ -254,7 +254,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 
     # def setup_optimizer_param_groups(self):
     #     """
-    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
+    #     ModelPT override. Optimizer will get self._optimizer_param_groups.
     #     Only want virtual prompt params to be passed to the optimizer.
     #     """
     #     ## Freeze frozen model
