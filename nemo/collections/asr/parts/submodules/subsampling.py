@@ -252,7 +252,7 @@ class ConvSubsampling(torch.nn.Module):
                 layers.append(activation)
                 in_channels = conv_channels
 
-        elif subsampling == 'striding_conv1d_k5':
+        elif subsampling == 'striding_conv1d':
 
             in_channels = feat_in
 
@@ -293,7 +293,7 @@ class ConvSubsampling(torch.nn.Module):
                 layers.append(activation)
                 in_channels = conv_channels
 
-        elif subsampling == 'dw_striding_conv1d_k5':
+        elif subsampling == 'dw_striding_conv1d':
 
             in_channels = feat_in
 
@@ -368,7 +368,7 @@ class ConvSubsampling(torch.nn.Module):
             )
             self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
             self.conv2d_subsampling = True
-        elif subsampling in ["striding_conv1d_k5", "dw_striding_conv1d_k5"]:
+        elif subsampling in ["striding_conv1d", "dw_striding_conv1d"]:
             self.conv2d_subsampling = False
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
