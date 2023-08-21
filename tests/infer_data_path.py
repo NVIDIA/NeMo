@@ -23,7 +23,7 @@ def get_infer_test_data():
     test_data["GPT-843M-base"]["trt_llm_model_dir"] = "/tmp/GPT-843M-base/trt_llm_model/"
     test_data["GPT-843M-base"][
         "checkpoint"
-    ] = "/opt/checkpoints/GPT-843M-base/megatron_converted_843m_tp1_pp1.nemo"
+    ] = "/opt/checkpoints/GPT-843M-base/GPT-843M-1.nemo"
 
     test_data["GPT-2B-HF-base"] = {}
     test_data["GPT-2B-HF-base"]["model_type"] = "gptnext"
