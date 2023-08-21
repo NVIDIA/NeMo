@@ -68,7 +68,7 @@ class AdapterName(str, enum.Enum):
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(self, in_features: int,) -> None:
+    def __init__(self, in_features: int, **kwargs) -> None:
         super().__init__()
         self.scalers = nn.Parameter(torch.ones(in_features))
         # Setup adapter strategy
@@ -102,6 +102,7 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
+        model_parallel_config: ModelParallelConfig,
         in_features: int,
         out_features: int,
         dim: int,
@@ -112,6 +113,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         dropout: float = 0.0,
+        **kwargs,
     ):
         super().__init__()
         if not HAVE_APEX:
@@ -123,12 +125,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
 
-        self.model_parallel_config = self._build_model_parallel_config()
-
         self.linear_in = ColumnParallelLinear(
             in_features,
             dim,
-            config=self.model_parallel_config,
+            config=model_parallel_config,
             bias=False,
             gather_output=True,
             init_method=self._get_init_fn(column_init_method),
@@ -137,7 +137,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.linear_out = RowParallelLinear(
                 dim,
                 out_features,
-                config=self.model_parallel_config,
+                config=model_parallel_config,
                 bias=False,
                 init_method=self._get_init_fn(row_init_method),
             )
@@ -147,7 +147,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.linear_out = ColumnParallelLinear(
                 dim,
                 out_features,
-                config=self.model_parallel_config,
+                config=model_parallel_config,
                 bias=False,
                 gather_output=False,
                 init_method=self._get_init_fn(row_init_method),
@@ -171,16 +171,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
-
-    def _build_model_parallel_config(self) -> ModelParallelConfig:
-        """
-        Build the model parallel config for the adapter.
-        This is used to initialize the ColumnParallelLinear and RowParallelLinear layers.
-
-        Note: Currently we are using the default values for the model parallel config.
-              The ParallelLinearAdapters class is not configuring anything here yet.
-        """
-        return ModelParallelConfig()
 
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
@@ -277,12 +267,13 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
     def __init__(
         self,
-        config: ModelParallelConfig,
+        model_parallel_config: ModelParallelConfig,
         virtual_tokens: int,
         bottleneck_dim: int,
         embedding_dim: int,
         init_std: float,
         output_dim: int,
+        **kwargs,
     ):
         """
         Initializes the Tensor Model parallel MLP PromptEncoderMLP module.
@@ -308,7 +299,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.first = ColumnParallelLinear(
             self.embedding_dim,
             self.bottleneck_dim,
-            config=config,
+            config=model_parallel_config,
             gather_output=False,
             init_method=init_method_normal(init_std),
             skip_bias_add=True,
@@ -317,7 +308,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.second = RowParallelLinear(
             self.bottleneck_dim,
             self.output_dim,
-            config=config,
+            config=model_parallel_config,
             input_is_parallel=True,
             init_method=init_method_normal(init_std),
             skip_bias_add=True,
