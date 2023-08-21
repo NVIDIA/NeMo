@@ -531,6 +531,9 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
         else:
             logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
+        if cfg.model.get('use_am_tokenizer', False):
+            model.tokenizer = audio_model.tokenizer
+            logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
         return model
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
