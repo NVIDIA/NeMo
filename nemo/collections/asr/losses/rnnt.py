@@ -37,7 +37,15 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTLossPytorch
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.neural_types import (
+    LabelsType,
+    LengthsType,
+    LogprobsType,
+    LossType,
+    NeuralType,
+    SpectrogramType,
+    VoidType,
+)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
@@ -58,7 +66,7 @@ except (ImportError, ModuleNotFoundError):
     NUMBA_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.k2.graph_transducer import GraphRnntLoss
+    from nemo.collections.asr.parts.k2.graph_transducer import GraphRnntLoss, GraphFactorizedTransducerMSELoss
     from nemo.collections.asr.parts.k2.w_transducer import GraphWTransducerLoss
 
     K2_AVAILABLE = True
@@ -152,6 +160,13 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.0',
         is_available=True,
         installation_msg="Pure Pytorch implementation of TDT loss. Slow and for debugging purposes only.",
+    ),
+    "graph_mse": RNNTLossConfig(
+        loss_name="graph_mse",
+        lib_name="k2",
+        is_available=K2_AVAILABLE,
+        installation_msg=K2_INSTALLATION_MESSAGE,
+        force_float32=False,
     ),
 }
 
@@ -322,6 +337,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
     elif loss_name == "graph_w_transducer":
         loss_kwargs = _clean_kwargs(loss_name, loss_kwargs, GraphWTransducerLoss.__init__, ignore_params={"blank"})
         loss_func = GraphWTransducerLoss(blank=blank_idx, **loss_kwargs)
+    elif loss_name == "graph_mse":
+        loss_kwargs = _clean_kwargs(loss_name, loss_kwargs, GraphFactorizedTransducerMSELoss.__init__)
+        loss_func = GraphFactorizedTransducerMSELoss(**loss_kwargs)
     else:
         raise ValueError(
             f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
@@ -500,6 +518,93 @@ class RNNTLoss(Loss):
         # del new variables that may have been created
         del (
             log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+        )
+
+        return loss
+
+
+class RNNTLossMse(RNNTLoss):
+    def __init__(self, num_classes, reduction: str = 'mean_batch', loss_name: str = "default", loss_kwargs=None):
+        assert loss_name in {
+            "graph_mse",
+        }
+        super().__init__(num_classes, reduction=reduction, loss_name=loss_name, loss_kwargs=loss_kwargs)
+
+    @property
+    def input_types(self):
+        return {
+            "blank_logits": NeuralType(('B', 'T', 'U'), VoidType()),
+            "predictions": NeuralType(('B', 'T', 'U', 'C'), VoidType()),
+            "targets": NeuralType(('B', 'U', 'C'), VoidType()),
+            "input_lengths": NeuralType(tuple('B'), LengthsType()),
+            "target_lengths": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    # @typecheck()
+    def forward(self, blank_logits, predictions, targets, input_lengths, target_lengths):
+        # Cast to int 64
+        input_lengths = input_lengths.long()
+        target_lengths = target_lengths.long()
+
+        max_logit_len = input_lengths.max()
+        max_targets_len = target_lengths.max()
+
+        # Force cast joint to float32
+        if not self._force_float32 and numba_utils.is_numba_cuda_fp16_supported():
+            # Execute the kernel in fp16
+            pass
+        elif self._force_float32 and (predictions.dtype != torch.float32 or blank_logits.dtype != torch.float32):
+            # Log just once if fp16 tensor was passed and fp16 Numba CUDA loss could not be used.
+
+            # Upcast the activation tensor and compute loss and grads in fp32
+            predictions = predictions.float()
+            blank_logits = blank_logits.float()
+
+        # Ensure that shape mismatch does not occur due to padding
+        # Due to padding and subsequent downsampling, it may be possible that
+        # max sequence length computed does not match the actual max sequence length
+        # of the log_probs tensor, therefore we increment the input_lengths by the difference.
+        # This difference is generally small.
+        if predictions.shape[1] != max_logit_len:
+            predictions = predictions.narrow(dim=1, start=0, length=max_logit_len).contiguous()
+        if blank_logits.shape[1] != max_logit_len:
+            blank_logits = blank_logits.narrow(dim=1, start=0, length=max_logit_len).contiguous()
+
+        # Reduce transcript length to correct alignment if additional padding was applied.
+        # Transcript: [B, L] -> [B, L']; If L' < L
+        if not targets.is_contiguous():
+            targets = targets.contiguous()
+
+        if targets.shape[1] != max_targets_len:
+            targets = targets.narrow(dim=1, start=0, length=max_targets_len).contiguous()
+
+        # Temporarily override loss reduction
+        loss_reduction = self._loss.reduction
+        self._loss.reduction = None
+
+        # Compute RNNT loss
+        loss = self._loss(
+            blank_logits=blank_logits,
+            predictions=predictions,
+            targets=targets,
+            logits_lengths=input_lengths,
+            target_lengths=target_lengths,
+        )
+
+        # Loss reduction can be dynamic, so reset it after call
+        self._loss.reduction = loss_reduction
+
+        # reduce here using our own reduction function
+        if self.reduction is not None:
+            loss = self.reduce(loss, target_lengths)
+
+        # del new variables that may have been created
+        del (
+            blank_logits,
+            predictions,
             targets,
             input_lengths,
             target_lengths,

@@ -490,14 +490,19 @@ class GraphRnntLoss(GraphTransducerLossBase):
 
 class GraphFactorizedTransducerMSELoss(GraphRnntLoss):
     def __init__(
-        self, clamp_prob=1e-20, use_grid_implementation=True, connect_composed=False, double_scores=False, cast_to_float32=False,
+        self,
+        clamp_prob=1e-20,
+        use_grid_implementation=True,
+        connect_composed=False,
+        double_scores=False,
+        cast_to_float32=False,
     ):
         super().__init__(
             blank=0,  # force 0 for graphs; forward takes blank logits separately
             use_grid_implementation=use_grid_implementation,
             connect_composed=connect_composed,
             double_scores=double_scores,
-            cast_to_float32=cast_to_float32
+            cast_to_float32=cast_to_float32,
         )
         self.clamp_prob = clamp_prob
 
@@ -525,7 +530,9 @@ class GraphFactorizedTransducerMSELoss(GraphRnntLoss):
                         torch.zeros(batch_size, 1, num_features, device=predictions.device, dtype=predictions.dtype),
                     ),
                     dim=1,
-                ).unsqueeze(1).expand(-1, enc_max_length, -1, -1),
+                )
+                .unsqueeze(1)
+                .expand(-1, enc_max_length, -1, -1),
                 reduction="none",
             ).mean(dim=-1)
             log_scores_logits = -mse_loss_framewise  # reinterpret as logprob
