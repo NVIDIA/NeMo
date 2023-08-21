@@ -29,12 +29,11 @@ from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.cv.data import video_to_text_dataset
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import VideoSignal, LabelsType, LengthsType, LogprobsType, NeuralType
+from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, NeuralType, VideoSignal
 from nemo.utils import logging
-
-from nemo.collections.cv.data import video_to_text_dataset
 
 __all__ = ['VisualEncDecCTCModel']
 
@@ -347,7 +346,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             local_rank=self.local_rank,
             global_rank=self.global_rank,
             world_size=self.world_size,
-            preprocessor_cfg=self._cfg.get("preprocessor", None)
+            preprocessor_cfg=self._cfg.get("preprocessor", None),
         )
 
         if dataset is None:
@@ -470,10 +469,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         }
 
     @typecheck()
-    def forward(
-        self, 
-        input_video_signal=None, input_video_signal_length=None
-    ):
+    def forward(self, input_video_signal=None, input_video_signal_length=None):
         """
         Forward pass of the model.
 
@@ -491,13 +487,20 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         """
 
         # Preprocessing
-        processed_video_signal, processed_video_signal_length = self.video_preprocessor(input_signal=input_video_signal, length=input_video_signal_length)
+        processed_video_signal, processed_video_signal_length = self.video_preprocessor(
+            input_signal=input_video_signal, length=input_video_signal_length
+        )
 
         # Augmentation
-        processed_video_signal = self.video_augmentation(input_signal=processed_video_signal, length=processed_video_signal_length)
+        processed_video_signal = self.video_augmentation(
+            input_signal=processed_video_signal, length=processed_video_signal_length
+        )
 
         # Front-end Networks
-        processed_video_signal, processed_video_signal_length = self.video_front_end(input_signal=processed_video_signal), processed_video_signal_length
+        processed_video_signal, processed_video_signal_length = (
+            self.video_front_end(input_signal=processed_video_signal),
+            processed_video_signal_length,
+        )
 
         # Back-end Networks
         encoder_output = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)

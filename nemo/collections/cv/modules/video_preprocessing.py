@@ -1,8 +1,10 @@
-from nemo.collections.cv.modules import Permute
-from nemo.core.classes import  NeuralModule, typecheck
-import torchvision
 import torch
+import torchvision
 from torch import nn
+
+from nemo.collections.cv.modules import Permute
+from nemo.core.classes import NeuralModule, typecheck
+
 
 class VideoPreprocessor(NeuralModule):
 
@@ -35,19 +37,21 @@ class VideoPreprocessor(NeuralModule):
         self.transforms.append(torchvision.transforms.ConvertImageDtype(dtype=torch.float32))
 
         # Convert Channels First
-        self.transforms.append(Permute(dims=(0, 4, 1, 2, 3))) # (B, T, H, W, C) -> (B, C, T, H, W)
+        self.transforms.append(Permute(dims=(0, 4, 1, 2, 3)))  # (B, T, H, W, C) -> (B, C, T, H, W)
 
         # Resize
         if self.resize:
-            self.transforms.append(ResizeVideo(self.resize_size)) # (B, C, T, H, W) -> (B, C, T, H', W')
+            self.transforms.append(ResizeVideo(self.resize_size))  # (B, C, T, H, W) -> (B, C, T, H', W')
 
         # Grayscale
         if self.grayscale:
-            self.transforms.append(nn.Sequential(
-                Permute(dims=(0, 2, 1, 3, 4)), # (B, C, T, H, W) -> (B, T, C, H, W)
-                torchvision.transforms.Grayscale(),
-                Permute(dims=(0, 2, 1, 3, 4)) # (B, T, C, H, W) -> (B, C, T, H, W)
-            ))
+            self.transforms.append(
+                nn.Sequential(
+                    Permute(dims=(0, 2, 1, 3, 4)),  # (B, C, T, H, W) -> (B, T, C, H, W)
+                    torchvision.transforms.Grayscale(),
+                    Permute(dims=(0, 2, 1, 3, 4)),  # (B, T, C, H, W) -> (B, C, T, H, W)
+                )
+            )
 
         # Normalize
         if self.normalize:
@@ -62,13 +66,17 @@ class VideoPreprocessor(NeuralModule):
 
         return input_signal, length
 
-class NormalizeVideo(NeuralModule):
 
+class NormalizeVideo(NeuralModule):
     def __init__(self, mean, std):
         super().__init__()
 
-        self.register_buffer("mean", torch.tensor(mean, dtype=torch.float32).reshape(len(mean), 1, 1, 1), persistent=False)
-        self.register_buffer("std", torch.tensor(std, dtype=torch.float32).reshape(len(std), 1, 1, 1), persistent=False)
+        self.register_buffer(
+            "mean", torch.tensor(mean, dtype=torch.float32).reshape(len(mean), 1, 1, 1), persistent=False
+        )
+        self.register_buffer(
+            "std", torch.tensor(std, dtype=torch.float32).reshape(len(std), 1, 1, 1), persistent=False
+        )
 
     def forward(self, x):
 
@@ -76,8 +84,8 @@ class NormalizeVideo(NeuralModule):
 
         return x
 
-class ResizeVideo(NeuralModule):
 
+class ResizeVideo(NeuralModule):
     def __init__(self, size):
         super().__init__()
 

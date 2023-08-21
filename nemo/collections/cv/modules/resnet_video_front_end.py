@@ -1,7 +1,9 @@
-from nemo.core.classes.module import NeuralModule
-from nemo.collections.cv.modules.resnet import ResNet
-from torch import nn
 import torch
+from torch import nn
+
+from nemo.collections.cv.modules.resnet import ResNet
+from nemo.core.classes.module import NeuralModule
+
 
 class ResNetVideoFrontEnd(NeuralModule):
     """
@@ -22,11 +24,13 @@ class ResNetVideoFrontEnd(NeuralModule):
         super(ResNetVideoFrontEnd, self).__init__()
 
         self.front_end = nn.Sequential(
-            nn.Conv3d(in_channels=in_channels, out_channels=64, kernel_size=(5, 7, 7), stride=(1, 2, 2), padding=(2, 3, 3)),
+            nn.Conv3d(
+                in_channels=in_channels, out_channels=64, kernel_size=(5, 7, 7), stride=(1, 2, 2), padding=(2, 3, 3)
+            ),
             nn.BatchNorm3d(num_features=64),
             nn.ReLU(),
             nn.MaxPool3d(kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1)),
-            ResNet(include_stem=False, dim_output=dim_output, model=model)
+            ResNet(include_stem=False, dim_output=dim_output, model=model),
         )
 
         self.out_channels_first = out_channels_first

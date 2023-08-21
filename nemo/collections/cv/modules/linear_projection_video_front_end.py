@@ -1,6 +1,8 @@
-from nemo.core.classes.module import NeuralModule
-from torch import nn
 import torch
+from torch import nn
+
+from nemo.core.classes.module import NeuralModule
+
 
 class LinearProjectionVideoFrontEnd(NeuralModule):
 
@@ -22,7 +24,16 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
     
     """
 
-    def __init__(self, in_channels=1, in_height=88, in_width=88, dim_output=512, out_channels_first=True, circle_crop=False, circle_radius=1.0):
+    def __init__(
+        self,
+        in_channels=1,
+        in_height=88,
+        in_width=88,
+        dim_output=512,
+        out_channels_first=True,
+        circle_crop=False,
+        circle_radius=1.0,
+    ):
         super(LinearProjectionVideoFrontEnd, self).__init__()
 
         self.out_channels_first = out_channels_first
@@ -46,10 +57,10 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
 
         """ return image indices inside circle of radius circle_radius """
 
-        # Create linspace 
+        # Create linspace
         linspace_height = (torch.linspace(0, 2, steps=self.in_height) - 1).abs()
         linspace_width = (torch.linspace(0, 2, steps=self.in_width) - 1).abs()
-        
+
         # Repeat linspace along height/width
         linspace_height = linspace_height.unsqueeze(dim=-1).repeat(1, self.in_width).flatten()
         linspace_width = linspace_width.repeat(self.in_height)
@@ -67,7 +78,7 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
         # Permute (B, C, T, H, W) -> (B, T, H, W, C)
         input_signal = input_signal.permute(0, 2, 3, 4, 1)
 
-        # Circle Crop 
+        # Circle Crop
         if self.circle_crop:
 
             # Flatten height, width (B, T, H, W, C) -> (B, T, H*W, C)
@@ -81,7 +92,7 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
 
         # Flatten height, width and channels (B, T, H, W, C) -> (B, T, N)
         else:
-             input_signal = input_signal.flatten(start_dim=2, end_dim=-1)
+            input_signal = input_signal.flatten(start_dim=2, end_dim=-1)
 
         # Project (B, T, N) -> (B, T, Dout)
         input_signal = self.linear_proj(input_signal)

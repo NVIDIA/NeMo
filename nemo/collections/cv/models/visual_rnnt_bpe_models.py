@@ -20,11 +20,11 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.cv.data import video_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
-from nemo.collections.cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.cv.data import video_to_text_dataset
+from nemo.collections.cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 

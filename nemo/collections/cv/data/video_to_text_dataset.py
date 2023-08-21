@@ -8,9 +8,8 @@ from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text
-from nemo.utils import logging
-
 from nemo.collections.cv.data import video_to_text
+from nemo.utils import logging
 
 
 def get_video_to_text_bpe_dataset_from_config(
@@ -69,11 +68,7 @@ def get_video_to_text_bpe_dataset_from_config(
             raise Exception("get_concat_tarred_dataset method not implemented")
         else:
             dataset = get_tarred_dataset(
-                config=config,
-                tokenizer=tokenizer,
-                shuffle_n=shuffle_n,
-                global_rank=global_rank,
-                world_size=world_size
+                config=config, tokenizer=tokenizer, shuffle_n=shuffle_n, global_rank=global_rank, world_size=world_size
             )
     else:
         if 'manifest_filepath' in config and config['manifest_filepath'] is None:
@@ -82,11 +77,9 @@ def get_video_to_text_bpe_dataset_from_config(
         if is_concat:
             raise Exception("get_concat_bpe_dataset method not implemented")
         else:
-            dataset = get_bpe_dataset(
-                config=config, 
-                tokenizer=tokenizer
-            )
+            dataset = get_bpe_dataset(config=config, tokenizer=tokenizer)
     return dataset
+
 
 def get_video_to_text_char_dataset_from_config(
     config, local_rank: int, global_rank: int, world_size: int, preprocessor_cfg: Optional[DictConfig] = None
@@ -138,10 +131,7 @@ def get_video_to_text_char_dataset_from_config(
             raise Exception("get_concat_tarred_dataset method not implemented")
         else:
             dataset = get_tarred_dataset(
-                config=config,
-                shuffle_n=shuffle_n,
-                global_rank=global_rank,
-                world_size=world_size,
+                config=config, shuffle_n=shuffle_n, global_rank=global_rank, world_size=world_size,
             )
     else:
         if 'manifest_filepath' in config and config['manifest_filepath'] is None:
@@ -153,9 +143,8 @@ def get_video_to_text_char_dataset_from_config(
             dataset = get_char_dataset(config=config)
     return dataset
 
-def get_bpe_dataset(
-    config: dict, tokenizer: 'TokenizerSpec'
-) -> video_to_text.VideoToBPEDataset:
+
+def get_bpe_dataset(config: dict, tokenizer: 'TokenizerSpec') -> video_to_text.VideoToBPEDataset:
     """
     Instantiates a Byte Pair Encoding / Word Piece Encoding based VideoToBPEDataset.
 
@@ -179,6 +168,7 @@ def get_bpe_dataset(
         channel_selector=config.get('channel_selector', None),
     )
     return dataset
+
 
 def get_char_dataset(config: dict) -> video_to_text.VideoToCharDataset:
     """
@@ -210,12 +200,9 @@ def get_char_dataset(config: dict) -> video_to_text.VideoToCharDataset:
     )
     return dataset
 
+
 def get_tarred_dataset(
-    config: dict,
-    shuffle_n: int,
-    global_rank: int,
-    world_size: int,
-    tokenizer: Optional['TokenizerSpec'] = None,
+    config: dict, shuffle_n: int, global_rank: int, world_size: int, tokenizer: Optional['TokenizerSpec'] = None,
 ) -> video_to_text.TarredVideoToBPEDataset:
     """
     Instantiates a Word Piece/BPE Encoding based TarredVideoToBPEDataset or a char based TarredVideoToCharDataset.
@@ -285,6 +272,7 @@ def get_tarred_dataset(
 
     return get_chain_dataset(datasets=datasets, ds_config=config)
 
+
 def convert_to_config_list(initial_list):
     if type(initial_list) is str:
         initial_list = initial_list.split(",")
@@ -301,6 +289,7 @@ def convert_to_config_list(initial_list):
     if type(initial_list[0]) is not ListConfig:
         initial_list = ListConfig([initial_list])
     return initial_list
+
 
 def get_chain_dataset(datasets, ds_config):
     if len(datasets) > 1:
@@ -331,6 +320,7 @@ def get_chain_dataset(datasets, ds_config):
         raise ValueError(
             f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are [fixed_order, fully_randomized, synced_randomized].'
         )
+
 
 def calc_bucketing_batch_sizes(ds_config, datasets_len):
     bucketing_batch_size = ds_config['bucketing_batch_size']

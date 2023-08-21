@@ -1,7 +1,9 @@
-from torch import nn
-from torch.nn.common_types import _size_2_t
 from typing import Union
+
+from torch import nn
 from torch.nn import init
+from torch.nn.common_types import _size_2_t
+
 
 class Conv2d(nn.Conv2d):
 
@@ -26,23 +28,22 @@ class Conv2d(nn.Conv2d):
         padding_mode: str = 'zeros',
         device=None,
         dtype=None,
-
         weight_init: str = "default",
-        bias_init: str = "default"
+        bias_init: str = "default",
     ):
-        
+
         super(Conv2d, self).__init__(
-            in_channels=in_channels, 
-            out_channels=out_channels, 
-            kernel_size=kernel_size, 
-            stride=stride, 
-            padding=padding, 
-            dilation=dilation, 
-            groups=groups, 
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
             bias=bias,
             padding_mode=padding_mode,
             device=device,
-            dtype=dtype
+            dtype=dtype,
         )
 
         # Weight Init

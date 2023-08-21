@@ -25,17 +25,17 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.cv.data import video_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.cv.data import video_to_text_dataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AcousticEncodedRepresentation, VideoSignal, LengthsType, NeuralType
+from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, VideoSignal
 from nemo.utils import logging
 
 
@@ -560,7 +560,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         return {
             "input_signal": NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal(), optional=True),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True)
+            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -571,10 +571,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         }
 
     @typecheck()
-    def forward(
-        self, 
-        input_signal=None, input_signal_length=None
-    ):
+    def forward(self, input_signal=None, input_signal_length=None):
         """
         Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
         and this method only performs the first step - forward of the acoustic/visual model.
@@ -600,13 +597,20 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         """
 
         # Preprocessing
-        processed_video_signal, processed_video_signal_length = self.video_preprocessor(input_signal=input_signal, length=input_signal_length)
+        processed_video_signal, processed_video_signal_length = self.video_preprocessor(
+            input_signal=input_signal, length=input_signal_length
+        )
 
         # Augmentation
-        processed_video_signal = self.video_augmentation(input_signal=processed_video_signal, length=processed_video_signal_length)
+        processed_video_signal = self.video_augmentation(
+            input_signal=processed_video_signal, length=processed_video_signal_length
+        )
 
         # Front-end Networks
-        processed_video_signal, processed_video_signal_length = self.video_front_end(input_signal=processed_video_signal), processed_video_signal_length
+        processed_video_signal, processed_video_signal_length = (
+            self.video_front_end(input_signal=processed_video_signal),
+            processed_video_signal_length,
+        )
 
         # Back-end Networks
         encoded, encoded_len = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)
