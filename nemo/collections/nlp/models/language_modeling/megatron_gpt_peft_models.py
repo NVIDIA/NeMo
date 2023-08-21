@@ -79,7 +79,10 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                             peft_cfg = self.name_key_to_cfg[peft_key]
                             if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                                 module.add_adapter(
-                                    name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config,
+                                    name=peft_key,
+                                    cfg=peft_cfg,
+                                    base_model_cfg=self.cfg,
+                                    model_parallel_config=self.model_parallel_config,
                                 )
             else:
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
@@ -87,7 +90,10 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                         peft_cfg = self.name_key_to_cfg[peft_key]
                         if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                             module.add_adapter(
-                                name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
+                                name=peft_key,
+                                cfg=peft_cfg,
+                                base_model_cfg=self.cfg,
+                                model_parallel_config=self.model_parallel_config
                             )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
@@ -124,7 +130,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix="model.")
+            return self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
@@ -177,9 +183,15 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
         if self.mcore_gpt:
-            layers = self.model.decoder.layers
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.decoder.layers
+            else:
+                layers = self.model.decoder.layers
         else:
-            layers = self.model.language_model.encoder.layers
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.language_model.encoder.layers
+            else:
+                layers = self.model.language_model.encoder.layers
         for layer in layers:
             if layer.layer_number in self.layer_selection:
                 for name, module in layer.named_modules():
@@ -205,7 +217,10 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                                     in module.get_accepted_adapter_types()
                                 ):
                                     module.add_adapter(
-                                        name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
+                                        name=peft_key,
+                                        cfg=peft_cfg,
+                                        base_model_cfg=self.cfg,
+                                        model_parallel_config=self.model_parallel_config
                                     )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
@@ -371,9 +386,10 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # for Float16Model models
-                "model.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # non-mcore O1
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # non-mcore O2
+                "model.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # mcore O1
+                "model.module.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # mcore O2
             ]
         )
         # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)
@@ -402,7 +418,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             # there should be no params in the state_dict
             return {}
         else:
-            return self.model.state_dict(prefix="model.")
+            return self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """ 
