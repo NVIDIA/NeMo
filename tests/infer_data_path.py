@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-def get_infer_test_data(self):
+def get_infer_test_data():
     test_data = {}
 
     test_data["GPT-843M-base"] = {}
