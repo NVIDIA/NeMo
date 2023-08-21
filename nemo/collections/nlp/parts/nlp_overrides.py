@@ -273,7 +273,10 @@ class NLPDDPStrategy(DDPStrategy):
         """
 
         # check if using distributed checkpointing
-        if hasattr(self.lightning_module, 'sharded_state_dict') and self.lightning_module.sharded_state_dict() is not None:
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
             # converts the optimizer states to their sharded equivalents
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
@@ -294,7 +297,10 @@ class NLPDDPStrategy(DDPStrategy):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
-        if hasattr(self.lightning_module, 'sharded_state_dict') and self.lightning_module.sharded_state_dict() is not None:
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
             return
 
         # legacy state dict logic, does not use megatron core
@@ -346,7 +352,10 @@ class NLPDDPStrategy(DDPStrategy):
             raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
 
         # Check if using distributed checkpointing
-        if hasattr(self.lightning_module, 'sharded_state_dict') and self.lightning_module.sharded_state_dict() is not None:
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
 
             # Distributed checkpoints must be directories.
             if not fs.isdir(checkpoint_path):
@@ -374,7 +383,10 @@ class NLPDDPStrategy(DDPStrategy):
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
-        if hasattr(self.lightning_module, 'sharded_state_dict') and self.lightning_module.sharded_state_dict() is not None:
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
             if self.is_global_zero:
                 shutil.rmtree(ckpt_to_dir(filepath))
 
