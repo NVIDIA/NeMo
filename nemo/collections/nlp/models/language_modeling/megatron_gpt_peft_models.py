@@ -69,7 +69,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                     peft_cfg = self.name_key_to_cfg[peft_key]
                     if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
-                            name=peft_key, cfg=peft_cfg, base_model_cfg=self.cfg
+                            name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
                         )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True

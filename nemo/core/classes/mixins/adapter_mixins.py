@@ -153,7 +153,7 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
-    def add_adapter(self, name: str, cfg: DictConfig, base_model_cfg: Optional[DictConfig] = None):
+    def add_adapter(self, name: str, cfg: DictConfig, **kwargs):
         """
         Add an Adapter module to this module.
 
@@ -216,7 +216,7 @@ class AdapterModuleMixin(ABC):
         # Update internal config and instantiate the Adapter module
         with open_dict(cfg), open_dict(self.adapter_cfg):
             adapter_enabled = cfg.pop('enabled', True)
-            self.adapter_layer[adapter_name] = instantiate(cfg)
+            self.adapter_layer[adapter_name] = instantiate(cfg, **kwargs)
 
             # (guyueh1) when the base model has megatron_amp_O2==True, the base model is cast to half/bf16 
             # But the adapters are injected after base model initialization and are not cast. 
