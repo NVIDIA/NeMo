@@ -278,7 +278,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             )
             output_tensor = output_tensor.contiguous()
 
-            if self.trainer.global_step % 50 == 0:
+            if self.trainer.global_step % 100 == 0:
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
@@ -577,9 +577,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             dec_input = dec_input_raw * 1
             dec_input_mask = dec_input_mask_raw * 1
             dec_input_mask[:,:] = 1 # Does not really matter
-            
             output_token_list = []
-
+            
             for t in range(labels.shape[2]-1):
                 print("Batch:{} Timestep:{}".format(batch_idx, t))
                 dec_input[:, :, t+1:] = self.tokenizer.pad_id # Not necessary, but just to be safe
@@ -589,7 +588,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 output_tokens = output_logits.argmax(dim=2) # (B,T,8)
                 output_tokens_curr_timestep = output_tokens[:, t]
                 output_token_list.append(output_tokens_curr_timestep) #for later predicting audio
-                dec_input[:, :, t+1] = output_tokens_curr_timestep * 1
+                dec_input_next_timestep = output_tokens_curr_timestep * 1 # (B,8)
+                dec_input_next_timestep[:,0] = dec_input_next_timestep[:,0] + self.speech_offset # add offset to first codebook
+                dec_input[:, :, t+1] = dec_input_next_timestep * 1
             
             output_tokens_combined = torch.stack(output_token_list) # (T, B, 8)
             output_tokens_combined = output_tokens_combined.permute(1, 2, 0) # (B, 8, T)

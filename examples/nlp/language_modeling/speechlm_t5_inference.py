@@ -73,7 +73,8 @@ def main(cfg) -> None:
     
     # checkpoint_path = "/home/shehzeenh/Code/NeMo/nemo_experiments/p_tuning_squad_t5/checkpoints/Step34770.ckpt"
     # checkpoint_path = "/Data/Experiments/full_data_tts/p_tuning_squad_t5/checkpoints/Step46794.ckpt"
-    checkpoint_path = "/Data/Experiments/full_data_tts/p_tuning_squad_t5/checkpoints/Step100k.ckpt"
+    # checkpoint_path = "/Data/Experiments/full_data_tts/p_tuning_squad_t5/checkpoints/Step100k.ckpt"
+    checkpoint_path = "/Data/Experiments/NewDatasetClass1536/p_tuning_squad_t5/checkpoints/newdatasetclass_full.ckpt"
     # checkpoint_path = "/Data/Checkpoints/subhankar/checkpoints/Step100000.ckpt"
     model = MegatronT5SpeechLMModel.load_from_checkpoint(checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model)
     model.eval()
