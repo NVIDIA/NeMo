@@ -171,6 +171,8 @@ class TranscriptionConfig:
     # if True, will also skip writing anything to the output file
     return_transcriptions: bool = False
 
+    # Set to False to return text instead of hypotheses, so as to save memory
+    return_hypotheses: bool = True
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis]]:
@@ -228,8 +230,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
-    # collect additional transcription information
-    return_hypotheses = True
+    # collect additional transcription information when requested
+    return_hypotheses = cfg.return_hypotheses
 
     # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
