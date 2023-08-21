@@ -961,6 +961,7 @@ class CoreAttention(MegatronModule):
         query_layer = _cast_if_autocast_enabled(query_layer)
         key_layer = _cast_if_autocast_enabled(key_layer)
         value_layer = _cast_if_autocast_enabled(value_layer)
+        attention_mask = _cast_if_autocast_enabled(attention_mask)
         attention_bias = _cast_if_autocast_enabled(attention_bias)
 
         if attention_bias is not None:
