@@ -140,7 +140,7 @@ def get_computeprob_response(tokenizer, response, inputs):
                 token_len = len(new_token_id)
             elif isinstance(inputs[0], torch.Tensor):
                 token_len = int(inputs[1][batch_id].item())
-                new_token_id = inputs[0][batch_id][:token_len].tolist()
+                new_token_id = inputs[0][batch_id][:token_len].abs().tolist()
                 new_text = tokenizer.ids_to_text(new_token_id)
         new_token_ids.append(new_token_id)
         new_tokens.append(response['tokens'][batch_id][:token_len])
@@ -184,7 +184,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
        This function has been mostly taken from huggingface conversational
          ai code at
          https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313 
+              conversational-ai-with-transfer-learning-2d818ac26313
 
         @param logits: logits tensor
         @param top_k: keep only top k tokens with highest probability
@@ -227,7 +227,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper 
+    """ Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:
@@ -629,6 +629,9 @@ def sample_sequence_batch(
     with torch.no_grad():
         context_length = context_lengths.min().item()
         inference_strategy.init_batch(context_tokens, context_lengths)
+        # Convert context tokens to its absolute value after init_batch,
+        # where it may optionally use negative tokens to indicate the prefix.
+        context_tokens = context_tokens.abs()
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -790,6 +793,9 @@ def tab_sample_sequence_batch(
     with torch.no_grad():
         context_length = context_lengths.min().item()
         inference_strategy.init_batch(context_tokens, context_lengths)
+        # Convert context tokens to its absolute value after init_batch,
+        # where it may optionally use negative tokens to indicate the prefix.
+        context_tokens = context_tokens.abs()
         context = context_tokens[:, :context_length]
         # the context may start in the middle of the row,
         # calculate the offset according to the position of '\n' or '<|endoftext|>'
@@ -922,7 +928,7 @@ def sample_token_greedy(logits):
 
     Args:
         logits: [batch_size, vocab_size] - unnormalized log probabilities of the next token
-    
+
     Returns:
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids
@@ -942,7 +948,7 @@ def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=
         top_p: float - if > 0.0: only sample from a subset of candidates, where the cumulative probability
         temperature: float - temperature for sampling
         filter_value: float - value to set filtered tokens to
-    
+
     Returns:
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids

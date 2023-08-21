@@ -67,6 +67,7 @@ class UL2Dataset(T5Dataset):
         documents=None,
         skip_masking_id=None,
         sampling_probabilities={
+            'causal': 0,
             'r-masking': 0.33,  # T5-style masking with short spans and small probabilities.
             's-masking': 0.33,  # Prefix-LM with a pivot point sampled based on prefix_lm_pivot_mean
             'x-masking-longspan-smallprob': 0.11,  # Extreme span masking with small probabilities and large ngram sizes.
@@ -122,7 +123,7 @@ class UL2Dataset(T5Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length - 1,  # -1 to account for the added mask type token
+            max_seq_length=max_seq_length,  # do not need -1 even with the added mask type token due to causality
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
@@ -153,6 +154,7 @@ class UL2Dataset(T5Dataset):
         self.prefix_lm_pivot_distribution = prefix_lm_pivot_distribution
 
         self._normalize_sampling_probabilities()
+        self.causal_prob = sampling_probabilities['causal']
         self.r_masking_prob = sampling_probabilities['r-masking']
         self.s_masking_prob = sampling_probabilities['s-masking']
         self.x_masking_prob = sum(
@@ -365,6 +367,7 @@ class UL2Dataset(T5Dataset):
         np_rng = np.random.RandomState(seed=(self.seed + idx))
         masking_type = np_rng.choice(
             [
+                'causal',
                 'r-masking',
                 's-masking',
                 'x-masking-longspan-smallprob',
@@ -372,6 +375,7 @@ class UL2Dataset(T5Dataset):
                 'x-masking-shortspan-largeprob',
             ],
             p=[
+                self.causal_prob,
                 self.r_masking_prob,
                 self.s_masking_prob,
                 self.x_masking_longspan_smallprob,
@@ -381,7 +385,10 @@ class UL2Dataset(T5Dataset):
         )  # r: short span masking, x: extreme masking, s: prefix-LM
         # We delibrately create sequences with length equal to max_length + 1
         # Later this will be consumed when we make autoregressive predictions.
-        if masking_type == 'r-masking':
+        if masking_type == 'causal':
+            s2s_token = self.tokenizer.text_to_ids('<extra_id_s>')
+            example = {'text_enc': np.array(s2s_token, ), 'labels': sample[0]}
+        elif masking_type == 'r-masking':
             # Call T5's build training sample for regular short span masking.
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
             # target_seq_length = (
@@ -417,7 +424,6 @@ class UL2Dataset(T5Dataset):
             example['masking_type'] = masking_type
 
             # self.print_and_break(example)
-            return example
         elif masking_type == 's-masking':
             example = UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
@@ -433,8 +439,6 @@ class UL2Dataset(T5Dataset):
             example['masking_type'] = masking_type
 
             # self.print_and_break(example)
-
-            return example
         else:
             # Try to minimize the amount of padding based on the masking type for GPT models.
             # if masking_type == 'x-masking-longspan-smallprob':
@@ -484,7 +488,7 @@ class UL2Dataset(T5Dataset):
             example['masking_type'] = masking_type
 
             # self.print_and_break(example)
-            return example
+        return example
 
     @classmethod
     def _prepend_mask_type_token(cls, tokenizer, sample, token):
@@ -687,6 +691,7 @@ class UGPTDataset(UL2Dataset):
         documents=None,
         skip_masking_id=None,
         sampling_probabilities={
+            'causal': 0,
             'r-masking': 0.33,  # T5-style masking with short spans and small probabilities.
             's-masking': 0.33,  # Prefix-LM with a pivot point sampled based on prefix_lm_pivot_mean
             'x-masking-longspan-smallprob': 0.11,  # Extreme span masking with small probabilities and large ngram sizes.
@@ -749,8 +754,7 @@ class UGPTDataset(UL2Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length
-            + 1,  # +1 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
+            max_seq_length=max_seq_length + 1,  # +1 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
@@ -780,24 +784,30 @@ class UGPTDataset(UL2Dataset):
             force_sep_tokens=force_sep_tokens,
             use_v2_format=use_v2_format,
         )
+        # Reset max seq length to the actual length
+        self.max_seq_length = max_seq_length
         self.use_prefix_noncausal_mask = use_prefix_noncausal_mask
 
         # Restore MAX_SEQ_LENGTH_DELTA
         self.MAX_SEQ_LENGTH_DELTA = self.original_MAX_SEQ_LENGTH_DELTA
 
-    def print_and_break_final(self, example):
+    def print_and_break_final(self, example, orig_example):
         keys = ['tokens', 'labels']
-        for key in keys:
-            print(f"==========={key}==========")
-            tokens = example[key]
-            seg_ids = torch.cumsum(tokens==3, 0)
-            for i in range(seg_ids[-1].item() + 1):
-                doc = tokens[seg_ids == i]
-                text = self.tokenizer.ids_to_text(doc.long().cpu().numpy().tolist())
-                print("========================================")
-                print(i)
-                print(text)
-                print("========================================")
+        inputs = self.tokenizer.ids_to_text(orig_example['text_enc'])
+        targets = self.tokenizer.ids_to_text(example['labels'][example['loss_mask']==1].tolist())
+        print('====================== inputs:\n', inputs)
+        print('====================== targets:\n', targets)
+        # for key in keys:
+        #     print(f"==========={key}==========")
+        #     tokens = example[key]
+        #     seg_ids = torch.cumsum(tokens==3, 0)
+        #     for i in range(seg_ids[-1].item() + 1):
+        #         doc = tokens[seg_ids == i]
+        #         text = self.tokenizer.ids_to_text(doc.long().cpu().numpy().tolist())
+        #         print("========================================")
+        #         print(i)
+        #         print(text)
+        #         print("========================================")
         import pdb; pdb.set_trace()
 
     def __getitem__(self, idx):
@@ -808,6 +818,7 @@ class UGPTDataset(UL2Dataset):
         #     assert (example['labels'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in labels.'
         # Adapt the example to the UGPT format.
         tokens = np.concatenate([example['text_enc'], example['labels']])
+        # import pdb; pdb.set_trace()
         # if self.debug:
         #     import pdb; pdb.set_trace()
         inputs = tokens[:-1]
@@ -839,7 +850,7 @@ class UGPTDataset(UL2Dataset):
             'loss_mask': torch.FloatTensor(loss_mask),
             'position_ids': np.arange(len(inputs)),
         }
-        # self.print_and_break_final(ret_batch)
+        # self.print_and_break_final(ret_batch, example)
         if idx == 0:
             print("====================== Sanity check of input examples ==================")
             print(ret_batch)

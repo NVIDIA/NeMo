@@ -96,12 +96,17 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
     @classmethod
     def _add_sentinel_tokens(cls, tokenizer, num_sentinel_tokens, add_sentinel_tokens_in_reverse_order):
-        # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
+        # Special check to see if <extra_id_{}> is already present in the tokenizer.
+        # If it is, only modify the additional_special_tokens function.
         for i in range(num_sentinel_tokens):
             if add_sentinel_tokens_in_reverse_order:
                 i = num_sentinel_tokens - i - 1
-            if len(tokenizer.text_to_ids(f'<extra_id_{i}>')) == 1:
-                tokenizer.special_token_to_id[f'<extra_id_{i}>'] = tokenizer.text_to_ids(f'<extra_id_{i}>')[0]
+
+            # We need some special handling as even when <extra_id_0> is in the vocab, it will be encoded as something like [251490, 255000].
+            # Adding a known character in the beginning somehow avoids this issue. We choose the white space.
+            ids = tokenizer.text_to_ids(f' <extra_id_{i}>')
+            if len(ids) == 2:
+                tokenizer.special_token_to_id[f'<extra_id_{i}>'] = ids[1]
             else:
                 tokenizer.add_special_tokens([f'<extra_id_{i}>'])
 
@@ -116,11 +121,12 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         if not hasattr(tokenizer.tokenizer, 'mask_id'):
             tokenizer.add_special_tokens({'mask_token': '<mask>'})
 
-        # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
+        # # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
         if not hasattr(tokenizer, 'pad_token'):
             # TODO: Figure out how to do backward compat with pad_id > 0 and >= 0.
             if is_huggingface_converted_model:
                 if hasattr(tokenizer.tokenizer, 'pad_id') and tokenizer.tokenizer.pad_id() >= 0:
+                    # We don't build the mapping from pad text to id here to avoid potential issues with understanding the inputs.
                     tokenizer.pad_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.pad_id())
                 else:
                     tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -135,6 +141,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         if not hasattr(tokenizer, 'bos_token'):
             if hasattr(tokenizer.tokenizer, 'bos_id') and tokenizer.tokenizer.bos_id() > 0:
                 tokenizer.bos_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.bos_id())
+                tokenizer.special_token_to_id[tokenizer.bos_token] = tokenizer.tokenizer.bos_id()
             else:
                 tokenizer.add_special_tokens({'bos_token': '<bos>'})
         else:
@@ -143,6 +150,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         if not hasattr(tokenizer, 'eos_token'):
             if hasattr(tokenizer.tokenizer, 'eos_id') and tokenizer.tokenizer.eos_id() > 0:
                 tokenizer.eos_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.eos_id())
+                tokenizer.special_token_to_id[tokenizer.eos_token] = tokenizer.tokenizer.eos_id()
             else:
                 tokenizer.add_special_tokens({'eos_token': '<eos>'})
         else:
@@ -175,6 +183,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         if tokenizer_cfg.library == 'sentencepiece':
             # NOTE: This is an ugly way to support both NeMo-Megatron trained checkpoints and huggingface checkpoints.
             # Huggingface and Google checkpoints will add sentinel tokens first (right after the base vocabulary), but in NeMo-Megatron, we add <cls>, <sep>, <mask>, <pad>, <bos> etc. beofore sentinel tokens <extra_id_xx>.
+            print(tokenizer.vocab_size)
             if add_sentinel_tokens_first:
                 if tokenizer_cfg.get('num_sentinel_tokens', 0) > 0:
                     cls._add_sentinel_tokens(
@@ -192,10 +201,10 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
             if dataset_type == "ul2":
                 for mask_type in ['r', 's', 'x']:
-                    if len(tokenizer.text_to_ids(f'▁<extra_id_{mask_type}>')) == 1:
+                    if len(tokenizer.text_to_ids(f'▁<extra_id_{mask_type}>')) == 2:
                         tokenizer.special_token_to_id[f'<extra_id_{mask_type}>'] = tokenizer.text_to_ids(
-                            f'<extra_id_{mask_type}>'
-                        )[0]
+                            f'▁<extra_id_{mask_type}>'
+                        )[1]
                     else:
                         tokenizer.add_special_tokens([f'<extra_id_{mask_type}>'])
 
