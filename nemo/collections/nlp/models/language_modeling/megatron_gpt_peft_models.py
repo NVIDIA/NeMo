@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 
 
 class MegatronGPTPEFTModel(MegatronGPTSFTModel):
@@ -47,7 +48,10 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
             return self.model.pre_process
-        elif hasattr(self, "model") and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
+        elif hasattr(self, "model") and isinstance(self.model, Float16Module) \
+            and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
+            # (guyueh1): this if condition is used to handle amp O2
+            # when amp_O2 is on, self.model will be wrapped by the Float16Module class
             return self.model.module.pre_process
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
@@ -325,7 +329,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.trainable_keys = self.adapter_keys - set(
             [
                 "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # for Float16Model or BFloat16Model models
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # for Float16Model models
             ]
         )
         # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)
@@ -429,7 +433,7 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
     def setup_optimizer_param_groups(self):
         super().setup_optimizer_param_groups()
 
-        # This part is used to avoid adding frozen parameters in trainable adapter modules
+        # (guyueh1) This part is used to avoid adding frozen parameters in trainable adapter modules
         # in the setup_optimizer_param_groups() of the MegatronPEFTModel class, all parameters
         # in an adapter module are going to be set requires_grad=True. However in ptuning 
         # adapter the inference table should be untrainable. We explicitely set that parameter
