@@ -230,7 +230,15 @@ class DDPM(torch.nn.Module):
         self.register_buffer('lvlb_weights', lvlb_weights, persistent=False)
         assert not torch.isnan(self.lvlb_weights).all()
 
-    def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
+    def init_from_ckpt(
+        self,
+        path,
+        ignore_keys=list(),
+        only_model=False,
+        load_vae=True,
+        load_unet=False,
+        load_encoder=True,
+    ):
         pl_sd = torch.load(path, map_location="cpu")
         if "state_dict" in list(pl_sd.keys()):
             pl_sd = pl_sd["state_dict"]
@@ -253,6 +261,28 @@ class DDPM(torch.nn.Module):
                 if k.startswith(ik):
                     logging.info("Deleting key {} from state_dict.".format(k))
                     del sd[k]
+
+        if not load_vae:
+            keys = list(sd.keys())
+            for k in keys:
+                if k.startswith("first_stage_model"):
+                    logging.info("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+
+        if not load_encoder:
+            keys = list(sd.keys())
+            for k in keys:
+                if k.startswith("cond_stage_model"):
+                    logging.info("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+
+        if not load_unet:
+            keys = list(sd.keys())
+            for k in keys:
+                if k.startswith("model.diffusion_model"):
+                    logging.info("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+
         missing, unexpected = (
             self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
         )
