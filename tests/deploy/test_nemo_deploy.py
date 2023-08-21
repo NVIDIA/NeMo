@@ -19,6 +19,7 @@ import pytest
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
+from tests.infer_data_path import get_infer_test_data
 
 
 class TestNemoDeployment:
@@ -27,11 +28,11 @@ class TestNemoDeployment:
     def test_in_framework_pytriton(self):
         """Here we test the in framework inference deployment to triton"""
 
-        self._prep_test_data()
+        test_data = get_infer_test_data()
         test_at_least_one = False
         no_error = True
 
-        for model_name, model_info in self.test_data.items():
+        for model_name, model_info in test_data.items():
             if model_info["location"] == "HF":
                 self._download_nemo_checkpoint(
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
@@ -63,11 +64,11 @@ class TestNemoDeployment:
     def test_trt_llm_pytriton(self):
         """Here we test the in framework inference deployment to triton"""
 
-        self._prep_test_data()
+        test_data = get_infer_test_data()
         test_at_least_one = False
         no_error = True
 
-        for model_name, model_info in self.test_data.items():
+        for model_name, model_info in test_data.items():
             if model_info["location"] == "HF":
                 self._download_nemo_checkpoint(
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
