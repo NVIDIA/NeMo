@@ -18,8 +18,8 @@ export PYTHONPATH="/lustre/fsw/portfolios/adlr/users/chzhu/sources/NeMo_sandeeps
 python scripts/nlp_language_modeling/ul2/ul2_expand_output_vocab.py \
     --nemo_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M.nemo" \
     --tok_model="/lustre/fsw/portfolios/adlr/users/chzhu/vocabs_mappings/4ed3e39a0f5345e495899db3b0d3b96d_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" \
-    --num_sentinel_tokens=900 \
-    --out_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M_extras_900.nemo" \
+    --num_sentinel_tokens=2000 \
+    --out_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M_extras_2000_proper.nemo" \
     --alpha=0.5
 
 export PYTHONPATH="/lustre/fsw/portfolios/adlr/users/chzhu/sources/NeMo_sandeepsub_ul2:${PYTHONPATH}"
@@ -98,7 +98,11 @@ def parse_args():
 def update_model_config(tokenizer_cfg, config):
     # Update the tokenizer configs here.
     for key in tokenizer_cfg.keys():
-        config.tokenizer[key] = tokenizer_cfg[key]
+        if key == 'model':
+            # Model paths need to start with `nemo:` so that it won't be loaded as a global path.
+            config.tokenizer[key] = "nemo:" + tokenizer_cfg[key].split('/')[-1]
+        else:
+            config.tokenizer[key] = tokenizer_cfg[key]
     return config
 
 def build_tokenizer(args: argparse.Namespace):
