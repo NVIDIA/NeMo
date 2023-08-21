@@ -420,6 +420,21 @@ def unsynced_generate(
                 "min_tokens_to_generate": min_tokens_to_generate,
             },
         )
+    for tokens, lengths, output_logits, full_logits in batch_token_iterator:
+        context_length += 1
+    if compute_logprob:
+        precision = model._trainer.precision
+        if precision in [16, "16"]:
+            dtype = torch.float16
+        elif precision == "bf16":
+            dtype = torch.bfloat16
+        else:
+            dtype = torch.float32
+            
+    print("######## inside unsync")
+    import pdb; pdb.set_trace()
+    if tokens is not None:
+        return tokens[:, :context_length], output_logits, full_logits
 
     
     
@@ -632,6 +647,8 @@ def generate(
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
+        print("test unsynced generate")
+        import pdb; pdb.set_trace()
         output = unsynced_generate(
             model,
             inference_strategy,
@@ -736,8 +753,12 @@ def sample_sequence_batch(
 ):
     # Importing here to avoid circular import errors
 
+    import pdb; pdb.set_trace()
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
+    print("micro_batch_size: f{micro_batch_size}")
+    # TODO: check if this is needed for single gpu
+
     _reconfigure_microbatch_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
@@ -918,8 +939,14 @@ def unsynced_sample_sequence_batch(
 ):
     # Importing here to avoid circular import errors
 
+    print("######inference...")
+    import pdb; pdb.set_trace()
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
+
+    print("micro_batch_size: f{micro_batch_size}")
+    # TODO: check if this is needed for single gpu
+
     _reconfigure_microbatch_calculator(
         rank=app_state.global_rank,
         rampup_batch_size=None,
@@ -927,6 +954,7 @@ def unsynced_sample_sequence_batch(
         micro_batch_size=micro_batch_size,
         data_parallel_size=1,
     )
+
     assert (
         model.cfg.get('sequence_parallel', False) == False
     ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'

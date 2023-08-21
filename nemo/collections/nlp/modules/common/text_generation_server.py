@@ -166,7 +166,8 @@ class MegatronGenerate(Resource):
                 return "num of neighbors must be an integer no less than 0"
 
         with lock:  # Need to get lock to keep multiple threads from hitting code
-            MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
+            if torch.distributed.is_initialized():
+                MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
             if task_ids is not None:
                 extra['task_ids'] = task_ids
