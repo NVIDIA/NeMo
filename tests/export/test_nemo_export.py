@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from nemo.export import TensorRTLLM
-from tests.infer_data_path import get_infer_test_data
+from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 
 
 class TestNemoExport:
@@ -31,7 +31,7 @@ class TestNemoExport:
 
         for model_name, model_info in test_data.items():
             if model_info["location"] == "HF":
-                self._download_nemo_checkpoint(
+                download_nemo_checkpoint(
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
                 )
 
@@ -76,7 +76,7 @@ class TestNemoExport:
 
         for model_name, model_info in test_data.items():
             if model_info["location"] == "HF":
-                self._download_nemo_checkpoint(
+                download_nemo_checkpoint(
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
                 )
 
@@ -103,11 +103,3 @@ class TestNemoExport:
 
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
 
-    def _download_nemo_checkpoint(self, checkpoint_link, checkpoint_dir, checkpoint_path):
-        if not Path(checkpoint_path).exists():
-            print("Checkpoint: {0}, will be downloaded to {1}".format(checkpoint_link, checkpoint_path))
-            Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-            req.urlretrieve(checkpoint_link, checkpoint_path)
-            print("Checkpoint: {0}, download completed.".format(checkpoint_link))
-        else:
-            print("Checkpoint: {0}, has already been downloaded.".format(checkpoint_link))
