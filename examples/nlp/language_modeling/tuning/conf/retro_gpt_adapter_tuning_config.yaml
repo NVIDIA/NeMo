@@ -1,0 +1,192 @@
+defaults:
+  - .@model: megatron_model_base_config
+
+name: test_retro
+restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
+# restore_from_path: /dataset/retro/retro_1100m_final.nemo
+
+
+trainer:
+  devices: 4
+  num_nodes: 1
+  accelerator: gpu
+  precision: 16
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  max_epochs: 2 # PTL default. In practice we don't usually train for more than 1 epoch.
+  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 0.25
+  limit_val_batches: null
+  limit_test_batches: null
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+  resume_from_checkpoint: null
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: megatron_retro
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  resume_if_exists: False
+  create_tensorboard_logger: False
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    filename: 'megatron_retro--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    save_best_model: True
+  create_early_stopping_callback: True
+  early_stopping_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 20
+    verbose: True
+
+
+model:
+  # model parallelism 
+  micro_batch_size: 2
+  tensor_model_parallel_size: 4
+  pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
+
+  # model architecture
+  encoder_seq_length: 2048
+  max_position_embeddings: 2048
+
+  gradient_as_bucket_view: False # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+
+  dump_debug_info: False # dump out the debug information
+  dump_debug_info_to_file: False # dump out the debug information to files
+
+  # retro architecture
+  chunk_size: 64   # the chunk size used to retrive
+  enc_num_layers: 4    # total number of encoder layers
+  dec_num_layers: 6    # total number of decoder layers
+  enc_cross_attention: [3]    # layer numbers for cross attention in encoder
+  dec_cross_attention: [3, 5]    # layer numbers for chunked cross attention in decoder
+  add_position_embedding: True   # whether use the absolute position encoding
+
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+  bert_binary_head: True # BERT binary head
+
+  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  grad_allreduce_chunk_size_mb: 125
+
+  restore_from_path: "/dataset/retro/megatron_retro_converted_9B"
+  # restore_from_path: /dataset/retro/retro_1100m_final.nemo
+
+  eval: False
+  save_nemo_on_validation_end: True
+
+
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: null
+    merge_file: null 
+    delimiter: null # only used for tabular tokenizer
+
+  # precision
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+
+  # miscellaneous
+  seed: 1234
+
+  data:
+    train_ds: # landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted
+      file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
+      # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
+      # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
+      answer_only_loss: True  # whether use answer only loss
+      seq_length: 2048  # must be multiple of the chunk_size in your dataset
+      add_bos: False  # whether to add bos at the beginning 
+      add_eos: True  # whether to add eos at the end
+      seed: 1234
+      neighbors: 9  # number of retrieved neighbors
+    val_ds:
+      file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
+      # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
+      # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
+      answer_only_loss: True  # whether use answer only loss
+      seq_length: 2048  # must be multiple of the chunk_size in your dataset
+      add_bos: False  # whether to add bos at the beginning 
+      add_eos: True  # whether to add eos at the end
+      seed: 1234
+      neighbors: 9  # number of retrieved neighbors
+    test_ds:
+      file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+      # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
+      # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
+      answer_only_loss: True  # whether use answer only loss
+      seq_length: 2048  # must be multiple of the chunk_size in your dataset
+      add_bos: False  # whether to add bos at the beginning 
+      add_eos: True  # whether to add eos at the end
+      seed: 1234
+      neighbors: 9  # number of retrieved neighbors
+   
+    data_prefix: 
+      - /workspaces/research/downloaded/converted/piqa/piqa_text_document
+    knn_index: 
+      - /workspaces/research/downloaded/converted/piqa/knn_final_piqa.index
+      # - /dataset/mc4/c4_faiss_index.index  # list of KNN map index files
+      # - /dataset/pile/pile_index_final.index
+    retrieval_prefix: /workspaces/research/downloaded/converted/piqa/piqa_text_document # /dataset/retro_mc4_text_document/retro_mc4_text_document
+    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+    data_impl: retmmap   # for retro model, this is the only allowed type
+    splits_string: 100,250,650
+    seq_length: 2048  # must be multiple of the chunk_size in your dataset
+    skip_warmup: True
+    num_workers: 8
+    dataloader_type: single # cyclic
+    neighbors: 9  # number of retrieved neighbors
+
+    max_seq_length: 1024
+    retrieved_doc_length: 150
+
+  optim:
+    name: fused_adam
+    lr: 1e-4
+    weight_decay: 0.01 
+    betas: 
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      constant_steps: 0
+      min_lr: 1e-6
+
+
+  adapter_tuning:
+    type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
+    adapter_dim: 32
+    adapter_dropout: 0.1
+    norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+    column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
+
+    pre_decoder: True
+    post_decoder: True
+    encoder : True
+
+    pre_decoder_size: 16
+    post_decoder_size: 32
+    encoder_size: 64
+
+

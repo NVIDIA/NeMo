@@ -1,0 +1,92 @@
+inference:
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
+  top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+  top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+  temperature: 1.0 # sampling temperature
+  add_BOS: False # add the bos token at the begining of the prompt
+  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  all_probs: False  # whether return the log prob for all the tokens in vocab
+  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
+  compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
+  batch_size: 8
+
+trainer:
+  devices: 4
+  num_nodes: 1
+  accelerator: gpu
+  logger: False # logger provided by exp_manager
+  precision: 16 # 16, 32, or bf16
+
+tensor_model_parallel_size: 4
+micro_batch_size: 1
+pipeline_model_parallel_size: 1
+retro_model_file: null  # GPT nemo file path
+virtual_prompt_model_file: ??? # path to a MegatronGPTPromptLearningModel model if you want to use soft prompts
+pred_file_path: /workspaces/research/results/adapter_eval/test_inference.jsonl # Path will model predictions will be written
+# data_paths: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # paths to .jsonl files you want to perform inference on
+data_paths: /workspaces/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+num_workers: 4
+
+########### Faiss service parameters ########
+retrieval_service:
+  strategy: RetroQAModelNEIGHBORSREADYTextGenerationStrategy # RetroModelTextGenerationStrategy  # choose customized inference strategy 
+  neighbors: 8
+  retrieved_doc_len: 150
+  frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
+  pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
+  store_retrieved: False # whether store the retrieved documents, so it can be checked
+  combo_service:
+    service_ip: '0.0.0.0'
+    service_port: 17181 
+
+model:
+  adapter_tuning:
+    type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
+    adapter_dim: 50
+    adapter_dropout: 0.1
+    norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+    column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
+    norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
+
+
+  # restore_path: /workspaces/research/results/megatron_retro/2023-04-12_19-06-10/checkpoints/megatron_retro.nemo
+  # /workspaces/research/results/megatron_retro/2023-04-21_12-02-08/checkpoints/megatron_retro.nemo
+  # restore_path: /workspaces/research/playground/megatron_retro.nemo
+  # restore_path: /workspaces/research/results/megatron_retro/2023-05-01_09-29-39/checkpoints/megatron_retro.nemo
+  # original_model: /dataset/retro/megatron_retro_converted_9B
+
+  restore_path: /workspaces/research/results/megatron_retro/2023-07-06_13-13-11/checkpoints/megatron_retro--val_loss=0.69-step=438-consumed_samples=874.0.ckpt
+  original_model: /dataset/retro/megatron_retro_converted_9B
+
+  # restore_path: /dataset/retro/megatron_retro_test.nemo
+  # original_model: /dataset/retro/retro_1100m_final.nemo
+
+train_ds:
+  file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
+  # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
+  answer_only_loss: True  # whether use answer only loss
+  seq_length: 128  # must be multiple of the chunk_size in your dataset
+  add_bos: True  # whether to add bos at the beginning 
+  add_eos: True  # whether to add eos at the end
+  seed: 1234
+  neighbors: 8  # number of retrieved neighbors
+val_ds:
+  file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
+  # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
+  answer_only_loss: True  # whether use answer only loss
+  seq_length: 128  # must be multiple of the chunk_size in your dataset
+  add_bos: True  # whether to add bos at the beginning 
+  add_eos: True  # whether to add eos at the end
+  seed: 1234
+  neighbors: 8  # number of retrieved neighbors
+test_ds:
+  file_name: /dataset/lm_tasks/data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
+  # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
+  answer_only_loss: True  # whether use answer only loss
+  seq_length: 128  # must be multiple of the chunk_size in your dataset
+  add_bos: True  # whether to add bos at the beginning 
+  add_eos: True  # whether to add eos at the end
+  seed: 1234
+  neighbors: 8  # number of retrieved neighbors
