@@ -1,6 +1,8 @@
-from nemo.core.classes.module import NeuralModule
-from nemo.collections.cv.modules import Conv2d, GlobalAvgPool2d, ResNetBottleneckBlock, ResNetBlock
 from torch import nn
+
+from nemo.collections.cv.modules import Conv2d, GlobalAvgPool2d, ResNetBlock, ResNetBottleneckBlock
+from nemo.core.classes.module import NeuralModule
+
 
 class ResNet(NeuralModule):
 
@@ -46,12 +48,23 @@ class ResNet(NeuralModule):
             num_blocks = [3, 8, 36, 3]
             bottleneck = True
 
-        self.stem = nn.Sequential(
-            Conv2d(in_channels=dim_input, out_channels=dim_stem, kernel_size=(7, 7), stride=(2, 2), weight_init="he_normal", bias=False),
-            nn.BatchNorm2d(num_features=dim_stem),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-        ) if include_stem else nn.Identity()
+        self.stem = (
+            nn.Sequential(
+                Conv2d(
+                    in_channels=dim_input,
+                    out_channels=dim_stem,
+                    kernel_size=(7, 7),
+                    stride=(2, 2),
+                    weight_init="he_normal",
+                    bias=False,
+                ),
+                nn.BatchNorm2d(num_features=dim_stem),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            )
+            if include_stem
+            else nn.Identity()
+        )
 
         # Blocks
         self.blocks = nn.ModuleList()
@@ -68,7 +81,7 @@ class ResNet(NeuralModule):
                     else:
                         stride = (2, 2)
                         bottleneck_ratio = 2
-                        in_features = dim_blocks[stage_id-1]
+                        in_features = dim_blocks[stage_id - 1]
                 # Default Block
                 else:
                     stride = (1, 1)
@@ -76,26 +89,36 @@ class ResNet(NeuralModule):
                     bottleneck_ratio = 4
 
                 if bottleneck:
-                    self.blocks.append(ResNetBottleneckBlock(
-                        in_features=in_features,
-                        out_features=dim_blocks[stage_id],
-                        bottleneck_ratio=bottleneck_ratio,
-                        kernel_size=(3, 3),
-                        stride=stride
-                    ))
+                    self.blocks.append(
+                        ResNetBottleneckBlock(
+                            in_features=in_features,
+                            out_features=dim_blocks[stage_id],
+                            bottleneck_ratio=bottleneck_ratio,
+                            kernel_size=(3, 3),
+                            stride=stride,
+                        )
+                    )
                 else:
-                    self.blocks.append(ResNetBlock(
-                        in_features=in_features,
-                        out_features=dim_blocks[stage_id],
-                        kernel_size=(3, 3),
-                        stride=stride
-                    ))
+                    self.blocks.append(
+                        ResNetBlock(
+                            in_features=in_features,
+                            out_features=dim_blocks[stage_id],
+                            kernel_size=(3, 3),
+                            stride=stride,
+                        )
+                    )
 
         # Head
-        self.head = nn.Sequential(
-            GlobalAvgPool2d(),
-            nn.Linear(in_features=dim_blocks[-1], out_features=dim_output) if dim_output is not None else nn.Identity()
-        ) if include_head else nn.Identity()
+        self.head = (
+            nn.Sequential(
+                GlobalAvgPool2d(),
+                nn.Linear(in_features=dim_blocks[-1], out_features=dim_output)
+                if dim_output is not None
+                else nn.Identity(),
+            )
+            if include_head
+            else nn.Identity()
+        )
 
     def forward(self, x):
 
@@ -108,7 +131,7 @@ class ResNet(NeuralModule):
 
             # (B, Din, T, H, W) -> (B * T, Din, H, W)
             x = x.transpose(1, 2).flatten(start_dim=0, end_dim=1)
-            
+
         else:
             is_video = False
 

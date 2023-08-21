@@ -1,15 +1,27 @@
-from nemo.core.classes.module import NeuralModule
+import random
+
+import torch
 import torchaudio
 import torchvision
 from torch import nn
-import torch
-import random
+
+from nemo.core.classes.module import NeuralModule
+
 
 class VideoAugmentation(NeuralModule):
 
     """ Video Augmentation for batched video input: input_signal shape (B, C, T, H, W) """
 
-    def __init__(self, random_crop,  crop_size, horizontal_flip, time_masking, num_mask_second=1.0, spatial_masking=False, mean_frame=True):
+    def __init__(
+        self,
+        random_crop,
+        crop_size,
+        horizontal_flip,
+        time_masking,
+        num_mask_second=1.0,
+        spatial_masking=False,
+        mean_frame=True,
+    ):
         super().__init__()
 
         # Params
@@ -55,6 +67,7 @@ class VideoAugmentation(NeuralModule):
 
         return input_signal
 
+
 class SpatialVideoMasking(NeuralModule):
 
     """ Spatial Video Mask
@@ -89,7 +102,7 @@ class SpatialVideoMasking(NeuralModule):
         for b in range(shape[0]):
 
             # Mask Value
-            mask_value = input_signal[b, :, :length[b]].mean() if self.mean_frame else 0.0
+            mask_value = input_signal[b, :, : length[b]].mean() if self.mean_frame else 0.0
 
             # Horizontal Mask loop
             for i in range(self.num_horizontal_masks):
@@ -116,6 +129,7 @@ class SpatialVideoMasking(NeuralModule):
                 input_signal[b, :, :, :, x : x + w] = mask_value
 
         return input_signal
+
 
 class VideoFrameMasking(NeuralModule):
 
@@ -154,7 +168,7 @@ class VideoFrameMasking(NeuralModule):
             mT = int(length[b] / self.fps * self.num_mask_second)
 
             # Mask Value
-            mask_value = input_signal[b, :, :length[b]].mean() if self.mean_frame else 0.0
+            mask_value = input_signal[b, :, : length[b]].mean() if self.mean_frame else 0.0
 
             # Mask loop
             for i in range(mT):

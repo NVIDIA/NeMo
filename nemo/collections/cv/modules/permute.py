@@ -1,7 +1,7 @@
-from nemo.core.classes import  NeuralModule
+from nemo.core.classes import NeuralModule
+
 
 class Permute(NeuralModule):
-
     def __init__(self, dims, make_contiguous=False):
         super(Permute, self).__init__()
         self.dims = dims

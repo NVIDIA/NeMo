@@ -1,8 +1,10 @@
-from nemo.core.classes.module import NeuralModule
-from torch import nn
-from nemo.collections.cv.modules import Conv2d
 import torch
-from torch.nn.modules.utils import  _pair
+from torch import nn
+from torch.nn.modules.utils import _pair
+
+from nemo.collections.cv.modules import Conv2d
+from nemo.core.classes.module import NeuralModule
+
 
 class ResNetBottleneckBlock(NeuralModule):
 
@@ -11,9 +13,17 @@ class ResNetBottleneckBlock(NeuralModule):
     https://arxiv.org/abs/1512.03385
     """
 
-    def __init__(self, in_features, out_features, bottleneck_ratio, kernel_size, stride, weight_init="he_normal", bias_init="zeros"):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        bottleneck_ratio,
+        kernel_size,
+        stride,
+        weight_init="he_normal",
+        bias_init="zeros",
+    ):
         super(ResNetBottleneckBlock, self).__init__()
-
 
         # Assert
         assert in_features % bottleneck_ratio == 0
@@ -23,16 +33,37 @@ class ResNetBottleneckBlock(NeuralModule):
 
         # layers
         self.layers = nn.Sequential(
-            Conv2d(in_channels=in_features, out_channels=in_features // bottleneck_ratio, kernel_size=1, bias=False, weight_init=weight_init, bias_init=bias_init),
+            Conv2d(
+                in_channels=in_features,
+                out_channels=in_features // bottleneck_ratio,
+                kernel_size=1,
+                bias=False,
+                weight_init=weight_init,
+                bias_init=bias_init,
+            ),
             nn.BatchNorm2d(in_features // bottleneck_ratio),
             nn.ReLU(),
-
-            Conv2d(in_channels=in_features // bottleneck_ratio, out_channels=in_features // bottleneck_ratio, kernel_size=kernel_size, stride=stride, bias=False, weight_init=weight_init, bias_init=bias_init, padding=((kernel_size[0] - 1) // 2, kernel_size[1] // 2)),
+            Conv2d(
+                in_channels=in_features // bottleneck_ratio,
+                out_channels=in_features // bottleneck_ratio,
+                kernel_size=kernel_size,
+                stride=stride,
+                bias=False,
+                weight_init=weight_init,
+                bias_init=bias_init,
+                padding=((kernel_size[0] - 1) // 2, kernel_size[1] // 2),
+            ),
             nn.BatchNorm2d(in_features // bottleneck_ratio),
             nn.ReLU(),
-
-            Conv2d(in_channels=in_features // bottleneck_ratio, out_channels=out_features, kernel_size=1, bias=False, weight_init=weight_init, bias_init=bias_init),
-            nn.BatchNorm2d(out_features)
+            Conv2d(
+                in_channels=in_features // bottleneck_ratio,
+                out_channels=out_features,
+                kernel_size=1,
+                bias=False,
+                weight_init=weight_init,
+                bias_init=bias_init,
+            ),
+            nn.BatchNorm2d(out_features),
         )
 
         # Joined Post Act
@@ -41,8 +72,16 @@ class ResNetBottleneckBlock(NeuralModule):
         # Residual Block
         if torch.prod(torch.tensor(stride)) > 1 or in_features != out_features:
             self.residual = nn.Sequential(
-                Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=stride, bias=False, weight_init=weight_init, bias_init=bias_init),
-                nn.BatchNorm2d(out_features)
+                Conv2d(
+                    in_channels=in_features,
+                    out_channels=out_features,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                    weight_init=weight_init,
+                    bias_init=bias_init,
+                ),
+                nn.BatchNorm2d(out_features),
             )
         else:
             self.residual = nn.Identity()

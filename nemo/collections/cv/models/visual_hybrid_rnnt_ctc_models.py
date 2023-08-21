@@ -25,9 +25,9 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
-from nemo.collections.cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
@@ -367,7 +367,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             loss_value = self.add_auxiliary_losses(loss_value)
 
             # Reset access registry
-            #if AccessMixin.is_access_enabled():
+            # if AccessMixin.is_access_enabled():
             #    AccessMixin.reset_registry(self)
 
             tensorboard_logs = {
@@ -403,7 +403,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             loss_value = self.add_auxiliary_losses(loss_value)
 
             # Reset access registry
-            #if AccessMixin.is_access_enabled():
+            # if AccessMixin.is_access_enabled():
             #    AccessMixin.reset_registry(self)
 
             tensorboard_logs = {

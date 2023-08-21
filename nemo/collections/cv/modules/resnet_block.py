@@ -1,8 +1,10 @@
-from nemo.core.classes.module import NeuralModule
-from torch import nn
-from nemo.collections.cv.modules import Conv2d
 import torch
-from torch.nn.modules.utils import  _pair
+from torch import nn
+from torch.nn.modules.utils import _pair
+
+from nemo.collections.cv.modules import Conv2d
+from nemo.core.classes.module import NeuralModule
+
 
 class ResNetBlock(NeuralModule):
 
@@ -19,19 +21,43 @@ class ResNetBlock(NeuralModule):
 
         # layers
         self.layers = nn.Sequential(
-            Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size, stride=stride, bias=False, weight_init=weight_init, bias_init=bias_init, padding=((kernel_size[0] - 1) // 2, kernel_size[1] // 2)),
+            Conv2d(
+                in_channels=in_features,
+                out_channels=out_features,
+                kernel_size=kernel_size,
+                stride=stride,
+                bias=False,
+                weight_init=weight_init,
+                bias_init=bias_init,
+                padding=((kernel_size[0] - 1) // 2, kernel_size[1] // 2),
+            ),
             nn.BatchNorm2d(out_features),
             nn.ReLU(),
-
-            Conv2d(in_channels=out_features, out_channels=out_features, kernel_size=kernel_size, bias=False, weight_init=weight_init, bias_init=bias_init, padding=((kernel_size[0] - 1) // 2, kernel_size[1] // 2)),
-            nn.BatchNorm2d(out_features)
+            Conv2d(
+                in_channels=out_features,
+                out_channels=out_features,
+                kernel_size=kernel_size,
+                bias=False,
+                weight_init=weight_init,
+                bias_init=bias_init,
+                padding=((kernel_size[0] - 1) // 2, kernel_size[1] // 2),
+            ),
+            nn.BatchNorm2d(out_features),
         )
 
         # Residual Block
         if torch.prod(torch.tensor(stride)) > 1 or in_features != out_features:
             self.residual = nn.Sequential(
-                Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=stride, bias=False, weight_init=weight_init, bias_init=bias_init),
-                nn.BatchNorm2d(out_features)
+                Conv2d(
+                    in_channels=in_features,
+                    out_channels=out_features,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                    weight_init=weight_init,
+                    bias_init=bias_init,
+                ),
+                nn.BatchNorm2d(out_features),
             )
         else:
             self.residual = nn.Identity()
@@ -45,4 +71,3 @@ class ResNetBlock(NeuralModule):
         x = self.joined_post_act(self.layers(x) + self.residual(x))
 
         return x
-

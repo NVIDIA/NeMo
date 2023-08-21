@@ -5,19 +5,16 @@ import braceexpand
 import torch
 import webdataset as wd
 
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
+from nemo.collections.cv.parts.preprocessing.features import VideoFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.data_utils import (
-    datastore_path_to_webdataset_url,
-    is_datastore_path,
-)
+from nemo.utils.data_utils import datastore_path_to_webdataset_url, is_datastore_path
 
-from nemo.collections.cv.parts.preprocessing.features import VideoFeaturizer
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
 
 def _speech_collate_fn(batch, pad_id):
     """collate batch of audio sig, audio len, video sig, video len, tokens, tokens len
@@ -86,6 +83,7 @@ def _speech_collate_fn(batch, pad_id):
     else:
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
         return video_signal, video_lengths, tokens, tokens_lengths, sample_ids
+
 
 class _VideoTextDataset(Dataset):
     """
@@ -172,11 +170,7 @@ class _VideoTextDataset(Dataset):
             offset = 0
 
         # Load Video
-        video_features = self.video_featurizer.process(
-            sample.video_file,
-            offset=offset,
-            duration=sample.duration
-        )
+        video_features = self.video_featurizer.process(sample.video_file, offset=offset, duration=sample.duration)
         vf, vfl = video_features, torch.tensor(video_features.shape[0]).long()
 
         # Load Tokens
@@ -194,6 +188,7 @@ class _VideoTextDataset(Dataset):
 
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
+
 
 class VSRManifestProcessor:
     """
@@ -261,7 +256,8 @@ class VSRManifestProcessor:
             tl += 1
 
         return t, tl
-    
+
+
 class VideoToBPEDataset(_VideoTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to video
@@ -369,6 +365,7 @@ class VideoToBPEDataset(_VideoTextDataset):
             channel_selector=channel_selector,
         )
 
+
 class VideoToCharDataset(_VideoTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to video
@@ -450,6 +447,7 @@ class VideoToCharDataset(_VideoTextDataset):
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
         )
+
 
 class _TarredVideoToTextDataset(IterableDataset):
     """
@@ -685,7 +683,7 @@ class _TarredVideoToTextDataset(IterableDataset):
 
         if video_features.shape[1:] == (1, 1, 3):
             print(audio_filename)
-            #raise Exception(audio_filename)
+            # raise Exception(audio_filename)
             print(audio_filename, flush=True)
             video_features = video_features.repeat(1, 96, 96, 1)
 
@@ -717,6 +715,7 @@ class _TarredVideoToTextDataset(IterableDataset):
 
     def __len__(self):
         return len(self.manifest_processor.collection)
+
 
 class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
     """
@@ -861,6 +860,7 @@ class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
             world_size=world_size,
             return_sample_id=return_sample_id,
         )
+
 
 def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size: int, global_rank: int):
     valid_shard_strategies = ['scatter', 'replicate']
