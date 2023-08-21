@@ -23,6 +23,7 @@ from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -660,32 +661,51 @@ class MegatronT5SFTModel(MegatronT5Model):
                 f"Cannot use drop_last=False in your training data with gradient accumulation found grad acc of {data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())} with global_batch_size {data_cfg.global_batch_size}, micro_batch_size {data_cfg.micro_batch_size}, data parallel size {parallel_state.get_data_parallel_world_size()}"
             )
         datasets = []
-        # Determine if we are using a single dataset or a list of datasets.
-        is_src_list_config = isinstance(data_cfg.src_file_name, ListConfig)
-        is_tgt_list_config = isinstance(data_cfg.tgt_file_name, ListConfig)
+        if hasattr(data_cfg, "src_file_name") and hasattr(data_cfg, "tgt_file_name"):
+            # Determine if we are using a single dataset or a list of datasets.
+            is_src_list_config = isinstance(data_cfg.src_file_name, ListConfig)
+            is_tgt_list_config = isinstance(data_cfg.tgt_file_name, ListConfig)
 
-        if (is_src_list_config and not is_tgt_list_config) or (is_tgt_list_config and not is_src_list_config):
-            raise ValueError("src_list and tgt_list must both be either a ListConfig or a string. ")
-        if is_src_list_config:
-            if len(data_cfg.src_file_name) != len(data_cfg.tgt_file_name):
-                raise ValueError("src_file_name and tgt_file_name must have the same number of elements. ")
+            if (is_src_list_config and not is_tgt_list_config) or (is_tgt_list_config and not is_src_list_config):
+                raise ValueError("src_list and tgt_list must both be either a ListConfig or a string. ")
+            if is_src_list_config:
+                if len(data_cfg.src_file_name) != len(data_cfg.tgt_file_name):
+                    raise ValueError("src_file_name and tgt_file_name must have the same number of elements. ")
+            else:
+                data_cfg.src_file_name = [data_cfg.src_file_name]
+                data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
+
+            for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
+                dataset = SequenceToSequenceDataset(
+                    src_file_name=src,
+                    tgt_file_name=tgt,
+                    src_tokenizer=self.tokenizer,
+                    tgt_tokenizer=self.tokenizer,
+                    max_src_seq_length=data_cfg.max_src_seq_length,
+                    max_tgt_seq_length=data_cfg.max_tgt_seq_length,
+                    add_bos_to_input=data_cfg.get('add_bos_to_input', True),
+                    add_eos_to_input=data_cfg.get('add_eos_to_input', True),
+                    replace_bos_with_pad=data_cfg.get('replace_bos_with_pad', False),
+                )
+                datasets.append(dataset)
+        elif hasattr(data_cfg, "file_names"):
+            for file_path in data_cfg.file_names:
+                dataset = T5SFTDataset(
+                    file_path=file_path,
+                    src_tokenizer=self.tokenizer,
+                    tgt_tokenizer=self.tokenizer,
+                    max_src_seq_length=data_cfg.max_src_seq_length,
+                    max_tgt_seq_length=data_cfg.max_tgt_seq_length,
+                    add_bos_to_input=data_cfg.get('add_bos_to_input', True),
+                    add_eos_to_input=data_cfg.get('add_eos_to_input', True),
+                    replace_bos_with_pad=data_cfg.get('replace_bos_with_pad', False),
+                    index_mapping_dir=data_cfg.get('index_mapping_dir', None),
+                    memmap_workers=data_cfg.get('memmap_workers', None),
+                    hf_dataset=data_cfg.get('hf_dataset', False),
+                )
+                datasets.append(dataset)
         else:
-            data_cfg.src_file_name = [data_cfg.src_file_name]
-            data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
-
-        for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
-            dataset = SequenceToSequenceDataset(
-                src_file_name=src,
-                tgt_file_name=tgt,
-                src_tokenizer=self.tokenizer,
-                tgt_tokenizer=self.tokenizer,
-                max_src_seq_length=data_cfg.max_src_seq_length,
-                max_tgt_seq_length=data_cfg.max_tgt_seq_length,
-                add_bos_to_input=data_cfg.get('add_bos_to_input', True),
-                add_eos_to_input=data_cfg.get('add_eos_to_input', True),
-                replace_bos_with_pad=data_cfg.get('replace_bos_with_pad', False),
-            )
-            datasets.append(dataset)
+            raise ValueError("You must specify either (src_file_name and tgt_file_name) or file_names in data config")
 
         if len(datasets) > 1:
             dataset = ConcatMapDataset(
