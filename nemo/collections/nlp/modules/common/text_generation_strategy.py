@@ -103,7 +103,7 @@ class TextGenerationStrategy:
            context_length (int): the context token length
            compute_attention_mask: bool: set to True to compute attention mask (not needed for FA)
         Args:
-            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated 
+            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated
         """
         pass
 
@@ -329,6 +329,72 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
             tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
 
+class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+        self.forward_model = self.model.model
+
+    def tokenize_batch(self, sentences, max_len, add_BOS):
+        context_tokens_tensor, context_length_tensor = super().tokenize_batch(sentences, max_len, add_BOS)
+
+        def pad_text_to_speech_dims(text_tensor, pad_id):
+            token_len = text_tensor.shape[1]
+            empty_padding = (
+                torch.ones((text_tensor.shape[0], 7, token_len), dtype=text_tensor.dtype, device=text_tensor.device)
+                * pad_id
+            )
+            return torch.cat((text_tensor.unsqueeze(1), empty_padding), dim=1)
+
+        context_tokens_tensor = pad_text_to_speech_dims(
+            context_tokens_tensor, 0 if not self.model.tokenizer.pad_id else self.model.tokenizer.pad_id
+        )
+        return context_tokens_tensor, context_length_tensor
+
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        """
+        generate the batch used in inference for each of the steps
+        """
+        # types2use = None
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :, :context_length]
+            positions2use = self.position_ids[:, :context_length]
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, :context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, :, context_length - 1].view(micro_batch_size, 8, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        attention_mask_repeat = None
+        if compute_attention_mask:
+            attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+
+        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[2], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
+
+
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -344,7 +410,8 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
-        return GPTModelTextGenerationStrategy(model)
+        # return GPTModelTextGenerationStrategy(model)
+        return SpeechGPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
         del args['strategy']

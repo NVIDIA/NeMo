@@ -52,10 +52,8 @@ import time
 import ftfy
 import numpy as np
 import torch
-from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 try:
@@ -85,21 +83,14 @@ class IdentitySplitter(object):
 
 
 def get_tokenizer(args):
-    if args.tokenizer_type == "t5":
-        trainer = Trainer()
-        frozen_model = MegatronT5Model.restore_from(
-            "/datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5.nemo", trainer=trainer,
-        )
-        tokenizer = frozen_model.tokenizer
-    else:
-        tokenizer = get_nmt_tokenizer(
-            library=args.tokenizer_library,
-            model_name=args.tokenizer_type,
-            tokenizer_model=args.tokenizer_model,
-            vocab_file=args.vocab_file,
-            merges_file=args.merge_file,
-            delimiter=args.delimiter,
-        )
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
+        model_name=args.tokenizer_type,
+        tokenizer_model=args.tokenizer_model,
+        vocab_file=args.vocab_file,
+        merges_file=args.merge_file,
+        delimiter=args.delimiter,
+    )
     if args.need_pad_id:
         if not hasattr(tokenizer, "pad_id"):
             tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -184,8 +175,10 @@ class AudioEncoder(object):
     def process(self, file_path):
         """load npz file from filepath
         """
-        codes = np.load(file_path)
-        codes = codes["codes"]  # [n_codebooks, n_frames]
+        # codes = np.load(file_path)
+        # codes = codes["codes"]  # [n_codebooks, n_frames]
+        codes = torch.load(file_path, map_location="cpu").numpy().squeeze()
+        # print(codes.shape)
 
         # if n_codebooks_to_use is greater than the number of codebooks in the file, raise error
         if self.args.n_codebooks_to_use is not None and self.args.n_codebooks_to_use > codes.shape[0]:
@@ -242,7 +235,7 @@ def get_args():
     group.add_argument(
         '--tokenizer-library',
         type=str,
-        required=False,
+        required=True,
         choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular'],
         help='What tokenizer library to use.',
     )

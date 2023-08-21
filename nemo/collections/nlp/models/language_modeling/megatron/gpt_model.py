@@ -24,9 +24,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -62,7 +61,7 @@ def post_language_model_processing(
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
     speech_mask=None,
-    speech_residual_model=None
+    speech_residual_model=None,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -73,7 +72,7 @@ def post_language_model_processing(
     async_tensor_model_parallel_allreduce = (
         parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
     )
-    num_speech_tokens = 8*1024  # TODO: Fix hardcode, assumes speech tokens are last
+    num_speech_tokens = 8 * 1024  # TODO: Fix hardcode, assumes speech tokens are last
     token_head = lambda x, y: parallel_lm_logits(
         x,
         y,
@@ -82,39 +81,56 @@ def post_language_model_processing(
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
+
+    # approach 1 was using convs
+    approach = 2 if speech_residual_model == None else 1
     output = token_head(
-        lm_output,
-        logit_weights[:-(num_speech_tokens-1024), :]
+        lm_output, logit_weights[: 256000 + 1024, :] if approach == 1 else logit_weights  # TODO: remove hardcode
     )
 
     speech_layers = 7
-    last_layer_output = lm_output
-    last_layer_logits = output
-    speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers],device=output.device)
-    # import ipdb; ipdb.set_trace()
-    for i in range(speech_layers):
-        if i == 0:
-            last_layer_output = speech_residual_model(last_layer_output, last_layer_output, i, speech_mask)
-        else:
+    if approach == 1:
+        last_layer_output = lm_output
+        last_layer_logits = output[:, :, -1024:]
+        speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
+        for i in range(speech_layers):
             last_layer_output = speech_residual_model(last_layer_output, last_layer_logits, i, speech_mask)
-        # Need to check that the below line is correct
-        # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
-        # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
-        # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
-        last_layer_logits = token_head(last_layer_output, logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)) or None,:])  # or None for the last layer in which case it's 0 and everything breaks
-        # print(f"{i}: {last_layer_output.shape}, {last_layer_logits.shape} // {logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)),:].shape}")
-        # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
-        speech_logits[:,:,:,i] = last_layer_logits
+            # Need to check that the below line is correct
+            # start_of_speech_tokens = self.word_embeddings_weight().shape[0]-9000
+            # start_of_speech_token_at_layer_i = start_of_speech_tokens+1024*(i+1)
+            # end_of_speech_token_at_layer_i = start_of_speech_token_at_layer_i+1024
+            last_layer_logits = token_head(
+                last_layer_output,
+                logit_weights[
+                    -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None, :
+                ],
+            )  # or None for the last layer in which case it's 0 and everything breaks
+            # print(f"{i}: {last_layer_output.shape}, {last_layer_logits.shape} // {logit_weights[-(num_speech_tokens-1024*(i+1)):-(num_speech_tokens-1024*(i+2)),:].shape}")
+            # print(f"{-(num_speech_tokens-1024*(i+1))}:{-(num_speech_tokens-1024*(i+2))}")
+            speech_logits[:, :, :, i] = last_layer_logits
+    else:
+        output = output[:, :, : 256000 + 1024]
+        speech_logits = torch.zeros([*output.shape[:-1], 1024, speech_layers], device=output.device)  # [S, B, H, L]
+        for i in range(speech_layers):
+            speech_logits[:, :, :, i] = output[
+                :, :, -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None
+            ]
 
     if get_key_value:
         output = [output, presents]
 
     if labels is None:
         # [s b h] -> [b s h]
-        return output.transpose(0, 1).contiguous()
+        return [output.transpose(0, 1).contiguous(), speech_logits.transpose(0, 1).contiguous()]
+        # return output.transpose(0, 1).contiguous()
     else:
-        # [b s] -> [s b]
-        labels = labels.transpose(0, 1).contiguous()
+        if labels.dim() == 2:
+            # [b, s] -> [s, b]
+            labels = labels.transpose(0, 1).contiguous()
+        elif labels.dim() == 3:
+            # [b, c, s] -> [c, s, b]
+            # c = 8 for now
+            labels = labels.permute(1, 2, 0).contiguous()
 
         loss = 0
         if fp16_lm_cross_entropy:
@@ -122,15 +138,33 @@ def post_language_model_processing(
             assert output.dtype == torch.half
             loss += vocab_parallel_cross_entropy(output, labels)
         else:
-            loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
-            # import ipdb; ipdb.set_trace()
-            # print(f"-1: {loss}")
-            for i in range(speech_layers):
-                loss += vocab_parallel_cross_entropy(speech_logits[:,:,:,i].float(), labels[i+1, :, :]) * speech_mask.T * 0.125
-                # import ipdb; ipdb.set_trace()
-                # print(f"{i}: {loss}")
-                # logging.debug(f"token_loss_{i}: {tokens_loss}")
-                # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
+            if labels.dim() == 2:
+                loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
+            elif labels.dim() == 3:
+                if approach == 1:
+                    loss += vocab_parallel_cross_entropy(output.float(), labels[0, :, :])
+                    for i in range(speech_layers):
+                        loss += (
+                            vocab_parallel_cross_entropy(speech_logits[:, :, :, i].float(), labels[i + 1, :, :])
+                            * speech_mask.T
+                            * 0.125
+                        )
+                else:
+                    first_layer_logits = output[:, :, : 256000 + 1024]
+                    loss += vocab_parallel_cross_entropy(first_layer_logits.float(), labels[0, :, :])
+                    for i in range(speech_layers):
+                        ith_layer_logits = output[
+                            :, :, -(num_speech_tokens - 1024 * (i + 1)) : -(num_speech_tokens - 1024 * (i + 2)) or None
+                        ]
+                        loss += (
+                            vocab_parallel_cross_entropy(ith_layer_logits.float(), labels[i + 1, :, :])
+                            * speech_mask.T
+                            * 0.125
+                        )
+                    # import ipdb; ipdb.set_trace()
+                    # print(f"{i}: {loss}")
+                    # logging.debug(f"token_loss_{i}: {tokens_loss}")
+                    # logging.debug(f"token_loss_{i}: {torch.all(torch.isfinite(tokens_loss))}")
 
         # [s b] -> [b, s]
         loss = loss.transpose(0, 1).contiguous()
@@ -203,6 +237,7 @@ class GPTModel(MegatronModule):
         reduce_amax=True,
         use_emha=False,
         use_flash_attention=False,
+        output_size=None,
     ):
         super(GPTModel, self).__init__(share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -285,6 +320,7 @@ class GPTModel(MegatronModule):
             reduce_amax=reduce_amax,
             use_emha=use_emha,
             use_flash_attention=use_flash_attention,
+            output_size=output_size,
         )
 
         if self.share_embeddings_and_output_weights:
@@ -294,7 +330,7 @@ class GPTModel(MegatronModule):
                 hidden_size=hidden_size,
                 param_dtype=self.dtype,
             )
-        self.hidden_size = hidden_size
+        self.hidden_size = self.language_model.hidden_size
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -336,10 +372,9 @@ class GPTModel(MegatronModule):
             return post_language_model_processing(
                 lm_output,
                 labels,
-                #jasoli: self.language_model.output_layer.weight needs to be words+1k
-                self.language_model.embedding.word_embeddings.weight,
-                # if not self.share_embeddings_and_output_weights
-                # else self.word_embeddings_weight(),
+                self.language_model.output_layer.weight
+                if not self.share_embeddings_and_output_weights
+                else self.word_embeddings_weight(),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,

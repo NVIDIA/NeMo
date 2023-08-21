@@ -182,15 +182,13 @@ def main(cfg) -> None:
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
-            map_location="cpu"
+            map_location="cpu",
         )
         gpt_cfg = _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False)
         model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
         model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
-
-    model.update_for_speech()
 
     trainer.fit(model)
 

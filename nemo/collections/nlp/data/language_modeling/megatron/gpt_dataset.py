@@ -26,7 +26,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import (
+    IndexedCachedDataset,
+    IndexedDataset,
+    MMapIndexedDataset,
+    deallocate_indexed_dataset_memory,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -45,7 +50,7 @@ def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length,
     def _build_dataset(current_data_prefix, current_num_samples):
         delay_data_mmap = cfg.data.get('delay_data_mmap', False)
         indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup, delay_data_mmap)
-        total_num_of_documents = indexed_dataset.sizes.shape[0]
+        total_num_of_documents = len(indexed_dataset)
         # Print stats about the splits.
         logging.info(' > dataset split:')
         logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
@@ -181,7 +186,7 @@ def build_train_valid_test_datasets(
                 cfg,
                 trainer,
                 prefixes[i],
-                data_impl,
+                data_impl[i],
                 splits_string,
                 datasets_train_valid_test_num_samples[i],
                 seq_length,
@@ -230,7 +235,7 @@ def _build_train_valid_test_datasets(
     delay_data_mmap = cfg.data.get('delay_data_mmap', False)
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap)
 
-    total_num_of_documents = indexed_dataset.sizes.shape[0]
+    total_num_of_documents = len(indexed_dataset)
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
 
     # Print stats about the splits.
@@ -272,6 +277,8 @@ def _build_train_valid_test_datasets(
     train_dataset = build_dataset(0, 'train')
     valid_dataset = build_dataset(1, 'valid')
     test_dataset = build_dataset(2, 'test')
+    if isinstance(indexed_dataset, MMapIndexedDataset):
+        deallocate_indexed_dataset_memory(indexed_dataset)
 
     return (train_dataset, valid_dataset, test_dataset)
 
@@ -283,7 +290,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap=Fa
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap=delay_data_mmap)
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
-    logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
+    logging.info('    number of documents: {}'.format(len(indexed_dataset)))
 
     return indexed_dataset
 
@@ -316,7 +323,7 @@ class GPTDataset(Dataset):
 
         # Checks
         assert np.min(documents) >= 0
-        assert np.max(documents) < indexed_dataset.sizes.shape[0]
+        assert np.max(documents) < len(indexed_dataset)
 
         self.reset_position_ids = cfg.data.get('reset_position_ids', False)
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
@@ -324,6 +331,8 @@ class GPTDataset(Dataset):
         self.create_inputs = any([self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss])
         self.cached_inputs = False
         self.eos_id = tokenizer.eos_id
+        self.pad_id = tokenizer.pad_id
+        self.vocab_size = tokenizer.vocab_size
         self.no_seqlen_plus_one_input_tokens = cfg.data.get('no_seqlen_plus_one_input_tokens', False)
         self.add_extra_token = 1
         if self.no_seqlen_plus_one_input_tokens:
@@ -341,12 +350,16 @@ class GPTDataset(Dataset):
                     os.makedirs(self.index_mapping_dir)
             torch.distributed.barrier()
 
+        splits = self.indexed_dataset.sizes
+        if isinstance(self.indexed_dataset, IndexedDataset):
+            splits = self.indexed_dataset.sizes[1::2]
+
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
             self.name,
             data_prefix,
             documents,
-            self.indexed_dataset.sizes,
+            splits,
             num_samples,
             seq_length,
             seed,
@@ -356,7 +369,7 @@ class GPTDataset(Dataset):
             shuffle_documents=self.shuffle_documents,
             exchange_indices_distributed=self.exchange_indices_distributed,
         )
-        deallocate_indexed_dataset_memory(self.indexed_dataset)
+        # deallocate_indexed_dataset_memory(self.indexed_dataset)
 
     def create_data_mmap(self):
         self.indexed_dataset.create_data_mmap()
@@ -367,7 +380,6 @@ class GPTDataset(Dataset):
         return self.sample_idx.shape[0] - 1
 
     def _get_text(self, idx: int) -> np.ndarray:
-
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
         # Start and end documents and offsets.
@@ -390,29 +402,61 @@ class GPTDataset(Dataset):
             sample_list.append(
                 self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + self.add_extra_token)
             )
-            sample = np.concatenate(sample_list)
-        if len(sample) != (self.seq_length + self.add_extra_token):
+            sample = np.concatenate(sample_list, axis=-1)
+        is_speech = sample.ndim == 2
+        sample_len = len(sample)
+        if is_speech:
+            sample_len = sample.shape[1]
+        if sample_len != (self.seq_length + self.add_extra_token):
             logging.info(
-                F' > WARNING: Got sample of length: {len(sample)} for sequence length={self.seq_length+self.add_extra_token}, padding the sample to match sequence length'
+                F' > WARNING: Got sample of length: {sample_len} for sequence length={self.seq_length+self.add_extra_token}, padding the sample to match sequence length'
             )
             sample = np.array(sample, dtype=np.int64)
-            sample = np.pad(
-                sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1
-            )
+            if is_speech:
+                sample = np.pad(
+                    sample,
+                    ((0, 0), (0, self.seq_length + self.add_extra_token - sample_len)),
+                    mode='constant',
+                    constant_values=-1,
+                )
+            else:
+                sample = np.pad(
+                    sample,
+                    (0, self.seq_length + self.add_extra_token - sample_len),
+                    mode='constant',
+                    constant_values=-1,
+                )
         return sample.astype(np.int64)
 
     def __getitem__(self, idx):
         text = torch.from_numpy(self._get_text(idx))
+        is_speech = text.dim() == 2
         if self.add_extra_token:
-            tokens = text[:-1].contiguous()
-            labels = text[1:].contiguous()
+            if is_speech:
+                # labels on the 0th layer should be between vocab_size and vocab_size+1024
+                # labels on the 1st - 7th layers should be between [0, 1024)
+                # text on the 1st - 7th layers should be between [vocab_size+offset, vocab_size+offset+1024)
+                #  where the offset is 1024 * layer_i
+                text[0] += self.vocab_size
+                labels = text[:, 1:].clone().contiguous()
+                for l in range(1, text.shape[0]):
+                    text[l] += self.vocab_size + 1024 * l
+                tokens = text[:, :-1].contiguous()
+            else:
+                tokens = text[:-1].contiguous()
+                labels = text[1:].contiguous()
         else:
+            if is_speech:
+                raise NotImplementedError()
             tokens = text
             labels = torch.roll(text, shifts=-1, dims=0)
             labels[-1] = -1
         if self.create_inputs or not self.cached_inputs:
+            tokens_1d = tokens
+            if is_speech:
+                tokens_1d = tokens[0]
             attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-                tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+                tokens_1d, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
             )
             if not self.create_inputs:
                 self.cached_attention_mask = attention_mask
@@ -423,7 +467,19 @@ class GPTDataset(Dataset):
             attention_mask = self.cached_attention_mask
             loss_mask = self.cached_loss_mask
             position_ids = self.cached_position_ids
-        loss_mask[labels == -1] = 0.0
+
+        def pad_text_to_speech_dims(text_tensor, pad_id):
+            token_len = text_tensor.shape[0]
+            empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+            return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
+
+        if is_speech:
+            loss_mask[labels[0] == -1] = 0.0
+        else:
+            loss_mask[labels == -1] = 0.0
+        if not is_speech:
+            tokens = pad_text_to_speech_dims(tokens, 0 if not self.pad_id else self.pad_id)
+            labels = pad_text_to_speech_dims(labels, 0 if not self.pad_id else self.pad_id)
         tokens[tokens == -1] = 0
         labels[labels == -1] = 0
 
@@ -433,12 +489,16 @@ class GPTDataset(Dataset):
             logging.debug('Got negative index. Masking loss from this sample')
             loss_mask = torch.zeros_like(loss_mask)
 
+        speech_mask = loss_mask if is_speech else torch.zeros(loss_mask.shape)
+        # print(f"loss debug:\n tokens:{tokens[:10, :]}\n labels:{labels[:10, :]}\n speech_mask:{speech_mask[:10]}")
+
         return {
-            'tokens': tokens,
-            'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
+            'tokens': tokens,  # 2d
+            'labels': labels,  # 2d
+            'attention_mask': attention_mask,  # 2d
+            'loss_mask': loss_mask,  # 1d
+            'position_ids': position_ids,  # 1d
+            "speech_mask": speech_mask,  # 1d
         }
 
 
@@ -636,7 +696,12 @@ def _build_index_mappings(
             # Use C++ implementation for speed.
             # First compile and then import.
             assert doc_idx.dtype == np.int32
-            assert sizes.dtype == np.int32
+            if sizes.dtype != np.int32:
+                if np.max(np.abs(sizes)) < 2 ** 31 - 1:
+                    sizes = sizes.astype(np.int32)
+                else:
+                    raise NotImplementedError("Sizes needs to be int32?")
+            # assert sizes.dtype == np.int32
             try:
                 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
 
