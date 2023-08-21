@@ -23,7 +23,7 @@ def get_infer_test_data():
     test_data["GPT-843M-base"]["trt_llm_model_dir"] = "/tmp/GPT-843M-base/trt_llm_model/"
     test_data["GPT-843M-base"][
         "checkpoint"
-    ] = "/opt/checkpoints/GPT-843M-base/GPT-843M-1.nemo"
+    ] = "/opt/checkpoints/GPT-843M-base/GPT-843M-base-1.nemo"
 
     test_data["GPT-2B-HF-base"] = {}
     test_data["GPT-2B-HF-base"]["model_type"] = "gptnext"
@@ -37,31 +37,31 @@ def get_infer_test_data():
     test_data["GPT-2B-HF-base"]["checkpoint_link"] = (
         "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/GPT-2B-001_bf16_tp1.nemo"
     )
-    test_data["GPT-2B-HF-base"]["ptuned"] = {}
-    test_data["GPT-2B-HF-base"]["ptuned"]["squad"] = "/opt/checkpoints/8b_squad_megatron_gpt_peft_tuning.nemo"
+    #test_data["GPT-2B-HF-base"]["ptuned"] = {}
+    #test_data["GPT-2B-HF-base"]["ptuned"]["squad"] = "/opt/checkpoints/8b_squad_megatron_gpt_peft_tuning.nemo"
 
     test_data["GPT-2B-base"] = {}
     test_data["GPT-2B-base"]["model_type"] = "gptnext"
     test_data["GPT-2B-base"]["total_gpus"] = [1, 2]
     test_data["GPT-2B-base"]["location"] = "Selene"
     test_data["GPT-2B-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-base/trt_llm_model/"
-    test_data["GPT-2B-base"]["checkpoint"] = "/opt/checkpoints/GPT-2B-base/megatron_converted_2b_tp1_pp1.nemo"
+    test_data["GPT-2B-base"]["checkpoint"] = "/opt/checkpoints/GPT-2B-base/GPT-2B-base-1.nemo"
 
     test_data["GPT-8B-base"] = {}
     test_data["GPT-8B-base"]["model_type"] = "gptnext"
     test_data["GPT-8B-base"]["total_gpus"] = [1, 2]
     test_data["GPT-8B-base"]["location"] = "Selene"
     test_data["GPT-8B-base"]["trt_llm_model_dir"] = "/tmp/GPT-8B-base/trt_llm_model/"
-    test_data["GPT-8B-base"]["checkpoint"] = "/opt/checkpoints/GPT-8B-base/megatron_converted_8b_tp4_pp1.nemo"
+    test_data["GPT-8B-base"]["checkpoint"] = "/opt/checkpoints/GPT-8B-base/GPT-8B-base-1.nemo"
 
     test_data["GPT-43B-base"] = {}
     test_data["GPT-43B-base"]["model_type"] = "gptnext"
-    test_data["GPT-43B-base"]["total_gpus"] = [1, 2]
+    test_data["GPT-43B-base"]["total_gpus"] = [2]
     test_data["GPT-43B-base"]["location"] = "Selene"
     test_data["GPT-43B-base"]["trt_llm_model_dir"] = "/tmp/GPT-43B-base/trt_llm_model/"
     test_data["GPT-43B-base"][
         "checkpoint"
-    ] = "/opt/checkpoints/GPT-43B-base/megatron_converted_43b_tp8_pp1.nemo"
+    ] = "/opt/checkpoints/GPT-43B-base/GPT-43B-base-1.nemo"
 
     test_data["LLAMA2-7B-base"] = {}
     test_data["LLAMA2-7B-base"]["model_type"] = "llama"
@@ -70,6 +70,6 @@ def get_infer_test_data():
     test_data["LLAMA2-7B-base"]["trt_llm_model_dir"] = "/tmp/LLAMA2-7B-base/trt_llm_model/"
     test_data["LLAMA2-7B-base"][
         "checkpoint"
-    ] = "/opt/checkpoints/LLAMA2-7B-base/llama2-7b.nemo"
+    ] = "/opt/checkpoints/LLAMA2-7B-base/LLAMA2-7B-base-1.nemo"
 
     return test_data
