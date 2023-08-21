@@ -40,6 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.speech_residual_networks import LinearModule, SimplestModule
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -71,7 +72,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import parallel_state, tensor_parallel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     # TODO @tmoon: Use once available in Megatron-LM
@@ -846,7 +847,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
+                return 0, {'logits': output_tensor[0], 'speech_logits': output_tensor[1]}
 
             return output_tensor, id_func
 
@@ -1093,6 +1094,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
     ) -> OutputType:
+        """
+        inputs can either be a list of string or a tuple
+        If list of string, will be tokenized in downstream func
+        If tuple, must be a tuple of (tokenized_ids, context_length)
+        """
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
@@ -1312,3 +1318,126 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for mod in module.modules():
                 if hasattr(mod, "sequence_parallel"):
                     mod.sequence_parallel = self.last_sequence_parallel
+
+    def update_for_speech(self):
+        from nemo.collections.nlp.modules.common.megatron.utils import scaled_init_method_normal
+
+        _init_method = scaled_init_method_normal(0.02, self.cfg.num_layers)
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        # Update embedding tables
+        word_embedding = base_module.language_model.embedding.word_embeddings
+        old_token_size = word_embedding.num_embeddings
+        new_embeddings = tensor_parallel.VocabParallelEmbedding(
+            num_embeddings=old_token_size + 8 * 1024,  # TODO
+            embedding_dim=word_embedding.embedding_dim,
+            init_method=_init_method,
+        )
+        new_weight = new_embeddings.weight.clone()
+        new_weight[:old_token_size, :] = word_embedding.weight.clone()
+        new_weight = torch.nn.Parameter(new_weight)
+        new_embeddings.weight = new_weight
+        base_module.language_model.embedding.word_embeddings = new_embeddings
+
+        # Update output layer weights
+        output_layer = base_module.language_model.output_layer
+        old_weight = output_layer.weight
+        old_token_size = output_layer.weight.shape[0]
+        # import ipdb; ipdb.set_trace()
+        new_weight = torch.zeros(
+            [old_token_size + 1024, old_weight.shape[1]], dtype=old_weight.dtype, device=old_weight.device
+        )
+        _init_method(new_weight)
+        new_weight[:old_token_size, :] = output_layer.weight.clone()
+        new_weight = torch.nn.Parameter(new_weight)
+        output_layer.weight = new_weight
+
+        # TODO: hardcodes
+        # hidden_size = base_module.hidden_size
+        # base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
+
+
+class MegatronSpeechGPTModel(MegatronGPTModel):
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        super().__init__(cfg, trainer)
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        hidden_size = base_module.hidden_size
+        base_module.speech_residual_model = None
+        if self.cfg.get('speech_residual_model', None) == 'conv':
+            base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
+        elif self.cfg.get('speech_residual_model', None) == 'linear':
+            base_module.speech_residual_model = LinearModule(hidden_size, 1024)
+
+    def model_provider_func(self, pre_process, post_process):
+        """Very small override of base model so we can have different embedding and output layer size"""
+        # print(f"AGAIN1 {self.cfg.get('override_vocab_size')}")
+        # print(f"AGAIN1 {self.cfg.get('output_size')}")
+        model = GPTModel(
+            vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
+            output_size=self.cfg.get('output_size', self.padded_vocab_size),
+            hidden_size=self.cfg.hidden_size,
+            max_position_embeddings=self.cfg.max_position_embeddings,
+            num_layers=self.cfg.num_layers,
+            num_attention_heads=self.cfg.num_attention_heads,
+            apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
+            kv_channels=self.cfg.get('kv_channels', None),
+            ffn_hidden_size=self.cfg.ffn_hidden_size,
+            num_tokentypes=0,
+            parallel_output=True,
+            pre_process=pre_process,
+            post_process=post_process,
+            init_method_std=self.cfg.get('init_method_std', 0.02),
+            use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
+            fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
+            megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
+            hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
+            attention_dropout=self.cfg.get('attention_dropout', 0.1),
+            ffn_dropout=self.cfg.get('ffn_dropout', 0.0),
+            precision=self.cfg.get('precision', 16),
+            fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
+            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+            activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
+            activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
+            activations_checkpoint_layers_per_pipeline=self.cfg.get(
+                'activations_checkpoint_layers_per_pipeline', None
+            ),
+            normalization=self.cfg.get('normalization', 'layernorm'),
+            layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
+            onnx_safe=self.cfg.get('onnx_safe', False),
+            bias=self.cfg.get('bias', True),
+            bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
+            bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
+            activation=self.cfg.get('activation', 'gelu'),
+            headscale=self.cfg.get('headscale', False),
+            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
+            openai_gelu=self.cfg.get('openai_gelu', False),
+            normalize_attention_scores=self.cfg.get('normalize_attention_scores', True),
+            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+            rotary_percentage=self.cfg.get('rotary_percentage', 1.0),
+            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+            attention_type=self.cfg.get('attention_type', 'multihead'),
+            masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
+            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
+            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            transformer_engine=self.cfg.get('transformer_engine', False),
+            fp8=self.cfg.get('fp8', False),
+            fp8_e4m3=self.cfg.get('fp8_e4m3', False),
+            fp8_hybrid=self.cfg.get('fp8_hybrid', False),
+            fp8_margin=self.cfg.get('fp8_margin', 0),
+            fp8_interval=self.cfg.get('fp8_interval', 1),
+            fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1),
+            fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'most_recent'),
+            reduce_amax=self.cfg.get('reduce_amax', True),
+            use_emha=self.cfg.get('use_emha', False),
+            use_flash_attention=self.cfg.get('use_flash_attention', False),
+            megatron_legacy=self.cfg.get('megatron_legacy', False),
+        )
+
+        return model
