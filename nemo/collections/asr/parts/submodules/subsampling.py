@@ -322,7 +322,7 @@ class ConvSubsampling(torch.nn.Module):
                         stride=1,
                         padding=0,
                         groups=1,
-                    )
+                    ),
                 ]
             )
             in_channels = conv_channels
@@ -356,7 +356,7 @@ class ConvSubsampling(torch.nn.Module):
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
         if subsampling in ["vggnet", "dw_striding", "striding"]:
-            
+
             in_length = torch.tensor(feat_in, dtype=torch.float)
             out_length = calc_length(
                 lengths=in_length,
