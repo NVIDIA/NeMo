@@ -14,15 +14,12 @@
 
 
 import asyncio
-import os
-import torch
-import threading
-from functools import partial
 import json
 import os
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
+import threading
+from functools import partial
 
+import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -32,6 +29,8 @@ from torch.utils.data import DataLoader
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
