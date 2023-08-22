@@ -68,8 +68,12 @@ class AdapterName(str, enum.Enum):
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(self, model_parallel_config: ModelParallelConfig, in_features: int, **kwargs) -> None:
+    def __init__(self, in_features: int, model_parallel_config: Optional[ModelParallelConfig], **kwargs) -> None:
         super().__init__()
+
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
+
         self.scalers = nn.Parameter(torch.ones(in_features))
 
         # cast all parameters when using amp O2 training
@@ -109,7 +113,6 @@ class MLPInfusedAdapterConfig(InfusedAdapterConfig):
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,
-        model_parallel_config: ModelParallelConfig,
         in_features: int,
         out_features: int,
         dim: int,
@@ -120,6 +123,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         dropout: float = 0.0,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
         super().__init__()
@@ -131,6 +135,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
+
+        # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
+        # in case this arg is not provided, use the dummy default config.
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
 
         self.linear_in = ColumnParallelLinear(
             in_features,
@@ -280,12 +289,12 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
 
     def __init__(
         self,
-        model_parallel_config: ModelParallelConfig,
         virtual_tokens: int,
         bottleneck_dim: int,
         embedding_dim: int,
         init_std: float,
         output_dim: int,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
         **kwargs,
     ):
         """
@@ -302,6 +311,9 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.output_dim = output_dim
         self.virtual_tokens = virtual_tokens
         self.activation = "gelu"
+
+        if model_parallel_config is None:
+            model_parallel_config = ModelParallelConfig()
 
         sequence_parallel = False
         gradient_accumulation_fusion = False
