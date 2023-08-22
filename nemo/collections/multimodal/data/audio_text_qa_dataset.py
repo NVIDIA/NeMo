@@ -406,6 +406,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         output_key: str = 'output',
         end_string: Optional[str] = None,
         question_file: Optional[Union[str, List[str]]] = None,
+        sample_alpha: Optional[float] = None,
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -426,6 +427,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             input_key=input_key,
             output_key=output_key,
             end_string=end_string,
+            sample_alpha=sample_alpha,
         )
 
         if isinstance(manifest_filepath, str):
@@ -675,6 +677,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
+        sample_alpha: Optional[float] = None,
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -695,6 +698,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             input_key=input_key,
             output_key=output_key,
             end_string=end_string,
+            sample_alpha=sample_alpha,
         )
 
         self.shard_manifests = shard_manifests
@@ -911,6 +915,7 @@ def get_tarred_aqa_dataset(
             input_key=config.get('input_key', 'input'),
             output_key=config.get('output_key', 'output'),
             end_string=config.get('end_string', None),
+            sample_alpha=config.get('sample_alpha', None),
         )
 
         if bucketing_weights:
