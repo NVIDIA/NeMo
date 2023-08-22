@@ -305,6 +305,7 @@ class SpeechLM_T5dataset(Dataset):
         self.speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
         self.mask_context_prob = cfg.data.get('mask_context_prob', 0.4)
         self.mask_length_poisson_lambda = cfg.data.get('mask_length_poisson_lambda', 3.5)
+        self.seq_pattern = cfg.data.get('seq_pattern', "parallel")
         self.create_loss_mask = cfg.data.get('create_loss_mask', False)
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
@@ -419,11 +420,28 @@ class SpeechLM_T5dataset(Dataset):
 
     def _getitem_from_speech(self, tokens):
         assert tokens.ndim == 2
-
         tokens[0] = tokens[0] + self.speech_offset  # add speech offset to the first codebook
-        enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
-        dec_input = tokens[:, :-1] * 1
-        labels = tokens[:, 1:] * 1
+        
+        if self.seq_pattern == "parallel":
+            enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
+            dec_input = tokens[:, :-1] * 1
+            labels = tokens[:, 1:] * 1
+
+        elif self.seq_pattern == "delay_parallel":
+            # Pad tokens with 8 zeros at the begginging
+            num_codebooks = 8
+            tokens = torch.cat([torch.zeros_like(tokens[:, 0:num_codebooks]), tokens], dim=1)
+            enc_input = tokens[:, num_codebooks+1:] * 1  # to avoid changing the original tensor
+            dec_tokens = []
+            for _c in range(8):
+                st = 8 - _c
+                et = tokens.shape[1] - _c
+                dec_tokens.append(tokens[_c, st:et])
+            dec_tokens = torch.stack(dec_tokens, dim=0)
+            dec_input = dec_tokens[:, :-1] * 1
+            labels = dec_tokens[:, 1:] * 1
+        else:
+            raise NotImplementedError(f"seq_pattern={self.seq_pattern} not implemented")
 
         enc_input = self._mask_encoder_input(enc_input)
 

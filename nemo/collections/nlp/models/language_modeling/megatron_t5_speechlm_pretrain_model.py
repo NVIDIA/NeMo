@@ -337,11 +337,21 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
 
         return loss_mean
 
-    def convert_tokens_to_range(self, tokens):
+    def convert_tokens_to_range(self, tokens, apply_offset_correction=True, token_type="encoder"):
         # convert tokens to range [0, 1024]
         output_tokens = tokens.clone()
-        output_tokens[0] = output_tokens[0] - self.speech_offset
+        if apply_offset_correction:
+            output_tokens[0] = output_tokens[0] - self.speech_offset
         output_tokens = torch.clamp(output_tokens, min=0, max=1023)
+        if self.cfg.seq_pattern == "delay_parallel" and token_type == "decoder":
+            output_tokens_new = []
+            for _c in range(output_tokens.shape[0]):
+                si = _c
+                ei = _c + output_tokens.shape[1] - 8
+                output_tokens_new.append(output_tokens[_c,si:ei])
+            output_tokens_new = torch.stack(output_tokens_new)
+            output_tokens = output_tokens_new
+
         return output_tokens
 
     def get_forward_output_and_loss_func(self):
@@ -384,7 +394,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
                         # Encodec does not work with fp16, so we disable autocast for logging audio
                         if speech_mask[0].sum() != 0:
                             enc_input_example = self.convert_tokens_to_range(enc_input[0])
-                            dec_input_example = self.convert_tokens_to_range(dec_input[0])
+                            dec_input_example = self.convert_tokens_to_range(dec_input[0], token_type="decoder")
 
                             enc_wav = self.additional_models['encodec'].decode([[enc_input_example[None], None]])[0, 0]
                             self.logger.experiment.add_audio("Enc Input", enc_wav, self.global_step, 24000)
@@ -403,6 +413,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
 
                             all_layer_tokens = torch.stack([first_layer_tokens] + other_layer_tokens)  # (8, t)
                             all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
+                            all_layer_tokens = self.convert_tokens_to_range(all_layer_tokens, apply_offset_correction=False, token_type="decoder")
                             predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[
                                 0, 0
                             ]

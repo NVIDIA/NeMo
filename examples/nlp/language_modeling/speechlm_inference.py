@@ -193,7 +193,9 @@ def main(cfg) -> None:
                     output_tokens = output_tensor.argmax(dim=2)
                     output_tokens_curr_timestep = output_tokens[:, t]
                     output_token_list.append(output_tokens_curr_timestep[0])
-                    dec_input[:, :, t + 1] = output_tokens_curr_timestep * 1
+                    dec_input_next = output_tokens_curr_timestep * 1
+                    dec_input_next[:,0] = dec_input_next[:,0] + 30000
+                    dec_input[:, :, t + 1] = dec_input_next
 
                 output_tokens_combined = torch.stack(output_token_list)  # (T, 8)
                 output_tokens_combined = output_tokens_combined.transpose(0, 1)  # (8, T)
