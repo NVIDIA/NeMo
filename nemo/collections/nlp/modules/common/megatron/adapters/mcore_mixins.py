@@ -1,6 +1,6 @@
 import torch
 from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
-from megatron.core.transformer.custom_layers.transformer_engine import TELinear
+from megatron.core.transformer.attention import SelfAttention
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -19,34 +19,60 @@ def swap_mcore_mixin(module, mcore_mixin):
     module.mcore_register_adapters()
 
 
-class McoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
+class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
     def mcore_register_adapters(self):
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
 
 
-class LoraTELinear(TELinear, McoreAdapterModuleMixin):
+class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
-        self.set_accepted_adapter_types(
-            [
-                LoraKQVAdapterConfig._target_,  # only self attn (packed qkv) for now
-                # LoraQAdapterConfig._target_,
-                # LoraKVAdapterConfig._target_,
-            ]
-        )
+        self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_])  # only self attn (packed qkv) for now
 
-    def forward(self, x):
-        mixed_x_layer, bias = super().forward(x)
+    def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
+        """
+        Derives `query`, `key` and `value` tensors from `hidden_states`.
+        """
+        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
+        mixed_qkv, _ = self.linear_qkv(hidden_states)
 
+        # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
             if lora_kqv_adapter:
-                lora_mixed_x_layer = lora_kqv_adapter(x)
-                mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
+                lora_mixed_qkv = lora_kqv_adapter(hidden_states)
+                mixed_qkv = mixed_qkv + lora_mixed_qkv
 
-        return mixed_x_layer, bias
+        # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
+        new_tensor_shape = mixed_qkv.size()[:-1] + (
+            self.num_query_groups_per_partition,
+            (
+                (self.num_attention_heads_per_partition // self.num_query_groups_per_partition + 2)
+                * self.hidden_size_per_attention_head
+            ),
+        )
+        mixed_qkv = mixed_qkv.view(*new_tensor_shape)
+
+        # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
+        (query, key, value) = torch.split(
+            mixed_qkv,
+            [
+                (
+                    self.num_attention_heads_per_partition
+                    // self.num_query_groups_per_partition
+                    * self.hidden_size_per_attention_head
+                ),
+                self.hidden_size_per_attention_head,
+                self.hidden_size_per_attention_head,
+            ],
+            dim=3,
+        )
+        # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
+        query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
+
+        return query, key, value
 
 
-class PtuningGPTEmbedding(GPTEmbedding, McoreAdapterModuleMixin):
+class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
 

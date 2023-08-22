@@ -18,8 +18,8 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
-    LoraTELinear,
-    PtuningGPTEmbedding,
+    MCoreGPTEmbeddingMixin,
+    MCoreSelfAttentionMixin,
     swap_mcore_mixin,
 )
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -385,7 +385,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             cfg.hidden_size,
         )
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
-        self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', PtuningGPTEmbedding)]}
+        self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
@@ -560,7 +560,7 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
-            self.name_key_to_mcore_mixins[k] = [("linear_qkv", LoraTELinear)]
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)]
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
