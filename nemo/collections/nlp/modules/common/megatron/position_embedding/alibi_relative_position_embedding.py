@@ -19,10 +19,11 @@ import torch
 
 try:
     import ocean
-    HAVE_OCEAN = True  
+
+    HAVE_OCEAN = True
 except (ImportError, ModuleNotFoundError):
     HAVE_OCEAN = False
-    
+
 __all__ = ['ALiBiRelativePositionEmbedding']
 
 
@@ -85,7 +86,13 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_alibi=None, max_seq_len=512, use_FA=False
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        num_attention_heads_alibi=None,
+        max_seq_len=512,
+        use_FA=False,
     ):
         """
         Args:
@@ -131,7 +138,7 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         # used cached relative position if possible
         if self.use_FA and HAVE_OCEAN:
             return self.slopes.unsqueeze(0)
-        
+
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
             relative_position = (
@@ -147,4 +154,3 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         # if not bidirectional, mask out the future positions
         # shape (1, num_heads, query_length, key_length)
         return -relative_position.unsqueeze(0) * self.slopes
-            

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+import re
 from typing import List, Optional
 
-import re
-import random
 import numpy as np
 import torch
 
@@ -77,7 +77,9 @@ class GPTSFTDataset(Dataset):
         """
         self.tokenizer = tokenizer
         # AutoTokenizer(pretrained_model_name='gpt2') tokenizer_space_sensitive = True
-        self.tokenizer_space_sensitive = tokenizer.text_to_tokens('Hello World') != tokenizer.text_to_tokens('Hello') + tokenizer.text_to_tokens('World')
+        self.tokenizer_space_sensitive = tokenizer.text_to_tokens('Hello World') != tokenizer.text_to_tokens(
+            'Hello'
+        ) + tokenizer.text_to_tokens('World')
         self.file_path = file_path
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -101,9 +103,14 @@ class GPTSFTDataset(Dataset):
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        
+
         # Legacy checkpoint has self.truncation_fields = ['context'] and self.context_keys = ['input']
-        if len(self.truncation_fields) == 1 and len(self.context_keys) == 1 and self.context_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+        if (
+            len(self.truncation_fields) == 1
+            and len(self.context_keys) == 1
+            and self.context_keys[0] == 'input'
+            and self.truncation_fields[0] == 'context'
+        ):
             self.truncation_fields[0] = self.context_keys[0]
         assert set(self.truncation_fields).issubset(
             self.context_keys
@@ -231,7 +238,7 @@ class GPTSFTDataset(Dataset):
             context_ids (List[int]): all context ids.
             label_ids (List[int]): all label ids.
         """
-        context_ids =  template_ids[:-1]
+        context_ids = template_ids[:-1]
         label_ids = template_ids[-1]
         total_ids = (
             self.virtual_tokens
@@ -239,7 +246,7 @@ class GPTSFTDataset(Dataset):
             + max(len(label_ids), self.tokens_to_generate)
             + self.add_bos
             + self.add_sep
-            + self.add_eos # Only training need to consider eos token
+            + self.add_eos  # Only training need to consider eos token
         )
 
         if total_ids > self.max_seq_length:
@@ -263,9 +270,9 @@ class GPTSFTDataset(Dataset):
                         ids_offset = 0
                     else:
                         raise ValueError(f'{self.truncation_method} is not supported')
-                    
+
                     ids_length = len(ids) - truncation_length
-                    context_ids[i] = ids[ids_offset:ids_offset+ids_length]
+                    context_ids[i] = ids[ids_offset : ids_offset + ids_length]
 
         context_ids = [i for ids in context_ids for i in ids]
         return context_ids, label_ids
@@ -278,11 +285,10 @@ class GPTSFTDataset(Dataset):
         """
         contexts = [example[c].strip(' ') for c in self.context_keys]
         label = example[self.label_key]
-        
+
         template_strings, template_keys = self._separate_template(contexts, label)
         template_ids = [self.tokenizer.text_to_ids(p) for p in template_strings]
         context_ids, answer_ids = self._multiple_truncation(template_ids, template_keys)
-        
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context

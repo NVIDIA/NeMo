@@ -79,11 +79,12 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         elif dataset_type == "ul2_colt5":
             logging.warning("Using UL2CoLT5 dataset type.")
             if (
-                self._cfg.tokenizer.num_sentinel_tokens < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob
+                self._cfg.tokenizer.num_sentinel_tokens
+                < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob
             ):
                 raise ValueError(
                     f"Not enough sentinel tokens specified. Need at least {math.ceil(self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob)} sentinel tokens. Found {self._cfg.tokenizer.num_sentinel_tokens}"
-                )  
+                )
 
     @property
     def _build_train_valid_test_datasets_kwargs(self):

@@ -206,7 +206,7 @@ def main(cfg) -> None:
     if 'inference' in cfg:
         if not cfg.model.use_flash_attention:
             cfg.inference.compute_attention_mask = True
-    
+
         config = OmegaConf.to_container(cfg.inference, resolve=True)
         model.set_inference_config(config)
 

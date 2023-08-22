@@ -79,9 +79,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             )
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
-        #self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
-        #self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
-        #if hasattr(self.cfg.data.validation_ds, "metric"):
+        # self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+        # self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
+        # if hasattr(self.cfg.data.validation_ds, "metric"):
         #    self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
         if hasattr(self.cfg.data, "test_ds"):
@@ -274,9 +274,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 memmap_workers=data_cfg.get(
                     'memmap_workers', None
                 ),  # used to set num. of workers to create the memmap index files
-                truncation_method=data_cfg.get(
-                    'truncation_method', 'right'
-                ), # used to enable random truncation 
+                truncation_method=data_cfg.get('truncation_method', 'right'),  # used to enable random truncation
             )
             datasets.append(dataset)
 

@@ -78,11 +78,11 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from ocean.nn.flash_attention import flash_attention
-    
+
     HAVE_FLASH_ATTENTION_OCEAN = True
-    
+
 except (ImportError, ModuleNotFoundError):
-    
+
     flash_attention = None
     HAVE_FLASH_ATTENTION_OCEAN = False
 
@@ -816,7 +816,7 @@ class CoreAttention(MegatronModule):
             self.attn_fn = self.flash_attention
         else:
             self.attn_fn = self.torch_attention
-            
+
         if position_embedding_type.lower() == 'xpos':
             self.xpos = XPOSPositionEmbedding(kv_channels)
 
@@ -936,9 +936,9 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             attention_scores += attention_bias
-        
+
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-        
+
         if not self.sequence_parallel:
             with tensor_parallel.random.get_cuda_rng_tracker().fork():
                 attention_probs = self.attention_dropout(attention_probs)
@@ -966,9 +966,13 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             if HAVE_FLASH_ATTENTION_OCEAN:
-                return self.flash_attention_triton_ocean(query_layer, key_layer, value_layer, attention_mask, attention_bias,)
+                return self.flash_attention_triton_ocean(
+                    query_layer, key_layer, value_layer, attention_mask, attention_bias,
+                )
             else:
-                return self.flash_attention_triton(query_layer, key_layer, value_layer, attention_mask, attention_bias,)
+                return self.flash_attention_triton(
+                    query_layer, key_layer, value_layer, attention_mask, attention_bias,
+                )
         else:
             return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask,)
 
@@ -976,7 +980,7 @@ class CoreAttention(MegatronModule):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
         value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
-        
+
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -1014,11 +1018,11 @@ class CoreAttention(MegatronModule):
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
         return context_layer
-    
+
     def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
-            
+
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
         value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
@@ -1031,8 +1035,8 @@ class CoreAttention(MegatronModule):
             else:
                 # [b, s] -> [b, 1, s, 1] / [b, 1, 1, s]
                 assert len(attention_mask.shape) == 2
-                attention_mask_q = (~attention_mask.unsqueeze(1).unsqueeze(3))
-                attention_mask_kv = (~attention_mask.unsqueeze(1).unsqueeze(2))
+                attention_mask_q = ~attention_mask.unsqueeze(1).unsqueeze(3)
+                attention_mask_kv = ~attention_mask.unsqueeze(1).unsqueeze(2)
 
             if attention_bias.shape[2] == attention_mask_q.shape[2]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_q, torch.finfo(query_layer.dtype).min)
@@ -1049,7 +1053,6 @@ class CoreAttention(MegatronModule):
             context_layer = context_layer * attention_mask_q
 
         return context_layer
-    
 
     def flash_attention_triton_ocean(self, query_layer, key_layer, value_layer, attention_mask, attention_bias):
         q_len, kv_len = None, None
@@ -1064,12 +1067,12 @@ class CoreAttention(MegatronModule):
                 kv_len = torch.any(torch.eq(attention_mask, False), dim=2).sum(-1).squeeze()
             else:
                 # [b, s]
-                assert len(attention_mask.shape) == 2                
+                assert len(attention_mask.shape) == 2
                 q_len = (~attention_mask).sum(-1).squeeze()
                 kv_len = (~attention_mask).sum(-1).squeeze()
 
         is_causal = self.attn_mask_type == AttnMaskType.causal and query_layer.shape[0] == key_layer.shape[0]
-        
+
         if self.position_embedding_type == 'alibi':
             bias_type = 'alibi'
             attention_bias = attention_bias.squeeze()
@@ -1077,15 +1080,17 @@ class CoreAttention(MegatronModule):
         else:
             bias_type = 'matrix'
             assert len(attention_bias.size()) == 4
-        
+
         context_layer = flash_attention(
-            q=query_layer, 
-            k=key_layer, 
-            v=value_layer, 
-            q_len=q_len, 
-            kv_len=kv_len, 
-            softmax_scale=(1.0 / math.sqrt(self.hidden_size_per_attention_head)) if self.normalize_attention_scores else 1.0,
-            causal=is_causal, 
+            q=query_layer,
+            k=key_layer,
+            v=value_layer,
+            q_len=q_len,
+            kv_len=kv_len,
+            softmax_scale=(1.0 / math.sqrt(self.hidden_size_per_attention_head))
+            if self.normalize_attention_scores
+            else 1.0,
+            causal=is_causal,
             bias=attention_bias,
             bias_type=bias_type,
             dropout=self.attention_dropout_p if self.training else 0.0,
