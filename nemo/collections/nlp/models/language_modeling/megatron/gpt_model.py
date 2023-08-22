@@ -316,9 +316,14 @@ class GPTModel(MegatronModule):
                 gradient_accumulation_fusion=self.config.gradient_accumulation_fusion,
             )
             if loss_mask is not None:
-                res = torch.zeros_like(labels).type_as(post_process_result)
-                res[loss_mask==1] = post_process_result
-                return res
+                if isinstance(post_process_result, tuple):
+                    loss, logits = post_process_result
+                else:
+                    loss, logits = post_process_result, None
+
+                res = torch.zeros_like(labels).type_as(loss)
+                res[loss_mask==1] = loss
+                return res if logits is None else (res, logits)
             else:
                 return post_process_result
         else:
