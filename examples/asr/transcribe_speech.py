@@ -171,7 +171,7 @@ class TranscriptionConfig:
     # if True, will also skip writing anything to the output file
     return_transcriptions: bool = False
 
-    # Set to False to return text instead of hypotheses, so as to save memory
+    # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -229,9 +229,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
-
-    # collect additional transcription information when requested
-    return_hypotheses = cfg.return_hypotheses
 
     # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
@@ -329,7 +326,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     path2manifest=cfg.dataset_manifest,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
-                    return_hypotheses=return_hypotheses,
+                    return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
                     augmentor=augmentor,
                     decoder_type=cfg.decoder_type,
@@ -339,7 +336,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     paths2audio_files=filepaths,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
-                    return_hypotheses=return_hypotheses,
+                    return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
                     augmentor=augmentor,
                 )
