@@ -322,7 +322,7 @@ class GPTModel(MegatronModule):
                     loss, logits = post_process_result, None
 
                 res = torch.zeros_like(labels).type_as(loss)
-                res[loss_mask==1] = loss
+                res[loss_mask == 1] = loss
                 return res if logits is None else (res, logits)
             else:
                 return post_process_result
