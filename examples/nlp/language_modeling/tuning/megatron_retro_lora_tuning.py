@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import os
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -114,6 +113,7 @@ def main(cfg) -> None:
     if "shape_file" in frozen_model_cfg:
         frozen_model_cfg.pop("shape_file")
 
+    print(frozen_model_cfg)
     model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
     trainer.fit(model)
 

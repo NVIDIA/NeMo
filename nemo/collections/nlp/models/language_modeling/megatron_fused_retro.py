@@ -61,6 +61,8 @@ except (ImportError, ModuleNotFoundError):
 # Model initalizes both adapter and retro mdoel classes
 # The forward function here calls the adapter forward function gets the output and uses that as the input to some retro subclass
 
+__all__ = ['MegatronFusedRetrievalAdapterModel', 'MegatronFusedRetrievalLoraModel']
+
 
 class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):

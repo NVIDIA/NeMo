@@ -500,6 +500,8 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
                 if not self.for_train and field == "answer": # during inference, do not use text in answer field
                     input_example = input_example.replace('{' + field + '}', "")
                 field_text = doc[field]
+                if type(field_text) == bool:
+                    field_text = str(field_text)
                 input_example = input_example.replace('{' + field + '}', field_text)
 
             # If some fields from the template aren't present, e.g. {answer} during inference
@@ -594,7 +596,7 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         prompt_template = self.task_templates[taskname]["prompt_template"]
         field_text_start = prompt_template.find("{" + field_name + "}")
         if field_text_start != 0 and prompt_template[field_text_start - 1] == " ":
-            field_text = " " + field_text
+            field_text = " " + str(field_text)
 
         return field_text
 

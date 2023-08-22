@@ -805,7 +805,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         retrieved_doc_len = 128 
     ):
         task_template = {
-            "car": {
+            "boolq": {
                 "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
                 "prompt_template_fields": ["question", "answer"],
                 "total_virtual_tokens": 0,

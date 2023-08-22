@@ -109,7 +109,8 @@ model:
 
   data:
     train_ds: # landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted
-      file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
+      # file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/train_n10_retro.jsonl
+      file_name: /dataset/retro/boolq_retrieval/boolq_retrieval/train_n10_retro.jsonl
       # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/train_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/train.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
@@ -119,7 +120,8 @@ model:
       seed: 1234
       neighbors: 5  # number of retrieved neighbors
     val_ds:
-      file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
+      # file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/valid_n10_retro.jsonl
+      file_name: /dataset/retro/boolq_retrieval/boolq_retrieval/dev_n10_retro.jsonl
       # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/valid_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/dev.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
@@ -129,7 +131,8 @@ model:
       seed: 1234
       neighbors: 5  # number of retrieved neighbors
     test_ds:
-      file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+      # file_name: /workspaces/software/research/downloaded/finetune-data/landrover_plus_benz_tasb_ftmsmarcominilm_chunkbysents150_retrieved_with_title_formatted/test_n10_retro.jsonl
+      file_name: /dataset/retro/boolq_retrieval/boolq_retrieval/dev_n10_retro.jsonl
       # file_name: /workspaces/research/downloaded/finetune-data/benz_plus_landrover_tasb_ftmsmarcominilm_chunkbysents64_retrieved_formatted/test_n10_retro.jsonl
       # file_name: /dataset/lm_tasks/data/finetune-data/test.shu.jsonl # train data file path
       answer_only_loss: True  # whether use answer only loss
