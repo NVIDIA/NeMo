@@ -844,7 +844,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             output_tensor = model(
                 batch['tokens'],
                 batch['position_ids'],
-                batch['attention_mask'],
+                None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                 batch['labels'],
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )

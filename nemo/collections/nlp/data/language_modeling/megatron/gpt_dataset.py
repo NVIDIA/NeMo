@@ -313,6 +313,7 @@ class GPTDataset(Dataset):
         self.indexed_dataset = indexed_dataset
         self.drop_last = drop_last
         self.seq_length = seq_length
+        self.get_attention_mask_from_fusion = cfg.get('get_attention_mask_from_fusion', True)
 
         # Checks
         assert np.min(documents) >= 0
@@ -433,13 +434,21 @@ class GPTDataset(Dataset):
             logging.debug('Got negative index. Masking loss from this sample')
             loss_mask = torch.zeros_like(loss_mask)
 
-        return {
-            'tokens': tokens,
-            'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
-        }
+        if self.get_attention_mask_from_fusion:
+            return {
+                'tokens': tokens,
+                'labels': labels,
+                'loss_mask': loss_mask,
+                'position_ids': position_ids,
+            }
+        else:
+            return {
+                'tokens': tokens,
+                'labels': labels,
+                'attention_mask': attention_mask,
+                'loss_mask': loss_mask,
+                'position_ids': position_ids,
+            }
 
 
 class MockGPTDataset(Dataset):
@@ -457,6 +466,7 @@ class MockGPTDataset(Dataset):
         self.vocab_size = tokenizer.vocab_size
         self.length = num_samples
         self.seed = seed
+        self.get_attention_mask_from_fusion = cfg.get('get_attention_mask_from_fusion', True)
 
         self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
         self.attention_mask = self.attention_mask < 0.5
@@ -476,13 +486,21 @@ class MockGPTDataset(Dataset):
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
-        return {
-            'tokens': tokens,
-            'labels': labels,
-            'attention_mask': self.attention_mask,
-            'loss_mask': self.loss_mask,
-            'position_ids': self.position_ids,
-        }
+        if self.get_attention_mask_from_fusion:
+            return {
+                'tokens': tokens,
+                'labels': labels,
+                'loss_mask': self.loss_mask,
+                'position_ids': self.position_ids,
+            }
+        else:
+            return {
+                'tokens': tokens,
+                'labels': labels,
+                'attention_mask': self.attention_mask,
+                'loss_mask': self.loss_mask,
+                'position_ids': self.position_ids,
+            }
 
 
 @torch.no_grad()
