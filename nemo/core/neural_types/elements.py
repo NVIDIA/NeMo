@@ -199,6 +199,7 @@ class AudioSignal(ElementType):
     def type_parameters(self):
         return self._params
 
+
 class VideoSignal(ElementType):
     """Element type to represent encoded representation returned by the visual encoder model
     Args:
