@@ -71,13 +71,12 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    from megatron.core import InferenceParams
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -292,7 +291,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.inference_params = None
 
-
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
             return [
@@ -325,9 +323,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
             )
         else:
-            assert (
-                self.cfg.get('num_query_groups', None) is None
-                or self.cfg.get('num_query_groups', None) == self.cfg.get('num_attention_heads', None)
+            assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
+                'num_query_groups', None
+            ) == self.cfg.get(
+                'num_attention_heads', None
             ), "Group Query Attention is only supported in Megatron Core. Set 'mcore_gpt' to use GQA."
 
             model = GPTModel(
@@ -898,8 +897,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # if first step, then clear KV cache, otherwise reuse inference_paarms
                 if set_inference_key_value_memory[0].item():
                     self.inference_params = InferenceParams(
-                        max_batch_size=tokens.size(0),
-                        max_sequence_length=inference_max_sequence_len[0].item()
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
                     )
                 extra_arg['inference_params'] = self.inference_params
             else:
@@ -907,7 +905,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
-            
             # Advance inference sequence offset.
             if self.inference_params:
                 self.inference_params.sequence_len_offset += output_tensor.size(1)
@@ -1349,13 +1346,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Restore model parameters.
         for module in self.get_gpt_module_list():
             if self.cfg.get('mcore_gpt', False):
-                module.decoder.config.recompute_granularity = (
-                    self.last_activations_checkpoint_granularity
-                )
+                module.decoder.config.recompute_granularity = self.last_activations_checkpoint_granularity
                 module.decoder.config.recompute_method = self.last_activations_checkpoint_method
-                module.decoder.config.recompute_num_layers = (
-                    self.last_activations_checkpoint_num_layers
-                )
+                module.decoder.config.recompute_num_layers = self.last_activations_checkpoint_num_layers
             else:
                 module.language_model.encoder.activations_checkpoint_granularity = (
                     self.last_activations_checkpoint_granularity

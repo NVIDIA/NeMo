@@ -17,6 +17,11 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
+    LoraTELinear,
+    PtuningGPTEmbedding,
+    swap_mcore_mixin,
+)
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
@@ -26,11 +31,6 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
-)
-from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
-    swap_mcore_mixin,
-    LoraTELinear,
-    PtuningGPTEmbedding,
 )
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
@@ -77,7 +77,10 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                         if name.split(".")[-1] == mcore_target:
                             swap_mcore_mixin(module, mcore_mixin)
                             peft_cfg = self.name_key_to_cfg[peft_key]
-                            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                            if (
+                                model_utils.import_class_by_path(peft_cfg._target_)
+                                in module.get_accepted_adapter_types()
+                            ):
                                 module.add_adapter(
                                     name=peft_key,
                                     cfg=peft_cfg,
@@ -93,7 +96,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                                 name=peft_key,
                                 cfg=peft_cfg,
                                 base_model_cfg=self.cfg,
-                                model_parallel_config=self.model_parallel_config
+                                model_parallel_config=self.model_parallel_config,
                             )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
@@ -205,7 +208,9 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                                         in module.get_accepted_adapter_types()
                                     ):
                                         module.add_adapter(
-                                            name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config,
+                                            name=peft_key,
+                                            cfg=peft_cfg,
+                                            model_parallel_config=self.model_parallel_config,
                                         )
                     else:
                         if isinstance(module, adapter_mixins.AdapterModuleMixin):
@@ -219,7 +224,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                                         name=peft_key,
                                         cfg=peft_cfg,
                                         base_model_cfg=self.cfg,
-                                        model_parallel_config=self.model_parallel_config
+                                        model_parallel_config=self.model_parallel_config,
                                     )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
@@ -385,10 +390,10 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # non-mcore O1
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # non-mcore O2
-                "model.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # mcore O1
-                "model.module.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight", # mcore O2
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # non-mcore O1
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # non-mcore O2
+                "model.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # mcore O1
+                "model.module.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # mcore O2
             ]
         )
         # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)

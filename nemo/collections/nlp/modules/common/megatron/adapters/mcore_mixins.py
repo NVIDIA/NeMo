@@ -1,15 +1,14 @@
 import torch
+from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
+from megatron.core.transformer.custom_layers.transformer_engine import TELinear
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     LoraKQVAdapterConfig,
-    PromptEncoderAdapterConfig
+    PromptEncoderAdapterConfig,
 )
 from nemo.core import adapter_mixins
 from nemo.utils import model_utils
-
-from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
-from megatron.core.transformer.custom_layers.transformer_engine import TELinear
 
 
 def swap_mcore_mixin(module, mcore_mixin):
@@ -39,11 +38,11 @@ class LoraTELinear(TELinear, McoreAdapterModuleMixin):
         mixed_x_layer, bias = super().forward(x)
 
         if self.is_adapter_available():
-                lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
-                if lora_kqv_adapter:
-                    lora_mixed_x_layer = lora_kqv_adapter(x)
-                    mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
-        
+            lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
+            if lora_kqv_adapter:
+                lora_mixed_x_layer = lora_kqv_adapter(x)
+                mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
+
         return mixed_x_layer, bias
 
 

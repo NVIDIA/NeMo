@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel, InferenceParams
+    from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -94,7 +94,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         super().__init__(cfg, trainer)
 
         self.inference_params = None
-        
+
         # init_model is called by parent class already.
         # self.init_model(cfg, trainer)
 
@@ -270,11 +270,11 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if self.first_stage_of_pipeline():
             input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
             if self.frozen_model.mcore_gpt and hasattr(self.frozen_model.model.embedding, "position_embeddings"):
-                position_embeddings = self.frozen_model.model.embedding.position_embeddings(
-                    position_ids
-                )
+                position_embeddings = self.frozen_model.model.embedding.position_embeddings(position_ids)
                 encoder_input = input_embeds + position_embeddings
-            elif not self.frozen_model.mcore_gpt and hasattr(self.frozen_model.model.language_model.embedding, "position_embeddings"):
+            elif not self.frozen_model.mcore_gpt and hasattr(
+                self.frozen_model.model.language_model.embedding, "position_embeddings"
+            ):
                 position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(
                     position_ids
                 )
@@ -721,8 +721,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 # if first step, then clear KV cache, otherwise reuse inference_paarms
                 if set_inference_key_value_memory[0].item():
                     self.inference_params = InferenceParams(
-                        max_batch_size=tokens.size(0),
-                        max_sequence_length=inference_max_sequence_len[0].item()
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
                     )
                 extra_arg['inference_params'] = self.inference_params
             else:
