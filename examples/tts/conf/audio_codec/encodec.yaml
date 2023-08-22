@@ -35,9 +35,13 @@ model:
 
   sample_rate: ${sample_rate}
   samples_per_frame: ${samples_per_frame}
+
+  mel_loss_scale: 5.0
   time_domain_loss_scale: 0.1
   # Probability of updating the discriminator during each training step
-  disc_update_prob: 0.67
+  # For example, update the discriminator 2/3 times (2 updates for every 3 batches)
+  disc_updates_per_period: 2
+  disc_update_period: 3
 
   # All resolutions for mel reconstruction loss, ordered [num_fft, hop_length, window_length]
   mel_loss_resolutions: [
@@ -102,19 +106,19 @@ model:
       num_workers: 2
 
   audio_encoder:
-    _target_: nemo.collections.tts.modules.audio_codec_modules.SEANetEncoder
+    _target_: nemo.collections.tts.modules.encodec_modules.SEANetEncoder
     down_sample_rates: ${down_sample_rates}
 
   audio_decoder:
-    _target_: nemo.collections.tts.modules.audio_codec_modules.SEANetDecoder
+    _target_: nemo.collections.tts.modules.encodec_modules.SEANetDecoder
     up_sample_rates: ${up_sample_rates}
 
   vector_quantizer:
-    _target_: nemo.collections.tts.modules.vector_quantization.ResidualVectorQuantizer
+    _target_: nemo.collections.tts.modules.encodec_modules.ResidualVectorQuantizer
     num_codebooks: 8
 
   discriminator:
-    _target_: nemo.collections.tts.modules.audio_codec_modules.MultiResolutionDiscriminatorSTFT
+    _target_: nemo.collections.tts.modules.encodec_modules.MultiResolutionDiscriminatorSTFT
     resolutions: [[128, 32, 128], [256, 64, 256], [512, 128, 512], [1024, 256, 1024], [2048, 512, 2048]]
 
   # The original EnCodec uses hinged loss, but squared-GAN loss is more stable
