@@ -74,7 +74,10 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             if self.mcore_gpt:
                 for peft_key in self.peft_name_keys:
                     for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
-                        if name in [f'model.{mcore_target}', f'model.module.{mcore_target}']: # simple string match for now
+                        if name in [
+                            f'model.{mcore_target}',
+                            f'model.module.{mcore_target}',
+                        ]:  # simple string match for now
                             swap_mcore_mixin(module, mcore_mixin)
                             peft_cfg = self.name_key_to_cfg[peft_key]
                             if (
