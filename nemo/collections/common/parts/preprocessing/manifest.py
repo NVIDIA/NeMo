@@ -154,8 +154,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
 
     item = dict(
-        audio_file=item.get('audio_file'),
-        video_file=item.get('video_file'),
+        audio_file=item.get('audio_file', None),
+        video_file=item.get('video_file', None),
         duration=item['duration'],
         text=item['text'],
         rttm_file=item['rttm_file'],
