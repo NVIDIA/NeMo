@@ -19,25 +19,36 @@ import pytest
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
+from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 
 
 class TestNemoDeployment:
+
     @pytest.mark.unit
     @pytest.mark.skip()
     def test_in_framework_pytriton(self):
         """Here we test the in framework inference deployment to triton"""
 
-        self._prep_test_data()
+        test_data = get_infer_test_data()
         test_at_least_one = False
-        no_error = True
 
-        for model_name, model_info in self.test_data.items():
+        for model_name, model_info in test_data.items():
             if model_info["location"] == "HF":
-                self._download_nemo_checkpoint(
+                download_nemo_checkpoint(
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
                 )
 
+            print(
+                "Path: {0} and model: {1} is next ...".format(
+                    model_info["checkpoint"], model_name
+                )
+            )
             if Path(model_info["checkpoint"]).exists():
+                print(
+                    "Path: {0} and model: {1} gpus will be tested".format(
+                        model_info["checkpoint"], model_name
+                    )
+                )
                 test_at_least_one = True
                 nm = DeployPyTriton(checkpoint_path=model_info["checkpoint"], triton_model_name=model_name, port=8005)
 
@@ -57,91 +68,55 @@ class TestNemoDeployment:
                 print("Model {0} could not be found at this location {1}".format(model_name, model_info["checkpoint"]))
 
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
-        assert no_error, "At least one model couldn't be served successfully."
 
     @pytest.mark.unit
     def test_trt_llm_pytriton(self):
         """Here we test the in framework inference deployment to triton"""
 
-        self._prep_test_data()
+        test_data = get_infer_test_data()
         test_at_least_one = False
-        no_error = True
 
-        for model_name, model_info in self.test_data.items():
+        for model_name, model_info in test_data.items():
             if model_info["location"] == "HF":
-                self._download_nemo_checkpoint(
+                download_nemo_checkpoint(
                     model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
                 )
 
+            print(
+                "Path: {0} and model: {1} is next ...".format(
+                    model_info["checkpoint"], model_name
+                )
+            )
             if Path(model_info["checkpoint"]).exists():
+                n_gpu = model_info["total_gpus"][0]
+                print(
+                    "Path: {0} and model: {1} with {2} gpus will be tested".format(
+                        model_info["checkpoint"], model_name, n_gpu
+                    )
+                )
+
                 test_at_least_one = True
                 Path(model_info["trt_llm_model_dir"]).mkdir(parents=True, exist_ok=True)
+
                 trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
-                trt_llm_exporter.export(nemo_checkpoint_path=model_info["checkpoint"], n_gpus=1)
+                trt_llm_exporter.export(
+                    nemo_checkpoint_path=model_info["checkpoint"],
+                    model_type=model_info["model_type"],
+                    n_gpus=n_gpu,
+                )
 
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
+                nm.deploy()
+                nm.run()
+                nq = NemoQuery(url="localhost", model_name=model_name)
 
-                try:
-                    nm.deploy()
-                    nm.run()
-                    nq = NemoQuery(url="localhost", model_name=model_name)
-
-                    output = nq.query_llm(prompts=["hello, testing GPT inference", "another GPT inference test?"])
-                    print(output)
-                except:
-                    print("Couldn't start the model.")
-                    no_error = False
+                output = nq.query_llm(prompts=["hello, testing GPT inference", "another GPT inference test?"])
+                print(output)
 
                 nm.stop()
             else:
                 print("Model {0} could not be found at this location {1}".format(model_name, model_info["checkpoint"]))
 
         assert test_at_least_one, "At least one nemo checkpoint has to be tested."
-        assert no_error, "At least one model couldn't be served successfully."
 
-    def _prep_test_data(self):
-        self.test_data = {}
 
-        self.test_data["GPT-843M-base"] = {}
-        self.test_data["GPT-843M-base"]["location"] = "Selene"
-        self.test_data["GPT-843M-base"]["trt_llm_model_dir"] = "/tmp/GPT-843M-base/trt_llm_model/"
-        self.test_data["GPT-843M-base"][
-            "checkpoint"
-        ] = "/opt/checkpoints/GPT-843M-base/megatron_converted_843m_tp1_pp1.nemo"
-
-        self.test_data["GPT-2B-HF-base"] = {}
-        self.test_data["GPT-2B-HF-base"]["location"] = "HF"
-        self.test_data["GPT-2B-HF-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-hf-base/trt_llm_model/"
-        self.test_data["GPT-2B-HF-base"]["checkpoint_dir"] = "/tmp/GPT-2B-hf-base/nemo_checkpoint/"
-        self.test_data["GPT-2B-HF-base"]["checkpoint"] = (
-            self.test_data["GPT-2B-HF-base"]["checkpoint_dir"] + "GPT-2B-001_bf16_tp1.nemo"
-        )
-        self.test_data["GPT-2B-HF-base"]["checkpoint_link"] = (
-            "https://huggingface.co/nvidia/GPT-2B-001/resolve/main/" "GPT-2B-001_bf16_tp1.nemo"
-        )
-
-        self.test_data["GPT-2B-base"] = {}
-        self.test_data["GPT-2B-base"]["location"] = "Selene"
-        self.test_data["GPT-2B-base"]["trt_llm_model_dir"] = "/tmp/GPT-2B-base/trt_llm_model/"
-        self.test_data["GPT-2B-base"]["checkpoint"] = "/opt/checkpoints/GPT-2B-base/megatron_converted_2b_tp1_pp1.nemo"
-
-        self.test_data["GPT-8B-base"] = {}
-        self.test_data["GPT-8B-base"]["location"] = "Selene"
-        self.test_data["GPT-8B-base"]["trt_llm_model_dir"] = "/tmp/GPT-8B-base/trt_llm_model/"
-        self.test_data["GPT-8B-base"]["checkpoint"] = "/opt/checkpoints/GPT-8B-base/megatron_converted_8b_tp4_pp1.nemo"
-
-        self.test_data["GPT-43B-base"] = {}
-        self.test_data["GPT-43B-base"]["location"] = "Selene"
-        self.test_data["GPT-43B-base"]["trt_llm_model_dir"] = "/tmp/GPT-43B-base/trt_llm_model/"
-        self.test_data["GPT-43B-base"][
-            "checkpoint"
-        ] = "/opt/checkpoints/GPT-43B-base/megatron_converted_43b_tp8_pp1.nemo"
-
-    def _download_nemo_checkpoint(self, checkpoint_link, checkpoint_dir, checkpoint_path):
-        if not Path(checkpoint_path).exists():
-            print("Checkpoint: {0}, will be downloaded to {1}".format(checkpoint_link, checkpoint_path))
-            Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-            req.urlretrieve(checkpoint_link, checkpoint_path)
-            print("Checkpoint: {0}, download completed.".format(checkpoint_link))
-        else:
-            print("Checkpoint: {0}, has already been downloaded.".format(checkpoint_link))
