@@ -13,10 +13,13 @@
 # limitations under the License.
 
 from typing import List, Optional, Tuple, Union
+import torch
+from pytorch_lightning import Trainer
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig, AdapterModelPTMixin, AdapterModuleMixin, _prepare_default_adapter_config
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName
 from nemo.utils import logging, logging_mode, model_utils
 from omegaconf import OmegaConf, open_dict
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
@@ -94,3 +97,28 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
+
+    @classmethod
+    def restore_from_nemo_with_adapter(
+        cls,
+        restore_path: str,
+        adapter_names: Union[AdapterName, List[AdapterName]],
+        adapter_cfgs: Union[AdapterConfig, List[AdapterConfig]],
+        strict: bool = True,
+        map_location: Optional[torch.device] = None,
+        trainer: Optional[Trainer] = None,
+    ):
+        save_restore_connector = NLPSaveRestoreConnector()
+
+        cls.update_save_restore_connector(save_restore_connector)
+        conf, instance, state_dict = save_restore_connector.load_config_and_state_dict(
+            cls, restore_path=restore_path, map_location=map_location, trainer=trainer
+        )
+
+        instance.add_adapters(adapter_names, adapter_cfgs)
+
+        state_dict = save_restore_connector.modify_state_dict(conf, state_dict)
+        save_restore_connector.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+
+        return instance
