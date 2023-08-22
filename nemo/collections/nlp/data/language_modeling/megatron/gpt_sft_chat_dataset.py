@@ -66,6 +66,8 @@ def _mask_targets(
     """
     cur_idx = header_len
     tgt_len = target.shape[0]
+    # todo: assume that the first role is the user, others are automated roles.
+    user_role = mask_roles[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. has to compute the diff
         id1 = tokenizer.text_to_ids("<extra_id_1>")
@@ -93,14 +95,17 @@ def _mask_targets(
         if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
             # mask the first turn completely to provide at least one turn as context
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker in mask_roles and i == 1 and gtype == 'TEXT_TO_VALUE':
+        elif speaker == user_role and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker in mask_roles and (i > 1):
+        elif speaker == user_role and (i > 1):
             # leave the first human tag unmasked
             target[cur_idx + 1 : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker in mask_roles and (i <= 1):
+        elif speaker == user_role and (i <= 1):
             # mask out everything in the second turn
+            target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
+        elif speaker in mask_roles:
+            # assume this is a special role that we want to mask completely.
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
             # mask up to the name end, need to remove one as skip name has an extra artifact empty token
