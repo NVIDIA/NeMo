@@ -74,7 +74,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             if self.mcore_gpt:
                 for peft_key in self.peft_name_keys:
                     for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
-                        if name.split(".")[-1] == mcore_target:
+                        if name in [f'model.{mcore_target}', f'model.module.{mcore_target}']: # simple string match for now
                             swap_mcore_mixin(module, mcore_mixin)
                             peft_cfg = self.name_key_to_cfg[peft_key]
                             if (
@@ -200,7 +200,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                     if self.mcore_gpt:
                         for peft_key in self.peft_name_keys:
                             for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
-                                if name.split(".")[-1] == mcore_target:
+                                if name == mcore_target:
                                     swap_mcore_mixin(module, mcore_mixin)
                                     peft_cfg = self.name_key_to_cfg[peft_key]
                                     if (
@@ -622,8 +622,10 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         )
 
         self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)]
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))

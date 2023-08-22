@@ -322,7 +322,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         gradient_accumulation_fusion = False
         # (@adithyare) the persistent=False will not pollute the indices into the state_dict of this module.
         self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))), persistent=False)
-        self.prompt_embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
+        self.embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
         self.inference_table = InferenceTable("taskname", self.output_dim, self.virtual_tokens)
         self.first = ColumnParallelLinear(
             self.embedding_dim,
@@ -366,7 +366,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         return self.inference_table.get_prompt_table()
 
     def inner_forward(self,):
-        input_embeds = self.prompt_embedding(self.indices).unsqueeze(0)
+        input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         output_embeds, bias_parallel = self.second(intermediate_parallel)
