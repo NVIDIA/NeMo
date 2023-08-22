@@ -70,7 +70,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
         for name, module in self.named_modules():
-            # if there's an infinite loop here, check that the added adapter modules doesn't use the same key as mcore targets.
             if self.mcore_gpt:
                 for peft_key in self.peft_name_keys:
                     for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
