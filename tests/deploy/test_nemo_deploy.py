@@ -25,51 +25,6 @@ from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
 class TestNemoDeployment:
 
     @pytest.mark.unit
-    @pytest.mark.skip()
-    def test_in_framework_pytriton(self):
-        """Here we test the in framework inference deployment to triton"""
-
-        test_data = get_infer_test_data()
-        test_at_least_one = False
-
-        for model_name, model_info in test_data.items():
-            if model_info["location"] == "HF":
-                download_nemo_checkpoint(
-                    model_info["checkpoint_link"], model_info["checkpoint_dir"], model_info["checkpoint"]
-                )
-
-            print(
-                "Path: {0} and model: {1} is next ...".format(
-                    model_info["checkpoint"], model_name
-                )
-            )
-            if Path(model_info["checkpoint"]).exists():
-                print(
-                    "Path: {0} and model: {1} gpus will be tested".format(
-                        model_info["checkpoint"], model_name
-                    )
-                )
-                test_at_least_one = True
-                nm = DeployPyTriton(checkpoint_path=model_info["checkpoint"], triton_model_name=model_name, port=8005)
-
-                try:
-                    nm.deploy()
-                    nm.run()
-                    nq = NemoQuery(url="localhost:8005", model_name=model_name)
-
-                    output = nq.query_llm(prompts=["hello, testing GPT inference"])
-                    print(output)
-                except:
-                    print("Couldn't start the model.")
-                    no_error = False
-
-                nm.stop()
-            else:
-                print("Model {0} could not be found at this location {1}".format(model_name, model_info["checkpoint"]))
-
-        assert test_at_least_one, "At least one nemo checkpoint has to be tested."
-
-    @pytest.mark.unit
     def test_trt_llm_pytriton(self):
         """Here we test the in framework inference deployment to triton"""
 
