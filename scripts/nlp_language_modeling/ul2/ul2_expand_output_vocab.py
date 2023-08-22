@@ -17,21 +17,9 @@
 export PYTHONPATH="/lustre/fsw/portfolios/adlr/users/chzhu/sources/NeMo_sandeepsub_ul2:${PYTHONPATH}"
 python scripts/nlp_language_modeling/ul2/ul2_expand_output_vocab.py \
     --nemo_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M.nemo" \
-    --tok_model="/lustre/fsw/portfolios/adlr/users/chzhu/vocabs_mappings/4ed3e39a0f5345e495899db3b0d3b96d_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" \
     --num_sentinel_tokens=2000 \
     --out_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M_extras_2000_proper.nemo" \
     --alpha=0.5
-
-export PYTHONPATH="/lustre/fsw/portfolios/adlr/users/chzhu/sources/NeMo_sandeepsub_ul2:${PYTHONPATH}"
-python scripts/nlp_language_modeling/ul2/ul2_expand_output_vocab.py \
-    --nemo_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M.nemo" \
-    --tok_model="/lustre/fsw/portfolios/adlr/users/chzhu/vocabs_mappings/4ed3e39a0f5345e495899db3b0d3b96d_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" \
-    --num_sentinel_tokens=990 \
-    --out_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M_extras_2000.nemo" \
-    --alpha=0.5
-
-    --tok_model="nemo:8951067342554d49b4df0bfee8dcd5fa_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" \
-
 
 """
 
@@ -57,7 +45,8 @@ def parse_args():
     parser.add_argument('-o', '--out_file', type=str, default=None, help='Path to save the modified model checkpoint')
 
     parser.add_argument(
-        '-m', '--tok_model', type=str, default=None, help='Tokenizer model to use for parsing the model checkpoint'
+        '-m', '--tok_model_suffix', type=str, default='mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model',
+        help='Tokenizer model to use for parsing the model checkpoint'
     )
     parser.add_argument(
         '-n', '--num_sentinel_tokens', type=int, required=True, help='Number of sentinal tokens to add to the vocab'
@@ -99,17 +88,17 @@ def update_model_config(tokenizer_cfg, config):
     # Update the tokenizer configs here.
     for key in tokenizer_cfg.keys():
         if key == 'model':
-            # Model paths need to start with `nemo:` so that it won't be loaded as a global path.
-            config.tokenizer[key] = "nemo:" + tokenizer_cfg[key].split('/')[-1]
+            # We never override the tokenizer model, keep this unchanged.
+            continue
         else:
             config.tokenizer[key] = tokenizer_cfg[key]
     return config
 
-def build_tokenizer(args: argparse.Namespace):
+def build_tokenizer(args: argparse.Namespace, tok_model_path: str):
     tokenizer = get_nmt_tokenizer(
         library=args.library,
         model_name=args.type,
-        tokenizer_model=args.tok_model,
+        tokenizer_model=tok_model_path,
         vocab_file=args.vocab_file,
         merges_file=args.merge_file,
         delimiter=None,
@@ -121,7 +110,7 @@ def build_tokenizer(args: argparse.Namespace):
         dict(
             library=args.library,
             type=args.type,
-            model=args.tok_model,
+            model=tok_model_path,
             vocab_file=args.vocab_file,
             merges_file=args.merge_file,
             sentencepiece_legacy=args.sentencepiece_legacy,
@@ -170,8 +159,6 @@ def expand_tensor(model_cfg, tokenizer, key, state_dict, alpha):
     new_vocab_size = len(tokenizer.vocab)
     print("New vocab size :", new_vocab_size)
 
-    import pdb; pdb.set_trace()
-
     # Add buffer of dummy tokens for divisibility of vocab tokens
     divisible_by_val = model_cfg.get('make_vocab_size_divisible_by', 1)
     if new_vocab_size % divisible_by_val != 0:
@@ -217,15 +204,23 @@ def expand_tensor(model_cfg, tokenizer, key, state_dict, alpha):
     return state_dict
 
 
-def process_model(args, tokenizer, tokenizer_cfg) -> str:
+def process_model(args) -> str:
     connector = NLPSaveRestoreConnector()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Extract the model from the checkpoint
         connector._unpack_nemo_file(args.nemo_file, tmpdir)
+        import pdb; pdb.set_trace()
 
         # Load the model config
         config_path = os.path.join(tmpdir, connector.model_config_yaml)
+
+        all_files = os.listdir(tmpdir)
+        for fname in all_files:
+            if fname.endswith(args.tok_model_suffix):
+                tok_model_path = os.path.join(tmpdir, fname)
+                break
+        tokenizer, tokenizer_cfg = build_tokenizer(args, tok_model_path)
         config = OmegaConf.load(config_path)
 
         # Update model config
@@ -322,8 +317,7 @@ def process_model(args, tokenizer, tokenizer_cfg) -> str:
 
 def main():
     args = parse_args()
-    tokenizer, tokenizer_cfg = build_tokenizer(args)
-    save_filepath = process_model(args, tokenizer, tokenizer_cfg)
+    save_filepath = process_model(args)
     print("Finished saving NeMo file at: ", save_filepath)
 
 

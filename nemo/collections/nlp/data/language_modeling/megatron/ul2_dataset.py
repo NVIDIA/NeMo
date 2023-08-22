@@ -77,7 +77,7 @@ class UL2Dataset(T5Dataset):
         sentinel_tokens=None,
         shuffle_documents=True,
         debug=False,
-        add_eos_to_enc=False,
+        add_bos_to_enc=False,
         force_sep_tokens=False,
         use_v2_format=False
     ):
@@ -169,7 +169,7 @@ class UL2Dataset(T5Dataset):
         self.x_masking_shortspan_largeprob = sampling_probabilities['x-masking-shortspan-largeprob']
 
         self.debug = debug
-        self.add_eos_to_enc = add_eos_to_enc
+        self.add_bos_to_enc = add_bos_to_enc
         self.use_v2_format = use_v2_format
 
     def _normalize_sampling_probabilities(self):
@@ -243,7 +243,7 @@ class UL2Dataset(T5Dataset):
         prefix_lm_pivot_mean: float,
         pivot_distribution: LengthDistribution,
         add_eos: bool = False,
-        add_eos_to_enc: bool = False,
+        add_bos_to_enc: bool = False,
         debug: bool = False
     ):
         sample = [token for sentence in sample for token in sentence]
@@ -252,7 +252,7 @@ class UL2Dataset(T5Dataset):
         # if debug:
         #     pdb.set_trace()
         if max_seq_length_decoder is None:
-            budget = int(add_eos_to_enc)
+            budget = int(add_bos_to_enc)
             sample = sample[: max_seq_length_encoder - budget]
         sample = T5LMAdaptedDataset.get_prefix_lm_sample(
             sample=sample,
@@ -263,7 +263,7 @@ class UL2Dataset(T5Dataset):
             pivot_mean=prefix_lm_pivot_mean,
             pivot_distribution=pivot_distribution,
             add_eos=add_eos,
-            add_eos_to_enc=add_eos_to_enc,
+            add_bos_to_enc=add_bos_to_enc,
             debug=debug,
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_s>')
@@ -433,7 +433,7 @@ class UL2Dataset(T5Dataset):
                 tokenizer=self.tokenizer,
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.prefix_lm_pivot_distribution,
-                add_eos_to_enc=self.add_eos_to_enc,
+                add_bos_to_enc=self.add_bos_to_enc,
                 debug=self.debug
             )
             example['masking_type'] = masking_type
@@ -701,7 +701,7 @@ class UGPTDataset(UL2Dataset):
         use_prefix_noncausal_mask=True,
         sentinel_tokens=None,
         shuffle_documents=True,
-        add_eos_to_enc=False,
+        add_bos_to_enc=False,
         debug=False,
         force_sep_tokens=False,
         use_v2_format=False,
@@ -779,7 +779,7 @@ class UGPTDataset(UL2Dataset):
             sampling_probabilities=sampling_probabilities,
             sentinel_tokens=sentinel_tokens,
             shuffle_documents=shuffle_documents,
-            add_eos_to_enc=add_eos_to_enc,
+            add_bos_to_enc=add_bos_to_enc,
             debug=debug,
             force_sep_tokens=force_sep_tokens,
             use_v2_format=use_v2_format,
