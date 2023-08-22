@@ -89,7 +89,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         # need to overwrite some configuration, make it immutable
         sampling_params = sampling_params.copy()
         length_params = length_params.copy()
-        length_params['max_length'] = 1
+        # length_params['max_length'] = 4
         sampling_params['all_probs'] = True
         sampling_params["add_BOS"] = False
         sampling_params['greedy'] = True
@@ -150,21 +150,28 @@ def get_computeprob_response(tokenizer, response, inputs):
         log_probs = []
         full_logprobs = []
         offsets = []
+        ### TJ park: This is modified to return log-prob for the generated tokens.
         for batch_id in range(len(response['tokens'])):
-            if isinstance(inputs, (list, tuple)):
-                if isinstance(inputs[0], str):
-                    new_token_id = tokenizer.text_to_ids(inputs[batch_id])
-                    new_text = inputs[batch_id]
-                    token_len = len(new_token_id)
-                elif isinstance(inputs[0], torch.Tensor):
-                    token_len = int(inputs[1][batch_id].item())
-                    new_token_id = inputs[0][batch_id][:token_len].tolist()
-                    new_text = tokenizer.ids_to_text(new_token_id)
+            # if isinstance(inputs, (list, tuple)):
+            #     if isinstance(inputs[0], str):
+            #         new_token_id = tokenizer.text_to_ids(inputs[batch_id])
+            #         new_text = inputs[batch_id]
+            #         token_len = len(new_token_id)
+            #     elif isinstance(inputs[0], torch.Tensor):
+            #         token_len = int(inputs[1][batch_id].item())
+            #         # new_token_id = inputs[0][batch_id][:token_len].tolist()
+            #         new_token_id = inputs[0][batch_id][:].tolist()
+            #         new_text = tokenizer.ids_to_text(new_token_id)
+            new_token_id = response['token_ids'][batch_id]
+            new_text = tokenizer.ids_to_text(new_token_id)
             new_token_ids.append(new_token_id)
-            new_tokens.append(response['tokens'][batch_id][:token_len])
+            # new_tokens.append(response['tokens'][batch_id][:token_len])
+            new_tokens.append(response['tokens'][batch_id][:])
             new_texts.append(new_text)
-            log_probs.append(response['logprob'][batch_id][:token_len])
-            full_logprobs.append(response['full_logprob'][batch_id][:token_len])
+            # log_probs.append(response['logprob'][batch_id][:token_len])
+            # full_logprobs.append(response['full_logprob'][batch_id][:token_len])
+            log_probs.append(response['logprob'][batch_id][:])
+            full_logprobs.append(response['full_logprob'][batch_id][:])
             offsets.append(response['offsets'][batch_id][:-1])
         compute_prob_response['sentences'] = new_texts
         compute_prob_response['tokens'] = new_tokens
@@ -652,7 +659,6 @@ def sample_sequence_batch(
     extra={},
 ):
     # Importing here to avoid circular import errors
-
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
     _reconfigure_microbatch_calculator(
@@ -727,6 +733,10 @@ def sample_sequence_batch(
                 started = context_lengths <= context_length
                 if extra.get('greedy', False):
                     prev = torch.argmax(logits, dim=-1).view(-1)
+                    
+                    ### logprob saving for BSD
+                    # probs = F.softmax(logits, dim=-1)
+                    
                 else:
                     logits = logits.float()
                     logits /= temperature
@@ -737,7 +747,7 @@ def sample_sequence_batch(
                     )
                     probs = F.softmax(logits, dim=-1)
                     prev = torch.multinomial(probs, num_samples=1).view(-1)
-
+                
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
@@ -770,7 +780,6 @@ def sample_sequence_batch(
                         all_generated_indices = torch.cat([all_generated_indices, indices[:, :, 0]], 1)
                         if all_probs:
                             full_logits = torch.cat([full_logits, output], 1)
-
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
                 group = parallel_state.get_embedding_group()
                 torch.distributed.broadcast(new_tokens, src, group)
@@ -795,6 +804,7 @@ def sample_sequence_batch(
                     else:
                         yield tokens, lengths, output_logits, None
                 else:
+                    # yield tokens, lengths, None, None
                     yield tokens, lengths, None, None
 
             else:
