@@ -316,13 +316,15 @@ def write_transcription(
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
                 if not return_hypotheses:  # transcription is str
                     item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription}
-                else:   # transcription is Hypothesis
+                else:  # transcription is Hypothesis
                     item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
 
                     if compute_timestamps:
                         timestamps = transcription.timestep
                         if timestamps is not None and isinstance(timestamps, dict):
-                            timestamps.pop('timestep', None)  # Pytorch tensor calculating index of each token, not needed.
+                            timestamps.pop(
+                                'timestep', None
+                            )  # Pytorch tensor calculating index of each token, not needed.
                             for key in timestamps.keys():
                                 values = normalize_timestamp_output(timestamps[key])
                                 item[f'timestamps_{key}'] = values
@@ -337,9 +339,9 @@ def write_transcription(
             with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
-                    if not return_hypotheses: # transcription is str
+                    if not return_hypotheses:  # transcription is str
                         item[pred_text_attr_name] = best_hyps[idx]
-                    else: # transcription is Hypothesis
+                    else:  # transcription is Hypothesis
                         item[pred_text_attr_name] = best_hyps[idx].text
 
                         if compute_timestamps:

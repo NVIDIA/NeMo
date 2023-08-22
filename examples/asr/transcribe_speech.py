@@ -174,6 +174,7 @@ class TranscriptionConfig:
     # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
 
+
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis]]:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
