@@ -68,7 +68,7 @@ class AdapterName(str, enum.Enum):
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(self, in_features: int, model_parallel_config: Optional[ModelParallelConfig], **kwargs) -> None:
+    def __init__(self, in_features: int, model_parallel_config: Optional[ModelParallelConfig] = None, **kwargs) -> None:
         super().__init__()
 
         if model_parallel_config is None:
