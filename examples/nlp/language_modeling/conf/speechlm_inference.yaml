@@ -14,7 +14,7 @@ trainer:
   val_check_interval: 1000
   gradient_clip_val: 1.0
   limit_val_batches: 25
-  resume_from_checkpoint: /datap/misc/Experiments3/SpeechExperiments/Aug3BugsFixed29184MaskProb0.3/2023-08-03_23-06-41/checkpoints/Epoch102000.ckpt
+  resume_from_checkpoint: null
   # resume_from_checkpoint: /datap/misc/Experiments3/SpeechExperiments/Aug2BugsFixed/2023-08-03_04-58-13/checkpoints/Epoch6000.ckpt
 
 exp_manager:
@@ -25,7 +25,7 @@ exp_manager:
   wandb_logger_kwargs:
     project: PromptLearning-T5
     name: ${name}
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -54,7 +54,7 @@ model:
   num_speech_tokens: 9000 # Vocabulary size pertaining to speech
 
   restore_path: null
-  language_model_path: /datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5.nemo
+  language_model_path: /datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5_expanded_vocab_posemb.nemo
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   existing_tasks: []
   new_tasks: ["squad"]

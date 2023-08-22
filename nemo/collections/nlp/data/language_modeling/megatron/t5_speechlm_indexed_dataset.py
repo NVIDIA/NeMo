@@ -303,7 +303,9 @@ class SpeechLM_T5dataset(Dataset):
         self.exchange_indices_distributed = cfg.data.get('exchange_indices_distributed', False)
         self.speech_offset = cfg.data.get('speech_offset', 30000)
         self.speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
-        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.3)
+        self.mask_context_prob = cfg.data.get('mask_context_prob', 0.4)
+        self.mask_length_poisson_lambda = cfg.data.get('mask_length_poisson_lambda', 3.5)
+        self.create_loss_mask = cfg.data.get('create_loss_mask', False)
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
 
@@ -401,7 +403,7 @@ class SpeechLM_T5dataset(Dataset):
         return sample.astype(np.int64)
 
     def _mask_encoder_input(self, enc_input):
-        span_length = torch.poisson(torch.tensor([3.5]))
+        span_length = torch.poisson(torch.tensor([self.mask_length_poisson_lambda]))
         span_length = int(span_length.item())
         span_length = max(span_length, 1)
 
@@ -418,24 +420,21 @@ class SpeechLM_T5dataset(Dataset):
     def _getitem_from_speech(self, tokens):
         assert tokens.ndim == 2
 
-        for _i in range(tokens.shape[0]):
-            tokens[_i] = tokens[_i] + self.speech_offset + (_i * self.speech_codebook_size)
-
+        tokens[0] = tokens[0] + self.speech_offset  # add speech offset to the first codebook
         enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
         dec_input = tokens[:, :-1] * 1
         labels = tokens[:, 1:] * 1
-        for _i in range(1, tokens.shape[0]):
-            # bring other layers back in range (0, 1024)
-            labels[_i] = labels[_i] - self.speech_offset - (_i * self.speech_codebook_size)
-            # dec_input[_i] = dec_input[_i] - self.speech_offset - (_i * self.speech_codebook_size)
 
         enc_input = self._mask_encoder_input(enc_input)
 
         # TODO add pad id condition as well for enc_input?
         enc_mask = (enc_input[0] != self.mask_id).long()
         dec_mask = (labels[0] != self.pad_id).long()
-        # loss_mask = (enc_input[0] == self.mask_id ).long()
-        loss_mask = torch.ones_like(dec_mask)
+
+        if self.create_loss_mask:
+            loss_mask = (enc_input[0] == self.mask_id).long()
+        else:
+            loss_mask = torch.ones_like(dec_mask)
 
         return {
             'enc_input': enc_input,
@@ -460,8 +459,11 @@ class SpeechLM_T5dataset(Dataset):
         enc_input[1:] = 0
         enc_mask = (enc_input[0] != self.mask_id).long()
         dec_mask = (labels[0] != self.pad_id).long()
-        # loss_mask = (enc_input[0] == self.mask_id ).long()
-        loss_mask = torch.ones_like(dec_mask)
+
+        if self.create_loss_mask:
+            loss_mask = (enc_input[0] == self.mask_id).long()
+        else:
+            loss_mask = torch.ones_like(dec_mask)
 
         return {
             'enc_input': enc_input,
