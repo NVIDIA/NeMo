@@ -27,7 +27,6 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils
 
@@ -48,12 +47,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
             return self.model.pre_process
-        elif (
-            hasattr(self, "model")
-            and isinstance(self.model, Float16Module)
-            and hasattr(self.model, "module")
-            and hasattr(self.model.module, "pre_process")
-        ):
+        elif hasattr(self, "model") and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
             # (guyueh1): this if condition is used to handle amp O2
             # when amp_O2 is on, self.model will be wrapped by the Float16Module class
             return self.model.module.pre_process
@@ -93,9 +87,12 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         """ 
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix="model.")
+        state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
         peft_state_dict = {}
         for k in self.adapter_keys:
+            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
+            new_k = k.replace("model.module.", "model.", 1)
+            peft_state_dict[new_k] = state_dict[k]
             peft_state_dict[k] = state_dict[k]
         return peft_state_dict
 
@@ -167,7 +164,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                                 in module.get_accepted_adapter_types()
                             ):
                                 module.add_adapter(
-                                    name=peft_key, cfg=peft_cfg,
+                                    name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
                                 )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
