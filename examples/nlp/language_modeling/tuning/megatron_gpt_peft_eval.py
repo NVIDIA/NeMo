@@ -191,13 +191,15 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
 
-    trainer.test(model)
-
-    if cfg.server:
+    if not cfg.server:
+        trainer.test(model)
+    else:
         if not HAVE_MEGATRON_CORE:
             raise ValueError('Megatron-core needs to be installed to use this feature!')
 
         from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+
+        trainer.test(model, dataloaders=None)
 
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
