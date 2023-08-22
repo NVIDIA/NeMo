@@ -155,6 +155,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
 
     item = dict(
         audio_file=item['audio_file'],
+        video_file=item['video_file'],
         duration=item['duration'],
         text=item['text'],
         rttm_file=item['rttm_file'],

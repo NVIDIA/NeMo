@@ -88,7 +88,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         self.use_rnnt_decoder = True
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc()
+        self.setup_interctc(decoder_name='decoder', loss_name='loss', wer_name='_wer')
 
     @torch.no_grad()
     def transcribe(
