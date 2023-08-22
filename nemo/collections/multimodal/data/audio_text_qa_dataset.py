@@ -176,6 +176,7 @@ class AudioQuestionAnswerDataset(Dataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
+        sample_alpha: Optional[float] = None,
     ):
         self.input_key = input_key
         self.output_key = output_key
@@ -197,6 +198,7 @@ class AudioQuestionAnswerDataset(Dataset):
         self.add_eos = add_eos
         self.add_sep = add_sep
         self.end_string = end_string
+        self.sample_alpha = sample_alpha
 
         if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             self.eos_id = tokenizer.eos_id
@@ -318,8 +320,8 @@ class AudioQuestionAnswerDataset(Dataset):
             pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
         else:
             pre_pad = []
-        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text, self.sample_alpha)
+        context_ids = pre_pad + self.tokenizer.text_to_ids(context, self.sample_alpha)
         answer_ids = tokenized_text[len(context_ids) :]
 
         # for the long context cases, collate_fn includes self.tokens_to_generate for padding
@@ -1059,5 +1061,6 @@ def get_aqa_dataset_from_config(
         input_key=config.get('input_key', 'input'),
         output_key=config.get('output_key', 'output'),
         end_string=config.get('end_string', None),
+        sample_alpha=config.get('sample_alpha', None),
     )
     return dataset
