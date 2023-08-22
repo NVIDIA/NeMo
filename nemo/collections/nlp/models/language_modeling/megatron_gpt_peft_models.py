@@ -329,11 +329,10 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # for Float16Model models
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.weight"
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight" # for Float16Model models
             ]
         )
-        # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)
 
     def init_peft_modules(self,):
         """ 
@@ -430,24 +429,23 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         }
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
-
-    def setup_optimizer_param_groups(self):
-        super().setup_optimizer_param_groups()
-
-        # (guyueh1) This part is used to avoid adding frozen parameters in trainable adapter modules
-        # in the setup_optimizer_param_groups() of the MegatronPEFTModel class, all parameters
-        # in an adapter module are going to be set requires_grad=True. However in ptuning
-        # adapter the inference table should be untrainable. We explicitely set that parameter
-        # to untrainable here.
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # for Float16Model or BFloat16Model models
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.weight"
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight" # for Float16Model models
             ]
         )
+
+    def setup_optimizer_param_groups(self):
+        self.freeze()  # Freeze the entire model
+        opt_params = []
         for n, p in self.named_parameters():
-            if not (n in self.trainable_keys):
-                p.requires_grad_(False)
+            if n in self.trainable_keys:
+                p.requires_grad = True
+                opt_params.append(p)
+
+        self._optimizer_param_groups = ({"params": opt_params},)
+        logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
 
 class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
