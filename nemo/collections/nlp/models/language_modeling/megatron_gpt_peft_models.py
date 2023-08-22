@@ -632,14 +632,20 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
 
     def tie_weights(self,):
         pos_idx = 0
-        layer0 = self.model.language_model.encoder.layers[0]
+
+        if self.mcore_gpt:
+            layers = self.model.decoder.layers
+        else:
+            layers = self.model.language_model.encoder.layers
+
+        layer0 = layers[0]
         for adapter_name in layer0.self_attention.adapter_layer:
             adapter = layer0.self_attention.get_adapter_module(adapter_name)
             print(adapter_name, pos_idx)
             adapter.set_position(pos_idx)
             pos_idx += 1
 
-        for layer in self.model.language_model.encoder.layers[1:]:
+        for layer in layers[1:]:
             for adapter_name in layer.self_attention.adapter_layer:
                 print(adapter_name, pos_idx)
                 adapter_l = layer.self_attention.get_adapter_module(adapter_name)
