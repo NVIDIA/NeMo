@@ -134,6 +134,9 @@ def download_nemo_checkpoint(checkpoint_link, checkpoint_dir, checkpoint_path):
     if not Path(checkpoint_path).exists():
         print("Checkpoint: {0}, will be downloaded to {1}".format(checkpoint_link, checkpoint_path))
         Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
+        ckp_path = Path("/opt/checkpoints/")
+        if not ckp_path.exists():
+            ckp_path.mkdir(parents=True, exist_ok=False)
         req.urlretrieve(checkpoint_link, checkpoint_path)
         print("Checkpoint: {0}, download completed.".format(checkpoint_link))
     else:
