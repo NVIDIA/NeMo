@@ -21,38 +21,27 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
      [--fast-swiglu\
 """
 
-import importlib
 import os
-import pathlib
-import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
-import numpy as np
 import torch
-from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
-# from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
-from nemo.utils import AppState, logging
-
-# from nemo.utils.distributed import initialize_distributed
-# from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils import logging
 
 
 def get_args():
@@ -68,7 +57,6 @@ def get_args():
 
 
 def load_model(cls, checkpoint, strict, **kwargs):
-    # print(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
@@ -106,9 +94,7 @@ def load_config(args, llama_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
-    # nemo_config.precision = 32
 
-    # print(nemo_config)
     return nemo_config
 
 
@@ -166,22 +152,17 @@ def convert(args):
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
 
-    # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
     trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision)
-    # checkpoint_path = megatron_lm_inject_model_parallel_rank(
-    #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
-    # )
 
     hidden_size = hf_config["hidden_size"]
     head_num = hf_config["num_attention_heads"]
     head_size = hidden_size // head_num
     num_layers = hf_config["num_hidden_layers"]
-    # num_query_groups = hf_config["num_key_value_heads"]
 
     mcore_gpt = nemo_config.mcore_gpt
+    if mcore_gpt:
+        assert nemo_config.get('transformer_engine', False), "mcore_gpt requires enabling transformer_engine"
 
-    # print(model)
-    # print(model.state_dict())
     param_to_weights = lambda param: param.float()
 
     checkpoint = OrderedDict()
@@ -223,7 +204,6 @@ def convert(args):
             qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
             qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
             qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
-        # qkv_weights = torch.cat((q, k, v), axis=1)
         qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
         if mcore_gpt:
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
@@ -314,5 +294,4 @@ def convert(args):
 
 if __name__ == '__main__':
     args = get_args()
-    # os.chdir(args.in_file)
     convert(args)
