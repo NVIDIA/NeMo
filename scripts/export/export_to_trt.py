@@ -25,6 +25,7 @@ except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
 
+supported_model_types = ["gpt", "llama"]
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
@@ -32,6 +33,13 @@ def get_args(argv):
         description=f"Export models to TRT LLM",
     )
     parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
+    parser.add_argument(
+        "--model_type",
+        type=str, default="gpt",
+        choices=["gpt", "llama"],
+        help="Type of the model. gpt or llama are only supported."
+    )
+    parser.add_argument("--model_type", required=True, type=str, help="Type of the model. gpt or llama")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
     parser.add_argument("--num_gpu", default=1, type=int, help="Number of GPUs that will deploy the model")
     parser.add_argument(
@@ -41,7 +49,6 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
-    parser.add_argument("--verbose", default=False, help="Verbose level for logging, numeric")
 
     args = parser.parse_args(argv)
     return args
@@ -75,7 +82,7 @@ def nemo_convert(argv):
     Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
-    trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=args.num_gpu)
+    trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, model_type=args.model_type, n_gpus=args.num_gpu)
 
 
 if __name__ == '__main__':

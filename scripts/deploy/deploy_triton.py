@@ -26,7 +26,6 @@ except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
 
-supported_model_types = ["gptnext", "llama2"]
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
@@ -34,7 +33,12 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("--nemo_checkpoint", type=str, help="Source .nemo file")
-    parser.add_argument("--model_type", type=str, help="Type of the model. gptnext or llama2")
+    parser.add_argument(
+        "--model_type",
+        type=str, default="gpt",
+        choices=["gpt", "llama"],
+        help="Type of the model. gpt or llama are only supported."
+    )
     parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
@@ -83,14 +87,7 @@ def nemo_deploy(argv):
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
-        if model_type is None:
-            logging.error(
-                "model_type cannot be none."
-            )
-            return
-        
-        if model_type in supported_model_types:
-            trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, model_type=model_type, n_gpus=args.num_gpu)
+        trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, model_type=args.model_type, n_gpus=args.num_gpu)
 
     nm = DeployPyTriton(
         model=trt_llm_exporter,

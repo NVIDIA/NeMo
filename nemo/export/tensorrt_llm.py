@@ -32,6 +32,7 @@ from .trt_llm.quantization_utils import naive_quantization
 from .trt_llm.tensorrt_llm_run import generate, load
 from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
+supported_model_types = ["gpt", "llama"]
 
 class TensorRTLLM(ITritonDeployable):
     def __init__(self, model_dir: str, gpu_id=None):
@@ -117,6 +118,9 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int=32,
         quantization: bool=None,
     ):
+        if not model_type in supported_model_types:
+            raise Exception("Only gpt and llama model types are currently supported.")
+
         if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
             for files in os.listdir(self.model_dir):
                 path = os.path.join(self.model_dir, files)
