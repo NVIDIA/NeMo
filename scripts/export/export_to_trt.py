@@ -25,7 +25,6 @@ except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
 
-supported_model_types = ["gpt", "llama"]
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
