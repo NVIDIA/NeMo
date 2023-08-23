@@ -330,7 +330,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.trainable_keys = self.adapter_keys - set(
             [
                 "model.language_model.adapter_layer.ptuning_adapter.inference_table.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight" # for Float16Model models
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight",  # for Float16Model models
             ]
         )
 
@@ -432,7 +432,7 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         self.trainable_keys = self.adapter_keys - set(
             [
                 "model.language_model.adapter_layer.ptuning_adapter.inference_table.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight" # for Float16Model models
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight",  # for Float16Model models
             ]
         )
 
