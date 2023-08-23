@@ -119,8 +119,8 @@ Below is the content of the config file above:
     #     cls_name: <a registered loss class name> # class name
     #     <loss_param>: <loss_value> # loss parameters
     #     ...
-    # below is example where order of losses does not matter so a single item in list is enough
-        - mim: # A-MIM example
+    # below is example where order of losses does not matter so a single dictionary is enough
+        mim: # A-MIM example
             cls_name: a_mim
             loss_weight: 1.0 # weight of the MIM latent loss
         vae: # VAE example
