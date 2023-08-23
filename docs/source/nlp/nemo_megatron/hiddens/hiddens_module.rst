@@ -1,7 +1,7 @@
 Hiddens Module
 ==============
 
-The hiddens module allows to add `hidden transformations` and `hidden losses` to Megatron encoder-decoder models.
+The hiddens module allows to add **hidden transformations** and **hidden losses** to Megatron encoder-decoder models.
 Hidden transformations are transformations that are applied to the output of the encoder.
 Hidden losses are losses that are applied to the outputs of the hidden transformations.
 A common use case for hidden transformations is to train a Mutual Information Machine (MIM)
@@ -48,8 +48,7 @@ Below is an example command of training a MIM model with BART data augmentation 
         ++model.hiddens.loss.mim.loss_weight=1.0
 
 The last 5 lines in the above command enable sampling with reparametrization (`cond_gauss` hidden transformation)
-and MIM loss with hidden part of the loss is weighted by `1.0`.
-See below detailed description of extension and the configuration format.
+and MIM loss where the hidden part of the loss is weighted by `1.0`.
 
 The above example will produce the following plots in Weights and Biases:
 
@@ -58,62 +57,66 @@ The above example will produce the following plots in Weights and Biases:
     :width: 800px
     :alt: MIM training W&B plots
 
+See below detailed description of usage and configuration format.
+
 Hiddens Extension Detailed Description
 --------------------------------------
 High Level Description
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Megatron encoder-decoder models directly passes the outputs of the encoder to the decoder.
+Megatron encoder-decoder models directly pass the output of the encoder to the decoder.
 The hidden transformations provides a mechanism to add transformations and losses to the encoder outputs.
-This is achieved my naming the outputs of the encoder (`hiddens`) and any provided hidden transformation.
-This also allows to define losses on any of the named outputs (i.e., the outputs of the encoder or any of the transformations).
-
+This is achieved my naming the output of the encoder (`hiddens`) and any provided hidden transformation.
+Each hidden transforamtion is defined over expexted existing outputs and produces a new set of outputs.
+This allows us to define losses on any of the named outputs (i.e., the outputs of the encoder or any of the transformations).
 
 Features
 ^^^^^^^^
 
 1. Hidden transformations and losses can be added to any Megatron encoder-decoder model.
 2. Externally implemented transformations and losses can easily be registered and used.
-3. Detailed error messages are provided. Please check raised exceptions and log outputs. Errors will be raised if:
-    a. The same named output is used more than once.
-    b. A loss is expected an undefined named output.
-    c. A Mismatch in a tranformation or loss constructor parameters.
-4. All loss outputs are logged, allowing for easy monitoring of the training and validation process.
-5. Multiple transformations can be used in multiple weighted losses. The joint loss is computed as follows: `loss = hiddens.tokens_loss_weight * tokens_loss_weight + \sum_i hiddens.loss[i].loss_weight * hiddens.loss[i].loss`.
+3. All loss outputs are logged, allowing for easy monitoring of the training and validation process.
+4. Multiple transformations can be used in multiple weighted losses. The joint loss is computed as follows: `loss = hiddens.tokens_loss_weight * tokens_loss_weight + \sum_i hiddens.loss[i].loss_weight * hiddens.loss[i].loss`.
+5. Detailed error messages are provided. Please check raised exceptions and log outputs. Errors will be raised if:
+
+    * The same named output is used more than once.
+    * A loss is expected an undefined named output.
+    * A Mismatch in a tranformation or loss constructor parameters.
 
 
 Configuring Hidden Transformations and Losses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A detailed example can be found in : `NeMo/examples/nlp/language_modeling/conf/megatron_hiddens_base_config.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_hiddens_base_config.yaml>`__.
-Below is the content of the config file above.
+Below is the content of the config file above:
 
 .. code-block:: yaml
 
-    enc_output_name: z # name of key in hidden transforms output to pass to decoder (e.g., z for VAE/MIM)
+    # this file main purpose is documentation, and it should not be used directly 
+    enc_output_name: z # name of key in hidden transforms output to pass to decoder (default: hiddens). e.g., z for VAE/MIM.
     tokens_loss_weight: 1.0 # weight of tokens loss (if not specified defaults to 1.0)
     # the lists below are useful for adding multiple transforms and losses according to order
     # if order is not important, you can use a single dictionary in the list with multiple keys
     transform: # a list of dictionaries of transforms (or a joint dictionary) to apply to hiddens (list enforces order)
     # - <transform_name>: # name of transform
-    #     cls_name: <transform_class_path_name> # class path name
+    #     cls_name: <a registered transformationclass name> # class name
     #     <transform_param>: <transform_value> # transform parameters
     #     ...
     - q_z_given_x: # Gaussian posterior with reparameterization
-        cls_name: cond_gaussian # class path name
+        cls_name: cond_gaussian # class name
         hidden_size: 512 # hidden size of the encoder
         min_logvar: -6.0 # minimum log variance
     - logP_cls: # logP classifier logits
         cls_name: guided_cls
         input_name: hiddens
         attr_name: logP
-      QED_cls: # QED classifier logits
+        QED_cls: # QED classifier logits
         cls_name: guided_cls
         input_name: hiddens
         attr_name: QED
     loss: # a list of dictionaries of loss terms (or a joint dictionary) to add to reconstruction loss (list enforces order)
     # - <loss_name>: # name of loss
-    #     cls_name: <loss_class_path_name> # class path name
+    #     cls_name: <a registered loss class name> # class name
     #     <loss_param>: <loss_value> # loss parameters
     #     ...
     # below is example where order of losses does not matter so a single item in list is enough
@@ -135,22 +138,19 @@ Below is the content of the config file above.
 
 
 Listing Registered Hidden Transformations and Losses
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The hidden transformations and losses are should be registered in the `hiddens` module.
+To check available (i.e., registered) transformation and losses use the following python code:
 
 .. code-block:: python
 
-    from nemo.collections.nlp.modules.common.hiddens import (
-        get_registered_hiddens, 
-        register_hidden_loss, 
-        register_hidden_transform,
-    )
+    from nemo.collections.nlp.modules.common.hiddens import get_registered_hiddens
 
     # List all registered hidden transformations and losses
     print(get_registered_hiddens())
     # {
-    #     "loss": ["a-mim", "vae"],
+    #     "loss": ["a_mim", "vae"],
     #     "transform": ["cond_gaussian"],
     # }
 
@@ -169,6 +169,8 @@ Before using the clases, they should be registered in the `hiddens` module as de
 .. code-block:: python
 
     from nemo.collections.nlp.modules.common.hiddens import (
+        register_hidden_loss, 
+        register_hidden_transform,
         MegatronBaseHiddenTransform,
         MegatronBaseHiddenLoss,
     )

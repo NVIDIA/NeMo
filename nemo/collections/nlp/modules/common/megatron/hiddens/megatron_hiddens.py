@@ -67,7 +67,7 @@ def get_registered_hiddens():
 
     Example:
         {
-            "loss": ["a-mim", "vae"],
+            "loss": ["a_mim", "vae"],
             "transform": ["cond_gaussian"],
         }
     """
