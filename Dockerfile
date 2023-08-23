@@ -55,7 +55,7 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
 # install megatron core, this can be removed once 0.3 pip package is released
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 0609f27fe8376f17ab65c001d3d8f35cd8175950 && \
+  git checkout f24fac4ed0dcf0522056521a93445d9a82f501a9 && \
   pip install -e .
 
 # uninstall stuff from base container
@@ -82,6 +82,8 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 RUN pip install flash-attn
 # pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
 RUN pip install triton==2.0.0.dev20221202
+# install numba for latest containers
+RUN pip install numba>=0.57.1
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/

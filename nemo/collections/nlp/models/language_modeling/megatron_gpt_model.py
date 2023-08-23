@@ -833,6 +833,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'position_ids': batch['position_ids'],
                 'attention_mask': batch['attention_mask'],
                 'labels': batch['labels'],
+                'loss_mask': batch['loss_mask'],
             }
             if not self.mcore_gpt:
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
@@ -1348,6 +1349,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Reset config values. Needed for calling generate.
         self.cfg.sequence_parallel = False
+        self.model_parallel_config.sequence_parallel = False
+        self.transformer_config.sequence_parallel = False
 
         # Reset model parameters.
         for module in self.get_gpt_module_list():
@@ -1362,6 +1365,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         # Restore config values.
         self.cfg.sequence_parallel = self.last_sequence_parallel
+        self.model_parallel_config.sequence_parallel = self.last_sequence_parallel
+        self.transformer_config.sequence_parallel = self.last_sequence_parallel
 
         # Restore model parameters.
         for module in self.get_gpt_module_list():
