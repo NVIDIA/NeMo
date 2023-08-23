@@ -89,7 +89,7 @@ def get_ngram_probs(sentences, model, response, target_index_from_end=1):
                 print(f"{response['tokens'][k][ridx-5:ridx]}: {top_word}")
         print(f"target word <{target_word}> p(W) probs: {probs[token_id]}")
         response['word_probs'].append(probs[token_id].item())
-    return response['word_probs']
+    return response
 
 def get_speaker_probs(sentences, model, response, num_of_speakers=5):
     for k in range(len(response['full_logprob'])):
@@ -102,7 +102,7 @@ def get_speaker_probs(sentences, model, response, num_of_speakers=5):
         probs = F.softmax(response['full_logprob'][k][ridx], dim=-1)
         probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
         probs_tensor = probs / probs.sum()
-        probs_tensor= probs_tensor.numpy()
+        probs_tensor = probs_tensor.numpy()
         print(f"probs_tensor: {probs_tensor}")
         response['spk_probs'].append(probs_tensor.tolist())
         # print(f" speaker0: {probs[int_to_token(0)]:.4f} \n speaker1: {probs[int_to_token(1)]:.4f} \n speaker2: {probs[int_to_token(2)]:.4f} \n speaker3: {probs[int_to_token(3)]:.4f} \n speaker4: {probs[int_to_token(4)]:.4f}")
@@ -259,9 +259,9 @@ class MegatronGenerate(Resource):
             output.update({'spk_probs': []})
             output.update({'word_probs': []})
             if request.get_json()["tokens_to_generate"] <= 1:
-                get_ngram_probs(request.get_json()["sentences"], self.model, output, target_index_from_end=1)
+                output = get_ngram_probs(request.get_json()["sentences"], self.model, output, target_index_from_end=1)
             else:
-                get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=5)
+                output = get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=5)
             
             del output['full_logprob'], output['logprob'] 
             for k in output:

@@ -25,7 +25,8 @@ import torch.nn.functional as F
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+# from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_server_bsd import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
@@ -349,7 +350,6 @@ def main(cfg) -> None:
         get_ngram_probs(cfg, model, response, target_index_from_end=1)
     else:
         get_speaker_probs(cfg, model, response, num_of_speakers=5)
-    
 
     # Second method of running text generation, call trainer.predict [recommended]
     if False:
@@ -373,34 +373,13 @@ def main(cfg) -> None:
         from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
 
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
-            if cfg.web_server:
-                if cfg.chat:
-                    defaults = {
-                        'user': cfg.chatbot_config.user,
-                        'assistant': cfg.chatbot_config.assistant,
-                        'system': cfg.chatbot_config.system,
-                    }
-                    web_ui = partial(
-                        get_chatbot_demo,
-                        defaults=defaults,
-                        value=cfg.chatbot_config.value,
-                        attributes=cfg.chatbot_config.attributes,
-                    )
-                else:
-                    web_ui = get_demo
-                loop = asyncio.new_event_loop()
-                thread = threading.Thread(
-                    target=web_ui,
-                    daemon=True,
-                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
-                )
-                thread.start()
             server = MegatronServer(model.cuda())
             server.run("0.0.0.0", port=cfg.port)
 
         while True:
             choice = torch.cuda.LongTensor(1)
             torch.distributed.broadcast(choice, 0)
+            print(f"In the loop, choice: {choice}")
             if choice[0].item() == 0:
                 generate(model.cuda())
 

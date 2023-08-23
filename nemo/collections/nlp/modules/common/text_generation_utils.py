@@ -438,7 +438,10 @@ def synced_generate(
         if all_probs:
             src = parallel_state.get_pipeline_model_parallel_last_rank()
             group = parallel_state.get_embedding_group()
-            torch.distributed.broadcast(full_logits, src, group)
+            try:
+                torch.distributed.broadcast(full_logits, src, group)
+            except:
+                import ipdb; ipdb.set_trace()
 
     else:
         if parallel_state.is_pipeline_first_stage():
