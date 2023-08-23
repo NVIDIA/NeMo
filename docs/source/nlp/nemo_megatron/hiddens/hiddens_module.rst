@@ -47,7 +47,7 @@ Below is an example command of training a MIM model with BART data augmentation 
         ++model.hiddens.loss.mim.cls_name=a_mim \
         ++model.hiddens.loss.mim.loss_weight=1.0
 
-The last 5 lines in the above command enable sampling with reparametrization (`cond_gauss` hidden transformation)
+The last 5 lines in the above command enable sampling with reparameterization (`cond_gauss` hidden transformation)
 and MIM loss where the hidden part of the loss is weighted by `1.0`.
 
 The above example will produce the following plots in Weights and Biases:
@@ -59,25 +59,30 @@ The above example will produce the following plots in Weights and Biases:
 
 See below detailed description of usage and configuration format.
 
-Hiddens Extension Detailed Description
---------------------------------------
 High Level Description
-^^^^^^^^^^^^^^^^^^^^^^
+----------------------
 
 Megatron encoder-decoder models directly pass the output of the encoder to the decoder.
 The hidden transformations provides a mechanism to add transformations and losses to the encoder outputs.
 This is achieved my naming the output of the encoder (`hiddens`) and any provided hidden transformation.
-Each hidden transforamtion is defined over expexted existing outputs and produces a new set of outputs.
+Each hidden transformation is defined over expected existing outputs and produces a new set of outputs.
 This allows us to define losses on any of the named outputs (i.e., the outputs of the encoder or any of the transformations).
+
+
+Detailed Description
+--------------------
 
 Features
 ^^^^^^^^
 
 1. Hidden transformations and losses can be added to any Megatron encoder-decoder model.
 2. Externally implemented transformations and losses can easily be registered and used.
-3. All loss outputs are logged, allowing for easy monitoring of the training and validation process.
-4. Multiple transformations can be used in multiple weighted losses. The joint loss is computed as follows: `loss = hiddens.tokens_loss_weight * tokens_loss_weight + \sum_i hiddens.loss[i].loss_weight * hiddens.loss[i].loss`.
-5. Detailed error messages are provided. Please check raised exceptions and log outputs. Errors will be raised if:
+3. Transformations (and losses) order is supported to allow one transformation to use the output of another.
+4. All transformations' outputs are named, allowing for easy access in losses or other transformations (encoder raw output defaults to `hiddens`, and respective `hiddens_mask`).
+5. All loss outputs are logged, allowing for easy monitoring of the training and validation process.
+6. Transformations' outputs can be used in more than one loss. 
+7. The joint loss supports weighting the terms, and is computed as follows: `loss = hiddens.tokens_loss_weight * tokens_loss_weight + \sum_i hiddens.loss[i].loss_weight * hiddens.loss[i].loss`.
+8. Detailed error messages are provided. Please check raised exceptions and log outputs. Errors will be raised if:
 
     * The same named output is used more than once.
     * A loss is expected an undefined named output.
@@ -85,7 +90,7 @@ Features
 
 
 Configuring Hidden Transformations and Losses
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A detailed example can be found in : `NeMo/examples/nlp/language_modeling/conf/megatron_hiddens_base_config.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/megatron_hiddens_base_config.yaml>`__.
 Below is the content of the config file above:
