@@ -127,6 +127,7 @@ class DiffusionEngine(nn.Module, Serialization):
     def get_input(self, batch):
         # assuming unified data format, dataloader returns a dict.
         # image tensors should be scaled to -1 ... 1 and in bchw format
+        import pdb;pdb.set_trace();
         return batch[self.input_key]
 
     @torch.no_grad()
@@ -364,6 +365,7 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        self.use_fsdp = cfg.get('fsdp', False)
 
         self.model = self.model_provider_func()
 
@@ -453,7 +455,9 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
-        if self.with_distributed_adam:
+        if self.use_fsdp:
+            pass
+        elif self.with_distributed_adam:
             # gradients are reduced internally in distributed optimizer
             pass
         elif self.megatron_amp_O2:
@@ -530,7 +534,6 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
-            #batch = [x.cuda(non_blocking=True) for x in batch]
             x, batch = process_batch(batch)
 
 
