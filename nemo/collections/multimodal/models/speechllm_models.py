@@ -759,3 +759,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
         batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_feat_lens']
 
         return response
+
+    def test_epoch_end(self, outputs):
+        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
+        return averaged_loss

@@ -416,6 +416,8 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
 
+        preds_text = [p.replace(data_cfg.end_string, '') for p in preds_text]
+        labels_text = [p.replace(data_cfg.end_string, '') for p in labels_text]
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
