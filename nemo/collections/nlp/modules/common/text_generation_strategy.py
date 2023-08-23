@@ -20,13 +20,17 @@ import torch
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
+
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex import amp
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
+from nemo.collections.nlp.parts.microbatch_calculator import get_num_microbatches
 
 try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func

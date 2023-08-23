@@ -30,13 +30,16 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.utils import AppState
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex import amp
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+from nemo.collections.nlp.parts.microbatch_calculator import _reconfigure_microbatch_calculator
+
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -389,17 +392,7 @@ def unsynced_generate(
     tokenizer = model.tokenizer
     
     if isinstance(tokenizer, TabularTokenizer):
-        #TODO(yuanzhe): add support to tabular tokenizer
-        batch_token_iterator = unsynced_sample_sequence_batch(
-            model,
-            inference_strategy,
-            context_tokens_tensor,
-            context_length_tensor,
-            tokens_to_generate,
-            all_probs,
-            compute_attention_mask=compute_attention_mask,
-            temperature=temperature,
-        )
+        assert False, "TabularTokenizer is not supported yet"
     else:
         batch_token_iterator = unsynced_sample_sequence_batch(
             model,
@@ -533,7 +526,7 @@ def synced_generate(
                 )
                 torch.distributed.broadcast(full_logits, src, group)
     if tokens is not None:
-        return tokens[:, :context_length], output_logits, full_logit
+        return tokens[:, :context_length], output_logits, full_logits
 
 
 
