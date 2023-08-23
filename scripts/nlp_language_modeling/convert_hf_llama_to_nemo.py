@@ -24,7 +24,6 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
-from typing import Any
 
 import torch
 from omegaconf import OmegaConf
@@ -113,13 +112,14 @@ def convert(args):
 
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
-
-    if args.precision in ["bf16", "bf16-mixed"]:
+    elif args.precision in ["bf16", "bf16-mixed"]:
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
             precision = args.precision
         else:
             logging.warning("BF16 is not supported on this device. Using FP16 instead.")
             precision = args.precision[2:]  # prune bf in string
+    else:
+        precision = args.precision
 
     plugins = []
     if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
