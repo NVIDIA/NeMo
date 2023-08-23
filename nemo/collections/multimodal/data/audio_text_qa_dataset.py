@@ -287,9 +287,6 @@ class AudioQuestionAnswerDataset(Dataset):
         function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
         """
 
-        if self.end_string:
-            output += self.end_string
-
         if self.prompt_template is not None:
             assert f'{{{self.input_key}}}' in self.prompt_template
             assert f'{{{self.output_key}}}' in self.prompt_template
@@ -320,9 +317,11 @@ class AudioQuestionAnswerDataset(Dataset):
             pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
         else:
             pre_pad = []
-        tokenized_text = pre_pad + self.tokenizer.text_to_ids(text, self.sample_alpha)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context, self.sample_alpha)
-        answer_ids = tokenized_text[len(context_ids) :]
+        answer_text = text[len(context) :]
+        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        if self.end_string:
+            answer_ids += self.tokenizer.text_to_ids(self.end_string)
+        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
 
         # for the long context cases, collate_fn includes self.tokens_to_generate for padding
         total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)

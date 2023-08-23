@@ -115,7 +115,7 @@ class SentencePieceTokenizer(TokenizerSpec):
             return ids
 
         if sample_alpha is not None:
-            return self.tokenizer.sample_encode_as_ids(text, enable_sampling=True, alpha=sample_alpha, nbest_size=-1)
+            return self.tokenizer.encode_as_ids(text, enable_sampling=True, alpha=sample_alpha, nbest_size=-1)
         else:
             return self.tokenizer.encode_as_ids(text)
 
