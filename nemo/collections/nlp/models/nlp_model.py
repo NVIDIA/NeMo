@@ -16,9 +16,9 @@ import copy
 import hashlib
 import json
 import os
-import torch
 from typing import Any, Mapping, Optional, Union
 
+import torch
 from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -413,11 +413,6 @@ class NLPModel(ModelPT, Exportable):
         if save_restore_connector is None:
             save_restore_connector = NLPSaveRestoreConnector()
 
-        return super().restore_from(restore_path,
-            override_config_path,
-            map_location,
-            strict,
-            return_config,
-            save_restore_connector,
-            trainer
+        return super().restore_from(
+            restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
         )

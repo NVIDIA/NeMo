@@ -39,9 +39,9 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_computeprob_response,
     megatron_gpt_generate,
 )
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 
 try:
     from apex.transformer.pipeline_parallel.utils import (

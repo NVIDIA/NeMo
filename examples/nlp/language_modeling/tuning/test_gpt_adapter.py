@@ -8,8 +8,12 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 from torch.utils.data import DataLoader, Dataset
 
-
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    LoraKQVAdapterConfig,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -19,13 +23,9 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import exp_manager
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    LoraKQVAdapterConfig,
-    PromptEncoderAdapterConfig
-)
 
 mp.set_start_method("spawn", force=True)
+
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
     """
@@ -65,6 +65,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
     return gpt_cfg
 
+
 def validate_checkpoint_loading_args(cfg):
     if cfg.checkpoint_dir is None or not os.path.isdir(cfg.checkpoint_dir):
         raise ValueError(f'Checkpoint directory {cfg.checkpoint_dir} does not exist or is not a directory.')
@@ -72,6 +73,7 @@ def validate_checkpoint_loading_args(cfg):
         raise ValueError(f'Checkpoint name {cfg.checkpoint_name} is not valid.')
     if cfg.hparams_file is None or not os.path.isfile(cfg.hparams_file):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
+
 
 def generate_lora_config(cfg):
     peft_name_keys = [AdapterName.LORA_KQV_ADAPTER]
@@ -100,6 +102,7 @@ def generate_lora_config(cfg):
     )
 
     return peft_name_keys, adapter_cfg
+
 
 def generate_ptuning_config(cfg):
     peft_name_keys = [AdapterName.PTUNING_ADAPTER]
@@ -167,15 +170,11 @@ def main(cfg) -> None:
 
     if cfg.model.restore_from_path:
         base_model_cfg = MegatronGPTSFTModel.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            return_config=True,
+            restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
         )
         base_model_cfg = _modify_config(base_model_cfg, cfg, add_cfg_to_tree=False)
         model = MegatronGPTSFTModel.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=base_model_cfg,
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
         )
 
         peft_name_keys, adapter_cfg = generate_ptuning_config(base_model_cfg)
@@ -189,17 +188,12 @@ def main(cfg) -> None:
 
         ckpt_path = os.path.join(ckpt_dir, f"{cfg.name}.nemo")
         model2 = MegatronGPTSFTModel.restore_from_nemo_with_adapter(
-            restore_path=ckpt_path,
-            adapter_names=peft_name_keys,
-            adapter_cfgs=adapter_cfg,
-            trainer=trainer,
+            restore_path=ckpt_path, adapter_names=peft_name_keys, adapter_cfgs=adapter_cfg, trainer=trainer,
         )
         model2_state = str(model2.state_dict())
 
         model = MegatronGPTSFTModel.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=base_model_cfg,
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
         )
         model.add_adapters(peft_name_keys, adapter_cfg)
 

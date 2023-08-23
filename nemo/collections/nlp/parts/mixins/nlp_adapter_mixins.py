@@ -13,13 +13,20 @@
 # limitations under the License.
 
 from typing import List, Optional, Tuple, Union
+
 import torch
-from pytorch_lightning import Trainer
-from nemo.core.classes.mixins.adapter_mixins import AdapterConfig, AdapterModelPTMixin, AdapterModuleMixin, _prepare_default_adapter_config
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName
-from nemo.utils import logging, logging_mode, model_utils
 from omegaconf import OmegaConf, open_dict
+from pytorch_lightning import Trainer
+
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.core.classes.mixins.adapter_mixins import (
+    AdapterConfig,
+    AdapterModelPTMixin,
+    AdapterModuleMixin,
+    _prepare_default_adapter_config,
+)
+from nemo.utils import logging, logging_mode, model_utils
 
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
@@ -53,7 +60,9 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
-    def add_adapters(self, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]):
+    def add_adapters(
+        self, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]
+    ):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
 
@@ -85,7 +94,9 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                     self.cfg.adapters = OmegaConf.create({})
 
                 self.cfg.adapters = _prepare_default_adapter_config(
-                    global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key, cfg=self.cfg.adapters,
+                    global_key=self.adapter_global_cfg_key,
+                    meta_key=self.adapter_metadata_cfg_key,
+                    cfg=self.cfg.adapters,
                 )
 
                 # Inject the module name in the adapter metadata cfg
