@@ -160,8 +160,8 @@ def convert(args):
     num_layers = hf_config["num_hidden_layers"]
 
     mcore_gpt = nemo_config.mcore_gpt
-    if mcore_gpt:
-        assert nemo_config.get('transformer_engine', False), "mcore_gpt requires enabling transformer_engine"
+    
+    assert mcore_gpt == nemo_config.get('transformer_engine', False), "mcore_gpt transformer_engine must be enabled (or disabled) together."
 
     param_to_weights = lambda param: param.float()
 

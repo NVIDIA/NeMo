@@ -59,10 +59,9 @@ pipeline {
 
     stage('Megatron Core installation') {
       steps {
-        // commit has api fix for TE
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout f24fac4ed0dcf0522056521a93445d9a82f501a9 && \
+            git checkout d6f159e2c5e69317b1d283de4deb855dee1a106d && \
             pip install -e .'
       }
     }
