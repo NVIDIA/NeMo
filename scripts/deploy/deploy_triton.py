@@ -26,6 +26,7 @@ except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
 
+supported_model_types = ["gptnext", "llama2"]
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
@@ -33,9 +34,9 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("--nemo_checkpoint", type=str, help="Source .nemo file")
+    parser.add_argument("--model_type", type=str, help="Type of the model. gptnext or llama2")
     parser.add_argument("--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("--triton_model_version", default=1, type=int, help="Name for the service")
-    parser.add_argument("--optimized", default="True", type=str, help="Use TRT-LLM for inference")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
     parser.add_argument("--num_gpu", default=1, type=int, help="Number of GPUs for the deployment")
     parser.add_argument(
@@ -45,7 +46,6 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
-    parser.add_argument("--verbose", default=False, help="Verbose level for logging, numeric")
 
     args = parser.parse_args(argv)
     return args
@@ -62,40 +62,42 @@ def nemo_deploy(argv):
         logging.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM.")
         return
 
-    if args.optimized == "True":
-        if args.trt_llm_folder is None:
-            trt_llm_path = "/tmp/trt_llm_model_dir/"
-            logging.info(
-                "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
-                "Please set this parameter if you'd like to use a path that has already"
-                "included the TensorRT LLM model files."
-            )
-            Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
-        else:
-            trt_llm_path = args.trt_llm_folder
-
-        if args.nemo_checkpoint is None and not os.path.isdir(args.trt_llm_folder):
-            logging.error(
-                "The supplied trt_llm_folder is not already a valid TRT engine "
-                "directory. Please supply a --nemo_checkpoint."
-            )
-
-        trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
-
-        if args.nemo_checkpoint is not None:
-            trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, n_gpus=args.num_gpu)
-        nm = DeployPyTriton(
-            model=trt_llm_exporter,
-            triton_model_name=args.triton_model_name,
-            triton_model_version=args.triton_model_version,
+    
+    if args.trt_llm_folder is None:
+        trt_llm_path = "/tmp/trt_llm_model_dir/"
+        logging.info(
+            "/tmp/trt_llm_model_dir/ path will be used as the TensorRT LLM folder. "
+            "Please set this parameter if you'd like to use a path that has already"
+            "included the TensorRT LLM model files."
         )
+        Path(trt_llm_path).mkdir(parents=True, exist_ok=True)
     else:
-        nm = DeployPyTriton(
-            checkpoint_path=args.nemo_checkpoint,
-            triton_model_name=args.triton_model_name,
-            triton_model_version=args.triton_model_version,
+        trt_llm_path = args.trt_llm_folder
+
+    if args.nemo_checkpoint is None and not os.path.isdir(args.trt_llm_folder):
+        logging.error(
+            "The supplied trt_llm_folder is not already a valid TRT engine "
+            "directory. Please supply a --nemo_checkpoint."
         )
 
+    trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
+
+    if args.nemo_checkpoint is not None:
+        if model_type is None:
+            logging.error(
+                "model_type cannot be none."
+            )
+            return
+        
+        if model_type in supported_model_types:
+            trt_llm_exporter.export(nemo_checkpoint_path=args.nemo_checkpoint, model_type=model_type, n_gpus=args.num_gpu)
+
+    nm = DeployPyTriton(
+        model=trt_llm_exporter,
+        triton_model_name=args.triton_model_name,
+        triton_model_version=args.triton_model_version,
+    )
+    
     nm.deploy()
 
     try:
