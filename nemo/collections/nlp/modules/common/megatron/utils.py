@@ -71,7 +71,7 @@ def parallel_lm_logits(
         word_embeddings_weight (torch.Tensor): [(padded) vocab size, h]
         parallel_output (bool): False will gather logits from tensor model parallel region
         bias (torch.Tensor, optional): bias tensor. Defaults to None.
-        async_tensor_model_parallel_allreduce (bool, optional): TODO: understand this flag. Defaults to False.
+        async_tensor_model_parallel_allreduce (bool, optional): Defaults to False.
         sequence_parallel (bool, optional): If True will use sequence parallelism. Defaults to False.
         gradient_accumulation_fusioa (bool, optional): If True fuse gradient accumulation to WGRAD GEMM
 
@@ -98,7 +98,7 @@ def parallel_lm_logits(
         bias=bias,
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_grad_allreduce=async_grad_allreduce,
-        sequence_parallel_enabled=sequence_parallel,
+        sequence_parallel=sequence_parallel,
     )
 
     # Gather if needed.
@@ -383,8 +383,12 @@ def get_iterator_k_split(batch: List[torch.Tensor], num_microbatches: int) -> It
         microbatches = [dict(elem) for elem in microbatches]
     else:
         assert batch[0].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
-        split_batch = [torch.tensor_split(item, num_microbatches, dim=0) for item in batch]
-        microbatches = [[elem[i] for elem in split_batch] for i in range(num_microbatches)]
+        split_batch = [
+            torch.tensor_split(item, num_microbatches, dim=0) if torch.is_tensor(item) else item for item in batch
+        ]
+        microbatches = [
+            [elem[i] if elem is not None else elem for elem in split_batch] for i in range(num_microbatches)
+        ]
 
     return itertools.chain(microbatches)
 
