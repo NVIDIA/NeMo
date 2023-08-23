@@ -35,8 +35,8 @@ def get_args(argv):
     parser.add_argument("--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
     parser.add_argument(
         "--model_type",
-        type=str, default="gpt",
-        choices=["gpt", "llama"],
+        type=str, default="gptnext",
+        choices=["gptnext", "llama"],
         help="Type of the model. gpt or llama are only supported."
     )
     parser.add_argument("--model_type", required=True, type=str, help="Type of the model. gpt or llama")
