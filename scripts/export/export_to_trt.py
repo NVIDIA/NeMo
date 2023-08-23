@@ -38,7 +38,6 @@ def get_args(argv):
         choices=["gptnext", "llama"],
         help="Type of the model. gpt or llama are only supported."
     )
-    parser.add_argument("--model_type", required=True, type=str, help="Type of the model. gpt or llama")
     parser.add_argument("--trt_llm_folder", default=None, type=str, help="Folder for the trt-llm conversion")
     parser.add_argument("--num_gpu", default=1, type=int, help="Number of GPUs that will deploy the model")
     parser.add_argument(
