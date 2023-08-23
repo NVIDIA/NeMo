@@ -86,7 +86,7 @@ Features
 
     * The same named output is used more than once.
     * A loss is expected an undefined named output.
-    * A Mismatch in a tranformation or loss constructor parameters.
+    * A Mismatch in a transformation or loss constructor parameters.
 
 
 Configuring Hidden Transformations and Losses
@@ -104,7 +104,7 @@ Below is the content of the config file above:
     # if order is not important, you can use a single dictionary in the list with multiple keys
     transform: # a list of dictionaries of transforms (or a joint dictionary) to apply to hiddens (list enforces order)
     # - <transform_name>: # name of transform
-    #     cls_name: <a registered transformationclass name> # class name
+    #     cls_name: <a registered transformation class name> # class name
     #     <transform_param>: <transform_value> # transform parameters
     #     ...
       - q_z_given_x: # Gaussian posterior with reparameterization
@@ -169,7 +169,7 @@ Implementing a custom hidden transformation or loss is straightforward.
 * Examples for hidden losses: `NeMo/nemo/collections/nlp/modules/common/megatron/hiddens/megatron_hidden_loss.py <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/nlp/modules/common/megatron/hiddens/megatron_hidden_loss.py>`__.
 
 Generally speaking, the custom hidden transformation or loss should inherit from `MegatronBaseHiddenTransform` or `MegatronBaseHiddenLoss` respectively.
-Before using the clases, they should be registered in the `hiddens` module as described above.
+Before using the classes, they should be registered in the `hiddens` module as described above.
 
 .. code-block:: python
 

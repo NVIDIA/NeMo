@@ -5,7 +5,7 @@ tokens_loss_weight: 1.0 # weight of tokens loss (if not specified defaults to 1.
 # if order is not important, you can use a single dictionary in the list with multiple keys
 transform: # a list of dictionaries of transforms (or a joint dictionary) to apply to hiddens (list enforces order)
   # - <transform_name>: # name of transform
-  #     cls_name: <a registered transformationclass name> # class name
+  #     cls_name: <a registered transformation class name> # class name
   #     <transform_param>: <transform_value> # transform parameters
   #     ...
   - q_z_given_x: # Gaussian posterior with reparameterization
