@@ -496,7 +496,50 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
 
+class MegatronGPTLoRAInverseModel(MegatronGPTLoRAModel):
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer,
+    ):
+        super().__init__(cfg, trainer)
+        self.swap_adapter_and_base_keys()
+    
+    def swap_adapter_and_base_keys(self,):
+        self.adapter_keys, self.base_keys = self.base_keys, self.adapter_keys
+        print("swapped")
+        
+    def get_peft_state_dict(self,):
+        """ 
+        Gets the keys associated with the adapters only.
+        """
+        state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
+        peft_state_dict = {}
+        for k in self.adapter_keys:
+            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
+            new_k = k.replace("model.module.", "model.", 1)
+            peft_state_dict[new_k] = state_dict[k]
+        return peft_state_dict
+    
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Makes two optimizer param groups, one for the frozen model params
+        and one for the prompt-table/prompt-encoder params. The learning 
+        rate for the frozen model's params will always be zero effectively
+        freezing the model's params but still allowing for the needed gradients
+        to be passed around in pipeline parallel models. The prompt-encoder 
+        and/or prompt table will use the learning rate set by the user. 
+        """
+        self.freeze()  # Freeze the entire model
+        opt_params = []
+        for n, p in self.named_parameters():
+            if n in self.adapter_keys:
+                p.requires_grad = True
+                opt_params += [p]
+            else:
+                p.requires_grad = False
 
+        self._optimizer_param_groups = ({"params": opt_params},)
+        logging.info(f"Optimizer groups set:\n{self.summarize()}") 
 class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 

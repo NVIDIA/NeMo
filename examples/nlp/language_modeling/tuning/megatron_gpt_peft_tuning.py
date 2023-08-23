@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models impo
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
     MegatronGPTLoRAModel,
+    MegatronGPTLoRAInverseModel,
     MegatronGPTLoRAModelWeightTying,
     MegatronGPTPTuningModel,
 )
@@ -126,6 +127,8 @@ def _get_peft_scheme(cfg):
         peft_cls = MegatronGPTPTuningModel
     elif cfg.peft.peft_scheme == "adapter_and_ptuning":
         peft_cls = MegatronGPTAdapterPTuningModel
+    elif cfg.peft.peft_scheme == "lora_inverse":
+            peft_cls = MegatronGPTLoRAInverseModel
     elif cfg.peft.peft_scheme == "lora":
         if cfg.peft.lora_tuning.weight_tying:
             peft_cls = MegatronGPTLoRAModelWeightTying
