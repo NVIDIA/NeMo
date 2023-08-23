@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     KERPLERelativePositionEmbedding,
     T5RelativePositionEmbedding,
 )
-from nemo.collections.nlp.modules.common.megatron.transformations.megatron_hiddens import get_hiddens_module
+from nemo.collections.nlp.modules.common.megatron.hiddens import get_hiddens_module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
