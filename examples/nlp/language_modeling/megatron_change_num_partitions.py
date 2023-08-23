@@ -24,10 +24,10 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
     GradScaler,
     MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+    NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging, model_utils
@@ -902,7 +902,7 @@ def main():
 
     if args.model_file is None and args.model_extracted_dir is None:
         raise ValueError("Cannot pass model_file and model_extracted_dir as None at the same time.")
-    
+
     tmp_cfg = cls.restore_from(
         restore_path=args.model_file,
         trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision),
@@ -928,7 +928,7 @@ def main():
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
     trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
-    
+
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
         model_config_internal = cls.restore_from(
@@ -1169,7 +1169,9 @@ def main():
         if vp_size > 1:
             set_virtual_parallel_rank_safely(None)
 
-        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+        trainer = Trainer(
+            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
+        )
 
         with open_dict(model.cfg):
             if args.tokenizer_model_path is not None:
@@ -1374,7 +1376,9 @@ def main():
                 app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
             )
 
-            trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+            trainer = Trainer(
+                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
+            )
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path

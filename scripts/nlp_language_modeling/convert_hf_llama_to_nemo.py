@@ -41,7 +41,8 @@ from transformers import LlamaForCausalLM, LlamaTokenizer
 
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-#from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+
+# from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -49,8 +50,9 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import AppState, logging
-#from nemo.utils.distributed import initialize_distributed
-#from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+
+# from nemo.utils.distributed import initialize_distributed
+# from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
 
 def get_args():
@@ -88,7 +90,9 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 
 def load_config(args, llama_config):
-    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')).model
+    nemo_config = OmegaConf.load(
+        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
+    ).model
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
     nemo_config.num_layers = int(llama_config['num_hidden_layers'])
     nemo_config.hidden_size = llama_config['hidden_size']
@@ -117,8 +121,8 @@ def convert(args):
     print(f"hf_config: {hf_config}")
     print("named parameters:")
     for name, param in model.named_parameters():
-       print(f"- {name}")
-    
+        print(f"- {name}")
+
     nemo_config = load_config(args, hf_config)
 
     if args.precision in ["32", "16"]:
@@ -129,7 +133,7 @@ def convert(args):
             precision = args.precision
         else:
             logging.warning("BF16 is not supported on this device. Using FP16 instead.")
-            precision = args.precision[2:] # prune bf in string
+            precision = args.precision[2:]  # prune bf in string
 
     plugins = []
     if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
@@ -201,29 +205,25 @@ def convert(args):
         num_query_groups = head_num
     else:
         num_query_groups = nemo_config.num_query_groups
-        assert (
-            head_num % num_query_groups == 0
-        ), 'head_num must be divisible by num_query_groups'
+        assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
     if mcore_gpt:
-        assert (
-            nemo_config.activation.startswith('fast-')
-        ), 'mcore only supports fast version of gated linear unit.'
+        assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
         old_tensor_shape = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].size()
         new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
-        new_kv_tensor_shape = (num_query_groups,  head_size) + old_tensor_shape[1:]
+        new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
         q = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_q_tensor_shape)
         k = model.state_dict()[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_kv_tensor_shape)
         v = model.state_dict()[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
-        qkv_weights=torch.empty((0, head_size) + old_tensor_shape[1:])
+        qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
         heads_per_group = head_num // num_query_groups
         for i in range(num_query_groups):
-            qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i+1) * heads_per_group,:,:]))
-            qkv_weights = torch.cat((qkv_weights, k[i:i+1,:,:]))
-            qkv_weights = torch.cat((qkv_weights, v[i:i+1,:,:]))
-        #qkv_weights = torch.cat((q, k, v), axis=1)
+            qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+            qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+            qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
+        # qkv_weights = torch.cat((q, k, v), axis=1)
         qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
         if mcore_gpt:
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
@@ -307,12 +307,12 @@ def convert(args):
     # cast to target precision and disable cpu init
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
-    
+
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
 
 
 if __name__ == '__main__':
     args = get_args()
-    #os.chdir(args.in_file)
+    # os.chdir(args.in_file)
     convert(args)

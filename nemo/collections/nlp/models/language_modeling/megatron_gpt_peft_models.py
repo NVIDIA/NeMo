@@ -17,6 +17,11 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
+    MCoreGPTEmbeddingMixin,
+    MCoreSelfAttentionMixin,
+    swap_mcore_mixin,
+)
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
@@ -59,16 +64,42 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         Randomly initialize the peft params and add them to the appropriate modules.
         """
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
+        assert not self.mcore_gpt or hasattr(
+            self, 'name_key_to_mcore_mixins'
+        ), "some of the PEFT modules are not supported in megatron core mode yet."
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for _, module in self.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+        for name, module in self.named_modules():
+            if self.mcore_gpt:
                 for peft_key in self.peft_name_keys:
-                    peft_cfg = self.name_key_to_cfg[peft_key]
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
-                        )
+                    for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
+                        if name in [
+                            f'model.{mcore_target}',
+                            f'model.module.{mcore_target}',
+                        ]:  # simple string match for now
+                            swap_mcore_mixin(module, mcore_mixin)
+                            peft_cfg = self.name_key_to_cfg[peft_key]
+                            if (
+                                model_utils.import_class_by_path(peft_cfg._target_)
+                                in module.get_accepted_adapter_types()
+                            ):
+                                module.add_adapter(
+                                    name=peft_key,
+                                    cfg=peft_cfg,
+                                    base_model_cfg=self.cfg,
+                                    model_parallel_config=self.model_parallel_config,
+                                )
+            else:
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    for peft_key in self.peft_name_keys:
+                        peft_cfg = self.name_key_to_cfg[peft_key]
+                        if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                            module.add_adapter(
+                                name=peft_key,
+                                cfg=peft_cfg,
+                                base_model_cfg=self.cfg,
+                                model_parallel_config=self.model_parallel_config,
+                            )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
@@ -93,7 +124,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
-            peft_state_dict[k] = state_dict[k]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -151,21 +181,53 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
         Randomly initialize the peft params and add them to the appropriate modules.
         """
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
+        assert not self.mcore_gpt or hasattr(
+            self, 'name_key_to_mcore_mixins'
+        ), "some of the PEFT modules are not supported in megatron core mode yet."
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
-        for layer in self.model.language_model.encoder.layers:
+        if self.mcore_gpt:
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.decoder.layers
+            else:
+                layers = self.model.decoder.layers
+        else:
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.language_model.encoder.layers
+            else:
+                layers = self.model.language_model.encoder.layers
+        for layer in layers:
             if layer.layer_number in self.layer_selection:
-                for _, module in layer.named_modules():
-                    if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for name, module in layer.named_modules():
+                    if self.mcore_gpt:
                         for peft_key in self.peft_name_keys:
-                            peft_cfg = self.name_key_to_cfg[peft_key]
-                            if (
-                                model_utils.import_class_by_path(peft_cfg._target_)
-                                in module.get_accepted_adapter_types()
-                            ):
-                                module.add_adapter(
-                                    name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
-                                )
+                            for mcore_target, mcore_mixin in self.name_key_to_mcore_mixins[peft_key]:
+                                if name == mcore_target:
+                                    swap_mcore_mixin(module, mcore_mixin)
+                                    peft_cfg = self.name_key_to_cfg[peft_key]
+                                    if (
+                                        model_utils.import_class_by_path(peft_cfg._target_)
+                                        in module.get_accepted_adapter_types()
+                                    ):
+                                        module.add_adapter(
+                                            name=peft_key,
+                                            cfg=peft_cfg,
+                                            model_parallel_config=self.model_parallel_config,
+                                        )
+                    else:
+                        if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                            for peft_key in self.peft_name_keys:
+                                peft_cfg = self.name_key_to_cfg[peft_key]
+                                if (
+                                    model_utils.import_class_by_path(peft_cfg._target_)
+                                    in module.get_accepted_adapter_types()
+                                ):
+                                    module.add_adapter(
+                                        name=peft_key,
+                                        cfg=peft_cfg,
+                                        base_model_cfg=self.cfg,
+                                        model_parallel_config=self.model_parallel_config,
+                                    )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
 
@@ -325,12 +387,15 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             cfg.hidden_size,
         )
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
+        self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # for Float16Model models
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # non-mcore O1
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # non-mcore O2
+                "model.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # mcore O1
+                "model.module.embedding.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight",  # mcore O2
             ]
         )
         # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)
@@ -475,10 +540,14 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         else:
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", None)
+        if num_query_groups is None:
+            num_query_groups = cfg.num_attention_heads
+        qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
 
         adapter_cfg = LoraKQVAdapterConfig(
             in_features=cfg.hidden_size,
-            out_features=3 * projection_size,
+            out_features=qkv_projection_size,
             dim=lora_cfg.adapter_dim,
             norm_position=None,
             norm_type=None,
@@ -490,8 +559,10 @@ class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
         )
 
         self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}  # maps peft_key to a list of tuples (mcore_target, mcore_mixin)
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)]
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
@@ -518,6 +589,10 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         else:
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
+        num_query_groups = cfg.get("num_query_groups", None)
+        if num_query_groups is None:
+            num_query_groups = cfg.num_attention_heads
+        qkv_projection_size = projection_size + 2 * kv_channels * num_query_groups
         position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
         if position_embedding_strategy is None:
             dim_position_embeddings = 0
@@ -534,7 +609,7 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
 
         adapter_cfg = LoraKQVAdapterWeightTyingConfig(
             in_features=cfg.hidden_size,
-            out_features=3 * projection_size,
+            out_features=qkv_projection_size,
             dim=lora_cfg.adapter_dim,
             norm_position=None,
             norm_type=None,
@@ -549,8 +624,10 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         )
 
         self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = [("self_attention", MCoreSelfAttentionMixin)]
         self.layer_selection = lora_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
@@ -559,14 +636,20 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
 
     def tie_weights(self,):
         pos_idx = 0
-        layer0 = self.model.language_model.encoder.layers[0]
+
+        if self.mcore_gpt:
+            layers = self.model.decoder.layers
+        else:
+            layers = self.model.language_model.encoder.layers
+
+        layer0 = layers[0]
         for adapter_name in layer0.self_attention.adapter_layer:
             adapter = layer0.self_attention.get_adapter_module(adapter_name)
             print(adapter_name, pos_idx)
             adapter.set_position(pos_idx)
             pos_idx += 1
 
-        for layer in self.model.language_model.encoder.layers[1:]:
+        for layer in layers[1:]:
             for adapter_name in layer.self_attention.adapter_layer:
                 print(adapter_name, pos_idx)
                 adapter_l = layer.self_attention.get_adapter_module(adapter_name)
