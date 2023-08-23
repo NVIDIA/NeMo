@@ -143,6 +143,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.tokens_head_bias = tokens_head_bias
         self.cross_entropy_type = "vocab_parallel"
         self.seq_pattern = "parallel"
+        self.speech_head_type = "token_level"
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -661,13 +662,18 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     )
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
                         for i in range(speech_layers):
-                            speech_residual_model = self.speech_residual_model_2
-                            if i == 0:
-                                speech_residual_model = self.speech_residual_model_1
-                            last_layer_output = speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
-                            last_layer_logits = self.speech_tokens_heads[i](
-                                last_layer_output, self.speech_tokens_embeddings[i].weight
-                            )
+                            if self.speech_head_type == "token_level":
+                                speech_residual_model = self.speech_residual_model_2
+                                if i == 0:
+                                    speech_residual_model = self.speech_residual_model_1
+                                last_layer_output = speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
+                                last_layer_logits = self.speech_tokens_heads[i](
+                                    last_layer_output, self.speech_tokens_embeddings[i].weight
+                                )
+                            elif self.speech_head_type == "linear":
+                                last_layer_logits = self.speech_tokens_heads[i](dec_output)
+                            else:
+                                raise ValueError(f"Speech head type {self.speech_head_type} not supported")
                             speech_logits[:, :, :, i] = last_layer_logits
                 else:
                     token_logits = self.tokens_head(dec_output)[0]  # T, B, WordEmbSize

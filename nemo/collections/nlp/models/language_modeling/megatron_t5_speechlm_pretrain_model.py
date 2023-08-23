@@ -103,6 +103,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self.model_type = ModelType.encoder_and_decoder
         speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
         speech_offset = cfg.data.get('speech_offset', 30000)
+        speech_head_type = cfg.get('speech_head_type', 'token_level') # token_level, linear
 
         list_of_speech_heads = []
         list_of_speech_tokens_embeddings = []
@@ -113,20 +114,25 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
             _speech_head_embedding.weight.data.fill_(0)
             _speech_head_embedding.shared = True
             list_of_speech_tokens_embeddings.append(_speech_head_embedding)
-            list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
+            if speech_head_type == 'token_level':
+                list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
+            elif speech_head_type == 'linear':
+                # Linear layer that maps from hidden size to speech codebook size
+                hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
+                list_of_speech_heads.append(torch.nn.Linear(hidden_size, speech_codebook_size))
 
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(
             list_of_speech_tokens_embeddings
         )
 
-        # TODO: remove hardcoding
-        self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(
-            self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset + speech_codebook_size
-        )
-        self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
-            self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
-        )
+        if speech_head_type == 'token_level':
+            self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(
+                self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset + speech_codebook_size
+            )
+            self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
+                self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
+            )
 
         self.speech_offset = speech_offset
         self.speech_codebook_size = speech_codebook_size
@@ -134,6 +140,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
         self.frozen_model.enc_dec_model.cross_entropy_type = 'regular'
         self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
+        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
         encodec_model = EncodecModel.encodec_model_24khz()
         encodec_model.set_target_bandwidth(6.0)
