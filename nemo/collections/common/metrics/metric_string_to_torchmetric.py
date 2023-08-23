@@ -19,7 +19,7 @@ from torchmetrics.text.wer import WordErrorRate
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
 
-__all__ = ['MetricStringToTorchMetric', 'TextMetricsSet']
+__all__ = ['MetricStringToTorchMetric', 'TextMetricsSet', 'ClassificationMetricsSet']
 
 # Dictionary that maps a metric string name to its corresponding torchmetric class.
 
@@ -37,3 +37,5 @@ MetricStringToTorchMetric = {
 }
 
 TextMetricsSet = set(['rouge', 'wer', 'bleu'])
+
+ClassificationMetricsSet = set(['accuracy', 'average_precision', 'f1', 'exact_string_match'])

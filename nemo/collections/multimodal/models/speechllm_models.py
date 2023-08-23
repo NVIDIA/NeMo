@@ -708,7 +708,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
             metric_name = data_cfg.metric.name
             metric_cls = MetricStringToTorchMetric[metric_name]
             if metric_name not in TextMetricsSet:
-                metric = [metric_cls(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                metric = [metric_cls(**data_cfg.metric)]
             else:
                 metric = [metric_cls()]
         return metric, metric_name
