@@ -8,36 +8,36 @@ transform: # a list of dictionaries of transforms (or a joint dictionary) to app
   #     cls_name: <a registered transformationclass name> # class name
   #     <transform_param>: <transform_value> # transform parameters
   #     ...
-    - q_z_given_x: # Gaussian posterior with reparameterization
-        cls_name: cond_gaussian # class name
-        hidden_size: 512 # hidden size of the encoder
-        min_logvar: -6.0 # minimum log variance
-    - logP_cls: # logP classifier logits
-        cls_name: guided_cls
-        input_name: hiddens
-        attr_name: logP
-      QED_cls: # QED classifier logits
-        cls_name: guided_cls
-        input_name: hiddens
-        attr_name: QED
-  loss: # a list of dictionaries of loss terms (or a joint dictionary) to add to reconstruction loss (list enforces order)
+  - q_z_given_x: # Gaussian posterior with reparameterization
+      cls_name: cond_gaussian # class name
+      hidden_size: 512 # hidden size of the encoder
+      min_logvar: -6.0 # minimum log variance
+  - logP_cls: # logP classifier logits
+      cls_name: guided_cls
+      input_name: hiddens
+      attr_name: logP
+    QED_cls: # QED classifier logits
+      cls_name: guided_cls
+      input_name: hiddens
+      attr_name: QED
+loss: # a list of dictionaries of loss terms (or a joint dictionary) to add to reconstruction loss (list enforces order)
   # - <loss_name>: # name of loss
   #     cls_name: <a registered loss class name> # class name
   #     <loss_param>: <loss_value> # loss parameters
   #     ...
   # below is example where order of losses does not matter so a single dictionary is enough
-      mim: # A-MIM example
-        cls_name: a_mim
-        loss_weight: 1.0 # weight of the MIM latent loss
-      vae: # VAE example
-          cls_name: vae
-          min_kl_value: null # minimum KL value if a float is provided
-          loss_weight: 1e-2 # weight of KL term in loss
-      logP_cls: # logP classifier loss (cross entropy)
-          cls_name: guided_cls_loss
-          input_name: logP
-          loss_weight: 0.1
-      QED_cls: # QED classifier loss (cross entropy)
-          cls_name: guided_cls_loss
-          input_name: logP
-          loss_weight: 0.1
+  mim: # A-MIM example
+    cls_name: a_mim
+    loss_weight: 1.0 # weight of the MIM latent loss
+  vae: # VAE example
+      cls_name: vae
+      min_kl_value: null # minimum KL value if a float is provided
+      loss_weight: 1e-2 # weight of KL term in loss
+  logP_cls: # logP classifier loss (cross entropy)
+      cls_name: guided_cls_loss
+      input_name: logP
+      loss_weight: 0.1
+  QED_cls: # QED classifier loss (cross entropy)
+      cls_name: guided_cls_loss
+      input_name: logP
+      loss_weight: 0.1
