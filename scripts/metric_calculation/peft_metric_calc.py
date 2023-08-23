@@ -121,7 +121,7 @@ def main():
     scorer = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
     preds = open(pred_file, encoding="utf-8").readlines()
     ground_truth = open(ground_truth_file).readlines()
-    f1 = exact_match = total = r_score =  0
+    f1 = exact_match = total = r_score = 0
 
     for i in range(len(preds)):
         truth = json.loads(ground_truth[i])
@@ -135,7 +135,6 @@ def main():
         if not isinstance(true_answers, list):
             true_answers = [true_answers]
 
-
         r_scores = []
         for ta in true_answers:
             r_scores.append(scorer.score(ta, pred_answer)['rougeL'].fmeasure)
@@ -148,7 +147,7 @@ def main():
     f1 = 100.0 * f1 / total
     r_score = 100 * (r_score / total)
     res = {'exact_match': exact_match, 'f1': f1, "rougeL": r_score, 'total': total}
-    print('\t'.join([ f"{k} {v:.3f}" for k,v in res.items()]))
+    print('\t'.join([f"{k} {v:.3f}" for k, v in res.items()]))
 
 
 if __name__ == "__main__":
