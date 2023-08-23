@@ -389,6 +389,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             self.freeze()  # Freeze the entire model
             self._optimizer_param_groups = ({"params": []},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
+        print('ok')
 
 
 class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
@@ -443,9 +444,17 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
             if n in self.trainable_keys:
                 p.requires_grad = True
                 opt_params.append(p)
+            #else:
+                #p.requires_grad = False
 
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
+        print("ok")
+    
+    def setup_optimizer_param_groups__skipp(self):
+        super().setup_optimizer_param_groups()
+        logging.info(f"Optimizer groups set:\n{self.summarize()}")
+        print("ok")
 
 
 class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
