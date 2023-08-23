@@ -872,6 +872,11 @@ def prepare_lr_scheduler(
                 batch_size = train_dataloader.batch_sampler.micro_batch_size
             else:
                 raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+        elif hasattr(train_dataloader, 'sampler') and train_dataloader.sampler is not None:
+            if train_dataloader.sampler.micro_batch_size is not None:
+                batch_size = train_dataloader.sampler.micro_batch_size
+            else:
+                raise ValueError(f'Could not find batch_size from sampler: {train_dataloader.sampler}')
         else:
             raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
         drop_last = train_dataloader.drop_last

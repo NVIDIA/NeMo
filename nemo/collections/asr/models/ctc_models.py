@@ -29,6 +29,7 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
+from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -376,6 +377,19 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         else:
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        if config.get('use_semi_sorted_batching', False):
+            batch_sampler = get_semi_sorted_batch_sampler(self, dataset, config)
+            # set batch_size and batch_sampler to None to disable automatic batching
+            return torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=None,
+                sampler=batch_sampler,
+                batch_sampler=None,
+                collate_fn=collate_fn,
+                num_workers=config.get('num_workers', 0),
+                pin_memory=config.get('pin_memory', False),
+            )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
