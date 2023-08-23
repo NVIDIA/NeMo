@@ -102,18 +102,18 @@ Below is the content of the config file above:
     #     cls_name: <a registered transformationclass name> # class name
     #     <transform_param>: <transform_value> # transform parameters
     #     ...
-    - q_z_given_x: # Gaussian posterior with reparameterization
-        cls_name: cond_gaussian # class name
-        hidden_size: 512 # hidden size of the encoder
-        min_logvar: -6.0 # minimum log variance
-    - logP_cls: # logP classifier logits
-        cls_name: guided_cls
-        input_name: hiddens
-        attr_name: logP
+        - q_z_given_x: # Gaussian posterior with reparameterization
+            cls_name: cond_gaussian # class name
+            hidden_size: 512 # hidden size of the encoder
+            min_logvar: -6.0 # minimum log variance
+        - logP_cls: # logP classifier logits
+            cls_name: guided_cls
+            input_name: hiddens
+            attr_name: logP
         QED_cls: # QED classifier logits
-        cls_name: guided_cls
-        input_name: hiddens
-        attr_name: QED
+            cls_name: guided_cls
+            input_name: hiddens
+            attr_name: QED
     loss: # a list of dictionaries of loss terms (or a joint dictionary) to add to reconstruction loss (list enforces order)
     # - <loss_name>: # name of loss
     #     cls_name: <a registered loss class name> # class name
