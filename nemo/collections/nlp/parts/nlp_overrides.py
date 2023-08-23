@@ -56,6 +56,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 
     HAVE_MEGATRON_CORE = True
 
@@ -227,7 +228,7 @@ class NLPDDPStrategy(DDPStrategy):
             model_key = 'enc_dec_model'
             model_attr = self.lightning_module.enc_dec_model
         if model_key is not None:
-            if isinstance(model_attr, Float16Module):
+            if isinstance(model_attr, Float16Module) or isinstance(model_attr, MCoreFloat16Module):
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
                     new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
@@ -511,13 +512,13 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
-        state_dict = self.modify_state_dict(conf, state_dict)
 
         if (
             self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
         ):  # we have this check only for training PEFT from scratch
             peft_state_dict = instance.get_peft_state_dict()
             state_dict.update(peft_state_dict)
+        state_dict = self.modify_state_dict(conf, state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
