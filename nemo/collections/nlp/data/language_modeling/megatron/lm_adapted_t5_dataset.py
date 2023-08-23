@@ -98,7 +98,9 @@ class T5LMAdaptedDataset(GPTDataset):
             tokens_enc = np.array(sample[:split_idx]).astype(np.int64)
             if add_bos_to_enc:
                 if debug:
-                    import pdb; pdb.set_trace()
+                    import pdb
+
+                    pdb.set_trace()
                 tokens_enc = np.concatenate([tokens_enc, [tokenizer.bos_id]])
         # The decoder sequence is never truncated and is always of max decoder length.
         # TODO: Fix the max_seq_length_decoder check for GPT
@@ -106,7 +108,7 @@ class T5LMAdaptedDataset(GPTDataset):
         if max_seq_length_decoder is not None:
             tokens_dec = sample[split_idx : split_idx + max_seq_length_decoder - offset]
         else:
-            tokens_dec = sample[split_idx: split_idx + max_seq_length_encoder - offset]
+            tokens_dec = sample[split_idx : split_idx + max_seq_length_encoder - offset]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
         if max_seq_length_decoder is not None:

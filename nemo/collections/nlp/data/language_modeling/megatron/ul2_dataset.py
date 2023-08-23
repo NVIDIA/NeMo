@@ -14,6 +14,7 @@
 
 """UL2 Style dataset from https://arxiv.org/abs/2205.05131"""
 import math
+import pdb
 
 import numpy as np
 import torch
@@ -23,7 +24,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import c
 from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-import pdb
 
 
 class UL2Dataset(T5Dataset):
@@ -79,7 +79,7 @@ class UL2Dataset(T5Dataset):
         debug=False,
         add_bos_to_enc=False,
         force_sep_tokens=False,
-        use_v2_format=False
+        use_v2_format=False,
     ):
         """ Args:
         cfg: Omegaconf config object.
@@ -244,7 +244,7 @@ class UL2Dataset(T5Dataset):
         pivot_distribution: LengthDistribution,
         add_eos: bool = False,
         add_bos_to_enc: bool = False,
-        debug: bool = False
+        debug: bool = False,
     ):
         sample = [token for sentence in sample for token in sentence]
         # Leave space for the special tokens.
@@ -339,7 +339,7 @@ class UL2Dataset(T5Dataset):
     def print_and_break(self, example):
         for tokens in [example['text_enc'], example['labels']]:
             tokens = torch.Tensor(tokens)
-            seg_ids = torch.cumsum(tokens==3, 0)
+            seg_ids = torch.cumsum(tokens == 3, 0)
             for i in range(seg_ids[-1].item() + 1):
                 doc = tokens[seg_ids == i]
                 text = self.tokenizer.ids_to_text(doc.long().cpu().numpy().tolist())
@@ -347,7 +347,9 @@ class UL2Dataset(T5Dataset):
                 print(i)
                 print(text)
                 print("========================================")
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
     def __getitem__(self, idx, decoder_only=False):
         """Returns a training sample for the given index.
@@ -387,7 +389,7 @@ class UL2Dataset(T5Dataset):
         # Later this will be consumed when we make autoregressive predictions.
         if masking_type == 'causal':
             s2s_token = self.tokenizer.text_to_ids('<extra_id_s>')
-            example = {'text_enc': np.array(s2s_token, ), 'labels': sample[0]}
+            example = {'text_enc': np.array(s2s_token,), 'labels': sample[0]}
         elif masking_type == 'r-masking':
             # Call T5's build training sample for regular short span masking.
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
@@ -434,7 +436,7 @@ class UL2Dataset(T5Dataset):
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.prefix_lm_pivot_distribution,
                 add_bos_to_enc=self.add_bos_to_enc,
-                debug=self.debug
+                debug=self.debug,
             )
             example['masking_type'] = masking_type
 
@@ -754,7 +756,8 @@ class UGPTDataset(UL2Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length + 1,  # +1 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
+            max_seq_length=max_seq_length
+            + 1,  # +1 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
@@ -794,7 +797,7 @@ class UGPTDataset(UL2Dataset):
     def print_and_break_final(self, example, orig_example):
         keys = ['tokens', 'labels']
         inputs = self.tokenizer.ids_to_text(orig_example['text_enc'])
-        targets = self.tokenizer.ids_to_text(example['labels'][example['loss_mask']==1].tolist())
+        targets = self.tokenizer.ids_to_text(example['labels'][example['loss_mask'] == 1].tolist())
         print('====================== inputs:\n', inputs)
         print('====================== targets:\n', targets)
         # for key in keys:
@@ -808,7 +811,9 @@ class UGPTDataset(UL2Dataset):
         #         print(i)
         #         print(text)
         #         print("========================================")
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
     def __getitem__(self, idx):
         example = super().__getitem__(idx, decoder_only=True)

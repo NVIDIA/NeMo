@@ -191,11 +191,11 @@ class T5Dataset(Dataset):
                 sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
 
                 if self.force_sep_tokens:
-                    for i in range(len(sample_list)-1):
+                    for i in range(len(sample_list) - 1):
                         # We ignore the case where the last document happens to be included as a whole,
                         # which should have low probabilicy.
                         sample_list[i] = np.concatenate([sample_list[i], [self.sep_id]])
-                    sample_list[i] = sample_list[i][:-(len(sample_list)-1)]
+                    sample_list[i] = sample_list[i][: -(len(sample_list) - 1)]
                 sample = np.concatenate(sample_list)
                 sample.astype(np.int64)
             seq_length = len(sample)
@@ -504,7 +504,7 @@ class T5Dataset(Dataset):
         # Add the remaining tokens to the t5 input
         # Minus one to append bos in the end.
         delta = max_seq_length - (len(t5_input) + len(t5_decoder_out)) - 1
-        t5_input.extend(output_tokens[start_index:start_index+delta])
+        t5_input.extend(output_tokens[start_index : start_index + delta])
         t5_input.append(bos_id)
 
         # Encoder-side padding mask.

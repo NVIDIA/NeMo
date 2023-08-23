@@ -156,7 +156,7 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
-    model_class = MegatronGPTModel # if not cfg.get('u_gpt', False) else MegatronUGPTModel
+    model_class = MegatronGPTModel  # if not cfg.get('u_gpt', False) else MegatronUGPTModel
     # if cfg.get('u_gpt', False):
     #     OmegaConf.set_struct(cfg, True)
     #     with open_dict(cfg):
