@@ -19,6 +19,7 @@ import threading
 import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
+import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
@@ -32,6 +33,7 @@ lock = threading.Lock()
 
 API_ALLOWED_KEYS = set(
     [
+        'compute_logprob',
         'all_probs',
         'sentences',
         "task_ids",
@@ -47,6 +49,62 @@ API_ALLOWED_KEYS = set(
         "end_strings",
     ]
 )
+
+def int_to_token(index):
+    t_dict = {0: 251521,
+        1: 251525,
+        2: 251527,
+        3: 251556,
+        4: 251564,
+        5: 251557,
+        6: 251574,
+        7: 251581,
+        8: 251577,
+        9: 251561}
+    return t_dict[index]
+
+def rindex(lst, value):
+    lst.reverse()
+    i = lst.index(value)
+    lst.reverse()
+    return len(lst) - i - 1
+
+def rindex(mylist, myvalue):
+    return len(mylist) - mylist[::-1].index(myvalue) - 1
+
+def get_ngram_probs(sentences, model, response, target_index_from_end=1):
+    for k in range(len(response['full_logprob'])):
+        # ridx = len(model.tokenizer.text_to_ids(cfg.prompts[k])) - 1
+        target_word = sentences[k].split()[-1*target_index_from_end]
+        token_id = model.tokenizer.text_to_ids(target_word)[0]
+        ridx = rindex(response['token_ids'][k], token_id)
+        idx_from_end = len(response['token_ids'][k]) - ridx
+        probs = F.softmax(response['full_logprob'][k][-1*idx_from_end], dim=-1)
+        
+        if True: 
+            vals, idxs = torch.topk(probs, 10)
+            bub_string = model.tokenizer.ids_to_text(idxs.tolist())
+            word_list = bub_string.split()
+            for top_word in word_list:
+                print(f"{response['tokens'][k][ridx-5:ridx]}: {top_word}")
+        print(f"target word <{target_word}> p(W) probs: {probs[token_id]}")
+    return probs[token_id]
+
+def get_speaker_probs(sentences, model, response, num_of_speakers=5):
+    for k in range(len(response['full_logprob'])):
+        # Find the '▁speaker' or 'speaker' token and get the probabilities of the next token
+        ridx = rindex(response['token_ids'][k], 211466)
+        idx_from_end = len(response['token_ids'][k]) - ridx
+        print(f"ridx: {ridx} token: {response['tokens'][k][idx_from_end]}")
+        
+        # full_logprob is shifted 1 to the left (first token does not have a probability)
+        probs = F.softmax(response['full_logprob'][k][ridx], dim=-1)
+        probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
+        probs_tensor = probs / probs.sum()
+        probs_tensor= probs_tensor.numpy()
+        print(f"probs_tensor: {probs_tensor}")
+        # print(f" speaker0: {probs[int_to_token(0)]:.4f} \n speaker1: {probs[int_to_token(1)]:.4f} \n speaker2: {probs[int_to_token(2)]:.4f} \n speaker3: {probs[int_to_token(3)]:.4f} \n speaker4: {probs[int_to_token(4)]:.4f}")
+    return probs_tensor
 
 
 class MegatronGenerate(Resource):
@@ -165,7 +223,8 @@ class MegatronGenerate(Resource):
             if neighbors < 0:
                 return "num of neighbors must be an integer no less than 0"
 
-        with lock:  # Need to get lock to keep multiple threads from hitting code
+        # with lock:  # Need to get lock to keep multiple threads from hitting code
+        if True:
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
             if task_ids is not None:
@@ -178,7 +237,7 @@ class MegatronGenerate(Resource):
                 ):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
-
+            
             output = generate(
                 self.model,
                 sentences,
@@ -190,22 +249,32 @@ class MegatronGenerate(Resource):
                 top_p,
                 greedy,
                 repetition_penalty,
+                compute_logprob=request.get_json()["compute_logprob"],
                 end_strings=end_strings,
                 min_tokens_to_generate=min_tokens_to_generate,
                 **extra,
             )
+            if request.get_json()["tokens_to_generate"] <= 1:
+                get_ngram_probs(request.get_json()["sentences"], self.model, output, target_index_from_end=1)
+            else:
+                get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=5)
+            
+            del output['full_logprob'], output['logprob'] 
             for k in output:
+                # import ipdb; ipdb.set_trace()
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
-        if not all_probs:
-            del output['full_logprob']
+            
+        # if not all_probs:
+        #     del output['full_logprob']
 
-        if self.inference_strategy is not None:
-            if isinstance(
-                self.inference_strategy, (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
-            ):
-                retrieved_doc = self.inference_strategy.retrieved_text
-                output['retrieved'] = retrieved_doc
+        # if self.inference_strategy is not None:
+        #     if isinstance(
+        #         self.inference_strategy, (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
+        #     ):
+        #         retrieved_doc = self.inference_strategy.retrieved_text
+        #         output['retrieved'] = retrieved_doc
+        print(f"Outputing with jsonify:")
         return jsonify(output)
 
 

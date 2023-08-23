@@ -201,6 +201,7 @@ def get_ngram_probs(cfg, model, response, target_index_from_end=1):
 def get_speaker_probs(cfg, model, response, num_of_speakers=5):
     for k in range(len(response['full_logprob'])):
         # Find the '▁speaker' or 'speaker' token and get the probabilities of the next token
+        print(f"response['sentences'][{k}] = {response['sentences'][k]}")
         ridx = rindex(response['token_ids'][k], 211466)
         idx_from_end = len(response['token_ids'][k]) - ridx
         print(f"ridx: {ridx} token: {response['tokens'][k][idx_from_end]}")
@@ -379,7 +380,6 @@ def main(cfg) -> None:
         while True:
             choice = torch.cuda.LongTensor(1)
             torch.distributed.broadcast(choice, 0)
-            print(f"In the loop, choice: {choice}")
             if choice[0].item() == 0:
                 generate(model.cuda())
 
