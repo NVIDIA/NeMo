@@ -27,7 +27,7 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.metrics import MetricStringToTorchMetric
+from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.data.audio_text_qa_dataset import (
     get_aqa_dataset_from_config,
     get_tarred_aqa_dataset_from_config,
@@ -707,8 +707,8 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
 
             metric_name = data_cfg.metric.name
             metric_cls = MetricStringToTorchMetric[metric_name]
-            if 'rouge' not in data_cfg.metric.name and 'wer' not in data_cfg.metric.name:
-                metric = [metric_cls(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+            if metric_name not in TextMetricsSet:
+                metric = [metric_cls(**data_cfg.metric)]
             else:
                 metric = [metric_cls()]
         return metric, metric_name
