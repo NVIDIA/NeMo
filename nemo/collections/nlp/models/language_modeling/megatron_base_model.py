@@ -746,7 +746,11 @@ class MegatronBaseModel(NLPModel):
 
         # dtype used in p2p communication
         pipeline_dtype = (
-            torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.half if precision in [16, '16', '16-mixed'] else torch.float32
+            torch.bfloat16
+            if precision in ['bf16', 'bf16-mixed']
+            else torch.half
+            if precision in [16, '16', '16-mixed']
+            else torch.float32
         )
 
         # same as pipeline_dtype when not using megatron amp O2
