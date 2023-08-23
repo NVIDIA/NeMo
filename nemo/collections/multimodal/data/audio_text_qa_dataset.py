@@ -22,7 +22,7 @@ import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
-from omegaconf import DictConfig
+from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
@@ -923,6 +923,8 @@ def get_tarred_aqa_dataset(
         else:
             datasets.append(dataset)
 
+    with open_dict(config):  # patch for bucketing tarred datasets
+        config['batch_size'] = config.get("micro_batch_size", 1)
     return get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
 
 
