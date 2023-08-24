@@ -814,16 +814,22 @@ class MegatronBaseModel(NLPModel):
         """
         #elements = []
         if self.total_val_micro_batches == 0:
-            return True
-        num_microbatches = get_num_microbatches()
-        for _ in range(num_microbatches):
-            # try:
-            #     element = next(iterator)
-            #     elements.append(element)
-            # except StopIteration:
-            #     return iterator, True
-            self.total_val_micro_batches-=1    
-        return False        
+            #reset
+            self.total_val_micro_batches = self.trainer.limit_val_batches
+            try:
+                element = next(iterator)
+            except StopIteration:
+                return True
+        else:
+            num_microbatches = get_num_microbatches()
+            for _ in range(num_microbatches):
+                # try:
+                #     element = next(iterator)
+                #     elements.append(element)
+                # except StopIteration:
+                #     return iterator, True
+                self.total_val_micro_batches-=1    
+            return False        
 
         # return a new iterator with the prefetched element reinserted at the front
         #return itertools.chain(elements, iterator), False
