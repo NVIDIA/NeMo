@@ -44,7 +44,7 @@ within this examples directory to convert your model to .nemo format.
 
 def _mask_encoder_input(enc_input, mask_id, seq_pattern="parallel"):
     mask_length_poisson_lambda = 4.0
-    mask_context_prob = 0.4
+    mask_context_prob = 0.99
     if seq_pattern in ["parallel", "delay_parallel"]:
         span_length = torch.poisson(torch.tensor([mask_length_poisson_lambda]))
         span_length = int(span_length.item())
@@ -56,7 +56,9 @@ def _mask_encoder_input(enc_input, mask_id, seq_pattern="parallel"):
         n_masked_spans = int(n_spans * mask_context_prob)
         masked_spans = torch.randperm(n_spans)[:n_masked_spans]
         for i in masked_spans:
-            enc_input[:, i * span_length : (i + 1) * span_length] = mask_id
+            if (i * span_length) > 100 and (i * span_length) < n_timesteps - 100:
+                enc_input[:, i * span_length : (i + 1) * span_length] = mask_id
+
     elif seq_pattern == "flatten":
         span_length = torch.poisson(torch.tensor([mask_length_poisson_lambda]))
         span_length = int(span_length.item())
@@ -189,7 +191,7 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     # checkpoint_path = "/datap/misc/DelayPatternExperimentsFinal/LocalRun/Step90k.ckpt"
-    checkpoint_path = "/datap/misc/FlattenExpFinal/LocalRun/Step4000.ckpt"
+    checkpoint_path = "/datap/misc/DelayPatternExperimentsLinearHead/Step98k.ckpt"
     model = MegatronT5SpeechLMModel.load_from_checkpoint(
         checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model
     )
@@ -258,8 +260,8 @@ def main(cfg) -> None:
                             model.logger.experiment.add_audio("Dec Input", dec_wav, example_num + 1, 24000)
 
 
-                    dec_input[:, :, t + 1 :] = model.tokenizer.pad_id
-                    dec_input_mask[:, t + 1 :] = 0
+                    # dec_input[:, :, t + 1 :] = model.tokenizer.pad_id
+                    # dec_input_mask[:, t + 1 :] = 0
                     print("dec_input", dec_input.shape, dec_input[:, :, :10])
 
                     position_ids = batch['position_ids'].cuda()
@@ -275,11 +277,20 @@ def main(cfg) -> None:
                         inference=True,
                     )
                     if seq_pattern in ["parallel", "delay_parallel"]:
-                        output_tokens = output_tensor.argmax(dim=2)
-                        output_tokens_curr_timestep = output_tokens[:, t]
+                        output_logits = output_tensor[:,t,:] # (B, Vocab Size, 8)
+                        output_logits = output_logits[0].permute(1, 0) # (8, Vocab Size)
+                        # Multinomial sampling using temperature T
+                        TEMP = 0.05
+                        output_probs = torch.nn.functional.softmax(output_logits / TEMP, dim=1)
+                        output_tokens_curr_timestep = torch.multinomial(output_probs, num_samples=1)[:,0][None]
+                        # import ipdb; ipdb.set_trace()
+
+                        # output_tokens = output_tensor.argmax(dim=2)
+                        # output_tokens_curr_timestep = output_tokens[:, t]
                         output_token_list.append(output_tokens_curr_timestep[0])
                         dec_input_next = output_tokens_curr_timestep * 1
                         dec_input_next[:,0] = dec_input_next[:,0] + 30000
+                        # if t > 100:
                         dec_input[:, :, t + 1] = dec_input_next
                     else:
                         first_layer_logits = debug_tensors[0] # (1, s, 30k)

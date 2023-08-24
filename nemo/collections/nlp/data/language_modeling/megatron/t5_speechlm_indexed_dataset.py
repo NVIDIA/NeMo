@@ -134,13 +134,17 @@ def build_train_valid_test_datasets(
     else:
         # Single dataset.
         if len(data_prefix) == 1:
+            if data_impl == "lazy" and cfg.seq_pattern == "flatten":
+                # Audio dataset with lazy mode and flatten seq pattern
+                _seq_len = int(seq_length / 8)
+
             return _build_train_valid_test_datasets(
                 cfg,
                 data_prefix[0],
                 data_impl,
                 splits_string,
                 train_valid_test_num_samples,
-                seq_length,
+                _seq_len,
                 seed,
                 skip_warmup,
                 tokenizer,
