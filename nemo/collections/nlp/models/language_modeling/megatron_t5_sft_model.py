@@ -57,6 +57,7 @@ __all__ = ['MegatronT5SFTModel']
 
 class MegatronT5SFTModel(MegatronT5Model, NLPAdapterModelMixin):
     """ T5 Finetuning model in the same format as MegatronGPTSFTModel """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
@@ -530,7 +531,7 @@ class MegatronT5SFTModel(MegatronT5Model, NLPAdapterModelMixin):
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric)  if len(averaged_metric) > 1 else None
+        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 1 else None
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
         if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
@@ -701,7 +702,9 @@ class MegatronT5SFTModel(MegatronT5Model, NLPAdapterModelMixin):
                     max_src_seq_length=data_cfg.max_seq_length,
                     max_tgt_seq_length=data_cfg.max_seq_length,
                     add_bos_to_input=data_cfg.get('add_bos', True),
-                    add_eos_to_input=data_cfg.get('add_eos', True),  # review: need domain knowledge to undertand if these args are ok
+                    add_eos_to_input=data_cfg.get(
+                        'add_eos', True
+                    ),  # review: need domain knowledge to undertand if these args are ok
                     index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                     memmap_workers=data_cfg.get('memmap_workers', None),
                     hf_dataset=data_cfg.get('hf_dataset', False),
