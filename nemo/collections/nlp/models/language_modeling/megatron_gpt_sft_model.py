@@ -404,6 +404,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        self._val_micro_batches_consumed = 0 # Forces parent to do validation_step
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':

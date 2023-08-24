@@ -369,12 +369,16 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter, batch_idx):
-        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
-        dataloader_iter, done = self._prefetch(dataloader_iter)
-        if done:
-            return
+        # Check if iterator is exhausted
+        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        # if done:
+        #     return
         mode = 'test' if self.trainer.testing else 'val'
-        batch = next(dataloader_iter)
+        # try except is sufficient only one batch is passed to the fwd_bwd_step
+        try:
+            batch = next(dataloader_iter)
+        except StopIteration:
+            return
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)

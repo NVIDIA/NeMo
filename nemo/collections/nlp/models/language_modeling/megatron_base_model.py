@@ -190,7 +190,7 @@ class MegatronBaseModel(NLPModel):
             gc.disable()
             self.validation_global_step = 1
 
-        self.total_val_micro_batches = trainer.limit_val_batches
+        self._val_micro_batches_consumed = 0
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -807,29 +807,15 @@ class MegatronBaseModel(NLPModel):
 
         return model_parallel_config
 
-    def _prefetch(self, iterator):
-        """Checks if the iterator still has elements to return.
-        Used in models using dataloader_iter to prefetch the next batch before fwd_bwd func
-        is called to avoid PP rank 2 from wait indefinitely to get outpits from PP 1
+    def _val_iterator_done(self, iterator):
         """
-        #elements = []
-        if self.total_val_micro_batches == 0:
-            #reset
-            self.total_val_micro_batches = self.trainer.limit_val_batches
+        Check if we reached trainer.limit_val_batches, if so exhaust the iterator to raise a StopIteration and exit validation_step
+        """
+        if self._val_micro_batches_consumed == self.trainer.limit_val_batches:
+            self._val_micro_batches_consumed=0
             try:
-                element = next(iterator)
+                _ = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
             except StopIteration:
                 return True
         else:
-            num_microbatches = get_num_microbatches()
-            for _ in range(num_microbatches):
-                # try:
-                #     element = next(iterator)
-                #     elements.append(element)
-                # except StopIteration:
-                #     return iterator, True
-                self.total_val_micro_batches-=1    
-            return False        
-
-        # return a new iterator with the prefetched element reinserted at the front
-        #return itertools.chain(elements, iterator), False
+            return False
