@@ -25,6 +25,13 @@ from torch.utils.data import DataLoader
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    InfusedAdapterConfig,
+    LoraKQVAdapterConfig,
+    MLPInfusedAdapterConfig,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -33,13 +40,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    LoraKQVAdapterConfig,
-    PromptEncoderAdapterConfig,
-    MLPInfusedAdapterConfig,
-    InfusedAdapterConfig
-)
 
 mp.set_start_method("spawn", force=True)
 """
@@ -73,6 +73,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 
 """
 
+
 def generate_lora_config(cfg):
     peft_name_keys = [AdapterName.LORA_KQV_ADAPTER]
     lora_cfg = cfg.peft.lora_tuning
@@ -100,6 +101,7 @@ def generate_lora_config(cfg):
     )
 
     return peft_name_keys, [adapter_cfg]
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_eval_config")
 def main(cfg) -> None:
@@ -177,9 +179,7 @@ def main(cfg) -> None:
     names, cfgs = generate_lora_config(peft_model_cfg)
 
     model = MegatronGPTSFTModel.restore_from(
-        restore_path=cfg.model.restore_from_path,
-        trainer=trainer,
-        override_config_path=peft_model_cfg,
+        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=peft_model_cfg,
     )
 
     model.add_adapters(names, cfgs)
