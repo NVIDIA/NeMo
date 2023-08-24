@@ -32,9 +32,7 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
-from nemo.collections.multimodal.data.kosmos.kosmos_dataset import MAX_NUM_IMAGES
 from nemo.collections.multimodal.data.neva.neva_dataset import (
-    CLIP_MODEL,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DataCollatorForSupervisedDataset,
@@ -206,7 +204,6 @@ class NevaEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
         media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
         num_images_per_sample = media_features.size(1)
         num_patches = media_features.size(3)
-
         # flatten patches
         media_features = media_features.view(batch_size, -1, hidden_size)
 
@@ -278,7 +275,6 @@ class NevaModel(GPTModel):
             self.load_vision_encoder_weights(vision_encoder, mm_cfg.vision_encoder.from_pretrained)
             if mm_cfg.vision_encoder.freeze:
                 vision_encoder.freeze()
-
         # Monkey patch embedding
         if kwargs.get("pre_process", True):
             extend_instance(self.language_model.embedding.word_embeddings, NevaEmbeddingMixin)
@@ -843,37 +839,31 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
 
-        image_list = []
-        for prompt in batch:
-            image_paths_in_prompts = re.findall(r'<Image=(.*?)>', prompt)
-            image_list.append(image_paths_in_prompts)
-
         if inference_config is None:
             return None
         else:
             # need to overwrite some configuration, make it immutable
+            image = os.path.join(inference_config['images_base_path'], batch['image'][0])
+            prompt = batch['prompt'][0]
             inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
-                inference_config['inputs'] = batch
+                inference_config['inputs'] = prompt
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
-                inference_config['image_list'] = image_list
+                inference_config['image_list'] = image
                 response = generate(self, **inference_config)
-                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, prompt)
                 return compute_prob_response
             else:
-                inference_config['inputs'] = batch
-                inference_config['image_list'] = image_list
+                inference_config['inputs'] = prompt
+                inference_config['image_list'] = image
                 return generate(self, **inference_config)
 
     def generate(
-        self,
-        input_prompts: Union[List[str], torch.Tensor, List[dict]],
-        length_params: LengthParam,
-        sampling_params: SamplingParam = None,
+        self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
@@ -902,7 +892,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
 
         start = time.time()
         # Supports only one prompt at a time
-        result = megatron_neva_generate(self.cuda(), input_prompts, self.tokenizer, length_params, sampling_params)
+        result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
         end = time.time()
         print(f'Time taken {end - start}')
 

@@ -14,6 +14,7 @@
 
 """Utilities for generating text."""
 
+import os
 import pickle
 from collections.abc import Iterable
 from functools import partial
@@ -138,28 +139,14 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         raise NotImplementedError("unknown type is not implemented")
 
 
-def megatron_neva_generate(model, input_prompts, tokenizer, length_params, sampling_params, **strategy_args):
-    # reproduce the old compute_prob method
-    # a very special case
-    import re
+def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
 
-    image_list = []
-    for prompt in input_prompts:
-        image_paths_in_prompts = re.findall(r'<Image=(.*?)>', prompt)
-        image_list.append(image_paths_in_prompts)
-
-    if sampling_params['compute_logprob']:
-        # need to overwrite some configuration, make it immutable
-        sampling_params = sampling_params.copy()
-        length_params = length_params.copy()
-        length_params['max_length'] = 1
-        sampling_params['all_probs'] = True
-        sampling_params["add_BOS"] = False
-        sampling_params['greedy'] = True
-
+    final_response = []
+    for prompt_dict in prompt_dict_list:
+        img = os.path.join(inference_config.inference.images_base_path, prompt_dict['image'])
         response = generate(
             model,
-            inputs=input_prompts,
+            inputs=prompt_dict['prompt'],
             tokens_to_generate=length_params['max_length'],
             all_probs=sampling_params['all_probs'],
             temperature=sampling_params['temperature'],
@@ -169,37 +156,11 @@ def megatron_neva_generate(model, input_prompts, tokenizer, length_params, sampl
             greedy=sampling_params['use_greedy'],
             repetition_penalty=sampling_params['repetition_penalty'],
             min_tokens_to_generate=length_params['min_length'],
-            image_list=image_list ** strategy_args,
+            image_list=img,
+            **strategy_args,
         )
-
-        # TODO: Check if this is the correct way to do it ? Or should we remove the Image and the prompts we add before it
-        compute_prob_response = get_computeprob_response(tokenizer, response, input_prompts)
-        return compute_prob_response
-
-    if isinstance(input_prompts, (list, tuple)):
-        if isinstance(input_prompts[0], (str, torch.Tensor)):
-            output = generate(
-                model,
-                inputs=input_prompts,
-                tokens_to_generate=length_params['max_length'],
-                all_probs=sampling_params['all_probs'],
-                temperature=sampling_params['temperature'],
-                add_BOS=sampling_params['add_BOS'],
-                top_k=sampling_params['top_k'],
-                top_p=sampling_params['top_p'],
-                greedy=sampling_params['use_greedy'],
-                repetition_penalty=sampling_params['repetition_penalty'],
-                min_tokens_to_generate=length_params['min_length'],
-                image_list=image_list,
-                **strategy_args,
-            )
-            return output
-        elif isinstance(input_prompts[0], dict):
-            raise NotImplementedError("json object not implemented")
-        else:
-            raise NotImplementedError("unknown type is not implemented")
-    else:
-        raise NotImplementedError("unknown type is not implemented")
+        final_response.append(response)
+    return final_response
 
 
 def get_computeprob_response(tokenizer, response, inputs):
@@ -762,8 +723,8 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         if image_list is not None:
-            # Note this will just be one image that comes here
-            media_tensor = inference_strategy.get_media_tensor(image_list[0][0])
+            #
+            media_tensor = inference_strategy.get_media_tensor(image_list)
 
         while context_length < maxlen:
             if media_tensor is not None:

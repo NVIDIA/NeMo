@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import json
 import os
 import re
 import threading
@@ -24,7 +25,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
-from nemo.collections.multimodal.models.neva.neva_peft_models import MegatronNevaModel
+from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
@@ -259,38 +260,36 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    original_input_prompts = OmegaConf.to_container(cfg.prompts)
-    modified_input_prompts = []
-    conv = conversation_lib.conv_nvgpt.copy()
-    modified_input_prompts = []
-    pattern = r"(<Image=.*?>)"
-    for prompt in original_input_prompts:
-        conv.messages = [("User", prompt), ("Assistant", "")]
-        base_prompt = conv.get_prompt()
-        img_path = re.findall(pattern, base_prompt)[0]
-        edited_img_path = "<extra_id_4>" + img_path + "<extra_id_5>\n"
-        split_prompt = base_prompt.split(img_path)
-        final_prompt = split_prompt[0] + edited_img_path + split_prompt[1]
-        """ 
-        if not final_prompt.endswith("\n"):
-            final_prompt = final_prompt + "\n"
-        labels=f"quality:{cfg.quality},toxicity:{cfg.toxicity},humor:{cfg.humor},creativity:{cfg.creativity},violence:{cfg.violence},helpfulness:{cfg.helpfulness},not_appropriate:{cfg.not_appropriate}"
-        final_prompt = final_prompt + "<extra_id_2>" + labels + "\n"
-        """
-        modified_input_prompts.append(final_prompt)
+    with open(cfg.prompt_file, 'r') as f:
+        lines = f.readlines()
 
-    response = model.generate(
-        input_prompts=modified_input_prompts, length_params=length_params, sampling_params=sampling_params
+    final_prompts = []
+    for line in lines:
+        prompt_dict = json.loads(line)
+        final_prompts.append(prompt_dict)
+
+    responses = model.generate(
+        input_prompts=final_prompts, length_params=length_params, sampling_params=sampling_params, inference_config=cfg
     )
+
     if torch.cuda.current_device() == 0:
-        print(modified_input_prompts)
         print("***************************")
-        print(response)
+        print(responses)
         print("***************************")
+
+    results = []
+    for response, prompt in zip(responses, final_prompts):
+        prompt['response'] = response
+        results.append(prompt)
+
+    with open(cfg.output_file, 'w') as f:
+        for result in results:
+            f.write(json.dumps(result) + '\n')
+
     """ 
     # Second method of running text generation, call trainer.predict
-    ds = RequestDataSet(modified_input_prompts)
-    request_dl = DataLoader(dataset=ds, batch_size=2)
+    ds = RequestDataSet(final_prompts)
+    request_dl = DataLoader(dataset=ds, batch_size=1)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
@@ -299,25 +298,6 @@ def main(cfg) -> None:
     print(response)
     print("***************************")
     """
-    # Third method of running text generation, use inference server
-    if cfg.server:
-        if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
-            if cfg.web_server:
-                loop = asyncio.new_event_loop()
-                thread = threading.Thread(
-                    target=get_demo,
-                    daemon=True,
-                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
-                )
-                thread.start()
-            server = MegatronServer(model.cuda())
-            server.run("0.0.0.0", port=cfg.port)
-
-        while True:
-            choice = torch.cuda.LongTensor(1)
-            torch.distributed.broadcast(choice, 0)
-            if choice[0].item() == 0:
-                generate(model.cuda())
 
 
 if __name__ == '__main__':
