@@ -49,10 +49,17 @@ def main(cfg) -> None:
     torch.backends.cudnn.allow_tf32 = allow_tf32
 
     plugins = []
+    ddp_overlap = cfg.model.get('ddp_overlap', True)
+    if ddp_overlap:
+        logging.info('Enable DDP Overlap.')
+    else:
+        logging.info('Use Megatron default configuration for async grad allreduce')
+
     strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
+        no_ddp_communication_hook=not ddp_overlap,  # we don't use DDP for async grad allreduce
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
+        find_unused_parameters=True,
+        bucket_cap_mb=256,
     )
 
     if cfg.trainer.precision in [16, 'bf16']:
@@ -92,9 +99,6 @@ def main(cfg) -> None:
 
     model = MegatronImagen(cfg.model, trainer)
 
-    assert not cfg.model.get(
-        "inductor", False
-    ), 'Inductor is currently under investigation of its impact on convergence.'
     if cfg.model.get("inductor", False):
         # Temporary hack to get rid of TorchDynamo issue with DDP
         # TODO: remove these if https://github.com/pytorch/pytorch/issues/94574 fixed
@@ -110,7 +114,7 @@ def main(cfg) -> None:
 
         # TorchInductor with CUDA graph can lead to OOM
         inductor_config.triton.cudagraphs = cfg.model.inductor_cudagraphs
-        model.model.unet = torch.compile(model.model.unet)
+        model.model.model.unet = torch.compile(model.model.model.unet)
 
     trainer.fit(model)
 

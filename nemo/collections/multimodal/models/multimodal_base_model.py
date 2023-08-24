@@ -552,18 +552,9 @@ class MegatronMultimodalModel(MultimodalModel):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
 
-            # Allocate contiguous buffers to avoid extra copies
-            optim_kwargs['contiguous_grad_buffer'] = True
-            optim_kwargs['contiguous_param_buffer'] = True
-
             # Make sure optimizer state is in FP32
             optim_dtype = torch.float32
             optim_kwargs['dtype'] = optim_dtype
-
-            # Make sure embedding grad reductions are in FP32
-            for name, param in self.named_parameters():
-                if 'word_embedding' in name or 'position_embedding' in name:
-                    param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
             model_dtype = torch.float32

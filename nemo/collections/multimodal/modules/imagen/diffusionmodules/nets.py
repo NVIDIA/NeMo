@@ -602,7 +602,7 @@ class EfficientUNetModel(nn.Module):
         for level in range(self.n_levels - 1, -1, -1):
             level_key = str(level)
             if level < self.n_levels - 1:
-                x += feats[level_key]
+                x = x + feats[level_key]
             x = self.UBlocks[level_key](x, t, context_emb, context_mask)
         return self.out(x)
 

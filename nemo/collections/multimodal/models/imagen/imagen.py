@@ -13,6 +13,7 @@
 # limitations under the License.
 import itertools
 from datetime import datetime
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -202,6 +203,7 @@ class MegatronImagen(MegatronMultimodalModel):
 
         self.online_encoding = cfg.conditioning.get("online_encoding", False)
         self.text_encoder_path = cfg.conditioning.get("encoder_path", None)
+        self.enable_autocast = (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16])
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
@@ -318,6 +320,57 @@ class MegatronImagen(MegatronMultimodalModel):
                 self._test_ds, batch_size=self._micro_batch_size, num_workers=cfg.num_workers, pin_memory=True,
             )
 
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        tensor_shape = None
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            enable_autocast=self.enable_autocast,
+            no_sync_func=no_sync_func,
+        )
+
+        # losses_reduced_per_micro_batch is a list of dictionaries
+        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
+        # only the last stages of the pipeline return losses
+        loss_dict = {}
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                for key in losses_reduced_per_micro_batch[0]:
+                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.stack(loss_tensors_list)
+                    loss_dict[key] = loss_tensor.mean()
+                    loss_mean = loss_dict["train/loss"]
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean, loss_dict
+
     def training_step(self, dataloader_iter, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -327,41 +380,11 @@ class MegatronImagen(MegatronMultimodalModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        tensor_shape = None  # Placeholder
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # losses_reduced_per_micro_batch is a list of dictionaries
-        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
-        # only the last stages of the pipeline return losses
-        loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.stack(loss_tensors_list)
-                loss_dict[key] = loss_tensor.mean()
-            loss_mean = loss_dict["train/loss"]
-        else:
-            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+        loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
@@ -370,15 +393,17 @@ class MegatronImagen(MegatronMultimodalModel):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_O2:
             # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             # if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
             #     # main grads are stored in the MainParamsOptimizer wrapper
             #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
-        else:
+        elif not self.cfg.get('ddp_overlap', True):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
@@ -428,31 +453,16 @@ class MegatronImagen(MegatronMultimodalModel):
                 grads.append(grad.data)
 
     def validation_step(self, dataloader_iter, batch_idx):
-        tensor_shape = None  # Placeholder
-        fwd_bwd_function = get_forward_backward_func()
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.        """
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # only the last stages of the pipeline return losses
-        val_loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.stack(loss_tensors_list)
-                val_loss_dict[key] = loss_tensor.mean()
+        loss, val_loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
         self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+        return loss
 
     def setup(self, stage=None):
         """ PTL hook that is executed after DDP spawns.
@@ -536,6 +546,35 @@ class MegatronImagen(MegatronMultimodalModel):
             frozen_weights_keys = [k for k in checkpoint['state_dict'].keys() if k.startswith("text_encoder")]
             for k in frozen_weights_keys:
                 del checkpoint['state_dict'][k]
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        # make sure inductor naming is consistent with checkpoint's
+        inductor_enabled = self.cfg.get('inductor', False)
+        state_dict = checkpoint['state_dict']
+        inductor_checkpoint = False
+        for k, v, in state_dict.items():
+            if '_orig_mod' in k:
+                inductor_checkpoint = True
+                break
+
+        if inductor_enabled and not inductor_checkpoint:
+            # ckpt needs to be converted to inductor-format weights (add .orig_mod)
+            logging.info('Add .orig_mod to all weight keys.')
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                idx = k.find('._orig_mod')
+                new_key = k[:idx] + k[idx + len('._orig_mod') :]
+                new_state_dict[new_key] = v
+            checkpoint['state_dict'] = new_state_dict
+        elif not inductor_enabled and inductor_checkpoint:
+            # ckpt needs to be converted to non-inductor-format weights (remove .orig_mod)
+            logging.info('Remove .orig_mod to all weight keys.')
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                new_key = k.replace("._orig_mod", "")
+                new_state_dict[new_key] = v
+            checkpoint['state_dict'] = new_state_dict
+        super().on_load_checkpoint(checkpoint)
 
     def on_fit_start(self) -> None:
         if self.online_encoding:
