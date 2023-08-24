@@ -50,9 +50,9 @@ model:
   precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 64 # limited by GPU memory
-  global_batch_size: 64 # will use more micro batches to reach global batch size
-  inductor: False
+  micro_batch_size: 128 # limited by GPU memory
+  global_batch_size: 128 # will use more micro batches to reach global batch size
+  inductor: True
   inductor_cudagraphs: False
   unet_type: base
   channels_last: True
@@ -85,6 +85,7 @@ model:
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  ddp_overlap: False # True for using PyTorch default DDP overlap. False for using Megatron's default configuration for async grad allreduce
 
   preconditioning_type: EDM
   preconditioning:
@@ -126,10 +127,6 @@ model:
       infinite_sampler: False
       local_root_path: /datasets
       verbose: False
-    pbss_checkpoint_saving:
-      enable: False
-      pbss_credentials_file: pbss_credentials_joc.secret
-      save_frequency: 1000
 
   optim:
     # We need weight decay for large-scale odel

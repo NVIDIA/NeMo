@@ -82,7 +82,20 @@ class ImagenPipeline(Callable):
             model_cfg.model.global_batch_size = 1
             model = MegatronImagen(cfg=model_cfg.model, trainer=trainer)
             checkpoint = torch.load(model_ckpt, map_location=lambda storage, loc: storage)
-            model.load_state_dict(checkpoint['state_dict'], strict=True)
+
+            # Change weight keys if training using TorchInductor
+            state_dict = checkpoint['state_dict']
+            del_keys = []
+            for k, v in state_dict.items():
+                if '._orig_mod' in k:
+                    del_keys.append(k)
+            if len(del_keys) != 0:
+                print('ckpt was saved with TorchInductor. Renaming weights..')
+            for k in del_keys:
+                new_k = k.replace("._orig_mod", "")
+                state_dict[new_k] = state_dict[k]
+                del state_dict[k]
+            model.load_state_dict(state_dict, strict=True)
         else:
             raise Exception('Invalid ckpt type. Should be either .nemo or .ckpt with cfg')
 
