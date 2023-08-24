@@ -26,11 +26,11 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
     MegatronT5PromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,

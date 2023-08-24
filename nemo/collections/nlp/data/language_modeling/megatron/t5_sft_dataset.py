@@ -87,17 +87,17 @@ class T5SFTDataset(Dataset):
         if self.add_eos_to_input:
             src = src + [self.src_tokenizer.eos_id]
         if len(src) > self.max_src_seq_length:
-            src = src[-self.max_src_seq_length + 1:]
+            src = src[-self.max_src_seq_length + 1 :]
         return src
 
     def _process_tgt(self, tgt):
         tgt = (
-                [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
-                + self.tgt_tokenizer.text_to_ids(tgt.strip())
-                + [self.tgt_tokenizer.eos_id]
+            [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
+            + self.tgt_tokenizer.text_to_ids(tgt.strip())
+            + [self.tgt_tokenizer.eos_id]
         )
         if len(tgt) > self.max_tgt_seq_length:
-            tgt = tgt[-self.max_tgt_seq_length + 1:]
+            tgt = tgt[-self.max_tgt_seq_length + 1 :]
         return tgt
 
     def __len__(self):
@@ -110,7 +110,6 @@ class T5SFTDataset(Dataset):
         text_dec = tgt[:-1]
         labels = tgt[1:]
         return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
-
 
     def collate_fn(self, batch):
         text_enc = [item['text_enc'] for item in batch]
