@@ -93,6 +93,11 @@ def load_config(args, llama_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
+    if llama_config['rope_scaling'] is not None:
+        if llama_config['rope_scaling']['type'] == 'linear':
+            nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
+        else:
+            raise ValueError("Only linear rope scaling type is supported now")
 
     return nemo_config
 
