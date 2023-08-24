@@ -138,7 +138,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters() if p.requires_grad]
         self._optimizer_param_groups = ({"params": opt_params},)
-        logging.info(f"Optimizer groups len:\n{len(opt_params)}")
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
 
