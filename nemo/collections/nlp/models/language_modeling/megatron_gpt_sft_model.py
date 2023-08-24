@@ -186,7 +186,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
         # Raise error if using multiple dataloaders
@@ -759,7 +759,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
-            if hasattr(self.cfg.data, 'test_ds'):
+            if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)

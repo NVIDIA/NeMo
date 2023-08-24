@@ -22,7 +22,6 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     PromptEncoderAdapterConfig,
 )
 from nemo.core import adapter_mixins
-from nemo.utils import model_utils
 
 
 def swap_mcore_mixin(module, mcore_mixin):

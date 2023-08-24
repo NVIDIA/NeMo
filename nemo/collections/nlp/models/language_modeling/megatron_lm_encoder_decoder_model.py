@@ -354,12 +354,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        # Get seq length of batch
+        tensor_shape = [self.max_encoder_seq_length, self.cfg.micro_batch_size, self.cfg.encoder.hidden_size]
 
         return self._execute_fwd_bwd_function(
             data_iterator=dataloader_iter,
             forward_only=forward_only,
-            seq_length=self.max_encoder_seq_length,
-            micro_batch_size=self.cfg.micro_batch_size,
+            tensor_shape=tensor_shape,
             decoder_seq_length=self.max_decoder_seq_length,
         )
 
