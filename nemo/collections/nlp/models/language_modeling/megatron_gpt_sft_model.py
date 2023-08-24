@@ -530,8 +530,11 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 else:
                     labels = deduplicated_outputs['labels']
 
-                for pred, label in zip(deduplicated_outputs['preds'], labels):
-                    _ = metric_fn(pred, label)
+                if metric_name == 'bleu':
+                    _ = metric_fn(deduplicated_outputs['preds'], [[label] for label in labels])
+                else:
+                    for pred, label in zip(deduplicated_outputs['preds'], labels):
+                        _ = metric_fn(pred, label)
 
                 metric_result = metric_fn.compute()
 

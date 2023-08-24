@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from torchmetrics import Accuracy, AveragePrecision, F1Score, MatthewsCorrCoef, PearsonCorrCoef, SpearmanCorrCoef
-from torchmetrics.text import BLEUScore
+from torchmetrics.text import SacreBLEUScore
 from torchmetrics.text.rouge import ROUGEScore
 from torchmetrics.text.wer import WordErrorRate
 
@@ -33,7 +33,7 @@ MetricStringToTorchMetric = {
     'exact_string_match': ExactStringMatchMetric,
     'rouge': ROUGEScore,
     'wer': WordErrorRate,
-    'bleu': BLEUScore,
+    'bleu': SacreBLEUScore,
 }
 
 TextMetricsSet = set(['rouge', 'wer', 'bleu'])
