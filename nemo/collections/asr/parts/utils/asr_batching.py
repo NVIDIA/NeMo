@@ -168,9 +168,7 @@ class SemiSortBatchSampler(DistributedSampler):
         local_batches = np.split(local_indices, size_mask, axis=0)
 
         if len(local_batches) != self.local_num_batches:
-            raise RuntimeError(
-                'Number of calculated indices is not equa to calculated number of local batches.'
-            )
+            raise RuntimeError('Number of calculated indices is not equa to calculated number of local batches.')
 
         return local_batches
 
