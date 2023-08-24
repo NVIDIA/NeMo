@@ -29,6 +29,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset i
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
@@ -700,17 +701,28 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             collate_fn = dataset.datasets[0].collate_fn
         else:
             collate_fn = dataset.collate_fn
-
-        batch_sampler = MegatronPretrainingBatchSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            micro_batch_size=data_cfg.micro_batch_size,
-            global_batch_size=data_cfg.global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=data_cfg.drop_last,
-            pad_samples_to_global_batch_size=not data_cfg.drop_last,
-        )
+            
+        if data_cfg.shuffle:
+            batch_sampler = MegatronPretrainingRandomBatchSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=data_cfg.micro_batch_size,
+                global_batch_size=data_cfg.global_batch_size,
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                drop_last=data_cfg.drop_last,
+            )
+        else:
+            batch_sampler = MegatronPretrainingBatchSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=data_cfg.micro_batch_size,
+                global_batch_size=data_cfg.global_batch_size,
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                drop_last=data_cfg.drop_last,
+                pad_samples_to_global_batch_size=not data_cfg.drop_last,
+            )
         return torch.utils.data.DataLoader(
             dataset,
             batch_sampler=batch_sampler,
