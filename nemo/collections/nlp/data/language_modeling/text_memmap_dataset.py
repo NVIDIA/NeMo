@@ -335,7 +335,7 @@ class CSVMemMapDataset(TextMemMapDataset):
 
 class CSVFieldsMemmapDataset(TextMemMapDataset):
     """
-    Allow per-line lazy access to multiple text files using numpy memmap.
+    Allow per-line lazy access to multiple csv files using numpy memmap.
     Returns a dictionary with multiple fields.
     """
 
@@ -353,7 +353,7 @@ class CSVFieldsMemmapDataset(TextMemMapDataset):
     ):
         """
         Args:
-            dataset_paths: list file paths that are read .
+            dataset_paths: list of csv file paths to read data from
             newline_int: ASCII code to use to interpret newlines in file.
             header_lines: number of header lines in csv files.
             workers: number of workers to use for creating index files.
