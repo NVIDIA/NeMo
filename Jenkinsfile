@@ -62,7 +62,7 @@ pipeline {
         // commit has api fix for TE
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout f24fac4ed0dcf0522056521a93445d9a82f501a9 && \
+            git checkout 84f64880b3651c4f7cf90da337ee4e7d9968acab && \
             pip install -e .'
       }
     }
