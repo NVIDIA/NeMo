@@ -93,6 +93,11 @@ def load_config(args, llama_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
+    
+    base = 128
+    while llama_config['vocab_size'] % base != 0:
+        base //= 2
+    nemo_config.make_vocab_size_divisible_by = base
 
     return nemo_config
 
@@ -177,12 +182,14 @@ def convert(args):
         embed_weights_base_name = f'model.language_model.embedding.word_embeddings.weight'
     checkpoint['state_dict'][embed_weights_base_name] = param_to_weights(embed_weight)
 
-    rotary_embed_weight = model.state_dict()[f'model.layers.0.self_attn.rotary_emb.inv_freq']
-    if mcore_gpt:
-        rotary_embed_weight_base_name = f'model.rotary_pos_emb.inv_freq'
-    else:
-        rotary_embed_weight_base_name = f'model.language_model.rotary_pos_emb.inv_freq'
-    checkpoint['state_dict'][rotary_embed_weight_base_name] = param_to_weights(rotary_embed_weight)
+    # in hf, this is defined as register_buffer(..., persistent=False) so it won't be in the state dict
+    if f'model.layers.0.self_attn.rotary_emb.inv_freq' in model.state_dict():
+        rotary_embed_weight = model.state_dict()[f'model.layers.0.self_attn.rotary_emb.inv_freq']
+        if mcore_gpt:
+            rotary_embed_weight_base_name = f'model.rotary_pos_emb.inv_freq'
+        else:
+            rotary_embed_weight_base_name = f'model.language_model.rotary_pos_emb.inv_freq'
+        checkpoint['state_dict'][rotary_embed_weight_base_name] = param_to_weights(rotary_embed_weight)
 
     if nemo_config.num_query_groups is None or nemo_config.num_query_groups == head_num:
         num_query_groups = head_num
