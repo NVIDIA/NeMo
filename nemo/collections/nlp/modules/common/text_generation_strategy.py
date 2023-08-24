@@ -261,11 +261,19 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
         self.num_media_latents = 576  # TODO: Need to obtain this from the config ideally
         self.tokenizer = self.model.tokenizer
         self.image_paths = []
+        self.cfg = model.cfg
         self.data_cfg = model.cfg.data
         from transformers import CLIPImageProcessor
 
-        CLIP_MODEL = os.environ.get("CLIP_MODEL", "openai/clip-vit-large-patch14")
-        self.processor = CLIPImageProcessor.from_pretrained(CLIP_MODEL, torch_dtype=torch.bfloat16)
+        if self.cfg.mm_cfg.vision_encoder.from_hf:
+            self.processor = CLIPImageProcessor.from_pretrained(
+                self.cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        else:
+            self.processor = CLIPImageProcessor.from_pretrained(
+                "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
+            )
+
         self.model = model
 
     def clip_max_len(self, maxlen: int) -> int:
@@ -289,26 +297,56 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             compute_attention_mask=compute_attention_mask,
         )
 
-    def tokenize_batch(self, sentences, max_len, add_BOS):
-        pattern = r"(<Image=.*?>)"
-        context_tokens = []
-        # TODO : Should get this from config
-        image_tokens = [self.tokenizer.token_to_id("<extra_id_3>")] * self.num_media_latents
-        for sentence in sentences:
-            img_path = re.findall(pattern, sentence)[0]
-            split_sentence = sentence.split(img_path)
-            if add_BOS:
-                output_tokens = [self.tokenizer.bos_id]
-            else:
-                output_tokens = []
+    def process_prompts(self, prompt):
+        from nemo.collections.multimodal.data.neva.neva_dataset import DEFAULT_IMAGE_TOKEN, preprocess
 
-            output_tokens = (
-                self.tokenizer.text_to_ids(split_sentence[0])
-                + image_tokens
-                + self.tokenizer.text_to_ids(split_sentence[1])
-            )
-            context_tokens.append(output_tokens)
+        list_data_dict = []
 
+        record = {
+            'system': 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
+            'conversations': [
+                {'from': 'User', 'value': prompt,},
+                {
+                    'from': 'Assistant',
+                    'value': '',
+                    'label': 'quality:8,toxicity:0,humor:0,creativity:0,violence:0,helpfulness:8,not_appropriate:0',
+                },
+            ],
+        }
+
+        for turn in record['conversations']:  #
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        add_extra_token = 1
+        if getattr(self.model.cfg, 'no_seqlen_plus_one_input_tokens', False):
+            add_extra_token = 0
+        data_cfg = self.model.cfg.data
+        model_cfg = self.model.cfg
+
+        multimodal_cfg = dict(
+            is_multimodal=data_cfg.is_multimodal,
+            sep_image_conv_front=data_cfg.sep_image_conv_front,
+            image_token_len=data_cfg.image_token_len,
+            image_folder=data_cfg.image_folder,
+            image_aspect_ratio=data_cfg.image_aspect_ratio,
+            use_im_start_end=getattr(model_cfg.mm_cfg, 'use_im_start_end', False),
+            image_processor=self.processor,
+            add_extra_token=add_extra_token,
+            context_length=model_cfg.encoder_seq_length,
+        )
+
+        import copy
+
+        from nemo.collections.multimodal.data.neva.neva_dataset import preprocess_multimodal
+
+        sources = preprocess_multimodal(copy.deepcopy(list_data_dict), multimodal_cfg, 576)  # HARDCODED FOR NOW
+        data_dict = preprocess(sources, self.tokenizer, multimodal_cfg)
+        return data_dict['tokens'].tolist()
+
+    def tokenize_batch(self, prompt, max_len, add_BOS):
+        context_tokens = self.process_prompts(prompt)
         context_tokens, context_lengths = pad_batch(context_tokens, self.tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
