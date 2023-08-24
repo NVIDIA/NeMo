@@ -255,32 +255,36 @@ class DDPM(torch.nn.Module):
                 new_k = new_k.lstrip("model.")
             sd[new_k] = v
 
+        logging.info(f"Loading {path}")
+        logging.info(f"It has {len(sd)} entries")
+        logging.info(f"Existing model has {len(self.state_dict())} entries")
+
         keys = list(sd.keys())
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    logging.info("Deleting key {} from state_dict.".format(k))
+                    logging.info("Deleting ignored key {} from state_dict.".format(k))
                     del sd[k]
 
         if not load_vae:
             keys = list(sd.keys())
             for k in keys:
                 if k.startswith("first_stage_model"):
-                    logging.info("Deleting key {} from state_dict.".format(k))
+                    logging.info("Deleting first_stage_model key {} from state_dict.".format(k))
                     del sd[k]
 
         if not load_encoder:
             keys = list(sd.keys())
             for k in keys:
                 if k.startswith("cond_stage_model"):
-                    logging.info("Deleting key {} from state_dict.".format(k))
+                    logging.info("Deleting cond_stage key {} from state_dict.".format(k))
                     del sd[k]
 
         if not load_unet:
             keys = list(sd.keys())
             for k in keys:
                 if k.startswith("model.diffusion_model"):
-                    logging.info("Deleting key {} from state_dict.".format(k))
+                    logging.info("Deleting unet key {} from state_dict.".format(k))
                     del sd[k]
 
         missing, unexpected = (
