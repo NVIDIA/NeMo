@@ -190,6 +190,8 @@ class MegatronBaseModel(NLPModel):
             gc.disable()
             self.validation_global_step = 1
 
+        self.total_val_micro_batches = trainer.limit_val_batches
+
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
@@ -810,14 +812,18 @@ class MegatronBaseModel(NLPModel):
         Used in models using dataloader_iter to prefetch the next batch before fwd_bwd func
         is called to avoid PP rank 2 from wait indefinitely to get outpits from PP 1
         """
-        elements = []
+        #elements = []
+        if self.total_val_micro_batches == 0:
+            return True
         num_microbatches = get_num_microbatches()
         for _ in range(num_microbatches):
-            try:
-                element = next(iterator)
-                elements.append(element)
-            except StopIteration:
-                return iterator, True
+            # try:
+            #     element = next(iterator)
+            #     elements.append(element)
+            # except StopIteration:
+            #     return iterator, True
+            self.total_val_micro_batches-=1    
+        return False        
 
         # return a new iterator with the prefetched element reinserted at the front
-        return itertools.chain(elements, iterator), False
+        #return itertools.chain(elements, iterator), False

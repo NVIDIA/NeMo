@@ -912,7 +912,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
-        dataloader_iter, done = self._prefetch(dataloader_iter)
+        done = self._prefetch(dataloader_iter)
         if done:
             return
         mode = 'test' if self.trainer.testing else 'val'
