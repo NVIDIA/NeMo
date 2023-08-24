@@ -87,8 +87,9 @@ def test_csv_mem_map_dataset(csv_file):
 def test_csv_fields_mem_map_dataset(csv_file):
     """Test for CSV memory-mapped datasets."""
 
-    indexed_dataset = text_memmap_dataset.CSVFieldsMemmapDataset(dataset_paths=[csv_file],
-                                                                 data_fields={"ID": 0, "Name": 1}, header_lines=1)
+    indexed_dataset = text_memmap_dataset.CSVFieldsMemmapDataset(
+        dataset_paths=[csv_file], data_fields={"ID": 0, "Name": 1}, header_lines=1
+    )
     assert indexed_dataset[0] == {"ID": 1, "Name": "John"}
     assert indexed_dataset[1] == {"ID": 2, "Name": "Jane"}
     assert indexed_dataset[2] == {"ID": 3, "Name": "Bob"}
