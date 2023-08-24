@@ -93,8 +93,11 @@ def test_csv_fields_mem_map_dataset(csv_file):
     assert isinstance(indexed_dataset[0], dict)
     assert sorted(indexed_dataset[0].keys()) == ["ID", "Name"]
     assert indexed_dataset[0]["ID"] == "1" and indexed_dataset[1]["ID"] == "2" and indexed_dataset[2]["ID"] == "3"
-    assert indexed_dataset[0]["Name"].strip() == "John" and indexed_dataset[1]["Name"].strip() == "Jane" \
-           and indexed_dataset[2]["Name"].strip() == "Bob"
+    assert (
+        indexed_dataset[0]["Name"].strip() == "John"
+        and indexed_dataset[1]["Name"].strip() == "Jane"
+        and indexed_dataset[2]["Name"].strip() == "Bob"
+    )
 
 
 @pytest.mark.parametrize(
