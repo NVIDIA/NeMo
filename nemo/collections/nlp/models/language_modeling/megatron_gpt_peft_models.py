@@ -81,7 +81,8 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
-        return set(k)
+        b = [n for n, p in self.named_buffers() if n in self.state_dict().keys()]
+        return set(k + b)
 
     def get_peft_state_dict(self,):
         """ 
@@ -137,6 +138,9 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                 opt_params += [p for p in module.parameters() if p.requires_grad]
 
         self._optimizer_param_groups = ({"params": opt_params},)
+        for p in opt_params:
+            print('sum of opts', p.sum())
+        logging.info(f"Optimizer groups len:\n{len(opt_params)}")
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
 
@@ -329,8 +333,8 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight" # for Float16Model models
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table",
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table" # for Float16Model models
             ]
         )
 
@@ -432,26 +436,29 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
         self.trainable_keys = self.adapter_keys - set(
             [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.weight",
-                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table.weight" # for Float16Model models
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table",
+                "model.module.language_model.adapter_layer.ptuning_adapter.inference_table" # for Float16Model models
             ]
         )
 
-    def setup_optimizer_param_groups(self):
+    def setup_optimizer_param_groups_skip(self):
         self.freeze()  # Freeze the entire model
         opt_params = []
         for n, p in self.named_parameters():
             if n in self.trainable_keys:
                 p.requires_grad = True
                 opt_params.append(p)
-            #else:
-                #p.requires_grad = False
+            else:
+                p.requires_grad = False
 
         self._optimizer_param_groups = ({"params": opt_params},)
+        for p in opt_params:
+            print('sum of opts', p.sum())
+        logging.info(f"Optimizer groups len:\n{len(opt_params)}")
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
         print("ok")
     
-    def setup_optimizer_param_groups__skipp(self):
+    def setup_optimizer_param_groups_skip(self):
         super().setup_optimizer_param_groups()
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
         print("ok")

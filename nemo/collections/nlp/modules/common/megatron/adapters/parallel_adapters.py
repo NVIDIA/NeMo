@@ -321,8 +321,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         # (@adithyare) the persistent=False will not pollute the indices into the state_dict of this module.
         self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))), persistent=False)
         self.embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
-        self.inference_table = nn.Embedding(self.virtual_tokens, self.output_dim)
-        self.inference_table.requires_grad = False
+        self.register_buffer("inference_table", torch.Tensor(self.virtual_tokens, self.output_dim), persistent=True)
         self.is_inference_ready = False
         self.first = ColumnParallelLinear(
             self.embedding_dim,
@@ -357,16 +356,16 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         This method caches the output representation from the Encoder and saves it inside `self.inference_table`.
         """
         prompt_representation = prompt_representation.detach().clone()
-        self.inference_table.weight.data = prompt_representation
+        self.inference_table.data = prompt_representation
         self.is_inference_ready = True
         return True
 
     def clear_inference_table(self,):
+        self.inference_table.fill_(0.0)
         self.is_inference_ready = False
-        self.inference_table.weight.data.fill_(0.0)
 
     def get_inference_table(self,):
-        return self.inference_table.weight.data
+        return self.inference_table.data
 
     def inner_forward(self,):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
@@ -385,14 +384,15 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             output_embeds = self.get_inference_table().unsqueeze(1)
         else:
             if self.training:
-                if self.is_inference_ready:
-                    self.clear_inference_table()
+                #if self.is_inference_ready:
+                #    self.clear_inference_table()
                 output_embeds = self.inner_forward()
             else:
-                if not self.is_inference_ready:
-                    output_embeds = self.inner_forward()
-                    self.set_inference_table(output_embeds.squeeze(1))
-                output_embeds = self.get_inference_table().unsqueeze(1)
+                output_embeds = self.inner_forward()
+                #if not self.is_inference_ready:
+                #    output_embeds = self.inner_forward()
+                #    self.set_inference_table(output_embeds.squeeze(1))
+                #output_embeds = self.get_inference_table().unsqueeze(1)
 
         output_embeds = output_embeds.expand(self.virtual_tokens, batch_size, self.output_dim)
         return output_embeds
