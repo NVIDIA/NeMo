@@ -16,7 +16,7 @@ import itertools
 import os
 import shutil
 import tempfile
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
