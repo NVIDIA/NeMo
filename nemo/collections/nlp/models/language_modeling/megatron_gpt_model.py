@@ -321,6 +321,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
