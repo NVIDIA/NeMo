@@ -236,7 +236,7 @@ class DDPM(torch.nn.Module):
         ignore_keys=list(),
         only_model=False,
         load_vae=True,
-        load_unet=False,
+        load_unet=True,
         load_encoder=True,
     ):
         pl_sd = torch.load(path, map_location="cpu")
@@ -543,7 +543,17 @@ class LatentDiffusion(DDPM, Serialization):
 
         self.restarted_from_ckpt = False
         if ckpt_path is not None:
-            self.init_from_ckpt(ckpt_path, ignore_keys)
+            load_vae = True if cfg.load_vae is None else cfg.load_vae
+            load_unet = True if cfg.load_unet is None else cfg.load_unet
+            load_encoder = True if cfg.load_encoder is None else cfg.load_encoder
+
+            self.init_from_ckpt(
+                ckpt_path,
+                ignore_keys,
+                load_vae=load_vae,
+                load_unet=load_unet,
+                load_encoder=load_encoder,
+            )
             self.restarted_from_ckpt = True
 
         if self.channels_last:
