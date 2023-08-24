@@ -76,7 +76,12 @@ def load_lora(lora_nemo, tp):
 
 
 def merge(
-    base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, curr_rank: int, mcore: bool
+    base_model_state_dict: Dict[str, Any],
+    lora_state_dict: Dict[int, Any],
+    tp: int,
+    num_layers: int,
+    curr_rank: int,
+    mcore: bool,
 ):
     """ 
     Iterate through all the self_attention.query_key_value projection feedforward weights in all the layers.
@@ -94,20 +99,12 @@ def merge(
     for nl in range(num_layers):
         if mcore:
             key_self_attn_kqv = f'model.decoder.layers.{nl}.self_attention.linear_qkv.weight'
-            key_lora_in = (
-                f'model.decoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
-            )
-            key_lora_out = (
-                f'model.decoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
-            )
+            key_lora_in = f'model.decoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
+            key_lora_out = f'model.decoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
         else:
             key_self_attn_kqv = f'model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight'
-            key_lora_in = (
-                f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
-            )
-            key_lora_out = (
-                f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
-            )
+            key_lora_in = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
+            key_lora_out = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
         wt_lora_in = torch.cat([lora_state_dict[_tp][key_lora_in] for _tp in range(tp)], dim=0)
         wt_lora_out = lora_state_dict[curr_rank][key_lora_out]
         wt_self_attn = base_model_state_dict[key_self_attn_kqv]
