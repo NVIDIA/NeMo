@@ -384,15 +384,15 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             output_embeds = self.get_inference_table().unsqueeze(1)
         else:
             if self.training:
-                #if self.is_inference_ready:
-                #    self.clear_inference_table()
+                if self.is_inference_ready:
+                    self.clear_inference_table()
                 output_embeds = self.inner_forward()
             else:
                 output_embeds = self.inner_forward()
-                #if not self.is_inference_ready:
-                #    output_embeds = self.inner_forward()
-                #    self.set_inference_table(output_embeds.squeeze(1))
-                #output_embeds = self.get_inference_table().unsqueeze(1)
+                if not self.is_inference_ready:
+                    output_embeds = self.inner_forward()
+                    self.set_inference_table(output_embeds.squeeze(1))
+                output_embeds = self.get_inference_table().unsqueeze(1)
 
         output_embeds = output_embeds.expand(self.virtual_tokens, batch_size, self.output_dim)
         return output_embeds
