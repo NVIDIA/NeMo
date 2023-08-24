@@ -8,6 +8,7 @@ from pytorch_lightning import Trainer
 from omegaconf import ListConfig, OmegaConf, DictConfig
 from safetensors.torch import load_file as load_safetensors
 from torch.optim.lr_scheduler import LambdaLR
+from einops import rearrange
 import hydra
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from torch._dynamo import optimize
@@ -112,7 +113,6 @@ class DiffusionEngine(nn.Module, Serialization):
         self.disable_first_stage_autocast = cfg.disable_first_stage_autocast
         self.no_cond_log = cfg.get('no_cond_log', False)
 
-
         if self.channels_last:
             self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
             self.model = self.model.to(memory_format=torch.channels_last)
@@ -127,7 +127,6 @@ class DiffusionEngine(nn.Module, Serialization):
     def get_input(self, batch):
         # assuming unified data format, dataloader returns a dict.
         # image tensors should be scaled to -1 ... 1 and in bchw format
-        import pdb;pdb.set_trace();
         return batch[self.input_key]
 
     @torch.no_grad()
@@ -393,9 +392,13 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
         model = DiffusionEngine(cfg=self.cfg)
         return model
 
-    def forward(self, x, c, *args, **kwargs):
-        output_tensor = self.model(x, c, *args, **kwargs)
-        return output_tensor
+    # def forward(self, x, c, *args, **kwargs):
+    #     output_tensor = self.model(x, c, *args, **kwargs)
+    #     return output_tensor
+
+    def forward(self, dataloader_iter, batch_idx):
+        loss = self.training_step(dataloader_iter, batch_idx)
+        return loss
 
     @rank_zero_only
     @torch.no_grad()
@@ -415,13 +418,13 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         tensor_shape = None  # Placeholder
+        print("Calling training step!!!!!!!!")
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
-
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=dataloader_iter,
@@ -521,12 +524,17 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
                 Global batch is a list of micro batches.
             """
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
+            print("111111")
             with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
-                # if self.model.channels_last:
-                #     x = batch[self.model.input_key].cuda(non_blocking=True)
                 x = batch[self.model.input_key].cuda(non_blocking=True)
+                if self.model.channels_last:
+                    x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last)
+                else:
+                    x = rearrange(x, "b h w c -> b c h w").cuda(non_blocking=True)
+                    x = x.to(memory_format=torch.contiguous_format)
+               # x = batch[self.model.input_key].cuda(non_blocking=True)
                 x = self.model.encode_first_stage(x)
                 batch['global_step'] = self.trainer.global_step
 
@@ -538,6 +546,8 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
 
             loss, loss_dict = model(x, batch)
+            print(loss.shape)
+            print(loss.is_contiguous(memory_format=torch.channels_last))
 
             def dummy(output_tensor):
                 return loss, loss_dict

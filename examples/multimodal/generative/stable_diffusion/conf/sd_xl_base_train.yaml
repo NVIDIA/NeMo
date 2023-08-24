@@ -15,6 +15,7 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: True
+  limit_val_batches: 0
 
 exp_manager:
   exp_dir: null
@@ -56,7 +57,7 @@ model:
   inductor: False # Not working right now
   capture_cudagraph_iters: -1
   scale_by_std: False
-  channels_last: True
+  channels_last: False
   fsdp: True
 
   loss_fn_config:
@@ -86,7 +87,7 @@ model:
     from_NeMo: False
     adm_in_channels: 2816
     num_classes: sequential
-    use_checkpoint: True
+    use_checkpoint: False
     in_channels: 4
     out_channels: 4
     model_channels: 320

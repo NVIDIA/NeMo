@@ -131,7 +131,7 @@ def build_sdxl_train_valid_datasets(
     def tuple_to_dict(inp):
         for input in inp:
             out_dict = dict()
-            out_dict['images'] = input[0]
+            out_dict['images'] = input[0].permute(1, 2, 0)
             out_dict['captions'] = input[1]
             yield out_dict
 
@@ -153,7 +153,7 @@ def build_sdxl_train_valid_datasets(
             left = np.random.randint(0, delta_w + 1)
             out_dict['images'] = TT.functional.crop(
                 out_dict['images'], top=top, left=left, height=size, width=size
-            )
+            ).permute(1, 2, 0)
             out_dict["crop_coords_top_left"] = torch.tensor([top, left])
             yield out_dict
 
