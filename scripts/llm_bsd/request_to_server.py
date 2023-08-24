@@ -12,11 +12,9 @@ def request_data(data):
     resp = requests.put('http://localhost:{}/generate'.format(port_num),
 			data=json.dumps(data),
 			headers=headers)
-    # if type(resp.json()['sentences']) == str:
     if type(resp.json()) != dict:
         raise ValueError("Error: {}".format(resp.json()))
     
-    # sentences = resp.json()['sentences']
     if 'word_probs' in resp.json():
         sentences = resp.json()['word_probs']
     else:

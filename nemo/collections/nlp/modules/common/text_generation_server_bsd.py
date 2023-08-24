@@ -77,6 +77,9 @@ def rindex(mylist, myvalue):
     return len(mylist) - mylist[::-1].index(myvalue) - 1
 
 def get_ngram_probs(sentences, model, response, target_index_from_end=1):
+    if response['full_logprob'] is None:
+        raise ValueError("response['full_logprob'] is None. Abort.")
+        
     for k in range(len(response['full_logprob'])):
         target_word = sentences[k].split()[-1*target_index_from_end]
         token_id = model.tokenizer.text_to_ids(target_word)[0]
@@ -131,8 +134,8 @@ class MegatronGenerate(Resource):
         torch.distributed.broadcast(choice, 0)
 
     def put(self):
-        logging.info("request IP: " + str(request.remote_addr))
-        logging.info(json.dumps(request.get_json()))
+        # logging.info("request IP: " + str(request.remote_addr))
+        # logging.info(json.dumps(request.get_json()))
         # check keys
         for key in request.get_json().keys():
             if key not in API_ALLOWED_KEYS:
@@ -276,6 +279,7 @@ class MegatronGenerate(Resource):
             
             for keys in ['sentences', 'token_ids', 'tokens', 'full_logprob', 'logprob', 'offsets']:
                 del output[keys]
+            torch.cuda().empty_cache()
             output['task_ids'] = task_ids
             
             for k in output:
