@@ -205,7 +205,6 @@ def main(cfg) -> None:
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
-        import pdb; pdb.set_trace()
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.sequence_parallel = False
@@ -258,7 +257,6 @@ def main(cfg) -> None:
     except AttributeError:
         pass
 
-    import pdb; pdb.set_trace()
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,

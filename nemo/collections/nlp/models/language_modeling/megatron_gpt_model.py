@@ -216,7 +216,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
-        import pdb; pdb.set_trace()
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if self.trainer and isinstance(self.trainer.accelerator, CPUAccelerator):
             self.model = build_model(

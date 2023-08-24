@@ -85,8 +85,7 @@ class MegatronBaseModel(NLPModel):
             )
 
         if trainer is None:
-            #raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
-            print("Only support runing single gpu inference when trainer is None")
+            logging.warning("Only support running inference on single gpu when trainer is None")
 
         if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
             raise ImportError(
@@ -97,7 +96,6 @@ class MegatronBaseModel(NLPModel):
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 
-        import pdb; pdb.set_trace()
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'

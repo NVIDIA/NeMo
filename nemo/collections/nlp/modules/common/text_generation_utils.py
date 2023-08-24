@@ -424,8 +424,6 @@ def unsynced_generate(
         else:
             dtype = torch.float32
             
-    print("######## inside unsync")
-    import pdb; pdb.set_trace()
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits
 
@@ -576,7 +574,6 @@ def generate(
     else:
         inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
-    import pdb; pdb.set_trace()
     if torch.distributed.is_initialized():
         if torch.distributed.get_rank() == get_model_parallel_src_rank():
             if isinstance(inputs, tuple):
@@ -640,8 +637,6 @@ def generate(
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
-        print("test unsynced generate")
-        import pdb; pdb.set_trace()
         output = unsynced_generate(
             model,
             inference_strategy,
@@ -745,12 +740,8 @@ def sample_sequence_batch(
     extra={},
 ):
     # Importing here to avoid circular import errors
-
-    import pdb; pdb.set_trace()
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-    print("micro_batch_size: f{micro_batch_size}")
-    # TODO: check if this is needed for single gpu
 
     _reconfigure_microbatch_calculator(
         rank=app_state.global_rank,
@@ -932,13 +923,8 @@ def unsynced_sample_sequence_batch(
 ):
     # Importing here to avoid circular import errors
 
-    print("######inference...")
-    import pdb; pdb.set_trace()
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
-
-    print("micro_batch_size: f{micro_batch_size}")
-    # TODO: check if this is needed for single gpu
 
     _reconfigure_microbatch_calculator(
         rank=app_state.global_rank,
