@@ -16,7 +16,7 @@ import itertools
 import os
 import shutil
 import tempfile
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
@@ -287,6 +287,9 @@ class NLPDDPStrategy(DDPStrategy):
             fs = get_filesystem(checkpoint_dir)
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
+
+            # remove device state_dict
+            checkpoint['state_dict'] = OrderedDict([])
 
             dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
         else:
