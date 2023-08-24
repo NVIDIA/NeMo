@@ -93,7 +93,7 @@ def load_config(args, llama_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
     nemo_config.tokenizer.model = llama_config['tokenizer_model']
-    
+
     base = 128
     while llama_config['vocab_size'] % base != 0:
         base //= 2
