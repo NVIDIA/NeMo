@@ -81,7 +81,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
-        b = [n for n, p in self.named_buffers() if n in self.state_dict().keys()]  
+        b = [n for n, p in self.named_buffers() if n in self.state_dict().keys()]
         # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
         return set(k + b)
 
@@ -211,6 +211,7 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
             self.layer_selection = list(range(1, cfg.num_layers + 1))
         super().__init__(cfg, trainer)
 
+
 class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
     """
     TODO 
@@ -327,7 +328,6 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
-        
 
     def init_peft_modules(self,):
         """ 
@@ -416,7 +416,8 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         }
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
-        
+
+
 class MegatronGPTLoRAModel(MegatronGPTLayerwisePEFTModel):
     """
     MegatronGPTLoRAModel is a model that combines a base model (GPTSFTModel) with a low-rank adapters.
