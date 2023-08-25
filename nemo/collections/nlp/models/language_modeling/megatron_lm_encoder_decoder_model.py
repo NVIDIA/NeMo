@@ -42,7 +42,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     compute_beam_search_len_penalty,
     get_sampling_token_fn,
 )
-from nemo.collections.nlp.parts import nlp_overrides
+from nemo.collections.nlp.parts import nlp_overrides, utils_funcs
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -129,14 +129,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 config=self.model_parallel_config, module=self.enc_dec_model, precision=cfg.precision
             )
 
-        if self.cfg.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.cfg.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.cfg.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+        self.autocast_dtype = utils_funcs.params_dtype_from_precision(self.cfg.precision)
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
