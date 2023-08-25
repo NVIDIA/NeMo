@@ -60,7 +60,7 @@ class AdapterModuleUtil(access_mixins.AccessMixin):
         Returns a default adapter module strategy.
         """
         return adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
-    
+
     def unfreeze(self,):
         for p in self.parameters():
             p.requires_grad_(True)
