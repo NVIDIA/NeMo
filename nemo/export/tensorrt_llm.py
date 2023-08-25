@@ -34,7 +34,30 @@ from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
 
 class TensorRTLLM(ITritonDeployable):
+
+    """
+    Exports nemo checkpoints to TensorRT-LLM and run fast inference.
+
+    Example:
+        from nemo.export import TensorRTLLM
+
+        trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
+        trt_llm_exporter.export(
+            nemo_checkpoint_path="/path/for/nemo/checkpoint",
+            model_type="llama",
+            n_gpus=1,
+        )
+
+        output = trt_llm_exporter.forward(["Hi, how are you?", "I am good, thanks, how about you?"])
+        print("output: ", output)
+
+    """
+
     def __init__(self, model_dir: str, gpu_id=None):
+        """
+        Args:
+            model_dir (str): path for storing the TensorRT-LLM model files.
+        """
         if not Path(model_dir).is_dir():
             raise Exception("A valid directory path should be provided.")
 
@@ -45,7 +68,6 @@ class TensorRTLLM(ITritonDeployable):
         self.task_vocab_size = None
         self.n_gpus = None
         self.config = None
-        self.gpu_id = gpu_id
         self._load()
 
     def _load(self):
@@ -117,6 +139,22 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int=32,
         quantization: bool=None,
     ):
+        """
+        Exports nemo checkpoints to TensorRT-LLM.
+
+        Args:
+            nemo_checkpoint_path (str): path for the nemo checkpoint.
+            model_type (str): type of the model. Currently supports "llama" and "gptnext".
+            prompt_checkpoint_path (str): path for the nemo checkpoint that includes prompt table.
+            delete_existing_files (bool): if Truen, deletes all the files in model_dir.
+            n_gpus (int): number of GPUs to use for inference.
+            max_input_len (int): max input length.
+            max_output_len (int): max output length.
+            max_prompt_embedding_table_size (int): max prompt embedding table size.
+            max_batch_size (int): max batch size.
+            quantization (bool): if True, applies naive quantization.
+        """
+
         if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
             for files in os.listdir(self.model_dir):
                 path = os.path.join(self.model_dir, files)
@@ -162,6 +200,14 @@ class TensorRTLLM(ITritonDeployable):
         self._load()
 
     def forward(self, input_texts, tasks=None, max_output_len=200):
+        """
+        Exports nemo checkpoints to TensorRT-LLM.
+
+        Args:
+            input_texts (List(str)): list of sentences.
+            tasks (str): task type. Currently not used and added for later use.
+            max_output_len (int): max generated tokens.
+        """
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
