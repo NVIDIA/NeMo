@@ -172,7 +172,7 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_triton_input(self):
         inputs = (Tensor(name="prompts", shape=(1,), dtype=bytes),
-                  Tensor(name="max_output_len", shape=(1), dtype=np.int_),)
+                  Tensor(name="max_output_len", shape=(1,), dtype=np.int_),)
         return inputs
 
     @property
@@ -183,7 +183,7 @@ class TensorRTLLM(ITritonDeployable):
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         input_texts = str_ndarray2list(inputs.pop("prompts"))
-        max_output_len = str_ndarray2list(inputs.pop("max_output_len"))
-        output_texts = self.forward(input_texts=input_texts, max_output_len=max_output_len)
+        max_output_len = inputs.pop("max_output_len")
+        output_texts = self.forward(input_texts=input_texts, max_output_len=max_output_len[0][0])
         output = cast_output(output_texts, np.bytes_)
         return {"outputs": output}
