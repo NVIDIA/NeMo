@@ -15,23 +15,20 @@
 """
 
 python ul2_expand_output_vocab.py \
-    --nemo_file="" \
-    --tok_model="" \
+    --nemo_file="" \  # The path to the NeMo model checkpoint
+    --tok_model="" \  # The prefix name of the tokenizer model inside of the NeMo model
     --num_sentinel_tokens=2000 \
+    --alpha=0.5 \  # Weighting factor for the sentinal tokens
     --out_file=""
 
 
 """
-
 import argparse
 import os
 import tempfile
 
 import torch
-from pytorch_lightning.trainer.trainer import Trainer
-from torch.utils.data import DataLoader, Dataset
-
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -45,7 +42,7 @@ def parse_args():
     parser.add_argument('-o', '--out_file', type=str, default=None, help='Path to save the modified model checkpoint')
 
     parser.add_argument(
-        '-m', '--tok_model', type=str, default=None, help='Tokenizer model to use for parsing the model checkpoint'
+        '-m', '--tok_model_suffix', type=str, help='Tokenizer model to use for parsing the model checkpoint',
     )
     parser.add_argument(
         '-n', '--num_sentinel_tokens', type=int, required=True, help='Number of sentinal tokens to add to the vocab'
@@ -58,6 +55,7 @@ def parse_args():
     parser.add_argument('--vocab_file', type=str, default=None, help='Tokenizer vocab file')
     parser.add_argument('--merge_file', type=str, default=None, help='Tokenizer merge file')
     parser.add_argument('--sentencepiece_legacy', type=str, default="true", help='Sentencepiece legacy mode')
+    parser.add_argument('--alpha', type=float, default=1.0, help='Scale the existing extra ids and copied extra ids.')
 
     args = parser.parse_args()
 
@@ -80,15 +78,22 @@ def parse_args():
     return args
 
 
-def update_model_config(args, config):
-    config.tokenizer.num_sentinel_tokens = args.num_sentinel_tokens
+def update_model_config(tokenizer_cfg, config):
+    # Update the tokenizer configs here.
+    for key in tokenizer_cfg.keys():
+        if key == 'model':
+            # We never override the tokenizer model, keep this unchanged.
+            continue
+        else:
+            config.tokenizer[key] = tokenizer_cfg[key]
     return config
 
-def build_tokenizer(args: argparse.Namespace):
+
+def build_tokenizer(args: argparse.Namespace, tok_model_path: str):
     tokenizer = get_nmt_tokenizer(
         library=args.library,
         model_name=args.type,
-        tokenizer_model=args.tok_model,
+        tokenizer_model=tok_model_path,
         vocab_file=args.vocab_file,
         merges_file=args.merge_file,
         delimiter=None,
@@ -100,12 +105,13 @@ def build_tokenizer(args: argparse.Namespace):
         dict(
             library=args.library,
             type=args.type,
-            model=args.tok_model,
+            model=tok_model_path,
             vocab_file=args.vocab_file,
             merges_file=args.merge_file,
             sentencepiece_legacy=args.sentencepiece_legacy,
             num_sentinel_tokens=args.num_sentinel_tokens,
             expand_tokens_dataset_type="ul2",
+            add_sentinel_tokens_first=True,  # since we already have some sentinel tokens, we don't want other special tokens to be added in between
         )
     )
 
@@ -139,7 +145,7 @@ def get_output_layer_key(state_dict) -> str:
     return name
 
 
-def expand_tensor(model_cfg, tokenizer, key, state_dict):
+def expand_tensor(model_cfg, tokenizer, key, state_dict, alpha):
     original_shape = state_dict[key].shape
     original_vocab_size = original_shape[0]
     print("Original shape :", original_shape)
@@ -164,32 +170,30 @@ def expand_tensor(model_cfg, tokenizer, key, state_dict):
 
     # Expand vocab
     new_output_layer = torch.zeros(new_shape, dtype=state_dict[key].dtype)
-    new_output_layer[: original_vocab_size, :] = state_dict[key].clone()
+    new_output_layer[:original_vocab_size, :] = state_dict[key].clone()
 
-    # Update new tokens
-    new_output_layer[original_vocab_size:, :] = 0.0  # small constant init is sufficient for new tokens
+    # Copy scaled sentinal token weights to make the softmax divident roughly unchanged
+    first_extra_id = tokenizer.tokens_to_ids(['<extra_id_0>'])[0]
 
-    # Copy sentinal token weights (Experimental)
-    # first_extra_id = tokenizer.tokens_to_ids(['<extra_id_0>'])[0]
-    # num_sentinal_tokens = original_vocab_size - first_extra_id
-    #
-    # for i in range(new_vocab_size - original_vocab_size):
-    #     og_idx = (first_extra_id + i) % num_sentinal_tokens
-    #     new_idx = original_vocab_size + i
-    #     new_output_layer[new_idx, :] = state_dict[key][og_idx, :]  # init with sentinal id
-    #     # print("Copying sentinal token :", og_idx, new_idx)
-    #
-    # # Copy task id tokens from pad_id
-    # for task_token in ['<extra_id_r>', '<extra_id_s>', '<extra_id_x>']:
-    #     task_idx = tokenizer.tokens_to_ids([task_token])[0]
-    #     new_output_layer[task_idx, :] = state_dict[key][0, :]  # init with pad id
-    #     # print("Updated task id :", task_token, task_idx)
+    num_existing_extra_tokens = original_vocab_size - first_extra_id
 
-    # Update dummy tokens
-    new_output_layer[new_vocab_size:, :] = 0.0
+    new_output_layer[original_vocab_size - num_existing_extra_tokens : original_vocab_size] *= alpha
+    existing_embeddings = new_output_layer[
+        original_vocab_size - num_existing_extra_tokens : original_vocab_size
+    ].clone()
+
+    for i in range(0, final_vocab_size - original_vocab_size, num_existing_extra_tokens):
+        sidx = i + original_vocab_size
+        eidx = sidx + num_existing_extra_tokens
+        if new_output_layer[sidx:eidx].shape[0] == num_existing_extra_tokens:
+            new_output_layer[sidx:eidx] = existing_embeddings
+        else:
+            # Last iteration with remainder.
+            remainder = (final_vocab_size - original_vocab_size) % num_existing_extra_tokens
+            new_output_layer[-remainder:] = existing_embeddings[-remainder:]
 
     # Perform assertion that data was correctly copied.
-    assert torch.allclose(state_dict[key], new_output_layer[: original_vocab_size, :])
+    assert torch.allclose(state_dict[key][:first_extra_id], new_output_layer[:first_extra_id])
 
     # Inplace replacement
     state_dict[key] = new_output_layer
@@ -197,7 +201,7 @@ def expand_tensor(model_cfg, tokenizer, key, state_dict):
     return state_dict
 
 
-def process_model(args, tokenizer, tokenizer_cfg) -> str:
+def process_model(args) -> str:
     connector = NLPSaveRestoreConnector()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -206,10 +210,17 @@ def process_model(args, tokenizer, tokenizer_cfg) -> str:
 
         # Load the model config
         config_path = os.path.join(tmpdir, connector.model_config_yaml)
+
+        all_files = os.listdir(tmpdir)
+        for fname in all_files:
+            if fname.endswith(args.tok_model_suffix):
+                tok_model_path = os.path.join(tmpdir, fname)
+                break
+        tokenizer, tokenizer_cfg = build_tokenizer(args, tok_model_path)
         config = OmegaConf.load(config_path)
 
         # Update model config
-        config = update_model_config(args, config)
+        config = update_model_config(tokenizer_cfg, config)
 
         tp_size = config.get('tensor_model_parallel_size', 1)
         pp_size = config.get('pipeline_model_parallel_size', 1)
@@ -269,7 +280,11 @@ def process_model(args, tokenizer, tokenizer_cfg) -> str:
                     print(f"Found embedding weights ({output_layer_key}). Modifying...")
 
                     state_dict = expand_tensor(
-                        model_cfg=config, tokenizer=tokenizer, key=word_embedding_key, state_dict=state_dict
+                        model_cfg=config,
+                        tokenizer=tokenizer,
+                        key=word_embedding_key,
+                        state_dict=state_dict,
+                        alpha=args.alpha,
                     )
 
                 # Expand output layer
@@ -278,7 +293,11 @@ def process_model(args, tokenizer, tokenizer_cfg) -> str:
                     print(f"Found output layer weights ({output_layer_key}). Modifying...")
 
                     state_dict = expand_tensor(
-                        model_cfg=config, tokenizer=tokenizer, key=output_layer_key, state_dict=state_dict
+                        model_cfg=config,
+                        tokenizer=tokenizer,
+                        key=output_layer_key,
+                        state_dict=state_dict,
+                        alpha=args.alpha,
                     )
 
                 # Save the modified checkpoint inplace
@@ -300,8 +319,7 @@ def process_model(args, tokenizer, tokenizer_cfg) -> str:
 
 def main():
     args = parse_args()
-    tokenizer, tokenizer_cfg = build_tokenizer(args)
-    save_filepath = process_model(args, tokenizer, tokenizer_cfg)
+    save_filepath = process_model(args)
     print("Finished saving NeMo file at: ", save_filepath)
 
 
