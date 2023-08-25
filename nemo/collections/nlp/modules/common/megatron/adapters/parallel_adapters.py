@@ -66,6 +66,15 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
+    IA3_ADAPTER = "MULTI.IA3_ADAPTER"
+
+
+class MultiAdaterName:
+    name_map = {"MULTI.IA3_ADAPTER": [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]}
+
+    @classmethod
+    def get_adapter_names(cls, name_key):
+        return cls.name_map[name_key]
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):

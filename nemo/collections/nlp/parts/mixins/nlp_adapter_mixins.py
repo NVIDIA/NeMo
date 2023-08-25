@@ -18,7 +18,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, MultiAdaterName
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterConfig,
@@ -61,6 +61,22 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
+    @classmethod
+    def _unwrap_names_and_cfgs(
+        cls, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]
+    ):
+        if not isinstance(names, List):
+            if names.startswith("MULTI."):
+                names = MultiAdaterName.get_adapter_names(names)
+            else:
+                names = [names]
+        if isinstance(cfgs, MultiAdaterConfig):
+            cfgs = cfgs.list()
+        elif not isinstance(cfgs, List):
+            cfgs = [cfgs]
+        assert len(names) == len(cfgs), f"Lengths of `names` ({len(names)}) and `cfgs` ({len(cfgs)}) do not match."
+        return names, cfgs
+
     def add_adapters(
         self, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]
     ):
@@ -71,14 +87,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             names: One or more globally unique names for the adapter. Will be used to access, enable and disable adapters.
             cfgs: One or more DictConfigs that contains at the bare minimum `__target__` to instantiate a new Adapter module.
         """
-        if not isinstance(names, List):
-            names = [names]
-        if isinstance(cfgs, MultiAdaterConfig):
-            cfgs = cfgs.list()
-        elif not isinstance(cfgs, List):
-            cfgs = [cfgs]
-        assert len(names) == len(cfgs), f"Lengths of `names` ({len(names)}) and `cfgs` ({len(cfgs)}) do not match."
-
+        names, cfgs = self._unwrap_names_and_cfgs(names, cfgs)
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
@@ -122,16 +131,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         map_location: Optional[torch.device] = None,
         trainer: Optional[Trainer] = None,
     ):
-        if not isinstance(adapter_names, List):
-            adapter_names = [adapter_names]
-        if isinstance(adapter_cfgs, MultiAdaterConfig):
-            adapter_cfgs = adapter_cfgs.list()
-        elif not isinstance(adapter_cfgs, List):
-            adapter_cfgs = [adapter_cfgs]
-        assert len(adapter_names) == len(
-            adapter_cfgs
-        ), f"Lengths of `names` ({len(adapter_names)}) and `cfgs` ({len(adapter_cfgs)}) do not match."
-
+        adapter_names, adapter_cfgs = cls._unwrap_names_and_cfgs(adapter_names, adapter_cfgs)
         save_restore_connector = NLPSaveRestoreConnector()
 
         cls.update_save_restore_connector(save_restore_connector)

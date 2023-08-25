@@ -131,7 +131,7 @@ def generate_ia3_config(cfg):
 
 
 def generate_new_ia3_config(cfg):
-    peft_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
+    peft_name_keys = AdapterName.IA3_ADAPTER
 
     adapter_cfgs = IA3AdapterConfig(cfg)
 
