@@ -84,10 +84,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.init_model(cfg, trainer)
 
-    def init_model(self, cfg: DictConfig, trainer: Trainer):
-        self.cfg = cfg
         self.config: ModelParallelConfig = self.model_parallel_config
 
         self.load_frozen_model(cfg, trainer)
