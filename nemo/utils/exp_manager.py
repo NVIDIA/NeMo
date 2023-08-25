@@ -604,24 +604,24 @@ def check_resume(
         trainer.ckpt_path = str(checkpoint)
         logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
-        if is_global_rank_zero():
-            # Check to see if any files exist that need to be moved
-            files_to_move = []
-            for child in Path(log_dir).iterdir():
-                if child.is_file():
-                    files_to_move.append(child)
+    if is_global_rank_zero():
+        # Check to see if any files exist that need to be moved
+        files_to_move = []
+        for child in Path(log_dir).iterdir():
+            if child.is_file():
+                files_to_move.append(child)
 
-            if len(files_to_move) > 0:
-                # Move old files to a new folder
-                other_run_dirs = Path(log_dir).glob("run_*")
-                run_count = 0
-                for fold in other_run_dirs:
-                    if fold.is_dir():
-                        run_count += 1
-                new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
-                new_run_dir.mkdir()
-                for _file in files_to_move:
-                    move(str(_file), str(new_run_dir))
+        if len(files_to_move) > 0:
+            # Move old files to a new folder
+            other_run_dirs = Path(log_dir).glob("run_*")
+            run_count = 0
+            for fold in other_run_dirs:
+                if fold.is_dir():
+                    run_count += 1
+            new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
+            new_run_dir.mkdir()
+            for _file in files_to_move:
+                move(str(_file), str(new_run_dir))
 
 
 def check_explicit_log_dir(
