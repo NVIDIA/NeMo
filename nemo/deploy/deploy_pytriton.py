@@ -67,8 +67,16 @@ class DeployPyTriton(DeployBase):
     ):
 
         """
+        A nemo checkpoint or model is expected for serving on Triton Inference Server.
+
         Args:
-            
+            triton_model_name (str): Name for the service
+            triton_model_version(int): Version for the service
+            checkpoint_path (str): path of the nemo file
+            model (ITritonDeployable): A model that implements the ITritonDeployable from nemo.deploy import ITritonDeployable
+            max_batch_size (int): max batch size
+            port (int) : port for the Triton server
+            http_address (str): http address for Triton server to bind.
         """
 
         super().__init__(
