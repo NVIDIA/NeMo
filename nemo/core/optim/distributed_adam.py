@@ -340,7 +340,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         def rename_fp32_params(x):
             if isinstance(x, ShardedTensor) and x.key.startswith('optimizer.state.param'):
-                x.key = x.key.replace('optimizer.state.param', 'optimizer.state.fp32_from_fp16')
+                x.key = x.key.replace('optimizer.state.param', 'optimizer.state.fp32_param')
             return x
 
         dict_list_map_inplace(rename_fp32_params, optimizer_state_dict)

@@ -251,7 +251,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         optimizer_state_dict['fp32_from_fp16_params'] = [
             [
-                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_from_fp16')
+                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
                 for param_id, fp32_param in zip(state_group['params'], fp32_group)
             ]
             for fp32_group, state_group in zip(
