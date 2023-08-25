@@ -144,6 +144,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
 
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        self._reconfigure_val_batches()
+
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])

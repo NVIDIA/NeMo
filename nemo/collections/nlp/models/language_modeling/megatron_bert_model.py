@@ -148,6 +148,9 @@ class MegatronBertModel(MegatronBaseModel):
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
 
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        self._reconfigure_val_batches()
+
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0

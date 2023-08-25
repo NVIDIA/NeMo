@@ -369,12 +369,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter, batch_idx):
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
         mode = 'test' if self.trainer.testing else 'val'
-        # try except is sufficient only one batch is passed to the fwd_bwd_step
+        # Add try except to catch the end of the iterator and exit
         try:
             batch = next(dataloader_iter)
         except StopIteration:

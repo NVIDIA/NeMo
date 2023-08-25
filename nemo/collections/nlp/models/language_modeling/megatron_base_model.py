@@ -192,6 +192,15 @@ class MegatronBaseModel(NLPModel):
 
         self._val_micro_batches_consumed = 0
 
+    def _reconfigure_val_batches(self):
+        """
+        Reconfigure trainer.limit_val_batches for pretraining
+        """
+        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
+        self.trainer.limit_val_batches *= get_num_microbatches()
+        # Override num sanity steps equal to num of microbatches and perform one val_step
+        self.trainer.num_sanity_val_steps = get_num_microbatches()
+
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
@@ -811,7 +820,7 @@ class MegatronBaseModel(NLPModel):
         """
         Check if we reached trainer.limit_val_batches, if so exhaust the iterator to raise a StopIteration and exit validation_step
         """
-        if self._val_micro_batches_consumed == self.trainer.limit_val_batches:
+        if self._val_micro_batches_consumed == self.trainer.num_sanity_val_steps or self._val_micro_batches_consumed == self.trainer.limit_val_batches:
             self._val_micro_batches_consumed=0
             try:
                 _ = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
