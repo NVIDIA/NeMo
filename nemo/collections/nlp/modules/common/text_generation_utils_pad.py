@@ -548,9 +548,10 @@ def generate(
             )
             
             # TJ park: Right pad the context_tokens_tensor with eos_id            
-            _context_tokens_tensor = right_pad(context_tokens_tensor, model.tokenizer.eos_id, model.tokenizer.pad_id)
+            context_tokens_tensor = right_pad(context_tokens_tensor, model.tokenizer.eos_id, model.tokenizer.pad_id)
             max_len = torch.max(context_length_tensor)
             context_length_tensor[:] = max_len
+        # import ipdb; ipdb.set_trace()
 
         send_generate_info(
             context_tokens_tensor,
@@ -737,6 +738,13 @@ def sample_sequence_batch(
                     output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                     assert output is not None
                     logits = output[:, -1].view(batch_size, -1).contiguous()
+                    
+                # if compute_logprob:
+                #     logits = output[0]['logits'][:, -1].contiguous()
+                #     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
+                #     assert logits is not None
+                #     logits = logits.view(batch_size, -1)
+
 
                 else:
                     logits = output[0]['logits'][:, -1].contiguous()

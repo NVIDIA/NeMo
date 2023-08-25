@@ -105,22 +105,19 @@ def get_speaker_probs(sentences, model, response, num_of_speakers=5):
         
         ridx = max(ridx_nub, ridx_wub)
         spk_id = response['tokens'][k][ridx+1] 
+            
         if ridx == -1 or spk_id not in STRING_SPK_TOKENS or response['token_ids'][k][ridx] not in [211466, 17595]:
             # There is no speaker token in the sentence: 
             logging.info(f"[WARNING] No speaker token found -- ridx: {ridx} token: {response['tokens'][k][ridx]}")
             probs = torch.tensor([(1/num_of_speakers) for q in range(num_of_speakers)])
         else:
             idx_from_end = len(response['token_ids'][k]) - (ridx + 1)
-            # print(f"ridx: {ridx} token- idx_from_end: {response['tokens'][k][-idx_from_end-1:-idx_from_end+1]} (-5: tokens : {response['tokens'][k][-idx_from_end-5:]}")
-            
             # full_logprob is shifted 1 to the left (first token does not have a probability)
             probs = F.softmax(response['full_logprob'][k][-idx_from_end], dim=-1)
             probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
         probs_tensor = probs / probs.sum()
         probs_tensor = probs_tensor.numpy()
-        # print(f"probs_tensor: {probs_tensor}")
         response['spk_probs'].append(probs_tensor.tolist())
-        # print(f" speaker0: {probs[int_to_token(0)]:.4f} \n speaker1: {probs[int_to_token(1)]:.4f} \n speaker2: {probs[int_to_token(2)]:.4f} \n speaker3: {probs[int_to_token(3)]:.4f} \n speaker4: {probs[int_to_token(4)]:.4f}")
     return response 
 
 

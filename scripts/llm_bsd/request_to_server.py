@@ -4,7 +4,7 @@ from pprint import pprint
 import time
 
 batch_size = 1
-port_num = 5550
+port_num = 5501
 headers = {"Content-Type": "application/json"}
 
 
@@ -56,10 +56,18 @@ def send_chat(prompt_var, tokens_to_generate=0):
 output = ""
 # prompt1="\[speaker1\]: and i i already got another apartment for when i moved out \[speaker0\]: oh you did \[speaker1\]: i had to put down like a deposit and um you know and pay the rent"
 # prompt2="\[speaker1\]: and i i already got another apartment for when i moved out \[speaker0\]: oh you did \[speaker1\]: i had to put down like a deposit and um you know and pay the \[speaker0\]: rent"
-prompt1="[speaker1]: and i i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the rent"
+
+prompt1="[speaker1]: and i i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and [speaker0] um you know and pay the rent"
 prompt2="[speaker1]: and i i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the [speaker0]: rent"
+prompt3="[speaker1]: and i i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the [speaker0]: rent"
+prompt4="[speaker1]: and [speaker0] i i already [speaker1] got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the [speaker0]: rent"
+
 prompt1_spk="User: [speaker0]: and i i already got another apartment for when i moved out [speaker1]: oh you did [speaker0]: i had to put down like a deposit and um you know and pay the \n [End of Dialogue] \n The next word is (rent). Which speaker spoke this word [speaker0] or [speaker1] ?\n\nAssistant:"
 prompt2_spk="User: [speaker1]: and i i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the \n [End of Dialogue] \n The next word is (rent). Which speaker spoke this word [speaker0] or [speaker1] ?\n\nAssistant:"
+
+# prompt1_spk="User: [speaker0]: and i i already got another apartment for when i moved out [speaker1]: oh you did [speaker0]: i had to put down like a deposit and um you know and pay the \n Question: \n The next word is (rent). Which speaker spoke this word [speaker0] or [speaker1] ?\n\nAssistant:"
+# prompt2_spk="User: [speaker1]: and i i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the \n Question: \n The next word is (rent). Which speaker spoke this word [speaker0] or [speaker1] ?\n\nAssistant:"
+
 
 
 while True:
@@ -67,7 +75,7 @@ while True:
     # user_input = f"{output}{user_input}"
     if user_input in [1, "1"]:
         tokens_to_generate = 1
-        user_input_raw = [prompt1, prompt2]
+        user_input_raw = [prompt1, prompt2, prompt3, prompt4]
     else:
         tokens_to_generate = 4
         user_input_raw = [prompt1_spk, prompt2_spk]
