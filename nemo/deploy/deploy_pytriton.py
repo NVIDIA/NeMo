@@ -21,37 +21,37 @@ from .deploy_base import DeployBase
 class DeployPyTriton(DeployBase):
 
     """
-        Deploys any models that implements ITritonDeployable interface in nemo.deploy.
+    Deploys any models to Triton Inference Server that implements ITritonDeployable interface in nemo.deploy.
 
-        Example:
-            from nemo.deploy import DeployPyTriton, NemoQuery
-            from nemo.export import TensorRTLLM
+    Example:
+        from nemo.deploy import DeployPyTriton, NemoQuery
+        from nemo.export import TensorRTLLM
 
-            trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
-            trt_llm_exporter.export(
-                nemo_checkpoint_path="/path/for/nemo/checkpoint",
-                model_type="llama",
-                n_gpus=1,
-            )
+        trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
+        trt_llm_exporter.export(
+            nemo_checkpoint_path="/path/for/nemo/checkpoint",
+            model_type="llama",
+            n_gpus=1,
+        )
 
-            nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
-            nm.deploy()
-            nm.run()
-            nq = NemoQuery(url="localhost", model_name="model_name")
+        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
+        nm.deploy()
+        nm.run()
+        nq = NemoQuery(url="localhost", model_name="model_name")
 
-            prompts = ["hello, testing GPT inference", "another GPT inference test?"]
-            output = nq.query_llm(prompts=prompts, max_output_len=100)
-            print("prompts: ", prompts)
-            print("")
-            print("output: ", output)
-            print("")
+        prompts = ["hello, testing GPT inference", "another GPT inference test?"]
+        output = nq.query_llm(prompts=prompts, max_output_len=100)
+        print("prompts: ", prompts)
+        print("")
+        print("output: ", output)
+        print("")
 
-            prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
-            output = nq.query_llm(prompts=prompts, max_output_len=250)
-            print("prompts: ", prompts)
-            print("")
-            print("output: ", output)
-            print("")
+        prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
+        output = nq.query_llm(prompts=prompts, max_output_len=250)
+        print("prompts: ", prompts)
+        print("")
+        print("output: ", output)
+        print("")
 
     """
 
@@ -65,6 +65,12 @@ class DeployPyTriton(DeployBase):
         port: int = 8000,
         http_address="0.0.0.0",
     ):
+
+        """
+        Args:
+            
+        """
+
         super().__init__(
             triton_model_name=triton_model_name,
             triton_model_version=triton_model_version,
@@ -76,6 +82,11 @@ class DeployPyTriton(DeployBase):
         )
 
     def deploy(self):
+
+        """
+        Deploys any models to Triton Inference Server.
+        """
+        
         self._init_nemo_model()
 
         try:
@@ -94,6 +105,11 @@ class DeployPyTriton(DeployBase):
             print(e)
 
     def serve(self):
+
+        """
+        Starts serving the model and waits for the requests
+        """
+
         if self.triton is None:
             raise Exception("deploy should be called first.")
 
@@ -104,12 +120,21 @@ class DeployPyTriton(DeployBase):
             print(e)
 
     def run(self):
+
+        """
+        Starts serving the model asynchronously.
+        """
+
         if self.triton is None:
             raise Exception("deploy should be called first.")
 
         self.triton.run()
 
     def stop(self):
+        """
+        Stops serving the model.
+        """
+
         if self.triton is None:
             raise Exception("deploy should be called first.")
 
