@@ -23,6 +23,8 @@ try:
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
+    from torch.nn.modules.normalization import LayerNorm
+    import torch.nn.functional as F
     HAVE_APEX = False
 
 
@@ -45,9 +47,13 @@ if HAVE_APEX:
 
 else:
 
-    class LayerNorm1P(torch.nn.Module):
-        def __init__(self, *args, **kwargs):
-            raise NotImplementedError('LayerNorm1P available only with apex installed')
+    class LayerNorm1P(LayerNorm):
+        def reset_parameters(self):
+            torch.nn.init.zeros_(self.weight)
+            torch.nn.init.zeros_(self.bias)
+
+        def forward(self, x):
+            return F.layer_norm(x, self.normalized_shape, self.weight + 1, self.bias, self.eps)
 
 
 class LPLayerNorm(torch.nn.LayerNorm):

@@ -400,3 +400,19 @@ def _cast_if_autocast_enabled(tensor):
                 raise NotImplementedError()
             return tensor.to(dtype=dtype)
     return tensor
+
+
+_MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {
+    "tensor_model_parallel": False,
+    "partition_dim": -1,
+    "partition_stride": 1,
+}
+
+def set_defaults_if_not_set_tensor_model_parallel_attributes(tensor: torch.Tensor) -> None:
+    def maybe_set(attribute, value):
+        if not hasattr(tensor, attribute):
+            setattr(tensor, attribute, value)
+
+    for attribute in _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS:
+        maybe_set(attribute, _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS[attribute])
+

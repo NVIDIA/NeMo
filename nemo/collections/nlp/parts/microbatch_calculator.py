@@ -200,3 +200,22 @@ def get_current_global_batch_size():
 
 def update_num_microbatches(consumed_samples, consistency_check=True):
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR.update(consumed_samples, consistency_check)
+
+    setup_microbatch_calculator
+
+def _ensure_var_is_not_initialized(var, name):
+    """Make sure the input variable is not None."""
+    assert var is None, "{} is already initialized.".format(name)
+
+def setup_microbatch_calculator(
+        rank: int,
+        rampup_batch_size: Optional[List[int]],
+        global_batch_size: int,
+        micro_batch_size: int,
+        data_parallel_size: int,
+) -> None:
+    global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+    _ensure_var_is_not_initialized(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num microbatches calculator')
+
+    _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)

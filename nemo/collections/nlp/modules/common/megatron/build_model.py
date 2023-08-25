@@ -40,6 +40,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+    from nemo.collections.nlp.modules.common.megatron.utils import set_defaults_if_not_set_tensor_model_parallel_attributes
 
 # Apex's `build model' refactored to call Megatron-Core classes
 def build_model(

@@ -27,6 +27,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
 
+    from nemo.collections.nlp.parts.microbatch_calculator import ConstantNumMicroBatches
+    from nemo.collections.nlp.parts.microbatch_calculator import setup_microbatch_calculator
     HAVE_APEX = False
 
 try:
@@ -116,7 +118,10 @@ def initialize_model_parallel_for_nemo(
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
-        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        if HAVE_APEX:
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        else:
+            from nemo.collections.nlp.parts.microbatch_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             setup_microbatch_calculator(
@@ -138,7 +143,8 @@ def initialize_model_parallel_for_nemo(
 
     app_state._is_megatron_initialized = True
 
-    set_logging_level(apex_transformer_log_level)
+    if HAVE_APEX:
+        set_logging_level(apex_transformer_log_level)
 
 
 def _set_random_seed(seed_):

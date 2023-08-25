@@ -210,6 +210,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.attention_dropout = attention_dropout
         self.bias_dropout_add_fusion = bias_dropout_add_fusion  # if true, enable bias dropout fusion
 
+        print(self.layer_type)
+        import pdb; pdb.set_trace()
         # Self attention.
         # retrieval_decoder_after_self_attn skips the self attention
         if self.layer_type != LayerType.retrieval_decoder_after_self_attn:
@@ -219,9 +221,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                 )
             elif normalization == 'layernorm1p':
-                self.input_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                )
+                if HAVE_APEX:
+                    self.input_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
+                else:
+                    self.input_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon
+                    )
             elif normalization == 'low_precision_layernorm':
                 self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
@@ -268,7 +275,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     )
                 else:
                     self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-
+            import pdb; pdb.set_trace()
             if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
                 #  the post_attention_layernorm is used for layermorm after mlp
                 # don't need it for decoder_pre_mlp and post_ln
@@ -277,9 +284,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
-                    self.post_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                    )
+                    if HAVE_APEX:
+                        self.post_attention_layernorm = LayerNorm1P(
+                            hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        )
+                    else:
+                        self.post_attention_layernorm = LayerNorm1P(
+                            hidden_size, layernorm_epsilon
+                        )
                 elif normalization == 'low_precision_layernorm':
                     self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
                 else:
@@ -300,9 +312,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                 )
             elif normalization == 'layernorm1p':
-                self.post_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                )
+                if HAVE_APEX:
+                    self.post_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
+                else:
+                    self.post_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon
+                    )
             elif normalization == 'low_precision_layernorm':
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
@@ -341,9 +358,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
-                    self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                    )
+                    if HAVE_APEX:
+                        self.post_inter_attention_normformer_norm = LayerNorm1P(
+                            hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        )
+                    else:
+                        self.post_inter_attention_normformer_norm = LayerNorm1P(
+                            hidden_size, layernorm_epsilon
+                        )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -353,9 +375,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                 )
             elif normalization == 'layernorm1p':
-                self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                )
+                if HAVE_APEX:
+                    self.post_inter_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
+                else:
+                    self.post_inter_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon
+                    )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
         elif (
@@ -388,9 +415,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                     )
                 elif normalization == 'layernorm1p':
-                    self.post_inter_attention_normformer_norm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                    )
+                    if HAVE_APEX:
+                        self.post_inter_attention_normformer_norm = LayerNorm1P(
+                            hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                        )
+                    else:
+                        self.post_inter_attention_normformer_norm = LayerNorm1P(
+                            hidden_size, layernorm_epsilon
+                        )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -400,9 +432,14 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                 )
             elif normalization == 'layernorm1p':
-                self.post_inter_attention_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                )
+                if HAVE_APEX:
+                    self.post_inter_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
+                else:
+                    self.post_inter_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon
+                    )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1172,6 +1209,8 @@ class ParallelTransformer(MegatronModule):
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
+        print("get layers")
+        import pdb; pdb.set_trace()
         if self.post_process and self.transformer_block_type != 'post_ln':
             # Final layer norm before output.
             if normalization == 'layernorm':
@@ -1179,9 +1218,14 @@ class ParallelTransformer(MegatronModule):
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=sequence_parallel
                 )
             elif normalization == 'layernorm1p':
-                self.final_layernorm = LayerNorm1P(
-                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
-                )
+                if HAVE_APEX:
+                    self.final_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
+                else:
+                    self.final_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon
+                    )
             elif normalization == 'low_precision_layernorm':
                 self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
