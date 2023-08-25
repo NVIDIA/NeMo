@@ -61,10 +61,6 @@ class AdapterModuleUtil(access_mixins.AccessMixin):
         """
         return adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     
-    def unfreeze(self,):
-        for p in self.parameters():
-            p.requires_grad_(True)
-
 
 class LinearAdapter(nn.Module, AdapterModuleUtil):
 

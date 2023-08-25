@@ -203,14 +203,6 @@ def main(cfg) -> None:
     )
 
     # load the merged_weights back into the base model, for this current rank.
-    print(len(merged_weights.keys()))
-    print(len(model.state_dict().keys()))
-    for k in model.state_dict().keys():
-        if k not in merged_weights:
-            print('not found merged_weights', k)
-    for k in merged_weights.keys():
-        if k not in model.state_dict():
-            print('not found in model.state_dict()', k)
     if model.cfg.megatron_amp_O2:
         merged_weights = fix_for_O2(merged_weights)
     model.load_state_dict(merged_weights)
