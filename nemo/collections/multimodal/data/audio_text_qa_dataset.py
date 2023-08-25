@@ -404,7 +404,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[Union[str, List[str]]] = None,
+        question_file: Optional[str] = None,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -442,6 +442,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
             max_num_samples=max_num_samples,
+            question_file=question_file,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
@@ -676,6 +677,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
+        question_file: Optional[str] = None,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -719,6 +721,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             min_duration=min_duration,
             max_duration=max_duration,
             index_by_file_id=True,
+            question_file=question_file,
         )
 
         self.len = self._compute_len()
@@ -881,6 +884,12 @@ def get_tarred_aqa_dataset(
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
+        question_file_set = config.get('question_file_set', None)
+        if question_file_set is not None:
+            assert len(question_file_set) == len(tarred_audio_filepaths)
+            question_file = question_file_set[dataset_idx]
+        else:
+            question_file = None
         dataset = TarredAudioQuestionAnswerDataset(
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
@@ -915,6 +924,7 @@ def get_tarred_aqa_dataset(
             output_key=config.get('output_key', 'output'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
+            question_file=question_file,
         )
 
         if bucketing_weights:
@@ -1042,6 +1052,7 @@ def get_aqa_dataset_from_config(
     answer_only_loss: bool = True,
     virtual_tokens: int = 0,
     num_samples: Optional[List[int]] = None,
+    question_file: Optional[str] = None,
 ):
     dataset = AudioQuestionAnswerDataset(
         manifest_filepath=manifest_filepath,
@@ -1075,5 +1086,6 @@ def get_aqa_dataset_from_config(
         output_key=config.get('output_key', 'output'),
         end_string=config.get('end_string', None),
         sample_alpha=config.get('sample_alpha', None),
+        question_file=question_file,
     )
     return dataset

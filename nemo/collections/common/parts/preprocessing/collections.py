@@ -344,7 +344,7 @@ class AudioQuestAns(_Collection):
 class ALMAudioQA(AudioQuestAns):
     """`AudioQuestAns` collector from audio-LM json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+    def __init__(self, manifests_files: Union[str, List[str]], question_file: Optional[str] = None, *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -367,6 +367,11 @@ class ALMAudioQA(AudioQuestAns):
             [],
             [],
         )
+        if question_file is not None:
+            self.random_questions = open(question_file).readlines()
+            print(f"Use random questions from {question_file} for {manifests_files}")
+        else:
+            self.random_questions = None
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -414,8 +419,10 @@ class ALMAudioQA(AudioQuestAns):
                 item['question'] = f.read().replace('\n', '')
         elif 'normalized_text' in item:
             item['question'] = item['normalized_text']
-        else:
+        elif self.random_questions is None:
             item['question'] = "what does this audio mean"
+        else:
+            item['question'] = np.random.choice(self.random_questions).strip()
 
         # Answer.
         if 'answer' in item:

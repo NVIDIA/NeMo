@@ -531,7 +531,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                     labels = deduplicated_outputs['labels']
 
                 if metric_name == 'bleu':
-                    _ = metric_fn(deduplicated_outputs['preds'], [[label] for label in labels])
+                    # TODO(zhehuai): confirm with Olexsii H on the bleu is correct
+                    # _ = metric_fn(deduplicated_outputs['preds'], [[label] for label in labels])
+                    _ = metric_fn(deduplicated_outputs['preds'], [labels])
                 else:
                     for pred, label in zip(deduplicated_outputs['preds'], labels):
                         _ = metric_fn(pred, label)

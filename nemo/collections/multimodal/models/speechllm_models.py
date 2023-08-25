@@ -438,7 +438,15 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
                 )
                 data_cfg.max_seq_length = self.cfg.max_position_embeddings
 
-            for file_path, num_samples in zip(manifest_filepath, num_train_samples_per_dataset):
+            for dataset_idx, (file_path, num_samples) in enumerate(
+                zip(manifest_filepath, num_train_samples_per_dataset)
+            ):
+                question_file_set = data_cfg.get('question_file_set', None)
+                if question_file_set is not None:
+                    assert len(question_file_set) == len(manifest_filepath)
+                    question_file = question_file_set[dataset_idx]
+                else:
+                    question_file = None
                 dataset = get_aqa_dataset_from_config(
                     manifest_filepath=file_path,
                     config=data_cfg,
@@ -448,6 +456,7 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
                     answer_only_loss=self.cfg.get('answer_only_loss', True),
                     virtual_tokens=self.virtual_tokens,
                     num_samples=num_samples[0],
+                    question_file=question_file,
                 )
                 datasets.append(dataset)
 
