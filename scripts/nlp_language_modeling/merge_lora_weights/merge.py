@@ -74,11 +74,13 @@ def load_lora(lora_nemo, tp):
             lora_state_dict[i] = l
         return lora_state_dict
 
+
 def fix_for_O2(state_dict):
     new_state_dict = {}
     for k, v in state_dict.items():
         new_state_dict[k.replace('model.language_model', 'model.module.language_model')] = v
     return new_state_dict
+
 
 def merge(
     base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], tp: int, num_layers: int, curr_rank: int
