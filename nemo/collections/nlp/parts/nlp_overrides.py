@@ -16,7 +16,7 @@ import itertools
 import os
 import shutil
 import tempfile
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
@@ -275,9 +275,11 @@ class NLPDDPStrategy(DDPStrategy):
             called on every rank and internally does the rank checking.
         """
 
-        # TODO: add a distributed checkpoint attribute
         # check if using distributed checkpointing
-        if getattr(self.lightning_module, 'mcore_gpt', False):
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
             # converts the optimizer states to their sharded equivalents
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
@@ -289,6 +291,9 @@ class NLPDDPStrategy(DDPStrategy):
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
 
+            # remove device state_dict
+            checkpoint['state_dict'] = OrderedDict([])
+
             dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
         else:
             # PTL override to accomodate model parallel checkpoints
@@ -298,7 +303,10 @@ class NLPDDPStrategy(DDPStrategy):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
-        if getattr(self.lightning_module, 'mcore_gpt', False):
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
             return
 
         # legacy state dict logic, does not use megatron core
@@ -344,13 +352,13 @@ class NLPDDPStrategy(DDPStrategy):
             which makes it convenient to have the loading logic happen at the strategy level.
         """
 
-        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(checkpoint_path)
-        if not fs.exists(checkpoint_path):
-            raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
 
         # Check if using distributed checkpointing
-        if getattr(self.lightning_module, 'mcore_gpt', False):
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
 
             # Distributed checkpoints must be directories.
             if not fs.isdir(checkpoint_path):
@@ -372,13 +380,19 @@ class NLPDDPStrategy(DDPStrategy):
 
         # Legacy model parallel checkpointing logic, does not use megatron core
         else:
-            torch.cuda.empty_cache()
+            # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
             checkpoint_path = inject_model_parallel_rank(checkpoint_path)
+            if not fs.exists(checkpoint_path):
+                raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
+            torch.cuda.empty_cache()
             return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
-        if getattr(self.lightning_module, 'mcore_gpt', False):
+        if (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        ):
             if self.is_global_zero:
                 shutil.rmtree(ckpt_to_dir(filepath))
 
@@ -659,13 +673,13 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
-        state_dict = self.modify_state_dict(conf, state_dict)
 
         if (
             self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
         ):  # we have this check only for training PEFT from scratch
             peft_state_dict = instance.get_peft_state_dict()
             state_dict.update(peft_state_dict)
+        state_dict = self.modify_state_dict(conf, state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance

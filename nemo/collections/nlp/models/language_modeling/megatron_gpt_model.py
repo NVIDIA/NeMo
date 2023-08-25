@@ -35,6 +35,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
     get_ltor_masks_and_position_ids,
@@ -83,6 +84,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -830,9 +833,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'position_ids': batch['position_ids'],
                 'attention_mask': batch['attention_mask'],
                 'labels': batch['labels'],
+                'loss_mask': batch['loss_mask'],
             }
             if not self.mcore_gpt:
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+            else:
+                # TODO: @eharper can we add this to mcore?
+                forward_args.pop('loss_mask')
             output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
@@ -1277,27 +1284,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             for index, module in enumerate(self.get_gpt_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
-                # TODO: do we need this?
-                # when using interleaved, model is GPTModel, so we need to remove the 'model.' prefix
-                # checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
-                # checkpoint_state_dict = {
-                #     key.replace('model.', ''): checkpoint_state_dict.pop(key)
-                #     for key in list(checkpoint_state_dict.keys())
-                # }
                 else:
                     checkpoint_state_dict = checkpoint['state_dict']
-                # TODO: checkpoint_state_dict has model. but module does not
+                # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
                 checkpoint_state_dict = {
                     key.replace('model.', ''): checkpoint_state_dict.pop(key)
                     for key in list(checkpoint_state_dict.keys())
                 }
                 module.load_state_dict(checkpoint_state_dict, strict=True)
-
-            # reset virtual pipeline model parallel rank
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
         # legacy checkpointing for interleaved
         else:
@@ -1315,16 +1310,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         The sharded tensor mapping is defined in the GPTModel class from mcore.
         """
 
-        # TODO: does this work?
         if self.mcore_gpt:
-            prefix = f'{prefix}model.'
-            module_prefix = prefix
+            module_prefix = f'{prefix}model.'
             sharded_state_dict = {}
             for index, module in enumerate(self.get_gpt_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    module_prefix = f'{prefix}_{index}'
-                model_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
-                sharded_state_dict.update(model_sharded_state_dict)
+                    # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict[f'model_{index}'] = module_sharded_state_dict
+                else:
+                    module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
+                    sharded_state_dict.update(module_sharded_state_dict)
+
+            # reset vp rank
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
             return sharded_state_dict
 
@@ -1401,6 +1402,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Reset config values. Needed for calling generate.
         self.cfg.sequence_parallel = False
+        self.model_parallel_config.sequence_parallel = False
+        self.transformer_config.sequence_parallel = False
 
         # Reset model parameters.
         for module in self.get_gpt_module_list():
@@ -1415,6 +1418,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         # Restore config values.
         self.cfg.sequence_parallel = self.last_sequence_parallel
+        self.model_parallel_config.sequence_parallel = self.last_sequence_parallel
+        self.transformer_config.sequence_parallel = self.last_sequence_parallel
 
         # Restore model parameters.
         for module in self.get_gpt_module_list():
