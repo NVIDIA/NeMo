@@ -11,15 +11,13 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
+    IA3AdapterConfig,
+    InfusedAdapterConfig,
     LoraKQVAdapterConfig,
+    MLPInfusedAdapterConfig,
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import exp_manager
@@ -53,6 +51,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
+        gpt_cfg.activations_checkpoint_layers_per_pipeline = None
         gpt_cfg.peft = cfg.model.peft
         peft_cls = MegatronGPTSFTModel
         gpt_cfg.target = f"{peft_cls.__module__}.{peft_cls.__name__}"
@@ -118,44 +117,33 @@ def generate_ptuning_config(cfg):
     return peft_name_keys, adapter_cfg
 
 
+def generate_ia3_config(cfg):
+    peft_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
+
+    mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
+        in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
+    )
+    infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
+
+    adapter_cfgs = [infused_adapter_cfg] * 2 + [mlp_infused_adapter_cfg]
+
+    return peft_name_keys, adapter_cfgs
+
+
+def generate_new_ia3_config(cfg):
+    peft_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
+
+    adapter_cfgs = IA3AdapterConfig(cfg)
+
+    return peft_name_keys, adapter_cfgs
+
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
-
-    plugins = []
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
-    )
-    if cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
-        scaler = None
-        if cfg.trainer.precision in [16, '16', '16-mixed']:
-            scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                hysteresis=cfg.model.get('hysteresis', 2),
-                enabled=False
-                if cfg.model.pipeline_model_parallel_size > 1
-                else True,  # turn off the grad scale for pipeline parallel LM model
-            )
-            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
-            plugin_precision = '16-mixed'
-        else:
-            plugin_precision = 'bf16-mixed'
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
@@ -177,7 +165,7 @@ def main(cfg) -> None:
             restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
         )
 
-        peft_name_keys, adapter_cfg = generate_ptuning_config(base_model_cfg)
+        peft_name_keys, adapter_cfg = generate_new_ia3_config(base_model_cfg)
         model.add_adapters(peft_name_keys, adapter_cfg)
         trainer.fit(model)
 

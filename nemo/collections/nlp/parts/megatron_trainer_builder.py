@@ -59,7 +59,9 @@ class MegatronTrainerBuilder:
             plugins: list of plugins passed to Trainer.plugins including precision plugins.
         """
         megatron_amp_o2 = self.cfg.model.get('megatron_amp_O2', False)
-        with_distributed_adam = self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+        with_distributed_adam = (
+            self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
+        )
 
         plugins = []
         if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:

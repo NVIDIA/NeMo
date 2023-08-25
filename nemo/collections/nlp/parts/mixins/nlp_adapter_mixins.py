@@ -24,6 +24,7 @@ from nemo.core.classes.mixins.adapter_mixins import (
     AdapterConfig,
     AdapterModelPTMixin,
     AdapterModuleMixin,
+    MultiAdaterConfig,
     _prepare_default_adapter_config,
 )
 from nemo.utils import logging, logging_mode, model_utils
@@ -72,7 +73,9 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         """
         if not isinstance(names, List):
             names = [names]
-        if not isinstance(cfgs, List):
+        if isinstance(cfgs, MultiAdaterConfig):
+            cfgs = cfgs.list()
+        elif not isinstance(cfgs, List):
             cfgs = [cfgs]
         assert len(names) == len(cfgs), f"Lengths of `names` ({len(names)}) and `cfgs` ({len(cfgs)}) do not match."
 
@@ -119,6 +122,16 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         map_location: Optional[torch.device] = None,
         trainer: Optional[Trainer] = None,
     ):
+        if not isinstance(adapter_names, List):
+            adapter_names = [adapter_names]
+        if isinstance(adapter_cfgs, MultiAdaterConfig):
+            adapter_cfgs = adapter_cfgs.list()
+        elif not isinstance(adapter_cfgs, List):
+            adapter_cfgs = [adapter_cfgs]
+        assert len(adapter_names) == len(
+            adapter_cfgs
+        ), f"Lengths of `names` ({len(adapter_names)}) and `cfgs` ({len(adapter_cfgs)}) do not match."
+
         save_restore_connector = NLPSaveRestoreConnector()
 
         cls.update_save_restore_connector(save_restore_connector)

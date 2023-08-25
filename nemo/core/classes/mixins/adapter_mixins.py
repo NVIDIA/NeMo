@@ -47,6 +47,15 @@ class AdapterConfig:
     pass
 
 
+class MultiAdaterConfig(AdapterConfig):
+    # superclass for multi adapter config
+    def __init__(self, cfgs: List):
+        self.cfgs = cfgs
+
+    def list(self):
+        return self.cfgs
+
+
 def register_adapter(base_class: type, adapter_class: type):
     """
     Registers a pair (Base class, Adapter class) into the adapter registry, used for de-referencing.

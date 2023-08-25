@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.collections.nlp.modules.common.prompt_encoder import InferenceTable
 from nemo.core.classes.mixins import adapter_mixin_strategies
-from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
+from nemo.core.classes.mixins.adapter_mixins import AdapterConfig, MultiAdaterConfig
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -111,6 +111,16 @@ class InfusedAdapterConfig(AdapterConfig):
 @dataclass
 class MLPInfusedAdapterConfig(InfusedAdapterConfig):
     _target_: str = "{0}.{1}".format(MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__)
+
+
+class IA3AdapterConfig(MultiAdaterConfig):
+    def __init__(self, cfg):
+        mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
+            in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
+        )
+        infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
+
+        super().__init__([infused_adapter_cfg] * 2 + [mlp_infused_adapter_cfg])
 
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
