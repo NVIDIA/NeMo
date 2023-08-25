@@ -208,10 +208,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         return init_fn
     
     def unfreeze(self,):
-       """
-       Can be customized to allow for selective training of only some params in the PEFT.
-       """
-       super().unfreeze() 
+        """
+        Can be customized to allow for selective training of only some params in the PEFT.
+        """
+        super().unfreeze() 
 
     def forward(self, x):
 
