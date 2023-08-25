@@ -863,6 +863,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'position_ids': batch['position_ids'],
                 'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                 'labels': batch['labels'],
+                'loss_mask': batch['loss_mask'],
             }
             if not self.mcore_gpt:
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
