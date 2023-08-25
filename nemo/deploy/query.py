@@ -26,20 +26,11 @@ class NemoQuery:
         self.url = url
         self.model_name = model_name
 
-    def query_llm(self, prompts, init_timeout=600.0, verbose=False):
-        log_level = logging.DEBUG if verbose else logging.INFO
-        logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(name)s: %(message)s")
-        logger = logging.getLogger("nemo.client")
-
+    def query_llm(self, prompts, max_output_len=200, init_timeout=600.0):
         prompts = str_list2numpy(prompts)
-        output_type = None
 
-        logger.info("================================")
-        logger.info("Preparing the client")
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
-            logger.info("================================")
-            logger.info("Sent batch for inference:")
-            result_dict = client.infer_batch(prompts=prompts)
+            result_dict = client.infer_batch(prompts=prompts, max_output_len=max_output_len)
             output_type = client.model_config.outputs[0].dtype
 
         if output_type == np.bytes_:
