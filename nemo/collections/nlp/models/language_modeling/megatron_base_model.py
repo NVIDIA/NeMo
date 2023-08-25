@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
@@ -745,12 +746,11 @@ class MegatronBaseModel(NLPModel):
         megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         # instantiate weights in bfloat16 if using megatron amp O2 and bf16
-        params_dtype = torch.bfloat16 if precision == 'bf16' and megatron_amp_O2 else torch.float32
+        params_dtype = utils_funcs.params_dtype_from_precision(precision, megatron_amp_O2)
+        params_dtype = params_dtype if params_dtype == torch.bfloat16 else torch.float32
 
         # dtype used in p2p communication
-        pipeline_dtype = (
-            torch.bfloat16 if precision == 'bf16' else torch.half if precision in [16, '16'] else torch.float32
-        )
+        pipeline_dtype = utils_funcs.params_dtype_from_precision(precision)
 
         # same as pipeline_dtype when not using megatron amp O2
         autocast_dtype = pipeline_dtype if not megatron_amp_O2 else None
