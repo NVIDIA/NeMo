@@ -164,7 +164,7 @@ def build_train_valid_test_datasets(
             if data_impl[i] == 'lazy' and cfg.seq_pattern == "flatten":
                 # Audio dataset with lazy mode and flatten seq pattern
                 _seq_len = int(seq_length / 8)
-                
+
             train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
                 cfg,
                 prefixes[i],
@@ -444,7 +444,7 @@ class SpeechLM_T5dataset(Dataset):
     def _getitem_from_speech(self, tokens):
         assert tokens.ndim == 2
         tokens[0] = tokens[0] + self.speech_offset  # add speech offset to the first codebook
-        
+
         if self.seq_pattern == "parallel":
             enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
             dec_input = tokens[:, :-1] * 1
@@ -454,7 +454,7 @@ class SpeechLM_T5dataset(Dataset):
             # Pad tokens with 8 zeros at the begginging
             num_codebooks = 8
             tokens = torch.cat([torch.zeros_like(tokens[:, 0:num_codebooks]), tokens], dim=1)
-            enc_input = tokens[:, num_codebooks+1:] * 1  # to avoid changing the original tensor
+            enc_input = tokens[:, num_codebooks + 1 :] * 1  # to avoid changing the original tensor
             dec_tokens = []
             for _c in range(8):
                 st = 8 - _c
@@ -466,9 +466,11 @@ class SpeechLM_T5dataset(Dataset):
         elif self.seq_pattern == "flatten":
             for _c in range(1, 8):
                 tokens[_c] = tokens[_c] + self.speech_offset + _c * self.speech_codebook_size
-            tokens_flat = tokens.permute(1, 0).flatten()[None] # (1, seq_len * 8)
-            tokens_flat = tokens_flat[:,:self.seq_length*8+1]
-            tokens_processed = torch.cat([tokens_flat, torch.zeros(7, tokens_flat.shape[1])], dim=0) # (8, seq_len * 8)
+            tokens_flat = tokens.permute(1, 0).flatten()[None]  # (1, seq_len * 8)
+            tokens_flat = tokens_flat[:, : self.seq_length * 8 + 1]
+            tokens_processed = torch.cat(
+                [tokens_flat, torch.zeros(7, tokens_flat.shape[1])], dim=0
+            )  # (8, seq_len * 8)
             enc_input = tokens_processed[:, 1:] * 1  # to avoid changing the original tensor
             dec_input = tokens_processed[:, :-1] * 1
             labels = tokens_processed[:, 1:] * 1

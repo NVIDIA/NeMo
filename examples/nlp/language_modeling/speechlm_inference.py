@@ -91,7 +91,7 @@ def getitem_from_speech(tokens, tokenizer, seq_pattern="parallel"):
         # Pad tokens with 8 zeros at the begginging
         num_codebooks = 8
         tokens = torch.cat([torch.zeros_like(tokens[:, 0:num_codebooks]), tokens], dim=1)
-        enc_input = tokens[:, num_codebooks+1:] * 1  # to avoid changing the original tensor
+        enc_input = tokens[:, num_codebooks + 1 :] * 1  # to avoid changing the original tensor
         dec_tokens = []
         for _c in range(8):
             st = 8 - _c
@@ -102,10 +102,10 @@ def getitem_from_speech(tokens, tokenizer, seq_pattern="parallel"):
         labels = dec_tokens[:, 1:] * 1
     elif seq_pattern == "flatten":
         for _c in range(1, 8):
-                tokens[_c] = tokens[_c] + speech_offset + _c * speech_codebook_size
-        tokens_flat = tokens.permute(1, 0).flatten()[None] # (1, seq_len * 8)
-        tokens_flat = tokens_flat[:,:seq_length*8+1]
-        tokens_processed = torch.cat([tokens_flat, torch.zeros(7, tokens_flat.shape[1])], dim=0) # (8, seq_len * 8)
+            tokens[_c] = tokens[_c] + speech_offset + _c * speech_codebook_size
+        tokens_flat = tokens.permute(1, 0).flatten()[None]  # (1, seq_len * 8)
+        tokens_flat = tokens_flat[:, : seq_length * 8 + 1]
+        tokens_processed = torch.cat([tokens_flat, torch.zeros(7, tokens_flat.shape[1])], dim=0)  # (8, seq_len * 8)
         enc_input = tokens_processed[:, 1:] * 1  # to avoid changing the original tensor
         dec_input = tokens_processed[:, :-1] * 1
         labels = tokens_processed[:, 1:] * 1
@@ -134,6 +134,7 @@ def getitem_from_speech(tokens, tokenizer, seq_pattern="parallel"):
 
     return item_dict
 
+
 def convert_tokens_to_range(tokens, apply_offset_correction=True, token_type="encoder", seq_pattern="parallel"):
     # convert tokens to range [0, 1024]
     speech_offset = 30000
@@ -146,7 +147,7 @@ def convert_tokens_to_range(tokens, apply_offset_correction=True, token_type="en
         for _c in range(output_tokens.shape[0]):
             si = _c
             ei = _c + output_tokens.shape[1] - 8
-            output_tokens_new.append(output_tokens[_c,si:ei])
+            output_tokens_new.append(output_tokens[_c, si:ei])
         output_tokens_new = torch.stack(output_tokens_new)
         output_tokens = output_tokens_new
 
@@ -221,13 +222,17 @@ def main(cfg) -> None:
                         # print("output tokens shape", output_tokens.shape)
                         if seq_pattern in ["parallel", "delay_parallel"]:
                             enc_input_example = convert_tokens_to_range(enc_input[0], seq_pattern=seq_pattern)
-                            enc_wav = model.additional_models['encodec'].decode([[enc_input_example[None], None]])[0, 0]
-                            model.logger.experiment.add_audio("Enc Input", enc_wav, example_num + 1, 24000)
-
-                            dec_input_example = convert_tokens_to_range(dec_input[0], token_type="decoder", seq_pattern=seq_pattern)
-                            dec_input_wav = model.additional_models['encodec'].decode([[dec_input_example[None], None]])[
+                            enc_wav = model.additional_models['encodec'].decode([[enc_input_example[None], None]])[
                                 0, 0
                             ]
+                            model.logger.experiment.add_audio("Enc Input", enc_wav, example_num + 1, 24000)
+
+                            dec_input_example = convert_tokens_to_range(
+                                dec_input[0], token_type="decoder", seq_pattern=seq_pattern
+                            )
+                            dec_input_wav = model.additional_models['encodec'].decode(
+                                [[dec_input_example[None], None]]
+                            )[0, 0]
                             model.logger.experiment.add_audio("Dec Input", dec_input_wav, example_num + 1, 24000)
                         else:
                             enc_input_example = enc_input[0][0]
@@ -242,23 +247,26 @@ def main(cfg) -> None:
                                 # 1st layer tokens are indices 1, 9, 17, 25, 33, 41, 49, 57
                                 layer_tokens_encinput = enc_input_example[_c::8]
                                 layer_tokens_decinput = dec_input_example[_c::8]
-                                
+
                                 layer_tokens_encinput = layer_tokens_encinput - 30000 - (_c * 1024)
                                 layer_tokens_decinput = layer_tokens_decinput - 30000 - (_c * 1024)
-                                
+
                                 all_layer_tokens_encinput.append(layer_tokens_encinput)
                                 all_layer_tokens_decinput.append(layer_tokens_decinput)
-                            
+
                             all_layer_tokens_encinput = torch.stack(all_layer_tokens_encinput)
                             all_layer_tokens_decinput = torch.stack(all_layer_tokens_decinput)
 
                             all_layer_tokens_encinput = torch.clip(all_layer_tokens_encinput, 0, 1023)
-                            enc_wav = model.additional_models['encodec'].decode([[all_layer_tokens_encinput[None], None]])[0, 0]
+                            enc_wav = model.additional_models['encodec'].decode(
+                                [[all_layer_tokens_encinput[None], None]]
+                            )[0, 0]
                             model.logger.experiment.add_audio("Enc Input", enc_wav, example_num + 1, 24000)
 
-                            dec_wav = model.additional_models['encodec'].decode([[all_layer_tokens_decinput[None], None]])[0, 0]
+                            dec_wav = model.additional_models['encodec'].decode(
+                                [[all_layer_tokens_decinput[None], None]]
+                            )[0, 0]
                             model.logger.experiment.add_audio("Dec Input", dec_wav, example_num + 1, 24000)
-
 
                     # dec_input[:, :, t + 1 :] = model.tokenizer.pad_id
                     # dec_input_mask[:, t + 1 :] = 0
@@ -277,36 +285,43 @@ def main(cfg) -> None:
                         inference=True,
                     )
                     if seq_pattern in ["parallel", "delay_parallel"]:
-                        output_logits = output_tensor[:,t,:] # (B, Vocab Size, 8)
-                        output_logits = output_logits[0].permute(1, 0) # (8, Vocab Size)
+                        output_logits = output_tensor[:, t, :]  # (B, Vocab Size, 8)
+                        output_logits = output_logits[0].permute(1, 0)  # (8, Vocab Size)
                         # Multinomial sampling using temperature T
                         TEMP = 0.05
                         output_probs = torch.nn.functional.softmax(output_logits / TEMP, dim=1)
-                        output_tokens_curr_timestep = torch.multinomial(output_probs, num_samples=1)[:,0][None]
+                        output_tokens_curr_timestep = torch.multinomial(output_probs, num_samples=1)[:, 0][None]
                         # import ipdb; ipdb.set_trace()
 
                         # output_tokens = output_tensor.argmax(dim=2)
                         # output_tokens_curr_timestep = output_tokens[:, t]
                         output_token_list.append(output_tokens_curr_timestep[0])
                         dec_input_next = output_tokens_curr_timestep * 1
-                        dec_input_next[:,0] = dec_input_next[:,0] + 30000
+                        dec_input_next[:, 0] = dec_input_next[:, 0] + 30000
                         # if t > 100:
                         dec_input[:, :, t + 1] = dec_input_next
                     else:
-                        first_layer_logits = debug_tensors[0] # (1, s, 30k)
-                        prediction = first_layer_logits.argmax(dim=2) # (1, s)
+                        first_layer_logits = debug_tensors[0]  # (1, s, 30k)
+                        prediction = first_layer_logits.argmax(dim=2)  # (1, s)
                         predicted_token = prediction[0, t]
                         output_token_list.append(predicted_token)
-                        dec_input[:,0,t+1] = prediction[:,t] * 1
-                
+                        dec_input[:, 0, t + 1] = prediction[:, t] * 1
+
                 if seq_pattern in ["parallel", "delay_parallel"]:
                     output_tokens_combined = torch.stack(output_token_list)  # (T, 8)
                     output_tokens_combined = output_tokens_combined.transpose(0, 1)  # (8, T)
-                    output_tokens_combined = convert_tokens_to_range(output_tokens_combined, apply_offset_correction=False, token_type="decoder", seq_pattern=seq_pattern)
-                    output_wav = model.additional_models['encodec'].decode([[output_tokens_combined[None], None]])[0, 0]
+                    output_tokens_combined = convert_tokens_to_range(
+                        output_tokens_combined,
+                        apply_offset_correction=False,
+                        token_type="decoder",
+                        seq_pattern=seq_pattern,
+                    )
+                    output_wav = model.additional_models['encodec'].decode([[output_tokens_combined[None], None]])[
+                        0, 0
+                    ]
                     model.logger.experiment.add_audio("Dec Wav", output_wav, example_num + 1, 24000)
                 else:
-                    output_tokens_combined = torch.stack(output_token_list) # T
+                    output_tokens_combined = torch.stack(output_token_list)  # T
                     # prepend 0 to output_tokens_combined
                     output_tokens_combined = torch.cat([torch.tensor([0]).cuda(), output_tokens_combined])[:-1]
                     all_layer_tokens = []

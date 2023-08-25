@@ -666,7 +666,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                                 speech_residual_model = self.speech_residual_model_2
                                 if i == 0:
                                     speech_residual_model = self.speech_residual_model_1
-                                last_layer_output = speech_residual_model(dec_output, last_layer_logits, i, speech_mask)
+                                last_layer_output = speech_residual_model(
+                                    dec_output, last_layer_logits, i, speech_mask
+                                )
                                 last_layer_logits = self.speech_tokens_heads[i](
                                     last_layer_output, self.speech_tokens_embeddings[i].weight
                                 )
