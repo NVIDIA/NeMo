@@ -25,7 +25,8 @@ from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
     RetroQAModelTextGenerationStrategy,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
+# from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.collections.nlp.modules.common.text_generation_utils_pad import generate
 from nemo.utils import logging
 
 GENERATE_NUM = 0
@@ -253,7 +254,7 @@ class MegatronGenerate(Resource):
                 ):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
-            
+                
             output = generate(
                 self.model,
                 sentences,
@@ -279,8 +280,8 @@ class MegatronGenerate(Resource):
             
             for keys in ['sentences', 'token_ids', 'tokens', 'full_logprob', 'logprob', 'offsets']:
                 del output[keys]
-            torch.cuda().empty_cache()
-            output['task_ids'] = task_ids
+            torch.cuda.empty_cache()
+            # output['task_ids'] = task_ids
             
             for k in output:
                 if isinstance(output[k], torch.Tensor):
