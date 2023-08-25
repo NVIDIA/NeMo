@@ -19,6 +19,42 @@ from .deploy_base import DeployBase
 
 
 class DeployPyTriton(DeployBase):
+
+    """
+        Deploys any models that implements ITritonDeployable interface in nemo.deploy.
+
+        Example:
+            from nemo.deploy import DeployPyTriton, NemoQuery
+            from nemo.export import TensorRTLLM
+
+            trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
+            trt_llm_exporter.export(
+                nemo_checkpoint_path="/path/for/nemo/checkpoint",
+                model_type="llama",
+                n_gpus=1,
+            )
+
+            nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
+            nm.deploy()
+            nm.run()
+            nq = NemoQuery(url="localhost", model_name="model_name")
+
+            prompts = ["hello, testing GPT inference", "another GPT inference test?"]
+            output = nq.query_llm(prompts=prompts, max_output_len=100)
+            print("prompts: ", prompts)
+            print("")
+            print("output: ", output)
+            print("")
+
+            prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
+            output = nq.query_llm(prompts=prompts, max_output_len=250)
+            print("prompts: ", prompts)
+            print("")
+            print("output: ", output)
+            print("")
+
+    """
+
     def __init__(
         self,
         triton_model_name: str,
