@@ -809,7 +809,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             batch_sampler=batch_sampler,
             num_workers=self.cfg.data.num_workers,
             pin_memory=True,
-            persistent_workers=True,
+            persistent_workers=self.cfg.data.num_workers > 0,
         )
 
     def setup(self, stage=None):
@@ -904,7 +904,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-        strategy_params: Optional[dict] = None
+        strategy_params: Optional[dict] = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
