@@ -182,8 +182,13 @@ class TensorRTLLM(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        input_texts = str_ndarray2list(inputs.pop("prompts"))
-        max_output_len = inputs.pop("max_output_len")
-        output_texts = self.forward(input_texts=input_texts, max_output_len=max_output_len[0][0])
-        output = cast_output(output_texts, np.bytes_)
-        return {"outputs": output}
+        try:
+            input_texts = str_ndarray2list(inputs.pop("prompts"))
+            max_output_len = inputs.pop("max_output_len")
+            output_texts = self.forward(input_texts=input_texts, max_output_len=max_output_len[0][0])
+            output = cast_output(output_texts, np.bytes_)
+            return {"outputs": output}
+        except Exception as error:
+            err_msg = "An error occurred: {0}".format(str(error))
+            output = cast_output([err_msg], np.bytes_)
+            return {"outputs": output}
