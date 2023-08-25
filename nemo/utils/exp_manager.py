@@ -346,9 +346,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         else:
             check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
-    #  TODO: this behavior is undesirable, need ckpts in exp_dir to take priority if present over resume_from_checkpoint
-    # if cfg.resume_from_checkpoint is not None:
-    #     trainer.ckpt_path = cfg.resume_from_checkpoint
+    if trainer.ckpt_path is None and cfg.resume_from_checkpoint is not None:
+        trainer.ckpt_path = cfg.resume_from_checkpoint
 
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
