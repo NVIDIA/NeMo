@@ -332,10 +332,9 @@ class AutoencoderKL(pl.LightningModule):
             self.monitor = monitor
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
-        from diffusers.modeling_utils import load_state_dict
 
         if from_pretrained is not None:
-            state_dict = load_state_dict(from_pretrained)
+            state_dict = torch.load(from_pretrained)
             self._load_pretrained_model(state_dict)
 
         # CUDA graph captured sub-modules

@@ -97,14 +97,14 @@ def main(cfg) -> None:
     test_loader = DataLoader(val_data, batch_size=cfg.model.micro_batch_size, num_workers=cfg.model.data.num_workers,)
 
     # get autocast_dtype
-    if trainer.precision == 'bf16':
+    if trainer.precision in ['bf16', 'bf16-mixed']:
         autocast_dtype = torch.bfloat16
-    elif int(trainer.precision) == 32:
+    elif trainer.precision in [32, '32', '32-true']:
         autocast_dtype = torch.float
-    elif int(trainer.precision) == 16:
+    elif trainer.precision in [16, '16', '16-mixed']:
         autocast_dtype = torch.half
     else:
-        raise ValueError('precision must be in [32, 16, "bf16"]')
+        raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
     with torch.no_grad(), torch.cuda.amp.autocast(
         enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,

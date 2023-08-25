@@ -23,6 +23,7 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
@@ -37,7 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
 from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
-from nemo.collections.vision.models.vision_base_model import MegatronVisionModel
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
@@ -67,7 +67,9 @@ except (ImportError, ModuleNotFoundError):
 class VitClassificationModel(MegatronModule):
     """Vision Transformer Model."""
 
-    def __init__(self, model_cfg, num_classes, finetune=False, pre_process=True, post_process=True):
+    def __init__(
+        self, model_cfg, model_parallel_config, num_classes, finetune=False, pre_process=True, post_process=True
+    ):
         super(VitClassificationModel, self).__init__()
 
         scaled_init_method = (
@@ -76,6 +78,7 @@ class VitClassificationModel(MegatronModule):
             else init_method_normal(model_cfg.init_method_std)
         )
 
+        self.config = model_parallel_config
         self.hidden_size = model_cfg.hidden_size
         self.num_classes = num_classes
         self.finetune = finetune
@@ -83,6 +86,7 @@ class VitClassificationModel(MegatronModule):
         self.post_process = post_process
         self.backbone = VitBackbone(
             model_cfg,
+            model_parallel_config,
             init_method=init_method_normal(model_cfg.init_method_std),
             scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,
@@ -109,7 +113,7 @@ class VitClassificationModel(MegatronModule):
         return hidden_states
 
 
-class MegatronVitClassificationModel(MegatronVisionModel):
+class MegatronVitClassificationModel(MegatronBaseModel):
     """Megatron Vision Transformer Model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -165,19 +169,23 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    converted_model.append(
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                    )
                     self.model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                )
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -207,6 +215,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         """Model depends on pipeline paralellism."""
         model = VitClassificationModel(
             model_cfg=self.cfg,
+            model_parallel_config=self.model_parallel_config,
             num_classes=self.cfg.get("num_classes"),  # TODO(yuya): clean this up
             finetune=self.cfg.get("finetune", False),
             pre_process=pre_process,
@@ -296,9 +305,6 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
 
-        # TODO (yuya): fix this shape
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -308,26 +314,25 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
+
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
 
+        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=dataloader_iter,
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
-            no_sync_func=no_sync_func,
-            grad_sync_func=grad_sync_func,
-            param_sync_func=param_sync_func,
-            overlap_p2p_comm=self.cfg.get('overlap_p2p_comm', False),
-            batch_p2p_comm=self.cfg.get('batch_p2p_comm', True),
+            seq_length=self.cfg.encoder_seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
         )
 
         # only the last stages of the pipeline return losses
@@ -355,22 +360,18 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         return loss_mean, accuracy_mean
 
     def initialize_ub_func(self):
-        raise NotImplementedError("userbuffer is not implemented!")
+        ub_cfgs = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        if ub_cfgs is None:
+            warnings.warn(
+                "Couldn't find TP config. Please check the path correctness. Initializing TP comm overlap with the default config."
+            )
+
         input_shape = [
             self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
             self.cfg.get('hidden_size'),
         ]
-        ub_cfg_file_name = self.cfg.get('ub_tp_comm_overlap_cfg', None)
-        ub_cfgs = None
-        if ub_cfg_file_name is not None:
-            try:
-                import yaml
 
-                with open(ub_cfg_file_name, 'r') as ub_cfg_file:
-                    ub_cfgs = yaml.safe_load(ub_cfg_file)
-            except (ImportError, TypeError):
-                logging.error(f"Fail to read ub_tp_comm_overlap config file: {ub_cfg_file_name}.")
-        te_module.initialize_ub(
+        te_module.base.initialize_ub(
             shape=input_shape,
             tp_size=self.cfg.get('tensor_model_parallel_size'),
             use_fp8=self.cfg.get('fp8'),
@@ -497,7 +498,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
 
-    def get_forward_output_and_loss_func(self):
+    def get_forward_output_and_loss_func(self, validation_step=False):
         def loss_func(labels, output_tensor):
             logits = output_tensor.contiguous().float()
             loss = torch.nn.functional.cross_entropy(logits, labels)
@@ -547,21 +548,27 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
+        mode = 'test' if self.trainer.testing else 'val'
+
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
 
         loss, accuracy = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+
+        self.validation_step_outputs.append((loss, accuracy)) if mode == 'val' else self.test_step_outputs.append(
+            (loss, accuracy)
+        )
         return loss, accuracy
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         # TODO (yuya): need fix later, check with Sean
-        if not outputs:
+        if not self.validation_step_outputs:
             return
 
         if parallel_state.is_pipeline_last_stage():
-            loss_outputs = [output[0] for output in outputs]
-            acc_outputs = [output[1] for output in outputs]
+            loss_outputs = [output[0] for output in self.validation_step_outputs]
+            acc_outputs = [output[1] for output in self.validation_step_outputs]
 
             averaged_metrics = torch.tensor(
                 [torch.stack(loss_outputs).mean(), torch.stack(acc_outputs).mean()], dtype=torch.float32, device='cuda'
@@ -577,15 +584,15 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log('val_accuracy', averaged_acc, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
 
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
+    def on_test_epoch_end(self):
+        pass
 
     def build_train_valid_test_datasets(self):
         logging.info('Building datasets for ViT...')
@@ -690,7 +697,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:

@@ -4,6 +4,7 @@ import logging
 import os
 import pathlib
 import re
+import tarfile
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -33,7 +34,30 @@ DEFAULT_LABELS_TOKEN = "<extra_id_2>"
 DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
 DEFAULT_IM_START_TOKEN = "<extra_id_4>"
 DEFAULT_IM_END_TOKEN = "<extra_id_5>"
-CLIP_MODEL = os.environ.get("CLIP_MODEL", "openai/clip-vit-large-patch14")
+
+
+class TarOrFolderImageLoader:
+    def __init__(self, image_folder):
+        self.image_folder = image_folder
+        self.tar_index = {}
+        if self.image_folder.endswith('.tar'):
+            self.build_index()
+
+    def build_index(self):
+        with tarfile.open(self.image_folder, 'r') as tar:
+            for member in tar.getmembers():
+                self.tar_index[member.name] = member
+
+    def open_image(self, file_name):
+        if self.image_folder.endswith('.tar'):
+            with tarfile.open(self.image_folder, 'r') as tar:
+                member = self.tar_index.get(file_name)
+                if member:
+                    f = tar.extractfile(member)
+                    return Image.open(f).convert('RGB')
+        else:
+            return Image.open(os.path.join(self.image_folder, file_name)).convert('RGB')
+        return None
 
 
 def tokenize(
@@ -107,7 +131,137 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
-def preprocess(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+def preprocess_llama_2(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+    conv = conversation_lib.default_conversation.copy()
+    roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+
+    # Apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        source = source['conversations']
+        if roles[source[0]["from"]] != conv.roles[0]:
+            # Skip the first one if it is not from human
+            source = source[1:]
+
+        conv.messages = []
+        for j, sentence in enumerate(source):
+            role = roles[sentence["from"]]
+            assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"])
+        conversations.append(conv.get_prompt())
+
+    add_extra_token = cfg.get("add_extra_token")
+
+    # Tokenize conversations
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+
+    labels = tokens.clone().detach()
+
+    # Mask labels
+    sep = "[/INST] "
+    for conversation, target in zip(conversations, labels):
+        rounds = conversation.split(conv.sep2)
+        cur_len = 1
+        target[:cur_len] = IGNORE_INDEX
+        for i, rou in enumerate(rounds):
+            if rou == "":
+                break
+
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+            parts[0] += sep
+
+            round_len = len(tokenizer.text_to_ids(rou).tokens)
+            instruction_len = len(tokenizer.text_to_ids(parts[0]).tokens) - 2
+
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(tokens=tokens, labels=labels,)
+
+
+def preprocess_v1(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
+    conv = conversation_lib.default_conversation.copy()
+    roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+
+    # Apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        source = source['conversations']
+        if roles[source[0]["from"]] != conv.roles[0]:
+            # Skip the first one if it is not from human
+            source = source[1:]
+
+        conv.messages = []
+        for j, sentence in enumerate(source):
+            role = roles[sentence["from"]]
+            assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"])
+        conversations.append(conv.get_prompt())
+
+    # Tokenize conversations
+
+    add_extra_token = cfg.get("add_extra_token")
+    # Tokenize conversations
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+
+    labels = tokens.clone().detach()
+
+    # Mask labels
+    sep = conv.sep + conv.roles[1] + ": "
+    for conversation, target in zip(conversations, labels):
+
+        rounds = conversation.split(conv.sep2)
+        cur_len = 1
+        target[:cur_len] = IGNORE_INDEX
+        for i, rou in enumerate(rounds):
+            if rou == "":
+                break
+
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+            parts[0] += sep
+
+            round_len = len(tokenizer.text_to_ids(rou).tokens)
+            instruction_len = len(tokenizer.text_to_ids(parts[0]).tokens) - 2
+
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(tokens=tokens, labels=labels,)
+
+
+def preprocess_nvgpt(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,) -> Dict:
     """
     Given a record this transform:
         1. Add signal '<>' at the beginning each sentence, with end signal '\n';
@@ -122,7 +276,7 @@ def preprocess(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,)
     conversations = []
     for source in sources:
         conv.messages = []
-        conv.system = source['system']
+        conv.system = source.get('system', conv.system)
         if len(source['conversations']) >= 2:
             conv.roles = (source['conversations'][0]['from'], source['conversations'][1]['from'])
 
@@ -143,7 +297,6 @@ def preprocess(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,)
         context_length=cfg.get("context_length"),
         add_extra_token=add_extra_token,
     )
-    assert conv.sep_style == conversation_lib.SeparatorStyle.NVGPT
 
     labels = tokens.clone().detach()
 
@@ -186,28 +339,6 @@ def preprocess(sources: dict, tokenizer: transformers.PreTrainedTokenizer, cfg,)
     return dict(tokens=tokens, labels=labels,)
 
 
-class SupervisedDataset(Dataset):
-    """Dataset for supervised fine-tuning."""
-
-    def __init__(self, data_path, tokenizer, multimodal_cfg=None):
-        super(SupervisedDataset, self).__init__()
-        logging.warning("Loading data...")
-        list_data_dict = json.load(open(data_path, "r"))
-
-        logging.warning("Formatting inputs...")
-        sources = [example["conversations"] for example in list_data_dict]
-        data_dict = preprocess(sources, tokenizer)
-
-        self.tokens = data_dict["tokens"]
-        self.labels = data_dict["labels"]
-
-    def __len__(self):
-        return len(self.tokens)
-
-    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        return dict(tokens=self.tokens[i], labels=self.labels[i])
-
-
 class LazySupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
@@ -219,11 +350,16 @@ class LazySupervisedDataset(Dataset):
             list_data_dict = json.load(open(data_path, "r"))
         else:
             list_data_dict = []
+
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
         self.list_data_dict = list_data_dict
         self.multimodal_cfg = multimodal_cfg
+        self.conv_template = multimodal_cfg["conv_template"]
+        self.image_folder = multimodal_cfg['image_folder']
         self.processor = multimodal_cfg["image_processor"]
+
+        self.image_loader = TarOrFolderImageLoader(self.image_folder)
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -236,8 +372,9 @@ class LazySupervisedDataset(Dataset):
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
         if 'image' in sources[0]:
             image_file = self.list_data_dict[i]['image']
-            image_folder = self.multimodal_cfg['image_folder']
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            image = self.image_loader.open_image(image_file)
+            if image is None:
+                logging.warning(f"Image {image_file} could not be found!")
             if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
                 max_hw, min_hw = max(image.size), min(image.size)
                 aspect_ratio = max_hw / min_hw
@@ -270,7 +407,14 @@ class LazySupervisedDataset(Dataset):
         else:
             sources = copy.deepcopy(sources)
 
-        data_dict = preprocess(sources, self.tokenizer, self.multimodal_cfg,)
+        if self.conv_template == "nvgpt":
+            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg,)
+        elif self.conv_template == "v1":
+            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg,)
+        elif self.conv_template == "llama_2":
+            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg,)
+        else:
+            raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 
         if isinstance(i, int):
             data_dict = dict(tokens=data_dict["tokens"][0], labels=data_dict["labels"][0])
@@ -285,35 +429,42 @@ class LazySupervisedDataset(Dataset):
         return data_dict
 
 
-class SteerLMDataset(LazySupervisedDataset):
+class NevaDataset(LazySupervisedDataset):
     """Dataset for supervised fine-tuning."""
 
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, multimodal_cfg: dict):
 
-        super(SteerLMDataset, self).__init__(None, tokenizer, multimodal_cfg)
-        logging.warning("Loading image inputs from SteerLM Dataset")
-        image_folder = multimodal_cfg['image_folder']
-        for line in open(data_path, "r"):
-            record = json.loads(line)
+        if data_path.endswith(".json"):
+            super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg)
 
-            # This currently supports only a single image
-            # search for <img src="/absolute/path/to/image" in the conversation
-            #   add it as record['image'], remove src tag from the <img> tag
-            for turn in record['conversations']:
-                # TODO (yuya): this is required?
-                if "image" not in record:
-                    matches = re.finditer('<img src="([^"]+)"', turn['value'])
-                    for match in matches:
-                        image_name = match.group(1).split("/")[-1]
-                        image_path = os.path.join(image_folder, image_name)
-                        if not os.path.isfile(image_path):
-                            continue
-                        assert (
-                            'image' not in record
-                        ), "Multiple images are currently not supported by the loader"  # TODO
-                        record['image'] = image_name  # url
-                turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
-            self.list_data_dict.append(record)
+        elif data_path.endswith(".jsonl"):
+            super(NevaDataset, self).__init__(None, tokenizer, multimodal_cfg)
+            logging.warning("Loading image inputs from SteerLM Dataset")
+            image_folder = multimodal_cfg['image_folder']
+            for line in open(data_path, "r"):
+                record = json.loads(line)
+
+                # This currently supports only a single image
+                # search for <img src="/absolute/path/to/image" in the conversation
+                #   add it as record['image'], remove src tag from the <img> tag
+                for turn in record['conversations']:
+                    # TODO (yuya): this is required?
+                    if "image" not in record:
+                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                        for match in matches:
+                            image_name = match.group(1).split("/")[-1]
+                            image_path = os.path.join(image_folder, image_name)
+                            if not os.path.isfile(image_path):
+                                continue
+                            assert (
+                                'image' not in record
+                            ), "Multiple images are currently not supported by the loader"  # TODO
+                            record['image'] = image_name  # url
+                    turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
+                self.list_data_dict.append(record)
+
+        else:
+            raise ValueError(f"Formatting of {data_path} is not supported in Neva.")
 
 
 @dataclass
@@ -379,15 +530,17 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
     else:
+        # TODO(yuya): Fix this hard-code for our own CLIP
         image_processor = CLIPImageProcessor.from_pretrained(
             "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
         )
-    train_dataset = SteerLMDataset(
+    train_dataset = NevaDataset(
         tokenizer=tokenizer,
         data_path=data_cfg.data_path,
         multimodal_cfg=dict(
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
+            conv_template=data_cfg.get("conv_template", "nvgpt"),
             image_token_len=data_cfg.image_token_len,
             image_folder=data_cfg.image_folder,
             image_aspect_ratio=data_cfg.image_aspect_ratio,

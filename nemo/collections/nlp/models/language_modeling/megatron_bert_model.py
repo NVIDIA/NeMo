@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
@@ -90,14 +89,14 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._validate_trainer()
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
@@ -133,10 +132,14 @@ class MegatronBertModel(MegatronBaseModel):
             if isinstance(self.model, list):
                 converted_model = []
                 for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
+                    converted_model.append(
+                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                    )
+                self.model = converted_model
             else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+                self.model = Float16Module(
+                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                )
 
         if hasattr(self, '_nsys_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
@@ -150,6 +153,7 @@ class MegatronBertModel(MegatronBaseModel):
         num_tokentypes = 2 if cfg.bert_binary_head else 0
 
         model = BertModel(
+            config=self.model_parallel_config,
             vocab_size=self.padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -164,7 +168,6 @@ class MegatronBertModel(MegatronBaseModel):
             post_process=post_process,
             init_method_std=cfg.get('init_method_std', 0.02),
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             precision=cfg.get('precision', 16),
@@ -181,7 +184,6 @@ class MegatronBertModel(MegatronBaseModel):
             onnx_safe=cfg.get('onnx_safe', False),
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
             position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
         )
 
@@ -250,7 +252,7 @@ class MegatronBertModel(MegatronBaseModel):
                     lm_loss = loss_dict['lm loss']
                     loss = lm_loss
                     reduced_loss = average_losses_across_data_parallel_group([loss, lm_loss])
-                return loss, {'avg': reduced_loss}
+                return loss, {'loss': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -313,9 +315,8 @@ class MegatronBertModel(MegatronBaseModel):
         if self.cfg.data.dataloader_type == "LDDL":
             # this is of type bert dataset
             seq_length = dataloader_iter.iterator.loaders.get_seqlen()
-            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
-            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            seq_length = self.cfg.encoder_seq_length
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -327,15 +328,12 @@ class MegatronBertModel(MegatronBaseModel):
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=False,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
+            seq_length=seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
         )
 
         if losses_reduced_per_micro_batch:
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.vstack(loss_tensors_list)
             loss_mean = loss_tensor.mean(axis=0)
         else:
@@ -383,10 +381,7 @@ class MegatronBertModel(MegatronBaseModel):
             self.log('lr', lr, batch_size=1)
             self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
             self.log(
-                'consumed_samples',
-                self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-                prog_bar=True,
-                batch_size=1,
+                'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
             )
 
         return loss_mean[0]
@@ -422,12 +417,15 @@ class MegatronBertModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def validation_step(self, dataloader_iter, batch_idx):
-
+        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
+        dataloader_iter, done = self._prefetch(dataloader_iter)
+        if done:
+            return
+        prefix = "test" if self.trainer.testing else "val"
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = dataloader_iter.iterator.get_seqlen()
-            tensor_shape = [seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
-            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            seq_length = self.cfg.encoder_seq_length
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -437,36 +435,37 @@ class MegatronBertModel(MegatronBaseModel):
             model=[self.model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
+            seq_length=seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
         )
 
         if losses_reduced_per_micro_batch:
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.vstack(loss_tensors_list)
             loss_mean = loss_tensor.mean(axis=0)
         else:
             loss_mean = torch.tensor([0.0]).cuda()
 
-        return loss_mean[0]
+        loss = loss_mean[0]
+        self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():
-            averaged_loss = torch.stack(outputs).mean()
+            averaged_loss = torch.stack(self.validation_step_outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
+    def on_test_epoch_end(self):
+        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, sentence_order, output_tensor):
@@ -680,7 +679,7 @@ class MegatronBertModel(MegatronBaseModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:

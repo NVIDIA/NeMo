@@ -36,6 +36,17 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import logging
 
+try:
+    from megatron.core import ModelParallelConfig, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
+
 
 class AbstractEncoder(nn.Module):
     def __init__(self):
@@ -402,6 +413,7 @@ class FrozenMegatronCLIPEmbedder(AbstractEncoder):
         )
         model = CLIPModel(
             model_cfg=cfg,
+            model_parallel_config=ModelParallelConfig(),
             padded_vocab_size=padded_vocab_size,
             pre_process=cfg.text.pre_process,
             post_process=cfg.text.post_process,

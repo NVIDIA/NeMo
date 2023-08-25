@@ -189,6 +189,7 @@ class VitBackbone(MegatronModule):
     def __init__(
         self,
         model_cfg,
+        model_parallel_config,
         init_method=None,
         scaled_init_method=None,
         pre_process=True,
@@ -271,6 +272,7 @@ class VitBackbone(MegatronModule):
                 )
 
         self.transformer = ParallelVisionTransformer(
+            config=model_parallel_config,
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
             num_layers=model_cfg.num_layers,
@@ -291,16 +293,13 @@ class VitBackbone(MegatronModule):
             hidden_dropout=model_cfg.hidden_dropout,
             attention_dropout=model_cfg.attention_dropout,
             drop_path_rate=model_cfg.drop_path_rate,
-            use_cpu_initialization=model_cfg.use_cpu_initialization,
             bias_activation_fusion=model_cfg.get("bias_activation_fusion", False),
             persist_layer_norm=model_cfg.persist_layer_norm,
             openai_gelu=model_cfg.openai_gelu,
             onnx_safe=model_cfg.onnx_safe,
             masked_softmax_fusion=model_cfg.masked_softmax_fusion,
             megatron_legacy=model_cfg.megatron_legacy,
-            sequence_parallel=model_cfg.sequence_parallel,
             activations_checkpoint_granularity=model_cfg.activations_checkpoint_granularity,
-            gradient_accumulation_fusion=model_cfg.gradient_accumulation_fusion,
             activation=model_cfg.get('activation', 'gelu'),
             ub_tp_comm_overlap=model_cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=model_cfg.get('use_flash_attention', False),

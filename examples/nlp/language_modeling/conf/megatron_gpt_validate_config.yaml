@@ -9,7 +9,7 @@ trainer:
   limit_test_batches: 50
   max_steps: 100 # needed to setup dataloaders
   max_epochs: null
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
 
 tensor_model_parallel_size: ??? # should be set the same as the pretrained model that is being restored from
 pipeline_model_parallel_size: ??? # should be set the same as the pretrained model that is being restored from 

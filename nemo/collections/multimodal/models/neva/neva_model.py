@@ -28,7 +28,6 @@ from einops import rearrange, repeat
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
@@ -377,15 +376,14 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         self.name_key_to_cfg.update(
             {AdapterName.MM_LINEAR_ADAPTER: adapter_cfg,}
         )
-        super().__init__(cfg, trainer)
+        MegatronGPTModel.__init__(self, cfg, trainer)
 
-    def get_gpt_module_list(self):
-        if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
-        elif isinstance(self.model, Float16Module):
-            return [self.model.module]
-        else:
-            return [self.model]
+        self.setup_complete = False
+        self.base_keys = self.get_all_keys()
+        self.init_peft_modules()
+        self.adapter_keys = self.get_all_keys() - self.base_keys
+        if self.megatron_amp_O2:
+            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -396,6 +394,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             mm_cfg=self.cfg.mm_cfg,
             media_start_id=media_start_id,
             media_end_id=media_end_id,
+            config=self.model_parallel_config,
             vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
@@ -411,7 +410,6 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             init_method_std=self.cfg.get('init_method_std', 0.02),
             use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
@@ -440,9 +438,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
             attention_type=self.cfg.get('attention_type', 'multihead'),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
-            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
             transformer_engine=self.cfg.get('transformer_engine', False),
             fp8=self.cfg.get('fp8', False),
             fp8_e4m3=self.cfg.get('fp8_e4m3', False),
@@ -456,6 +452,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
             use_flash_attention=self.cfg.get('use_flash_attention', False),
             megatron_legacy=self.cfg.get('megatron_legacy', False),
+            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
         )
 
         logging.info(
@@ -481,49 +478,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-
-        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-
-        # handle asynchronous grad reduction
-        no_sync_func = None
-        grad_sync_func = None
-        param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
-            grad_sync_func = self.reduce_overlap_gradients
-            param_sync_func = self.sync_overlap_parameters
-
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        # TODO @akhattar: remove sync related stuff from config, add num_micro_batches_with_partial_activation_checkpoints when ready
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=forward_only,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
-            no_sync_func=no_sync_func,
-            grad_sync_func=grad_sync_func,
-            param_sync_func=param_sync_func,
-        )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.stack(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            loss_mean = torch.tensor(0.0).cuda()
-
-        return loss_mean
+        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only)
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -624,14 +579,16 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         return fwd_output_only_func
 
     def validation_step(self, dataloader_iter, batch_idx):
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-        return loss_mean
+        return MegatronGPTModel.validation_step(self, dataloader_iter, batch_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
+            return
+
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
-                averaged_loss = torch.stack(outputs).mean()
+                averaged_loss = torch.stack(self.validation_step_outputs).mean()
             else:
                 # Compute the avg loss by total_loss across all samples / total number of samples
                 # total_loss_and_total_samples = torch.vstack(outputs).sum(axis=0)
@@ -644,12 +601,11 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
+
         return averaged_loss
 
     def on_validation_epoch_start(self):
-        pass
-
-    def on_validation_epoch_end(self):
         pass
 
     def test_step(self, batch, batch_idx):
@@ -684,7 +640,7 @@ class MegatronNevaModel(MegatronGPTPEFTModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:

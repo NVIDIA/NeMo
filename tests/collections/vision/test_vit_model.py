@@ -162,7 +162,7 @@ def trainer_cfg():
         precision: 16
         logger: False
         enable_checkpointing: False
-        replace_sampler_ddp: False
+        use_distributed_sampler: False
         max_epochs: -1
         max_steps: 4
         log_every_n_steps: 1

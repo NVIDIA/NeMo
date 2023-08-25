@@ -35,6 +35,7 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
+from nemo.utils.cast_utils import cast_all
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
@@ -576,12 +577,17 @@ class EncDecClassificationModel(_EncDecBaseModel):
         loss_value = self.loss(logits=logits, labels=labels)
         acc = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {
+        loss = {
             'val_loss': loss_value,
             'val_correct_counts': correct_counts,
             'val_total_counts': total_counts,
             'val_acc': acc,
         }
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(loss)
+        else:
+            self.validation_step_outputs.append(loss)
+        return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
@@ -589,12 +595,17 @@ class EncDecClassificationModel(_EncDecBaseModel):
         loss_value = self.loss(logits=logits, labels=labels)
         acc = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {
+        loss = {
             'test_loss': loss_value,
             'test_correct_counts': correct_counts,
             'test_total_counts': total_counts,
             'test_acc': acc,
         }
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_idx].append(loss)
+        else:
+            self.test_step_outputs.append(loss)
+        return loss
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -851,6 +862,8 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         self.eval_loop_cnt = 0
         self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
         super().__init__(cfg=cfg, trainer=trainer)
+        self.decoder.output_types = self.output_types
+        self.decoder.output_types_for_export = self.output_types
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
@@ -1148,3 +1161,43 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         labels = labels.gather(dim=0, index=idx.view(-1))
 
         return logits, labels
+
+    def forward_for_export(
+        self, input, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+    ):
+        """
+        This forward is used when we need to export the model to ONNX format.
+        Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+        Args:
+            input: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps.
+            length: Vector of length B, that contains the individual lengths of the audio sequences.
+            cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
+            cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers
+                N is the number of such layers which need caching, B is batch size, H is the hidden size of activations,
+                and T is the length of the cache
+
+        Returns:
+            the output of the model
+        """
+        enc_fun = getattr(self.input_module, 'forward_for_export', self.input_module.forward)
+        if cache_last_channel is None:
+            encoder_output = enc_fun(audio_signal=input, length=length)
+            if isinstance(encoder_output, tuple):
+                encoder_output = encoder_output[0]
+        else:
+            encoder_output, length, cache_last_channel, cache_last_time, cache_last_channel_len = enc_fun(
+                audio_signal=input,
+                length=length,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_len=cache_last_channel_len,
+            )
+
+        dec_fun = getattr(self.output_module, 'forward_for_export', self.output_module.forward)
+        ret = dec_fun(hidden_states=encoder_output.transpose(1, 2))
+        if isinstance(ret, tuple):
+            ret = ret[0]
+        if cache_last_channel is not None:
+            ret = (ret, length, cache_last_channel, cache_last_time, cache_last_channel_len)
+        return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)

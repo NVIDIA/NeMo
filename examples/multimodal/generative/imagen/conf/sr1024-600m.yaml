@@ -38,6 +38,7 @@ exp_manager:
     filename: '${name}--{reduced_train_loss:.2f}-{step}-{consumed_samples}'
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
   ema:
     enable: True
     decay: 0.9999
