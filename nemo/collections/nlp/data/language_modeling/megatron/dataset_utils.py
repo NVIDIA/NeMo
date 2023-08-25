@@ -756,6 +756,7 @@ def get_dataset(
             prefix_lm_pivot_mean=cfg.data.get("prefix_lm_pivot_mean", 0.25),
             prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             sampling_probabilities={
+                'causal': float(cfg.data.get("causal_prob", 0.0)),
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
                 'x-masking-longspan-smallprob': cfg.data.get("x_masking_longspan_smallprob", 0.11),
@@ -803,6 +804,7 @@ def get_dataset(
             prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             prefix_lm_pivot_mean=cfg.data.get("prefix_lm_pivot_mean", 0.25),
             sampling_probabilities={
+                'causal': float(cfg.data.get("causal_prob", 0.0)),
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
                 'x-masking-longspan-smallprob': cfg.data.get("x_masking_longspan_smallprob", 0.11),
@@ -814,6 +816,9 @@ def get_dataset(
             use_prefix_noncausal_mask=cfg.get("attn_mask_type", "causal") == "padding",
             sentinel_tokens=sentinel_tokens,
             shuffle_documents=cfg.data.get("shuffle_documents", False),
+            add_bos_to_enc=cfg.data.get("add_bos_to_enc", False),
+            force_sep_tokens=cfg.data.get("force_sep_tokens", False),
+            use_v2_format=cfg.data.get("use_v2_format", False),
             **kwargs,
         )
     else:

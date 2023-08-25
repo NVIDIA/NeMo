@@ -66,6 +66,7 @@ class UL2Dataset(T5Dataset):
         documents=None,
         skip_masking_id=None,
         sampling_probabilities={
+            'causal': 0,  # Causal masking as in GPT.
             'r-masking': 0.33,  # T5-style masking with short spans and small probabilities.
             's-masking': 0.33,  # Prefix-LM with a pivot point sampled based on prefix_lm_pivot_mean
             'x-masking-longspan-smallprob': 0.11,  # Extreme span masking with small probabilities and large ngram sizes.
@@ -74,6 +75,9 @@ class UL2Dataset(T5Dataset):
         },
         sentinel_tokens=None,
         shuffle_documents=True,
+        add_bos_to_enc=False,
+        force_sep_tokens=False,
+        use_v2_format=False,
     ):
         """ Args:
         cfg: Omegaconf config object.
@@ -117,7 +121,7 @@ class UL2Dataset(T5Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length - 1,  # -1 to account for the added mask type token
+            max_seq_length=max_seq_length,  # do not need -1 even with the added mask type token due to causality
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
@@ -133,6 +137,7 @@ class UL2Dataset(T5Dataset):
             skip_masking_id=tokenizer.eos_id if skip_masking_id is None else skip_masking_id,
             sentinel_tokens=sentinel_tokens,
             shuffle_documents=shuffle_documents,
+            force_sep_tokens=force_sep_tokens,
         )
         self.mean_ngram_size = mean_ngram_size
         self.min_ngram_size = min_ngram_size
@@ -147,6 +152,7 @@ class UL2Dataset(T5Dataset):
         self.prefix_lm_pivot_distribution = prefix_lm_pivot_distribution
 
         self._normalize_sampling_probabilities()
+        self.causal_prob = sampling_probabilities.get('causal', 0.0)
         self.r_masking_prob = sampling_probabilities['r-masking']
         self.s_masking_prob = sampling_probabilities['s-masking']
         self.x_masking_prob = sum(
@@ -159,6 +165,9 @@ class UL2Dataset(T5Dataset):
         self.x_masking_longspan_smallprob = sampling_probabilities['x-masking-longspan-smallprob']
         self.x_masking_longspan_largeprob = sampling_probabilities['x-masking-longspan-largeprob']
         self.x_masking_shortspan_largeprob = sampling_probabilities['x-masking-shortspan-largeprob']
+
+        self.add_bos_to_enc = add_bos_to_enc
+        self.use_v2_format = use_v2_format
 
     def _normalize_sampling_probabilities(self):
         """ Normalize the sampling probabilities to sum to 1. """
@@ -187,8 +196,10 @@ class UL2Dataset(T5Dataset):
         tokenizer_type: str,
         sentinel_tokens: list,
         skip_masking_id: int,
+        use_v2_format: bool = False,
     ):
         # Call T5's build training sample for regular short span masking.
+        # Set the sequence length budget to be max_seq_length-1 to add the extra token.
         sample = T5Dataset.build_training_sample(
             sample=sample,
             target_seq_length=target_seq_length,
@@ -213,6 +224,7 @@ class UL2Dataset(T5Dataset):
             eos_id=tokenizer.eos_id,
             pad_id=tokenizer.pad_id,
             skip_masking_id=skip_masking_id,
+            use_v2_format=use_v2_format,
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_r>')
         return sample
@@ -228,10 +240,14 @@ class UL2Dataset(T5Dataset):
         prefix_lm_pivot_mean: float,
         pivot_distribution: LengthDistribution,
         add_eos: bool = False,
+        add_bos_to_enc: bool = False,
     ):
         sample = [token for sentence in sample for token in sentence]
+        # Leave space for the special tokens.
+        # We only consider the decoder-only case, where we may add eos to the inputs, and prepend task token
         if max_seq_length_decoder is None:
-            sample = sample[: max_seq_length_encoder - 1]
+            budget = int(add_bos_to_enc)
+            sample = sample[: max_seq_length_encoder - budget]
         sample = T5LMAdaptedDataset.get_prefix_lm_sample(
             sample=sample,
             max_seq_length_encoder=max_seq_length_encoder,
@@ -241,6 +257,7 @@ class UL2Dataset(T5Dataset):
             pivot_mean=prefix_lm_pivot_mean,
             pivot_distribution=pivot_distribution,
             add_eos=add_eos,
+            add_bos_to_enc=add_bos_to_enc,
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_s>')
         return sample
@@ -266,6 +283,7 @@ class UL2Dataset(T5Dataset):
         sentinel_tokens: list,
         skip_masking_id: int,
         masking_type: str,
+        use_v2_format: bool = False,
     ):
         sample = UL2Dataset.build_extreme_masking_training_sample(
             sample=sample,
@@ -289,6 +307,7 @@ class UL2Dataset(T5Dataset):
             pad_id=tokenizer.pad_id,
             skip_masking_id=skip_masking_id,
             masking_type=masking_type,
+            use_v2_format=use_v2_format,
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_x>')
         return sample
@@ -328,6 +347,7 @@ class UL2Dataset(T5Dataset):
         np_rng = np.random.RandomState(seed=(self.seed + idx))
         masking_type = np_rng.choice(
             [
+                'causal',
                 'r-masking',
                 's-masking',
                 'x-masking-longspan-smallprob',
@@ -335,6 +355,7 @@ class UL2Dataset(T5Dataset):
                 'x-masking-shortspan-largeprob',
             ],
             p=[
+                self.causal_prob,
                 self.r_masking_prob,
                 self.s_masking_prob,
                 self.x_masking_longspan_smallprob,
@@ -342,17 +363,26 @@ class UL2Dataset(T5Dataset):
                 self.x_masking_shortspan_largeprob,
             ],
         )  # r: short span masking, x: extreme masking, s: prefix-LM
-        if masking_type == 'r-masking':
+
+        # We delibrately create sequences with length equal to max_length + 1
+        # Later this will be consumed when we make autoregressive predictions.
+        if masking_type == 'causal':
+            s2s_token = self.tokenizer.text_to_ids('<extra_id_s>')
+            example = {'text_enc': np.array(s2s_token, ), 'labels': sample[0]}
+            return example
+
+        elif masking_type == 'r-masking':
             # Call T5's build training sample for regular short span masking.
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
-            target_seq_length = (
-                # self._get_worst_case_seq_length(
-                #     masking_prob=self.masked_lm_prob, min_span_length=1, seq_length=seq_length
-                # )
-                seq_length - int(self.masked_lm_prob * seq_length) - 1
-                if decoder_only
-                else seq_length
-            )
+            # target_seq_length = (
+            #     # self._get_worst_case_seq_length(
+            #     #     masking_prob=self.masked_lm_prob, min_span_length=1, seq_length=seq_length
+            #     # )
+            #     seq_length - int(self.masked_lm_prob * seq_length) - 1
+            #     if decoder_only
+            #     else seq_length
+            # )
+            target_seq_length = seq_length
             example = UL2Dataset.get_r_masking_training_sample(
                 sample=sample,
                 tokenizer=self.tokenizer,
@@ -372,9 +402,11 @@ class UL2Dataset(T5Dataset):
                 tokenizer_type=self.tokenizer_type,
                 sentinel_tokens=self.sentinel_tokens,
                 skip_masking_id=self.skip_masking_id,
+                use_v2_format=self.use_v2_format,
             )
             example['masking_type'] = masking_type
             return example
+
         elif masking_type == 's-masking':
             example = UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
@@ -384,31 +416,34 @@ class UL2Dataset(T5Dataset):
                 tokenizer=self.tokenizer,
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.prefix_lm_pivot_distribution,
+                add_bos_to_enc=self.add_bos_to_enc,
             )
             example['masking_type'] = masking_type
             return example
+
         else:
-            # Try to minimize the amount of padding based on the masking type for GPT models.
-            if masking_type == 'x-masking-longspan-smallprob':
-                target_seq_length = (
-                    self._get_worst_case_seq_length(self.masked_lm_prob, self.extreme_min_ngram_size, seq_length)
-                    if decoder_only
-                    else seq_length
-                )
-            elif masking_type == 'x-masking-shortspan-largeprob':
-                target_seq_length = (
-                    self._get_worst_case_seq_length(self.extreme_masked_lm_prob, self.min_ngram_size, seq_length)
-                    if decoder_only
-                    else seq_length
-                )
-            elif masking_type == 'x-masking-longspan-largeprob':
-                target_seq_length = (
-                    self._get_worst_case_seq_length(
-                        self.extreme_masked_lm_prob, self.extreme_min_ngram_size, seq_length
-                    )
-                    if decoder_only
-                    else seq_length
-                )
+            # # Try to minimize the amount of padding based on the masking type for GPT models.
+            # if masking_type == 'x-masking-longspan-smallprob':
+            #     target_seq_length = (
+            #         self._get_worst_case_seq_length(self.masked_lm_prob, self.extreme_min_ngram_size, seq_length)
+            #         if decoder_only
+            #         else seq_length
+            #     )
+            # elif masking_type == 'x-masking-shortspan-largeprob':
+            #     target_seq_length = (
+            #         self._get_worst_case_seq_length(self.extreme_masked_lm_prob, self.min_ngram_size, seq_length)
+            #         if decoder_only
+            #         else seq_length
+            #     )
+            # elif masking_type == 'x-masking-longspan-largeprob':
+            #     target_seq_length = (
+            #         self._get_worst_case_seq_length(
+            #             self.extreme_masked_lm_prob, self.extreme_min_ngram_size, seq_length
+            #         )
+            #         if decoder_only
+            #         else seq_length
+            #     )
+            target_seq_length = seq_length
 
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
             example = UL2Dataset.get_x_masking_training_sample(
@@ -430,6 +465,7 @@ class UL2Dataset(T5Dataset):
                 sentinel_tokens=self.sentinel_tokens,
                 skip_masking_id=self.skip_masking_id,
                 masking_type=masking_type,
+                use_v2_format=self.use_v2_format,
             )
             example['masking_type'] = masking_type
             return example
@@ -469,6 +505,7 @@ class UL2Dataset(T5Dataset):
         pad_id,
         masking_type,
         skip_masking_id=None,
+        use_v2_format=False,
     ):
         """Build training sample.
         Arguments:
@@ -564,7 +601,11 @@ class UL2Dataset(T5Dataset):
             (output_tokens, masked_positions, masked_labels, masked_spans) = lm_pred
 
         # Padding.
-        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = T5Dataset.pad_and_convert_to_numpy(
+        if use_v2_format:
+            pand_and_convert_fn = T5Dataset.pad_and_convert_to_numpy_v2
+        else:
+            pand_and_convert_fn = T5Dataset.pad_and_convert_to_numpy
+        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pand_and_convert_fn(
             output_tokens=output_tokens,
             masked_positions=masked_positions,
             masked_labels=masked_labels,
@@ -630,6 +671,7 @@ class UGPTDataset(UL2Dataset):
         documents=None,
         skip_masking_id=None,
         sampling_probabilities={
+            'causal': 0,  # Causal masking as in GPT.
             'r-masking': 0.33,  # T5-style masking with short spans and small probabilities.
             's-masking': 0.33,  # Prefix-LM with a pivot point sampled based on prefix_lm_pivot_mean
             'x-masking-longspan-smallprob': 0.11,  # Extreme span masking with small probabilities and large ngram sizes.
@@ -639,6 +681,9 @@ class UGPTDataset(UL2Dataset):
         use_prefix_noncausal_mask=True,
         sentinel_tokens=None,
         shuffle_documents=True,
+        add_bos_to_enc=False,
+        force_sep_tokens=False,
+        use_v2_format=False,
     ):
         """ Args:
         cfg: Omegaconf config object.
@@ -714,7 +759,12 @@ class UGPTDataset(UL2Dataset):
             sampling_probabilities=sampling_probabilities,
             sentinel_tokens=sentinel_tokens,
             shuffle_documents=shuffle_documents,
+            add_bos_to_enc=add_bos_to_enc,
+            force_sep_tokens=force_sep_tokens,
+            use_v2_format=use_v2_format,
         )
+        # Reset max seq length to the actual length
+        self.max_seq_length = max_seq_length
         self.use_prefix_noncausal_mask = use_prefix_noncausal_mask
 
         # Restore MAX_SEQ_LENGTH_DELTA
