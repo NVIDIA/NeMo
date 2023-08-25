@@ -108,9 +108,12 @@ if isinstance(out_wav[0], torch.Tensor):
     print(out_wav.shape)
 
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam
-context_length = 256
-min_length = 128
-max_length = 256
+context_length = 128
+min_length = 256
+max_length = codes.shape[-1]-1
+lengths = LengthParam(min_length=min_length, max_length=max_length)
+context_length = torch.tensor([context_length], device=model.device).contiguous()
+
 context_codes = codes[:,:,:context_length].detach().clone()
 for i in range(context_codes.shape[1]):
     context_codes[:,i,:] += 256000 + 1024*i
@@ -124,8 +127,7 @@ print(input_codes.shape)
 print(context_length)
 with torch.no_grad():
     model.float()
-    import ipdb; ipdb.set_trace()
-    output = model.generate((input_codes.to(model.device), context_length), lengths)
+    output = model.generate((input_codes.to(model.device), context_length), lengths, mode="multinomial")
 
 predicted_tensors = torch.tensor(output['token_ids'], device=model.device)
 print(input_codes[:,:,5:20].to(model.device) == predicted_tensors[:,:,5:20])

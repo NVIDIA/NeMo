@@ -1093,6 +1093,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
+        mode="teacher-forced",  # One of "teacher-forced", "greedy", "multinomial"
     ) -> OutputType:
         """
         inputs can either be a list of string or a tuple
@@ -1123,7 +1124,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if length_params is None:
             length_params = get_default_length_params()
 
-        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params)
+        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, mode=mode)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
@@ -1345,7 +1346,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_layer = base_module.language_model.output_layer
         old_weight = output_layer.weight
         old_token_size = output_layer.weight.shape[0]
-        # import ipdb; ipdb.set_trace()
         new_weight = torch.zeros(
             [old_token_size + 1024, old_weight.shape[1]], dtype=old_weight.dtype, device=old_weight.device
         )

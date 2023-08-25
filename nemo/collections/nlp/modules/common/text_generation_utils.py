@@ -81,7 +81,7 @@ def get_default_length_params():
     return length_params
 
 
-def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, **strategy_args):
+def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, mode="teacher-forced", **strategy_args):
     # reproduce the old compute_prob method
     # a very special case
     if sampling_params['compute_logprob']:
@@ -106,6 +106,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             repetition_penalty=sampling_params['repetition_penalty'],
             min_tokens_to_generate=length_params['min_length'],
             compute_attention_mask=sampling_params.get("compute_attention_mask", True),
+            mode=mode,
             **strategy_args,
         )
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
@@ -126,6 +127,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 greedy=sampling_params['use_greedy'],
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
+                mode=mode,
                 **strategy_args,
             )
             return output
@@ -382,6 +384,7 @@ def synced_generate(
     repetition_penalty=1.2,
     min_tokens_to_generate=0,
     end_strings=[],
+    mode="teacher-forced",
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -396,7 +399,25 @@ def synced_generate(
             temperature=temperature,
         )
     else:
-        batch_token_iterator = sample_sequence_batch_teacherforced(
+        extra={
+            "top_p": top_p,
+            "top_k": top_k,
+            "greedy": greedy,
+            "repetition_penalty": repetition_penalty,
+            "min_tokens_to_generate": min_tokens_to_generate,
+        }
+        if mode == "teacher-forced":
+            func = sample_sequence_batch_teacherforced
+            print("Doing teacher forced")
+        elif mode in ["greedy", "multinomial"]:
+            func = sample_sequence_batch
+            if mode == "multinomial":
+                extra["temperature"] = 0.7
+                extra["greedy"] = False
+                print("Doing multinomial")
+            else:
+                print("Doing greedy")
+        batch_token_iterator = func(
             model,
             inference_strategy,
             context_tokens_tensor,
@@ -407,13 +428,7 @@ def synced_generate(
             compute_logprob=compute_logprob,
             temperature=temperature,
             end_strings=end_strings,
-            extra={
-                "top_p": top_p,
-                "top_k": top_k,
-                "greedy": greedy,
-                "repetition_penalty": repetition_penalty,
-                "min_tokens_to_generate": min_tokens_to_generate,
-            },
+            extra=extra,
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -478,6 +493,7 @@ def generate(
     repetition_penalty=1.0,
     min_tokens_to_generate=0,
     end_strings=['<|endoftext|>'],
+    mode="teacher-forced",
     **strategy_args,
 ) -> OutputType:
     """
@@ -563,6 +579,7 @@ def generate(
         repetition_penalty=repetition_penalty,
         min_tokens_to_generate=min_tokens_to_generate,
         end_strings=end_strings,
+        mode=mode
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -744,6 +761,17 @@ def sample_sequence_batch(
                     prev_speech = torch.argmax(speech_logits, dim=1)
                     for i in range(7):
                         prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024 * (i + 1)
+                elif extra.get('temperature', 0.) > 0.:
+                    # print(logits.shape)
+                    # print(speech_logits.shape)
+                    temperature = extra.get('temperature', 0.)
+                    prev_dist = torch.nn.functional.softmax(logits / temperature, dim=-1)
+                    prev = torch.multinomial(prev_dist[0], 1).view(-1)
+                    prev_speech_dist = torch.nn.functional.softmax(speech_logits / temperature, dim=1)
+                    prev_speech = torch.zeros(1, 7,device=prev_speech_dist.device)
+                    for i in range(7):
+                        prev_speech[0, i] = torch.multinomial(prev_speech_dist[0,:,i], 1) + 256000 + 1024 * (i + 1)
+                        # prev_speech[:, i] = prev_speech[:, i] + 256000 + 1024 * (i + 1)
                 else:
                     raise NotImplementedError("No support for 2D speech tokens :(")
                     logits = logits.float()
