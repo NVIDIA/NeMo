@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import torch
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, \
-    PromptEncoderAdapterConfig
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -556,11 +558,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     _sq, _bs, _hs = enc_input.size()
                     ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
                     v = ptuning_adapter.virtual_tokens
-                    if ptuning_adapter and _sq >= v:  # The sequence should be longer the v to insert virtual embeddings.
+                    if (
+                        ptuning_adapter and _sq >= v
+                    ):  # The sequence should be longer the v to insert virtual embeddings.
                         virtual_embeddings = ptuning_adapter(_bs)
                         enc_input = enc_input[
-                                        v:, :, :
-                                        ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
+                            v:, :, :
+                        ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
                         enc_input = torch.concat([virtual_embeddings, enc_input], dim=0)
             else:
                 enc_input = None
