@@ -140,7 +140,7 @@ def get_computeprob_response(tokenizer, response, inputs):
                 token_len = len(new_token_id)
             elif isinstance(inputs[0], torch.Tensor):
                 token_len = int(inputs[1][batch_id].item())
-                new_token_id = inputs[0][batch_id][:token_len].tolist()
+                new_token_id = inputs[0][batch_id][:token_len].abs().tolist()
                 new_text = tokenizer.ids_to_text(new_token_id)
         new_token_ids.append(new_token_id)
         new_tokens.append(response['tokens'][batch_id][:token_len])
@@ -629,6 +629,9 @@ def sample_sequence_batch(
     with torch.no_grad():
         context_length = context_lengths.min().item()
         inference_strategy.init_batch(context_tokens, context_lengths)
+        # Convert context tokens to its absolute value after init_batch,
+        # where it may optionally use negative tokens to indicate the prefix.
+        context_tokens = context_tokens.abs()
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -790,6 +793,9 @@ def tab_sample_sequence_batch(
     with torch.no_grad():
         context_length = context_lengths.min().item()
         inference_strategy.init_batch(context_tokens, context_lengths)
+        # Convert context tokens to its absolute value after init_batch,
+        # where it may optionally use negative tokens to indicate the prefix.
+        context_tokens = context_tokens.abs()
         context = context_tokens[:, :context_length]
         # the context may start in the middle of the row,
         # calculate the offset according to the position of '\n' or '<|endoftext|>'

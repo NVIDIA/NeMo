@@ -190,7 +190,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokenizer = self.model.tokenizer
-        tokens = context_tokens.contiguous().cuda()
+        tokens = context_tokens.contiguous().abs().cuda()
         # Get the attention mask and postition ids.
         self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
             tokens,
@@ -207,6 +207,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         generate the batch used in inference for each of the steps
 
         """
+        tokens = tokens.abs()
         # types2use = None
         if step == 0:
             # Allocate memory for the entire context.
@@ -252,8 +253,9 @@ class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         context_lengths = context_length.tolist()
         # Get the attention mask and postition ids.
         if self.model.cfg.get('attn_mask_type', 'causal') == 'padding' and not self.force_causal_attention_mask:
-            for i, l in enumerate(context_lengths):
-                self.attention_mask[i][:, : l - 1] = 1.0
+            for i, seq in enumerate(context_tokens):
+                prefix_len = torch.sum(seq < 0).item()
+                self.attention_mask[i][:, :prefix_len] = 1.0
 
         self.attention_mask = self.attention_mask.unsqueeze(1) < 0.5
         position_ids = torch.arange(tokens.size(1), dtype=torch.long, device=tokens.device)
