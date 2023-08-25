@@ -94,6 +94,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
 
     def __init__(
         self,
+        config,
         init_method,
         output_layer_init_method,
         layer_number,
@@ -110,7 +111,6 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         hidden_dropout=0.1,
         bias_dropout_add_fusion=True,
         persist_layer_norm=False,
-        use_cpu_initialization=False,
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
@@ -126,8 +126,6 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         transformer_block_type='pre_ln',
         headscale=False,
         activations_checkpoint_granularity=None,
-        sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         use_flash_attention=False,
     ):
@@ -354,6 +352,7 @@ class ParallelVisionTransformer(ParallelTransformer):
 
     def __init__(
         self,
+        config,
         init_method,
         output_layer_init_method,
         num_layers,
@@ -375,7 +374,6 @@ class ParallelVisionTransformer(ParallelTransformer):
         attention_dropout=0.1,
         ffn_dropout=0.0,
         drop_path_rate=0.0,
-        use_cpu_initialization=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
@@ -392,8 +390,6 @@ class ParallelVisionTransformer(ParallelTransformer):
         headscale=False,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
-        sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
@@ -420,6 +416,7 @@ class ParallelVisionTransformer(ParallelTransformer):
             else:
                 lt = layer_type
             return ParallelVisionTransformerLayer(
+                config=config,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 layer_number=layer_number + layer_number_offset,
@@ -437,7 +434,6 @@ class ParallelVisionTransformer(ParallelTransformer):
                 attention_dropout=attention_dropout,
                 ffn_dropout=ffn_dropout,
                 drop_path_rate=self.drop_path_rates[layer_number - 1],
-                use_cpu_initialization=use_cpu_initialization,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
@@ -452,8 +448,6 @@ class ParallelVisionTransformer(ParallelTransformer):
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
                 normalize_attention_scores=normalize_attention_scores,
                 use_flash_attention=use_flash_attention,
             )

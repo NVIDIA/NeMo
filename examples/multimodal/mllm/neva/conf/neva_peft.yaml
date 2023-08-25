@@ -8,7 +8,7 @@ trainer:
   precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
   max_steps: 4900 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -31,6 +31,7 @@ exp_manager:
     name: null
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
@@ -71,6 +72,7 @@ model:
     vision_encoder:
       from_pretrained: "" # path or name
       from_hf: True
+      patch_dim: 14
       hidden_size: 1024 # could be found from model but tricky in code
       vision_select_layer: -2   # default to the last layer
       class_token_length: 1
@@ -86,6 +88,9 @@ model:
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
 
   # LLM configs
+  # use GPTModel from megatron.core
+  mcore_gpt: False
+
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: ${.encoder_seq_length}
@@ -116,6 +121,8 @@ model:
   share_embeddings_and_output_weights: False # Share embedding and output layer weights.
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
+  num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
   ## Activation Checkpointing
   activations_checkpoint_granularity: null # 'selective' or 'full'

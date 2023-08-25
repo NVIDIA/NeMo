@@ -27,7 +27,6 @@ from torch._inductor import config as inductor_config
 from torch.optim.lr_scheduler import LambdaLR
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
-from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     extract_into_tensor,
     make_beta_schedule,
@@ -36,6 +35,8 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import default, exists
 from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, is_last_rank
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import Serialization
@@ -84,9 +85,10 @@ def _collate_fn(examples, with_prior_preservation=False):
 
 
 class DreamBooth(torch.nn.Module, Serialization):
-    def __init__(self, cfg):
+    def __init__(self, cfg, model_parallel_config):
         super().__init__()
         self.cfg = cfg
+        self.config = model_parallel_config
         self.with_prior_preservation = self.cfg.with_prior_preservation
         self.num_reg_images = self.cfg.data.num_reg_images
         self.pretrained_ckpt = self.cfg.pretrained_ckpt
@@ -189,7 +191,7 @@ class DreamBooth(torch.nn.Module, Serialization):
         pass
 
 
-class MegatronDreamBooth(MegatronMultimodalModel):
+class MegatronDreamBooth(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
             raise ImportError(
@@ -210,14 +212,14 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
         self.model = self.model_provider_func()
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
     def get_module_list(self):
         if isinstance(self.model, list):
@@ -229,12 +231,61 @@ class MegatronDreamBooth(MegatronMultimodalModel):
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = DreamBooth(cfg=self.cfg)
+        model = DreamBooth(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
         return model
 
     def forward(self, batch):
         output_tensor = self.model(batch)
         return output_tensor
+
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+        tensor_shape = None  # Placeholder
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_module_list():
+            module.config.no_sync_func = no_sync_func
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=dataloader_iter,
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=None,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+
+        # losses_reduced_per_micro_batch is a list of dictionaries
+        # [{"loss": 0.1}, {"loss": 0.2}, ...] which are from gradient accumulation steps
+        # only the last stages of the pipeline return losses
+        loss_dict = {}
+        if losses_reduced_per_micro_batch:
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                prefix = 'train'
+                for key in losses_reduced_per_micro_batch[0]:
+                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.stack(loss_tensors_list)
+                    loss_dict[f'{prefix}/{key}'] = loss_tensor.mean()
+                loss_mean = loss_dict["train/loss"]
+            else:
+                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+        else:
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+
+        return loss_mean, loss_dict
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -249,32 +300,9 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
+        loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            tensor_shape=None,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
-
-        # only the last stages of the pipeline return losses
-        loss_dict = {}
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.stack(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
+        torch.distributed.broadcast(loss_mean, get_last_rank())
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -289,18 +317,17 @@ class MegatronDreamBooth(MegatronMultimodalModel):
             #     # main grads are stored in the MainParamsOptimizer wrapper
             #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
-        else:
+        elif not self.cfg.get('ddp_overlap', True):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        torch.distributed.broadcast(loss_mean, get_last_rank())
-
-        if self.cfg.precision == 16:
+        if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
+        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
@@ -315,30 +342,11 @@ class MegatronDreamBooth(MegatronMultimodalModel):
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx):
-        fwd_bwd_function = get_forward_backward_func()
+        loss, val_loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            tensor_shape=None,
-            dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=True,
-        )
+        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
 
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.stack(loss_tensors_list)
-            val_loss_mean = loss_tensor.mean()
-        else:
-            val_loss_mean = torch.tensor(0.0, device=torch.cuda.current_device())
-
-        self.log(val_loss_mean, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+        return loss
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
@@ -431,7 +439,7 @@ class MegatronDreamBooth(MegatronMultimodalModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -512,3 +520,116 @@ class MegatronDreamBooth(MegatronMultimodalModel):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        map_location: Any = None,
+        hparams_file: Optional[str] = None,
+        strict: bool = True,
+        **kwargs,
+    ):
+        """
+        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        """
+        checkpoint = None
+        try:
+            cls._set_model_restore_state(is_being_restored=True)
+            # TODO: replace with proper PTL API
+            with pl_legacy_patch():
+                if map_location is not None:
+                    checkpoint = pl_load(checkpoint_path, map_location=map_location)
+                else:
+                    checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+
+            if hparams_file is not None:
+                extension = hparams_file.split(".")[-1]
+                if extension.lower() == "csv":
+                    hparams = load_hparams_from_tags_csv(hparams_file)
+                elif extension.lower() in ("yml", "yaml"):
+                    hparams = load_hparams_from_yaml(hparams_file)
+                else:
+                    raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
+
+                hparams["on_gpu"] = False
+
+                # overwrite hparams by the given file
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
+
+            # for past checkpoint need to add the new key
+            if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
+            # override the hparams with values that were passed in
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
+            # TODO: can we do this without overriding?
+            config_kwargs = kwargs.copy()
+            if 'trainer' in config_kwargs:
+                config_kwargs.pop('trainer')
+            cfg.update(config_kwargs)
+
+            # Disable individual unet/vae weights loading otherwise the model will look for these partial ckpts and raise error
+            if cfg:
+                if cfg.get('unet_config') and cfg.get('unet_config').get('from_pretrained'):
+                    cfg.unet_config.from_pretrained = None
+                if cfg.get('first_stage_config') and cfg.get('first_stage_config').get('from_pretrained'):
+                    cfg.first_stage_config.from_pretrained = None
+                ## Now when we covert ckpt to nemo, let's always get rid of those _orig_mod
+                if cfg.get('inductor'):
+                    cfg.inductor = False
+                ## Append some dummy configs that DB didn't support
+                if not cfg.get('channels_last'):
+                    cfg.channels_last = True
+                if not cfg.get('capture_cudagraph_iters'):
+                    cfg.capture_cudagraph_iters = -1
+
+            # compatibility for stable diffusion old checkpoint tweaks
+            first_key = list(checkpoint['state_dict'].keys())[0]
+            if first_key == "betas":
+                # insert "model." into for megatron wrapper
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = "model." + key
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+            elif (
+                first_key == 'model.text_encoder.transformer.text_model.embeddings.position_ids'
+                or first_key == 'model.text_encoder.model.language_model.embedding.position_embeddings'
+            ):
+                # remap state keys from dreambooth when using HF clip
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('._orig_mod', "")
+                    new_key = new_key.replace('unet', 'model.diffusion_model')
+                    new_key = new_key.replace('vae', 'first_stage_model')
+                    new_key = new_key.replace('text_encoder', 'cond_stage_model')
+                    new_key = new_key.replace('.noise_scheduler', '')
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            # compatibility for inductor in inference
+            if not cfg.get('inductor', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('._orig_mod', '', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            if cfg.get('megatron_amp_O2', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            if 'cfg' in kwargs:
+                model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
+            else:
+                model = ptl_load_state(cls, checkpoint, strict=strict, cfg=cfg, **kwargs)
+                # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+
+            checkpoint = model
+
+        finally:
+            cls._set_model_restore_state(is_being_restored=False)
+        return checkpoint

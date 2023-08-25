@@ -21,7 +21,6 @@ from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load

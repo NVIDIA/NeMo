@@ -204,7 +204,6 @@ def setup_trainer_and_model_for_inference(
 
     # Check if we need to use the TorchElasticEnvironment plugin for the trainer.
     plugins = []
-    # if cfg.get('cluster_type', None) == 'BCP':
     plugins.append(TorchElasticEnvironment())
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
@@ -231,11 +230,6 @@ def setup_trainer_and_model_for_inference(
         )
         with open_dict(model_cfg):
             model_cfg_modifier(model_cfg)  # modify the configuration for inference
-
-        # assert (
-        #         cfg.trainer.devices * cfg.trainer.num_nodes
-        #         == model_cfg.get("tensor_model_parallel_size", 1) * model_cfg.get("pipeline_model_parallel_size", 1)
-        # ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
         # Restore the model from the specified path and configuration, and set it up for inference.
         model = model_provider.restore_from(

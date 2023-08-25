@@ -7,7 +7,7 @@ trainer:
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 2 # PTL default. In practice, max_steps will be reached first.
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -15,6 +15,8 @@ trainer:
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: True
+  limit_val_batches: 0
+
 
 exp_manager:
   exp_dir: null
@@ -34,6 +36,7 @@ exp_manager:
     filename: '${name}--{reduced_train_loss:.2f}-{step}-{consumed_samples}'
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
   ema:
     enable: True
     decay: 0.9999
@@ -48,6 +51,8 @@ model:
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 1 # limited by GPU memory
   global_batch_size: 1 # will use more micro batches to reach global batch size
+  native_amp_init_scale: 65536.0 # Init scale for grad scaler used at fp16
+
 
   linear_start: 0.00085
   linear_end: 0.012

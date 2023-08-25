@@ -714,14 +714,13 @@ class UNetModel(nn.Module):
                 conv_nd(dims, model_channels, n_embed, 1),
                 # nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
             )
-        from diffusers.modeling_utils import load_state_dict
 
         if from_pretrained is not None:
             if from_NeMo:
                 state_dict = torch.load(from_pretrained, map_location='cpu')
                 missing_key, _, _, _ = self._load_pretrained_model(state_dict['state_dict'], from_NeMo=True)
             else:
-                state_dict = load_state_dict(from_pretrained)
+                state_dict = torch.load(from_pretrained, map_location='cpu')
                 if 'state_dict' in state_dict.keys():
                     state_dict = state_dict['state_dict']
                 missing_key, _, _, _ = self._load_pretrained_model(state_dict)

@@ -20,17 +20,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import rearrange
-from omegaconf import DictConfig
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
 from nemo.collections.multimodal.models.imagen.precond import ContinousDDPMPrecond, EDMPrecond
-from nemo.collections.multimodal.models.multimodal_base_model import MegatronMultimodalModel
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.nets import EfficientUNetModel, UNetModel
 from nemo.collections.multimodal.modules.imagen.encoder.t5encoder import T5Encoder
 from nemo.collections.multimodal.modules.imagen.sampler.sampler import DDPMSampler, EDMSampler
 from nemo.collections.multimodal.parts.imagen.utils import random_dropout
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
 from nemo.utils import logging
@@ -64,9 +65,10 @@ DUMMY_TENSOR = torch.tensor([1.0])
 
 
 class Imagen(torch.nn.Module, Serialization):
-    def __init__(self, cfg):
+    def __init__(self, cfg, model_parallel_config):
         super().__init__()
         self.cfg = cfg
+        self.config = model_parallel_config
         # Make sure the initialization on different GPUs are the same
         self.unet_type = cfg.get('unet_type', 'base')
         self.noise_cond_aug = cfg.get('noise_cond_aug', False)
@@ -174,40 +176,48 @@ class Imagen(torch.nn.Module, Serialization):
         pass
 
 
-class MegatronImagen(MegatronMultimodalModel):
+class MegatronImagen(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
+        with open_dict(cfg):
+            cfg.hidden_size = cfg.unet.embed_dim
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
         super().__init__(cfg, trainer=trainer)
 
         self._validate_trainer()
-
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         self.model = self.model_provider_func()
 
-        if self.trainer.precision == 'bf16':
+        if self.trainer.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif int(self.trainer.precision) == 32:
+        elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif int(self.trainer.precision) == 16:
+        elif self.trainer.precision in [16, '16', '16-mixed']:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
+            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
         self.online_encoding = cfg.conditioning.get("online_encoding", False)
         self.text_encoder_path = cfg.conditioning.get("encoder_path", None)
-        self.enable_autocast = (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16])
+
+    def get_module_list(self):
+        if isinstance(self.model, list):
+            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+        elif isinstance(self.model, Float16Module):
+            return [self.model.module]
+        else:
+            return [self.model]
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = Imagen(cfg=self.cfg)
+        model = Imagen(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
         return model
 
     def get_forward_output_and_loss_func(self):
@@ -328,6 +338,10 @@ class MegatronImagen(MegatronMultimodalModel):
         if not forward_only and self.with_distributed_adam:
             no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
 
+        # pipeline schedules will get these from self.model.config
+        for module in self.get_module_list():
+            module.config.no_sync_func = no_sync_func
+
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
@@ -339,12 +353,8 @@ class MegatronImagen(MegatronMultimodalModel):
             model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
-            no_sync_func=no_sync_func,
+            seq_length=None,
+            micro_batch_size=self.cfg.micro_batch_size,
         )
 
         # losses_reduced_per_micro_batch is a list of dictionaries
@@ -492,7 +502,7 @@ class MegatronImagen(MegatronMultimodalModel):
             f'Total number of model parameters: {total_num_parameters:.2e}.'
         )
 
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:

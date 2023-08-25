@@ -15,8 +15,7 @@
 
 
 try:
-    from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
-    from apex.transformer.layers.layer_norm import FastLayerNorm
+    from apex.transformer.layers.layer_norm import FastLayerNorm, MixedFusedLayerNorm
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

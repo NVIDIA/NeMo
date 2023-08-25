@@ -19,19 +19,20 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
+from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.loops.fetchers import _DataFetcher
+from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.fetching import DataFetcher
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -95,6 +96,23 @@ class NLPDDPStrategy(DDPStrategy):
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
+    def setup(self, trainer: "pl.Trainer") -> None:
+        """
+        Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang
+        due to assumption in DDPStrategy class that the same model is replicated across GPUs
+        """
+        trainer_fn = trainer.state.fn
+        if trainer_fn == TrainerFn.FITTING:
+            super().setup(trainer)
+        else:
+            assert self.accelerator is not None
+            self.accelerator.setup(trainer)
+
+            # move the model to the correct device
+            self.model_to_device()
+            self.setup_precision_plugin()
+            assert self.model is not None
+
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
         super().setup_distributed()
@@ -115,7 +133,7 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self._model = LightningDistributedModule(self.model)
+            self._model = _LightningModuleWrapperBase(self.model)
         else:
             app_state = AppState()
 
@@ -127,10 +145,12 @@ class NLPDDPStrategy(DDPStrategy):
                 # this means that data parallel groups span multiple GPUs
                 # and are non-trivial
                 # TODO: for megatron-lm self.model is a list
-                self.pre_configure_ddp()
+                # Removing self.pre_configure_ddp() as DDP's 'find_unused_parameters' now defaults
+                # to False in PTL 2.0 and hence pre_configure_ddp() is removed in ddp.py
+                # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
-                    LightningDistributedModule(self.model),
+                    _LightningModuleWrapperBase(self.model),
                     process_group=parallel_state.get_data_parallel_group(),
                     **self._ddp_kwargs,
                 )
@@ -362,6 +382,20 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
+        # Modify state key for Dreambooth inference
+        if (
+            conf.get('target')
+            == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+        ):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('unet', 'model.diffusion_model')
+                new_key = new_key.replace('vae', 'first_stage_model')
+                new_key = new_key.replace('text_encoder', 'cond_stage_model')
+                new_key = new_key.replace('.noise_scheduler', '')
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+
         return state_dict
 
     def restore_from(
@@ -511,7 +545,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         return instance
 
 
-class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
+class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
         We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
@@ -521,13 +555,17 @@ class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     """
 
     def __init__(
-        self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+        self,
+        precision: Literal["16-mixed", "bf16-mixed"],
+        device: str,
+        scaler: Optional[torch.cuda.amp.GradScaler] = None,
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
         dtype = None
-        if precision == 16:
+        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
+        if precision == '16-mixed':
             dtype = torch.float16
-        elif precision == 'bf16':
+        elif precision == 'bf16-mixed':
             dtype = torch.bfloat16
 
         torch.set_autocast_gpu_dtype(dtype)
@@ -714,7 +752,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
             self._hysteresis_tracker = 1
 
 
-class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
+class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
     """
     Plugin for Half (FP16 and BF16) precision training.
     This plugin assumes the use of the optimizer with master parameters (fp32).
@@ -732,9 +770,10 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
     ) -> None:
         super().__init__(precision, device, scaler)
         dtype = None
-        if precision == 16:
+        # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
+        if precision == "16-mixed":
             dtype = torch.float16
-        elif precision == 'bf16':
+        elif precision == "bf16-mixed":
             dtype = torch.bfloat16
 
         torch.set_autocast_gpu_dtype(dtype)
@@ -743,7 +782,6 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         self,
         optimizer: torch.optim.Optimizer,
         model: Union["pl.LightningModule", torch.nn.Module],
-        optimizer_idx: int,
         closure: Callable[[], Any],
         **kwargs: Any,
     ) -> None:
@@ -754,13 +792,9 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         if self.scaler is None:
             assert optimizer.fp32_grad_accumulation, "BF16 uses FP32 grad accumulation"
             _ = closure()
-            self._after_closure(model, optimizer, optimizer_idx)
+            self._after_closure(model, optimizer)
             return optimizer.step(**kwargs)
 
-        if isinstance(optimizer, torch.optim.LBFGS):
-            raise MisconfigurationException(
-                f"Native AMP and the LBFGS optimizer are not compatible (optimizer {optimizer_idx})."
-            )
         assert not optimizer.fp32_grad_accumulation, "FP16 uses FP16 grad accumulation"
         closure_result = closure()
 
@@ -771,7 +805,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         # `unscale` after the closure is executed but before the `on_before_optimizer_step` hook.
         # unscale main (fp32) gradients
         self.scaler.unscale_(optimizer)
-        self._after_closure(model, optimizer, optimizer_idx)
+        self._after_closure(model, optimizer)
         skipped_backward = closure_result is None
         # in manual optimization, the closure does not return a value
         if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
@@ -788,7 +822,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             pass
 
 
-class GlobalBatchDataFetcher(DataFetcher):
+class GlobalBatchDataFetcher(_DataFetcher):
     """ Overrides PTL DataFetcher. Used to fetch global batches."""
 
     def __init__(self, prefetch_batches: int = 0, store_on_device: bool = False) -> None:
