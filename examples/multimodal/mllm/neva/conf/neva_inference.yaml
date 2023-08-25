@@ -35,8 +35,8 @@ helpfulness: 6
 not_appropriate: 0
 
 # MORE THAN ONE INFERENCE IS NOT RUNNING PROPERLY NEED TO CHECK WHY SECOND IS OUTPUTING JUNK N
-prompt_file: /pwd/nemo_multimodal/sample.jsonl
-output_file: /pwd/nemo_multimodal/results.jsonl
+prompt_file: /pwd/nemo_experiments/input_prompts.jsonl
+output_file: /pwd/nemo_experiments/results.jsonl
 
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
