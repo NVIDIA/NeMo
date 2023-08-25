@@ -405,6 +405,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         output_key: str = 'output',
         end_string: Optional[str] = None,
         question_file: Optional[str] = None,
+        random_context_prob: Optional[float] = None,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -443,6 +444,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             index_by_file_id=index_by_file_id,
             max_num_samples=max_num_samples,
             question_file=question_file,
+            random_context_prob=random_context_prob,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
@@ -678,6 +680,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         output_key: str = 'output',
         end_string: Optional[str] = None,
         question_file: Optional[str] = None,
+        random_context_prob: Optional[float] = None,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -722,6 +725,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             max_duration=max_duration,
             index_by_file_id=True,
             question_file=question_file,
+            random_context_prob=random_context_prob,
         )
 
         self.len = self._compute_len()
@@ -925,6 +929,7 @@ def get_tarred_aqa_dataset(
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
             question_file=question_file,
+            random_context_prob=config.get('random_context_prob', None),
         )
 
         if bucketing_weights:
@@ -1086,6 +1091,7 @@ def get_aqa_dataset_from_config(
         output_key=config.get('output_key', 'output'),
         end_string=config.get('end_string', None),
         sample_alpha=config.get('sample_alpha', None),
+        random_context_prob=config.get('random_context_prob', None),
         question_file=question_file,
     )
     return dataset

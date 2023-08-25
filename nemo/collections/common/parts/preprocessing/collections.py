@@ -344,7 +344,14 @@ class AudioQuestAns(_Collection):
 class ALMAudioQA(AudioQuestAns):
     """`AudioQuestAns` collector from audio-LM json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], question_file: Optional[str] = None, *args, **kwargs):
+    def __init__(
+        self,
+        manifests_files: Union[str, List[str]],
+        question_file: Optional[str] = None,
+        random_context_prob=Optional[float],
+        *args,
+        **kwargs,
+    ):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -372,6 +379,8 @@ class ALMAudioQA(AudioQuestAns):
             print(f"Use random questions from {question_file} for {manifests_files}")
         else:
             self.random_questions = None
+        self.random_context_prob = random_context_prob
+        self.random_context = []
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -411,19 +420,6 @@ class ALMAudioQA(AudioQuestAns):
                 f"Manifest file {manifest_file} has invalid json line structure: {line} without proper duration key."
             )
 
-        # Question.
-        if 'question' in item:
-            pass
-        elif 'question_filepath' in item:
-            with open(item.pop('text_filepath'), 'r') as f:
-                item['question'] = f.read().replace('\n', '')
-        elif 'normalized_text' in item:
-            item['question'] = item['normalized_text']
-        elif self.random_questions is None:
-            item['question'] = "what does this audio mean"
-        else:
-            item['question'] = np.random.choice(self.random_questions).strip()
-
         # Answer.
         if 'answer' in item:
             pass
@@ -436,6 +432,27 @@ class ALMAudioQA(AudioQuestAns):
             item['answer'] = item['normalized_text']
         else:
             item['answer'] = ""
+
+        # Question.
+        if 'question' in item:
+            pass
+        elif 'question_filepath' in item:
+            with open(item.pop('text_filepath'), 'r') as f:
+                item['question'] = f.read().replace('\n', '')
+        elif 'normalized_text' in item:
+            item['question'] = item['normalized_text']
+        elif self.random_questions is None:
+            item['question'] = "what does this audio mean"
+        else:
+            question = np.random.choice(self.random_questions).strip()
+            if self.random_context_prob is not None:
+                if np.random.random() < self.random_context_prob:
+                    current_words = item['answer'].split()
+                    candidate_words = current_words + self.random_context
+                    context = f"Following words may occur in audio: {np.random.choice(candidate_words, 3)} "
+                    self.random_context = current_words
+                    question = context + question
+            item['question'] = question
 
         item = dict(
             audio_file=item['audio_file'],
