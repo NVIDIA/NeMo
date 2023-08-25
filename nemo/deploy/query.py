@@ -28,6 +28,7 @@ class NemoQuery:
 
     def query_llm(self, prompts, max_output_len=200, init_timeout=600.0):
         prompts = str_list2numpy(prompts)
+        max_output_len = np.full(prompts.shape, max_output_len, dtype=np.int_)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(prompts=prompts, max_output_len=max_output_len)
