@@ -206,6 +206,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             raise NotImplementedError("out_init_method should be zero, normal or xavier")
         return init_fn
+    
+    def unfreeze(self,):
+       """
+       Can be customized to allow for selective training of only some params in the PEFT.
+       """
+       super().unfreeze() 
 
     def forward(self, x):
 
