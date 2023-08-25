@@ -54,9 +54,12 @@ try:
     from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
 
     NLP_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
+except (ImportError, ModuleNotFoundError) as e:
     NLP_AVAILABLE = False
-    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
+    logging.warning("Could not import NeMo NLP collection which is required for speech translation model: {e}.")
+    import sys
+    import traceback
+    traceback.print_exc(file=sys.stderr)
 
 __all__ = ['EncDecTransfModelBPE']
 
