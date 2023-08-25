@@ -570,7 +570,7 @@ def check_resume(
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if resume_ignore_no_checkpoint:
                 warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
-                if checkpoint == None:
+                if checkpoint is None:
                     warn += "Training from scratch."
                 elif checkpoint == resume_from_checkpoint:
                     warn += f"Training from {resume_from_checkpoint}."
