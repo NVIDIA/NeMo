@@ -221,14 +221,17 @@ class NLPDDPStrategy(DDPStrategy):
 
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
 
-        optimizer_state_dict = optimizer.state_dict()
-
         model_sharded_state_dict = self.lightning_module.sharded_state_dict()
 
         # remove _extra_state
         model_sharded_state_dict = {
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
+
+        if not isinstance(optimizer, MainParamsOptimizerWrapper):
+            return optimizer.sharded_state_dict(model_sharded_state_dict)
+
+        optimizer_state_dict = optimizer.state_dict()
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict,
@@ -248,7 +251,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         optimizer_state_dict['fp32_from_fp16_params'] = [
             [
-                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_from_fp16')
+                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
                 for param_id, fp32_param in zip(state_group['params'], fp32_group)
             ]
             for fp32_group, state_group in zip(
