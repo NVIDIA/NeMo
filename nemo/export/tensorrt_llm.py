@@ -155,18 +155,21 @@ class TensorRTLLM(ITritonDeployable):
             quantization (bool): if True, applies naive quantization.
         """
 
-        if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
-            for files in os.listdir(self.model_dir):
-                path = os.path.join(self.model_dir, files)
-                try:
-                    shutil.rmtree(path)
-                except OSError:
-                    os.remove(path)
+        if Path(self.model_dir).exists():
+            if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
+                for files in os.listdir(self.model_dir):
+                    path = os.path.join(self.model_dir, files)
+                    try:
+                        shutil.rmtree(path)
+                    except OSError:
+                        os.remove(path)
 
-            if len(os.listdir(self.model_dir)) > 0:
-                raise Exception("Couldn't delete all files.")
-        elif len(os.listdir(self.model_dir)) > 0:
-            raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
+                if len(os.listdir(self.model_dir)) > 0:
+                    raise Exception("Couldn't delete all files.")
+            elif len(os.listdir(self.model_dir)) > 0:
+                raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
+        else:
+            Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         self.model = None
 
