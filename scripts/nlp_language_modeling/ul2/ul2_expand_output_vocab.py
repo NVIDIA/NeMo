@@ -16,7 +16,7 @@
 
 python ul2_expand_output_vocab.py \
     --nemo_file="" \  # The path to the NeMo model checkpoint
-    --tok_model="" \  # The prefix name of the tokenizer model inside of the NeMo model
+    --tok_model_suffix="" \  # The prefix name of the tokenizer model inside of the NeMo model
     --num_sentinel_tokens=2000 \
     --alpha=0.5 \  # Weighting factor for the sentinal tokens
     --out_file=""
