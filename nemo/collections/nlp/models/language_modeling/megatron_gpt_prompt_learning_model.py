@@ -188,7 +188,10 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             if not self.tokenizer.legacy:
-                self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
+                if self.tokenizer.pad_id != -1:
+                    self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.pad_id])[0]
+                else:
+                    self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
                 self.tokenizer.bos_token = self.tokenizer.ids_to_tokens([self.tokenizer.bos_id])[0]
                 self.tokenizer.eos_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
                 self.tokenizer.legacy = True
