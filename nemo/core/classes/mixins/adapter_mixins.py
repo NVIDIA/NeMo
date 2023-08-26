@@ -413,7 +413,7 @@ class AdapterModuleMixin(ABC):
                         module.adapter_layer[name].train()
 
                         # Recursively set grad required for submodules
-                        module.adapter_layer[name].unfreeze()
+                        module.adapter_layer[name].adapter_unfreeze()
 
                         # unfreeze batch norm if any in the adapter submodules
                         for mname, module_ in module.adapter_layer[name].named_modules():
