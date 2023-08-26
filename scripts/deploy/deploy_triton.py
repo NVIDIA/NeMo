@@ -85,8 +85,8 @@ def nemo_deploy(argv):
 
     if args.nemo_checkpoint is None and not os.path.isdir(args.trt_llm_folder):
         logging.error(
-            "The supplied trt_llm_folder is not already a valid TRT engine "
-            "directory. Please supply a --nemo_checkpoint."
+            "The provided trt_llm_folder is not a valid TensorRT-LLM model "
+            "directory. Please provide a --nemo_checkpoint."
         )
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)

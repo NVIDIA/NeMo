@@ -42,7 +42,7 @@ class TensorrtLLMWorkerContext:
 tensorrt_llm_worker_context = TensorrtLLMWorkerContext()
 
 
-def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, gpu_id=None):
+def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1):
     """The impl of `load` API for on a single GPU worker."""
     try:
         tensorrt_llm.logger.set_level("info")
@@ -73,14 +73,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir="/tmp/ammo", num_beams=1, g
 
         runtime_rank = tensorrt_llm.mpi_rank()
         runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank)
-        if gpu_id is not None:
-            if gpu_id < 0:
-                raise Exception("gpu_id should be a positive number")
-
-            torch.cuda.set_device(gpu_id)
-        else:
-            torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
-
+        torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
         engine_name = get_engine_name(MODEL_NAME, dtype, world_size, runtime_rank)
         serialize_path = os.path.join(engine_dir, engine_name)
 
@@ -202,7 +195,6 @@ def load(
     tokenizer: PreTrainedTokenizer,
     engine_dir: str = "/tmp/ammo",
     num_beams: int = 1,
-    gpu_id=None,
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
@@ -212,13 +204,9 @@ def load(
     with open(config_path, "r") as f:
         config = json.load(f)
 
-    if gpu_id is None:
-        tensor_parallel = config["builder_config"]["tensor_parallel"]
-    else:
-        tensor_parallel = 1
-
+    tensor_parallel = config["builder_config"]["tensor_parallel"]
     if tensor_parallel == 1:
-        _load(tokenizer, engine_dir, num_beams, gpu_id)
+        _load(tokenizer, engine_dir, num_beams)
         executor = None
     else:
         executor = MPIPoolExecutor(max_workers=tensor_parallel)
