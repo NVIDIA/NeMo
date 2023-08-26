@@ -821,10 +821,12 @@ class MegatronBaseModel(NLPModel):
         Check if we reached trainer.limit_val_batches, if so exhaust the iterator to raise a StopIteration and exit validation_step
         """
         if self._val_micro_batches_consumed == self.trainer.num_sanity_val_steps or self._val_micro_batches_consumed == self.trainer.limit_val_batches:
-            self._val_micro_batches_consumed=0
             try:
-                _ = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
+                element = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
+                # reinsert the element into the iterator
+                return itertools.chain([element], iterator), False
             except StopIteration:
-                return True
+                self._val_micro_batches_consumed=0
+                return iterator, True
         else:
-            return False
+            return iterator, False

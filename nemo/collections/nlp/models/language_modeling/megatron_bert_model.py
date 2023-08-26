@@ -421,7 +421,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def validation_step(self, dataloader_iter, batch_idx):
         # Check if iterator is exhausted
-        done = self._val_iterator_done(dataloader_iter)
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         prefix = "test" if self.trainer.testing else "val"

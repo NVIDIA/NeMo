@@ -718,7 +718,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         Shared code for validation and test step
         """
         # Check if iterator is exhausted
-        done = self._val_iterator_done(dataloader_iter)
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
 
