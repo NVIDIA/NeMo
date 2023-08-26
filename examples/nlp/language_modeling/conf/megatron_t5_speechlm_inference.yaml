@@ -86,7 +86,7 @@ model:
   data:
     train_ds: null
     validation_ds: null
-    test_ds: ["/Data/LibriTTS/inference_test.json"]
+    test_ds: ["/Data/LibriTTS/inference_unseen.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
