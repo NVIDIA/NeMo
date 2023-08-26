@@ -212,7 +212,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         """
         Can be customized to allow for selective training of only some params in the PEFT.
         """
-        super().adapter_unfreeze() 
+        super().adapter_unfreeze()
 
     def forward(self, x):
 
