@@ -607,9 +607,10 @@ def check_resume(
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
         files_to_move = []
-        for child in Path(log_dir).iterdir():
-            if child.is_file():
-                files_to_move.append(child)
+        if Path(log_dir).exists():
+            for child in Path(log_dir).iterdir():
+                if child.is_file():
+                    files_to_move.append(child)
 
         if len(files_to_move) > 0:
             # Move old files to a new folder
