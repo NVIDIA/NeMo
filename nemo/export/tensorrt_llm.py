@@ -76,7 +76,7 @@ class TensorRTLLM(ITritonDeployable):
         self.n_gpus = None
         self.config = None
 
-        if Path(self.model_dir).exist():
+        if Path(self.model_dir).exists():
             folders = os.listdir(self.model_dir)
             if len(folders) > 0:
                 try:
