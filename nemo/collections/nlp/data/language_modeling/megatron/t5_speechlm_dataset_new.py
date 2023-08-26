@@ -77,6 +77,7 @@ class T5SpeechLMDatasetNew(BasePromptLearningDataset):
         sup_data_path: Optional[Union[Path, str]] = None,
         speech_offset: Optional[int] = None,
         train_task: Optional[str] = None,
+        seq_pattern: Optional[str] = "parallel",
         **kwargs,
     ):
         """
@@ -113,6 +114,7 @@ class T5SpeechLMDatasetNew(BasePromptLearningDataset):
         self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
         self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
         self.speech_offset = speech_offset if speech_offset is not None else 3
+        self.seq_pattern = seq_pattern
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -203,6 +205,9 @@ class T5SpeechLMDatasetNew(BasePromptLearningDataset):
             if doc["answer_type"] == "SPEECH":
                 assert "answer_duration" in doc, f"answer_duration key not in document {doc}"
                 approx_answer_len = doc["answer_duration"] * 76
+                if self.seq_pattern == "delay_parallel":
+                    # In delay parallel, there is padding so add 8 frames
+                    approx_answer_len = approx_answer_len + 8
             else:
                 approx_answer_len = len(doc["answer"].split(' ')) + 3
 
@@ -354,6 +359,25 @@ class T5SpeechLMDatasetNew(BasePromptLearningDataset):
             dec_input, dec_input_len = self.list_to_tensor(dec_input, True)
             dec_labels, dec_labels_len = self.list_to_tensor(dec_labels, True)
             is_speech = True if doc["answer_type"] == "SPEECH" else False
+            if is_speech:
+                assert dec_input.dim() == 2 and dec_labels.dim() == 2
+                if self.seq_pattern == "delay_parallel":
+                    num_codebooks = dec_input.shape[0]
+                    dec_input_padded = torch.cat([torch.zeros_like(dec_input[:, 0:num_codebooks]), dec_input, torch.zeros_like(dec_input[:, 0:num_codebooks])], dim=1)
+                    dec_labels_padded = torch.cat([torch.zeros_like(dec_labels[:, 0:num_codebooks]), dec_labels, torch.zeros_like(dec_labels[:, 0:num_codebooks])], dim=1)
+                    dec_input_new = []
+                    dec_labels_new = []
+                    for _c in range(8):
+                        st = num_codebooks - _c
+                        et_decoder_input = dec_input_padded.shape[1] - _c
+                        et_decoder_labels = dec_labels_padded.shape[1] - _c
+                        dec_input_new.append(dec_input_padded[_c, st:et_decoder_input])
+                        dec_labels_new.append(dec_labels_padded[_c, st:et_decoder_labels])
+                    dec_input = torch.stack(dec_input_new, dim=0)
+                    dec_labels = torch.stack(dec_labels_new, dim=0)
+                    dec_input_len = torch.tensor(dec_input.shape[1]).long()
+                    dec_labels_len = torch.tensor(dec_labels.shape[1]).long()
+
 
             return (
                 taskname_id,
