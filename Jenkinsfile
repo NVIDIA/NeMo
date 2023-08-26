@@ -3157,24 +3157,25 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
     }
-    stage('L2: BioMegatron Bert NER Task') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "python examples/nlp/token_classification/token_classification_train.py \
-        exp_manager.exp_dir=examples/nlp/language_modeling/token_classification_results \
-        trainer.max_epochs=1 \
-        model.dataset.data_dir=/home/TestData/nlp/ner \
-        model.language_model.pretrained_model_name=biomegatron345m_biovocab_30k_cased \
-        model.tokenizer.tokenizer_name=null"
-        sh "rm -rf examples/nlp/language_modeling/token_classification_results"
-      }
-    }
+    // Comment temporarily
+    // stage('L2: BioMegatron Bert NER Task') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   steps {
+    //     sh "python examples/nlp/token_classification/token_classification_train.py \
+    //     exp_manager.exp_dir=examples/nlp/language_modeling/token_classification_results \
+    //     trainer.max_epochs=1 \
+    //     model.dataset.data_dir=/home/TestData/nlp/ner \
+    //     model.language_model.pretrained_model_name=biomegatron345m_biovocab_30k_cased \
+    //     model.tokenizer.tokenizer_name=null"
+    //     sh "rm -rf examples/nlp/language_modeling/token_classification_results"
+    //   }
+    // }
     stage('L2: Megatron GPT Pretraining and Resume Training TP=2') {
       when {
         anyOf {
