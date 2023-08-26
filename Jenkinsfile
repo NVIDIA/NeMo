@@ -1340,36 +1340,36 @@ pipeline {
 //         }
 //       }
 //     }
-    stage('L2: COPY') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
-          steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
-            python dialogue.py \
-            do_training=False \
-            model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
-            model.dataset.dialogues_example_dir=answer_extender \
-            model.library=huggingface \
-            model.dataset.task=ms_marco \
-            model.dataset.debug_mode=True \
-            trainer.val_check_interval=0.0 \
-            trainer.devices=[0] \
-            model.dataset.use_cache=false \
-            model.language_model.pretrained_model_name=gpt2 \
-            trainer.accelerator=gpu \
-            exp_manager=null  && \
-            rm -rf answer_extender'
-          }
-        }
-      }
-    }
+    // stage('L2: COPY') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
+    //       steps {
+    //         sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+    //         python dialogue.py \
+    //         do_training=False \
+    //         model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+    //         model.dataset.dialogues_example_dir=answer_extender \
+    //         model.library=huggingface \
+    //         model.dataset.task=ms_marco \
+    //         model.dataset.debug_mode=True \
+    //         trainer.val_check_interval=0.0 \
+    //         trainer.devices=[0] \
+    //         model.dataset.use_cache=false \
+    //         model.language_model.pretrained_model_name=gpt2 \
+    //         trainer.accelerator=gpu \
+    //         exp_manager=null  && \
+    //         rm -rf answer_extender'
+    //       }
+    //     }
+    //   }
+    // }
     stage('L2: Duplex Text Normalization') {
       when {
         anyOf {
