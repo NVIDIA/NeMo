@@ -58,8 +58,6 @@ class TensorRTLLM(ITritonDeployable):
         Args:
             model_dir (str): path for storing the TensorRT-LLM model files.
         """
-        if not Path(model_dir).is_dir():
-            raise Exception("A valid directory path should be provided.")
 
         self.model_dir = model_dir
         self.model = None
