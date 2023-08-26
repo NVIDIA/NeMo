@@ -27,7 +27,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
+import torch
 # mp.set_start_method("spawn", force=True)
 
 
@@ -78,7 +78,7 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     # load existing or init new soft prompt T5 model
-    if cfg.model.get("restore_path", None) is not None:
+    if cfg.model.get("restore_path", None) is not None and cfg.model.restore_path.endswith(".nemo"):
         print(f"cfg.model.restore_path {cfg.model.restore_path}")
         model = MegatronT5SpeechLMModel.restore_from(
             cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
@@ -87,6 +87,11 @@ def main(cfg) -> None:
     else:
         print(f"cfg.model.restore_path is None")
         model = MegatronT5SpeechLMModel(cfg.model, trainer=trainer)
+        if cfg.model.get("restore_path", None) is not None:
+            print("Loading state dict")
+            ckpt = torch.load(cfg.model.restore_path, map_location='cpu')
+            model.load_state_dict(ckpt['state_dict'], strict=False)
+            print("Loaded state dict")
 
     trainer.fit(model)
 

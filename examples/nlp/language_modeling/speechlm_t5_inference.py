@@ -84,7 +84,9 @@ def main(cfg) -> None:
     # checkpoint_path = "/Data/Experiments/Selene_Runs/NewDL_24000_AdamW-220M-unfreeze-tts_lr5e-5_nosched_posemb1536_FP32/p_tuning_squad_t5/2023-08-14_19-49-38_latest/checkpoints/Step89200.ckpt"
     # checkpoint_path = "/Data/Experiments/ComparisonBreakUnbreak/NoBreak/p_tuning_squad_t5/checkpoints/Step29k.ckpt"
     # checkpoint_path = "/Data/Experiments/ComparisonBreakUnbreak/WithBreak/p_tuning_squad_t5/checkpoints/Step82348.ckpt"
-    checkpoint_path = "/Data/Experiments/ComparisonBreakUnbreak/NoBreak/p_tuning_squad_t5/checkpoints/Step82k.ckpt"
+    # checkpoint_path = "/Data/Experiments/ComparisonBreakUnbreak/NoBreak/p_tuning_squad_t5/checkpoints/Step82k.ckpt"
+    # checkpoint_path = "/Data/Experiments/ComparisonBreakUnbreak/FromPretrainedDelayParallelLinearHead/Epoch10.ckpt"
+    checkpoint_path = "/Data/Experiments/ComparisonBreakUnbreak/DelayParallelLinearHead/Epoch10.ckpt"
     model = MegatronT5SpeechLMModel.load_from_checkpoint(
         checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model
     )

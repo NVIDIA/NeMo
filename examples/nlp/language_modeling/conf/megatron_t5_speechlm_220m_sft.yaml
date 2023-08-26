@@ -12,7 +12,7 @@ trainer:
   max_steps: 1000000
   log_every_n_steps: 10
   val_check_interval: null
-  check_val_every_n_epoch: 3
+  check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
   limit_val_batches: 25

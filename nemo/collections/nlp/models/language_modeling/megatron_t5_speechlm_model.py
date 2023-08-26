@@ -555,7 +555,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         
         metrics['loss_total_check'] = loss_total
         self.train(mode=mode)
-        self.frozen_model.eval()
+        self.frozen_model.train()
         return metrics
 
         
