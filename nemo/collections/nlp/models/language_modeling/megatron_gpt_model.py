@@ -124,9 +124,6 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         else:
             raise ValueError(f"precision: {model.cfg['precision']} is not supported.")
 
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_val_batches()
-
     def forward(self, tokens, position_ids, attention_mask):
         if self.fp8_enabled and HAVE_TE:
             with transformer_engine.pytorch.onnx_export(self.fp8_enabled), transformer_engine.pytorch.fp8_autocast(
@@ -291,6 +288,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
+
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        self._reconfigure_val_batches()
 
     def get_gpt_module_list(self):
         if isinstance(self.model, list):
