@@ -76,15 +76,16 @@ class TensorRTLLM(ITritonDeployable):
         self.n_gpus = None
         self.config = None
 
-        folders = os.listdir(self.model_dir)
-        if len(folders) > 0:
-            try:
-                self._load_config_file()
-                self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
-                self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
-                self._load_prompt_table()
-            except:
-                raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
+        if Path(self.model_dir).exist():
+            folders = os.listdir(self.model_dir)
+            if len(folders) > 0:
+                try:
+                    self._load_config_file()
+                    self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
+                    self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
+                    self._load_prompt_table()
+                except:
+                    raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
 
     def _load_prompt_table(self):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
