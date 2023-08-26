@@ -16,6 +16,7 @@ import json
 from functools import partial
 from typing import Any, Optional
 
+import sacrebleu
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -533,12 +534,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 if metric_name == 'bleu':
                     # TODO(zhehuai): confirm with Olexsii H on the bleu is correct
                     # _ = metric_fn(deduplicated_outputs['preds'], [[label] for label in labels])
-                    _ = metric_fn(deduplicated_outputs['preds'], [labels])
+                    # _ = metric_fn(deduplicated_outputs['preds'], [labels])
+                    metric_result = torch.Tensor(
+                        [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
+                    )
                 else:
                     for pred, label in zip(deduplicated_outputs['preds'], labels):
                         _ = metric_fn(pred, label)
 
-                metric_result = metric_fn.compute()
+                    metric_result = metric_fn.compute()
 
                 if metric_name == 'rouge':
                     for k, v in metric_result.items():
