@@ -822,7 +822,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             batch_sampler=batch_sampler,
             num_workers=self.cfg.data.num_workers,
             pin_memory=True,
-            persistent_workers=self.cfg.data.num_workers>0,
+            persistent_workers=self.cfg.data.num_workers > 0,
         )
 
     def setup(self, stage=None):
@@ -917,7 +917,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-        strategy_params: Optional[dict] = None
+        strategy_params: Optional[dict] = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
@@ -947,7 +947,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if length_params is None:
             length_params = get_default_length_params()
 
-        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **strategy_params)
+        return megatron_gpt_generate(
+            self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **strategy_params
+        )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()

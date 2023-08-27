@@ -255,7 +255,7 @@ class UGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         if self.model.cfg.get('attn_mask_type', 'causal') == 'padding' and not self.force_causal_attention_mask:
             for i, seq in enumerate(context_tokens):
                 prefix_len = torch.sum(seq < 0).item()
-                self.attention_mask[i][:, : prefix_len] = 1.0
+                self.attention_mask[i][:, :prefix_len] = 1.0
 
         self.attention_mask = self.attention_mask.unsqueeze(1) < 0.5
         position_ids = torch.arange(tokens.size(1), dtype=torch.long, device=tokens.device)

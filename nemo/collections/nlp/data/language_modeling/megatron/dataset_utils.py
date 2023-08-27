@@ -758,7 +758,7 @@ def get_dataset(
             prefix_lm_pivot_max=cfg.data.get("prefix_lm_pivot_max", 0.9),
             prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             sampling_probabilities={
-                'causal': float(cfg.data.get("causal_prob", 0.)),
+                'causal': float(cfg.data.get("causal_prob", 0.0)),
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
                 'ss-masking': cfg.data.get("ss_masking_prob", 0.),
@@ -809,7 +809,7 @@ def get_dataset(
             prefix_lm_pivot_min=cfg.data.get("prefix_lm_pivot_min", 0.8),
             prefix_lm_pivot_max=cfg.data.get("prefix_lm_pivot_max", 0.9),
             sampling_probabilities={
-                'causal': float(cfg.data.get("causal_prob", 0.)),
+                'causal': float(cfg.data.get("causal_prob", 0.0)),
                 'r-masking': cfg.data.get("r_masking_prob", 0.33),
                 's-masking': cfg.data.get("s_masking_prob", 0.33),
                 'ss-masking': cfg.data.get("ss_masking_prob", 0.),
