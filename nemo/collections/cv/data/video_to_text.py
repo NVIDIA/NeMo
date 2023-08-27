@@ -17,12 +17,12 @@ from nemo.utils.data_utils import datastore_path_to_webdataset_url, is_datastore
 
 
 def _speech_collate_fn(batch, pad_id):
-    """collate batch of audio sig, audio len, video sig, video len, tokens, tokens len
+    """collate batch of video sig, video len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
                LongTensor):  A tuple of tuples of signal, signal lengths,
                encoded tokens, and encoded tokens length.  This collate func
-               assumes the signals are 1d torch tensors (i.e. mono audio).
+               assumes the signals are 4d torch tensors (Time, Height, Width, Channels).
     """
     packed_batch = list(zip(*batch))
 
@@ -43,7 +43,7 @@ def _speech_collate_fn(batch, pad_id):
     # Max Token Len
     max_tokens_len = max(tokens_lengths).item()
 
-    audio_signal, video_signal, tokens = [], [], []
+    video_signal, tokens = [], []
     for b in batch:
 
         if len(b) == 5:
@@ -602,7 +602,7 @@ class _TarredVideoToTextDataset(IterableDataset):
         )
 
     def _filter(self, iterator):
-        """This function is used to remove samples that have been filtered out by ASRAudioText already.
+        """This function is used to remove samples that have been filtered out by ASRVideoText already.
         Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
         that was filtered out (e.g. for duration).
         Note that if using multi-GPU training, filtering may lead to an imbalance in samples in each shard,
@@ -719,9 +719,9 @@ class _TarredVideoToTextDataset(IterableDataset):
 
 class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
     """
-    A similar Dataset to the AudioToBPEDataset, but which loads tarred audio files.
+    A similar Dataset to the VideoToBPEDataset, but which loads tarred audio files.
 
-    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToBPEDataset),
+    Accepts a single comma-separated JSON manifest file (in the same style as for the VideoToBPEDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
     contain the information for one audio file, including at least the transcript and name of the audio
     file within the tarball.
