@@ -221,9 +221,10 @@ class TextGenerationStrategy:
             # the tokenizer. Ideally, we would simply use `tokenizer.text_to_ids(end_string)`, but some
             # tokenizers (e.g., SentencePiece) may prefix the special token with another token associated
             # to an empty string. The code below is thus meant to extract the special token associated to
-            # `end_string` (if it exists). Note that using "This is a sequence." as reference is arbitrary.
-            ids_ref = tokenizer.text_to_ids("This is a sequence.")
-            ids_with_end_string = tokenizer.text_to_ids(f"This is a sequence.{end_string}")
+            # `end_string` (if it exists). Note that we use "<extra_id_1>" as prefix string to have a low
+            # risk of the tokenizer merging it with `end_string`, but this is somewhat arbitrary.
+            ids_ref = tokenizer.text_to_ids("<extra_id_1>")
+            ids_with_end_string = tokenizer.text_to_ids(f"<extra_id_1>{end_string}")
             if len(ids_with_end_string) == len(ids_ref) + 1 and ids_with_end_string[:-1] == ids_ref:
                 # We can assume that the extra token is the one corresponding to `end_string`.
                 end_string_to_token[end_string] = ids_with_end_string[-1]
