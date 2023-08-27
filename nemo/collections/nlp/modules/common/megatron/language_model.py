@@ -81,6 +81,7 @@ def get_language_model(
     multi_query_attention=False,
     bias_dropout_add_fusion=True,
     bias=True,
+    output_layer_bias=False,
     gradient_accumulation_fusion=False,
     persist_layer_norm=False,
     openai_gelu=False,
@@ -146,6 +147,7 @@ def get_language_model(
         bias_activation_fusion=bias_activation_fusion,
         bias_dropout_add_fusion=bias_dropout_add_fusion,
         bias=bias,
+        output_layer_bias=output_layer_bias,
         rotary_percentage=rotary_percentage,
         share_embeddings_and_output_weights=share_embeddings_and_output_weights,
         masked_softmax_fusion=masked_softmax_fusion,
@@ -445,6 +447,7 @@ class TransformerLanguageModel(MegatronModule):
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         bias=True,
+        output_layer_bias=False,
         masked_softmax_fusion=True,
         activation='gelu',
         headscale=False,
@@ -625,7 +628,7 @@ class TransformerLanguageModel(MegatronModule):
                 self.output_layer = tensor_parallel.ColumnParallelLinear(
                     self.hidden_size,
                     self.vocab_size,
-                    bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
+                    bias=output_layer_bias,  # We can optionally add biases to balance distributions over the vocab.
                     init_method=self.init_method,
                 )
                 self._output_layer_key = 'output_layer'

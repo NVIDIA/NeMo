@@ -40,6 +40,7 @@ def post_language_model_processing(
     lm_output,
     labels,
     logit_weights,
+    logit_biases,
     get_key_value,
     parallel_output,
     forward_method_parallel_output,
@@ -62,6 +63,7 @@ def post_language_model_processing(
         logit_weights,
         parallel_output,
         sequence_parallel=sequence_parallel,
+        bias=logit_biases,
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
@@ -124,6 +126,7 @@ class GPTModel(MegatronModule):
         normalization='layernorm',
         layernorm_epsilon=1e-5,
         bias=True,
+        output_layer_bias=False,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
@@ -205,6 +208,7 @@ class GPTModel(MegatronModule):
             rotary_percentage=rotary_percentage,
             share_embeddings_and_output_weights=share_embeddings_and_output_weights,
             bias=bias,
+            output_layer_bias=output_layer_bias,
             bias_activation_fusion=bias_activation_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
@@ -278,6 +282,9 @@ class GPTModel(MegatronModule):
                 self.language_model.output_layer.weight
                 if not self.share_embeddings_and_output_weights
                 else self.word_embeddings_weight(),
+                self.language_model.output_layer.bias
+                if not self.share_embeddings_and_output_weights
+                else None,
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,

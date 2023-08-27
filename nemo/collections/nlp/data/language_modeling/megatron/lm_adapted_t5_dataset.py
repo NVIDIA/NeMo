@@ -67,10 +67,16 @@ class T5LMAdaptedDataset(GPTDataset):
         tokenizer,
         pivot_mean=0.25,
         pivot_distribution=LengthDistribution.uniform,
+        pivot_min=0,
+        pivot_max=1.,
         add_eos=False,
         add_bos_to_enc=False,
         debug=False,
     ):
+        """
+        pivot_min: min ratio of the pivot. Only effective when pivot_mean < 0 and using uniform distributions.
+        pivot_max: max ratio of the pivot. Only effective when pivot_mean < 0 and using uniform distributions.
+        """
         # get random split index
         if pivot_distribution == LengthDistribution.truncated_normal and (pivot_mean < 0.0 or pivot_mean > 1.0):
             raise ValueError(
@@ -82,7 +88,10 @@ class T5LMAdaptedDataset(GPTDataset):
         max_split_idx = min(len(sample) - 1, max_seq_length_encoder)
         loc = pivot_mean * max_split_idx
         if pivot_distribution == LengthDistribution.uniform:
-            split_idx = np_rng.randint(0, min(int(loc * 2), max_split_idx))
+            if pivot_mean < 0:
+                split_idx = np_rng.randint(int(max_split_idx*pivot_min), int(max_split_idx*pivot_max))
+            else:
+                split_idx = np_rng.randint(0, min(int(loc * 2), max_split_idx))
         elif pivot_distribution == LengthDistribution.truncated_normal:
             split_idx = np.clip(int(np_rng.normal(loc=loc, scale=np.sqrt(loc))), 0, max_split_idx)
         else:

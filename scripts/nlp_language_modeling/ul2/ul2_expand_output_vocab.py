@@ -16,10 +16,10 @@
 
 export PYTHONPATH="/lustre/fsw/portfolios/adlr/users/chzhu/sources/NeMo_sandeepsub_ul2:${PYTHONPATH}"
 python scripts/nlp_language_modeling/ul2/ul2_expand_output_vocab.py \
-    --nemo_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M.nemo" \
+    --nemo_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_converted_843m_tp1_pp1.nemo" \
     --num_sentinel_tokens=2000 \
-    --out_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_gpt_843M_extras_2000_proper.nemo" \
-    --alpha=0.5
+    --out_file="/lustre/fsw/portfolios/adlr/users/chzhu/checkpoints/megatron_converted_843m_tp1_pp1_ext_2000_with_bias.nemo" \
+    --alpha=1.0
 
 """
 
@@ -92,6 +92,7 @@ def update_model_config(tokenizer_cfg, config):
             continue
         else:
             config.tokenizer[key] = tokenizer_cfg[key]
+    config.output_layer_bias = True
     return config
 
 def build_tokenizer(args: argparse.Namespace, tok_model_path: str):
@@ -204,13 +205,85 @@ def expand_tensor(model_cfg, tokenizer, key, state_dict, alpha):
     return state_dict
 
 
+def expand_tensor_v2(model_cfg, tokenizer, key, state_dict, alpha, bias_key=None):
+    original_shape = state_dict[key].shape
+    original_vocab_size = original_shape[0]
+    print("Original shape :", original_shape)
+
+    # Use vocab size as final expansion dim
+    new_vocab_size = len(tokenizer.vocab)
+    print("New vocab size :", new_vocab_size)
+
+    # Add buffer of dummy tokens for divisibility of vocab tokens
+    divisible_by_val = model_cfg.get('make_vocab_size_divisible_by', 1)
+    if new_vocab_size % divisible_by_val != 0:
+        dummy_tokens = divisible_by_val - (new_vocab_size % divisible_by_val)
+        final_vocab_size = new_vocab_size + dummy_tokens
+        print("Adding Dummy Tokens :", dummy_tokens)
+    else:
+        final_vocab_size = new_vocab_size
+
+    # Final expanded shape
+    final_vocab_shape = [final_vocab_size, original_shape[1]]
+    new_shape = torch.Size(final_vocab_shape)
+    print("New shape :", new_shape)
+
+    # We will count the number of repeats and take the log at the end.
+    bias_vec = torch.ones([final_vocab_size], dtype=state_dict[key].dtype)
+
+    # Expand vocab
+    new_output_layer = torch.zeros(new_shape, dtype=state_dict[key].dtype)
+    new_output_layer[:original_vocab_size, :] = state_dict[key].clone()
+
+    # Copy scaled sentinal token weights to make the softmax divident roughly unchanged
+    first_extra_id = tokenizer.tokens_to_ids(['<extra_id_0>'])[0]
+
+    num_existing_extra_tokens = original_vocab_size - first_extra_id
+
+    new_output_layer[original_vocab_size-num_existing_extra_tokens:original_vocab_size] *= alpha
+
+    orig_eid_sidx = original_vocab_size-num_existing_extra_tokens
+    orig_eid_eidx = original_vocab_size
+    existing_embeddings = new_output_layer[orig_eid_sidx:orig_eid_eidx].clone()
+    num_repeats = (final_vocab_size - original_vocab_size) // num_existing_extra_tokens + 1
+    num_biases_vec = num_repeats * torch.ones([orig_eid_eidx-orig_eid_sidx], dtype=existing_embeddings.dtype)
+    remainder = (final_vocab_size - original_vocab_size) % num_existing_extra_tokens
+    # Adds one for the last few
+    num_biases_vec[-remainder:] += 1
+
+    # Set for the existing ones
+    bias_vec[orig_eid_sidx:orig_eid_eidx] = num_biases_vec
+
+
+    for i in range(0, final_vocab_size - original_vocab_size, num_existing_extra_tokens):
+        sidx = i + original_vocab_size
+        eidx = sidx + num_existing_extra_tokens
+        if new_output_layer[sidx:eidx].shape[0] == num_existing_extra_tokens:
+            new_output_layer[sidx:eidx] = existing_embeddings
+            bias_vec[sidx:eidx] = num_biases_vec
+        else:
+            # Last iteration with remainder.
+            remainder = (final_vocab_size - original_vocab_size) % num_existing_extra_tokens
+            new_output_layer[-remainder:] = existing_embeddings[-remainder:]
+            bias_vec[-remainder:] = num_biases_vec[-remainder:]
+
+    # Perform assertion that data was correctly copied.
+    assert torch.allclose(state_dict[key][:first_extra_id], new_output_layer[:first_extra_id])
+
+    # Inplace replacement
+    state_dict[key] = new_output_layer
+    if bias_key is not None:
+        state_dict[bias_key] = -torch.log(bias_vec)
+
+    return state_dict
+
+
 def process_model(args) -> str:
     connector = NLPSaveRestoreConnector()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Extract the model from the checkpoint
         connector._unpack_nemo_file(args.nemo_file, tmpdir)
-        import pdb; pdb.set_trace()
 
         # Load the model config
         config_path = os.path.join(tmpdir, connector.model_config_yaml)
@@ -271,6 +344,7 @@ def process_model(args) -> str:
                 # Get word embedding key
                 word_embedding_key = get_word_embedding_key(state_dict)
                 output_layer_key = get_output_layer_key(state_dict)
+                output_layer_bias_key = '.'.join(output_layer_key.split('.')[:-1] + ['bias'])
 
                 if input_embedding_size is None and word_embedding_key is not None:
                     input_embedding_size = state_dict[word_embedding_key].shape
@@ -293,9 +367,9 @@ def process_model(args) -> str:
                     print()
                     print(f"Found output layer weights ({output_layer_key}). Modifying...")
 
-                    state_dict = expand_tensor(
+                    state_dict = expand_tensor_v2(
                         model_cfg=config, tokenizer=tokenizer, key=output_layer_key,
-                        state_dict=state_dict, alpha=args.alpha
+                        state_dict=state_dict, alpha=args.alpha, bias_key=output_layer_bias_key
                     )
 
                 # Save the modified checkpoint inplace

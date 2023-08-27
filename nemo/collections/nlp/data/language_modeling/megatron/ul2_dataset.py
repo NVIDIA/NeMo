@@ -58,6 +58,8 @@ class UL2Dataset(T5Dataset):
         extreme_mean_ngram_size=64,
         prefix_lm_pivot_distribution=LengthDistribution.uniform,
         prefix_lm_pivot_mean=0.25,  # This is represented as a percentage of the total length.
+        prefix_lm_pivot_min=0,
+        prefix_lm_pivot_max=0,
         ngram_span_length_distribution=LengthDistribution.geometric,
         extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
         permutation=False,
@@ -70,6 +72,7 @@ class UL2Dataset(T5Dataset):
             'causal': 0,
             'r-masking': 0.33,  # T5-style masking with short spans and small probabilities.
             's-masking': 0.33,  # Prefix-LM with a pivot point sampled based on prefix_lm_pivot_mean
+            'ss-masking': 0,    # Prefix-LM with a pivot point leaning towards end of the sequence, similar to long sequence summarizaiton.
             'x-masking-longspan-smallprob': 0.11,  # Extreme span masking with small probabilities and large ngram sizes.
             'x-masking-longspan-largeprob': 0.11,  # Extreme span masking with large probabilities and small ngram sizes.
             'x-masking-shortspan-largeprob': 0.11,  # Extreme span masking with large probabilities and small ngram sizes.
@@ -150,6 +153,8 @@ class UL2Dataset(T5Dataset):
         self.ngram_span_length_distribution = ngram_span_length_distribution
         self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
+        self.prefix_lm_pivot_min = prefix_lm_pivot_min
+        self.prefix_lm_pivot_max = prefix_lm_pivot_max
         self.sampling_probabilities = sampling_probabilities
         self.prefix_lm_pivot_distribution = prefix_lm_pivot_distribution
 
@@ -157,6 +162,7 @@ class UL2Dataset(T5Dataset):
         self.causal_prob = sampling_probabilities['causal']
         self.r_masking_prob = sampling_probabilities['r-masking']
         self.s_masking_prob = sampling_probabilities['s-masking']
+        self.ss_masking_prob = sampling_probabilities['ss-masking']
         self.x_masking_prob = sum(
             [
                 sampling_probabilities['x-masking-longspan-smallprob'],
@@ -241,6 +247,8 @@ class UL2Dataset(T5Dataset):
         max_seq_length_decoder: int,
         tokenizer: TokenizerSpec,
         prefix_lm_pivot_mean: float,
+        prefix_lm_pivot_min: float,
+        prefix_lm_pivot_max: float,
         pivot_distribution: LengthDistribution,
         add_eos: bool = False,
         add_bos_to_enc: bool = False,
@@ -261,6 +269,8 @@ class UL2Dataset(T5Dataset):
             np_rng=np_rng,
             tokenizer=tokenizer,
             pivot_mean=prefix_lm_pivot_mean,
+            pivot_min=prefix_lm_pivot_min,
+            pivot_max=prefix_lm_pivot_max,
             pivot_distribution=pivot_distribution,
             add_eos=add_eos,
             add_bos_to_enc=add_bos_to_enc,
@@ -370,6 +380,7 @@ class UL2Dataset(T5Dataset):
                 'causal',
                 'r-masking',
                 's-masking',
+                'ss-masking',
                 'x-masking-longspan-smallprob',
                 'x-masking-longspan-largeprob',
                 'x-masking-shortspan-largeprob',
@@ -378,6 +389,7 @@ class UL2Dataset(T5Dataset):
                 self.causal_prob,
                 self.r_masking_prob,
                 self.s_masking_prob,
+                self.ss_masking_prob,
                 self.x_masking_longspan_smallprob,
                 self.x_masking_longspan_largeprob,
                 self.x_masking_shortspan_largeprob,
@@ -432,6 +444,8 @@ class UL2Dataset(T5Dataset):
                 max_seq_length_decoder=self.max_seq_length_dec,
                 tokenizer=self.tokenizer,
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
+                prefix_lm_pivot_min=0,
+                prefix_lm_pivot_max=1,
                 pivot_distribution=self.prefix_lm_pivot_distribution,
                 add_bos_to_enc=self.add_bos_to_enc,
                 debug=self.debug
@@ -439,6 +453,21 @@ class UL2Dataset(T5Dataset):
             example['masking_type'] = masking_type
 
             # self.print_and_break(example)
+        elif masking_type == 'ss-masking':
+            example = UL2Dataset.get_s_masking_training_sample(
+                sample=sample,
+                np_rng=np_rng,
+                max_seq_length_encoder=self.max_seq_length,
+                max_seq_length_decoder=self.max_seq_length_dec,
+                tokenizer=self.tokenizer,
+                prefix_lm_pivot_mean=-1,
+                prefix_lm_pivot_min=self.prefix_lm_pivot_min,
+                prefix_lm_pivot_max=self.prefix_lm_pivot_max,
+                pivot_distribution=self.prefix_lm_pivot_distribution,
+                add_bos_to_enc=self.add_bos_to_enc,
+                debug=self.debug
+            )
+            example['masking_type'] = masking_type
         else:
             # Try to minimize the amount of padding based on the masking type for GPT models.
             # if masking_type == 'x-masking-longspan-smallprob':
@@ -682,6 +711,8 @@ class UGPTDataset(UL2Dataset):
         extreme_mean_ngram_size=64,
         prefix_lm_pivot_distribution=LengthDistribution.uniform,
         prefix_lm_pivot_mean=0.25,  # This is represented as a percentage of the total length.
+        prefix_lm_pivot_min=0.8,
+        prefix_lm_pivot_max=0.9,
         ngram_span_length_distribution=LengthDistribution.geometric,
         extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
         permutation=False,
@@ -694,6 +725,7 @@ class UGPTDataset(UL2Dataset):
             'causal': 0,
             'r-masking': 0.33,  # T5-style masking with short spans and small probabilities.
             's-masking': 0.33,  # Prefix-LM with a pivot point sampled based on prefix_lm_pivot_mean
+            'ss-masking': 0.,
             'x-masking-longspan-smallprob': 0.11,  # Extreme span masking with small probabilities and large ngram sizes.
             'x-masking-longspan-largeprob': 0.11,  # Extreme span masking with large probabilities and small ngram sizes.
             'x-masking-shortspan-largeprob': 0.11,  # Extreme span masking with large probabilities and small ngram sizes.
@@ -772,6 +804,8 @@ class UGPTDataset(UL2Dataset):
             extreme_min_ngram_size=extreme_min_ngram_size,
             extreme_mean_ngram_size=extreme_mean_ngram_size,
             prefix_lm_pivot_mean=prefix_lm_pivot_mean,
+            prefix_lm_pivot_min=prefix_lm_pivot_min,
+            prefix_lm_pivot_max=prefix_lm_pivot_max,
             prefix_lm_pivot_distribution=prefix_lm_pivot_distribution,
             ngram_span_length_distribution=ngram_span_length_distribution,
             extreme_ngram_span_length_distribution=extreme_ngram_span_length_distribution,

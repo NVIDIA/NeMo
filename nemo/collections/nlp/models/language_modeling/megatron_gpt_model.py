@@ -206,6 +206,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
             bias=self.cfg.get('bias', True),
+            output_layer_bias=self.cfg.get('output_layer_bias', False),
             bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
             activation=self.cfg.get('activation', 'gelu'),
