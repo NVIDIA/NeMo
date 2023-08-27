@@ -246,7 +246,7 @@ def main(cfg) -> None:
     processed_example = dataset._process_example(
         {
             # 'inference_peft_weights': {'0': self.cfg["lora"]["lora_weights_path"],},
-            'input': "Context: In the earl...e ratings?",
+            'input': "Hello world",
             'output': '',
         },
     )
@@ -256,7 +256,7 @@ def main(cfg) -> None:
     # processed_example = dataset._process_example({'inference_peft_weights': {'0': '/workspaces/software/nemo_experiments/megatron_gpt_peft_tuning/checkpoints/model_weights.ckpt'}, 'input': 'Context: In the earl...e ratings?', 'output': 'ABC'})
     batch_input = dataset.collate_fn([processed_example])
     length_params: LengthParam = {
-        "max_length": 30,
+        "max_length": 200,
         "min_length": 1,
     }
     sampling_params: SamplingParam = {
@@ -283,6 +283,12 @@ def main(cfg) -> None:
     # }
     input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
     output = model.generate(input_tuple, length_params, sampling_params)
+    output = model.generate(input_tuple, length_params, sampling_params)
+    output = model.generate(input_tuple, length_params, sampling_params)
+    output = model.generate(input_tuple, length_params, sampling_params)
+    output = model.generate(input_tuple, length_params, sampling_params)
+    output = model.generate(input_tuple, length_params, sampling_params)
+
     # output = model.generate(["Hello world"], length_params)
     print(output)
 
