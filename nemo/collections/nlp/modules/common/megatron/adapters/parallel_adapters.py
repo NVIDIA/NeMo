@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
 class AdapterName(str, enum.Enum):
     """
-    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility. 
+    Names for adapters used in NLP Adapters and IA3. Note: changing this will break backward compatibility.
     """
 
     MLP_INFUSED = "mlp_infused_adapter"
@@ -67,10 +67,20 @@ class AdapterName(str, enum.Enum):
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
     IA3_ADAPTER = "MULTI.IA3_ADAPTER"
+    ATTN_ADAPTER = "MULTI.ATTN_ADAPTER"
+    ATTN_PTUNING_ADAPTER = "MULTI.ATTN_PTUNING_ADAPTER"
 
 
 class MultiAdaterName:
-    name_map = {"MULTI.IA3_ADAPTER": [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]}
+    name_map = {
+        "MULTI.IA3_ADAPTER": [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED],
+        "MULTI.ATTN_ADAPTER": [AdapterName.PRE_ATTN_ADAPTER, AdapterName.POST_ATTN_ADAPTER],
+        "MULTI.ATTN_PTUNING_ADAPTER": [
+            AdapterName.PRE_ATTN_ADAPTER,
+            AdapterName.POST_ATTN_ADAPTER,
+            AdapterName.PTUNING_ADAPTER,
+        ],
+    }
 
     @classmethod
     def get_adapter_names(cls, name_key):
@@ -105,7 +115,7 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
 class MLPInfusedAdapter(InfusedAdapter):
     """
     MLPInfusedAdapter is basically a clone of InfusedAdapter. We do this to make the adapter_mixin agnostic to adapter names
-    and only check adapter class types. 
+    and only check adapter class types.
     """
 
     pass
@@ -130,6 +140,47 @@ class IA3AdapterConfig(MultiAdaterConfig):
         infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
 
         super().__init__([infused_adapter_cfg] * 2 + [mlp_infused_adapter_cfg])
+
+
+class AttnAdapterConfig(MultiAdaterConfig):
+    def __init__(self, cfg):
+        adapter_tuning_cfg = cfg.peft.adapter_tuning
+        adapter_cfg = ParallelLinearAdapterConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=adapter_tuning_cfg.adapter_dim,
+            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
+            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
+            dropout=adapter_tuning_cfg.adapter_dropout,
+        )
+
+        super().__init__([adapter_cfg] * 2)
+
+
+class AttnPtuningAdapterConfig(MultiAdaterConfig):
+    def __init__(self, cfg):
+        ptuning_cfg = PromptEncoderAdapterConfig(
+            cfg.peft.p_tuning.virtual_tokens,
+            cfg.peft.p_tuning.bottleneck_dim,
+            cfg.peft.p_tuning.embedding_dim,
+            cfg.peft.p_tuning.init_std,
+            cfg.hidden_size,
+        )
+        adapter_tuning_cfg = cfg.peft.adapter_tuning
+        adapter_cfg = ParallelLinearAdapterConfig(
+            in_features=cfg.hidden_size,
+            out_features=cfg.hidden_size,
+            dim=adapter_tuning_cfg.adapter_dim,
+            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
+            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
+            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
+            dropout=adapter_tuning_cfg.adapter_dropout,
+        )
+
+        super().__init__([adapter_cfg] * 2 + [ptuning_cfg])
 
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
@@ -262,7 +313,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
 
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -271,7 +322,7 @@ class LoraKQVAdapter(ParallelLinearAdapter):
 
 class LoraKVAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -280,7 +331,7 @@ class LoraKVAdapter(ParallelLinearAdapter):
 
 class LoraQAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -304,7 +355,7 @@ class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
-    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
+    The Tensor Parallel MLP prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning. It only have two layers.
     TODO: (@adithyare) Need to add all the functionality from the PromptEncoder class
     """
@@ -325,7 +376,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             virtual_tokens: the  number of vitural tokens
             hidden_size: hidden dimension
             output_size:  the output dimension
-            init_std: the MLP init std value 
+            init_std: the MLP init std value
         """
         super().__init__()
         self.bottleneck_dim = bottleneck_dim
@@ -394,7 +445,7 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         return output_embeds
 
     def forward(self, batch_size: int, use_cached_reps: bool = False) -> torch.Tensor:
-        """ 
+        """
         Forward pass through the encoder with caching of prompt representations
         """
         if use_cached_reps:
@@ -563,7 +614,7 @@ class ParallelLinearAdapterWeightTyingConfig:
 
 class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
     """
-    TODO 
+    TODO
     """
 
     pass
