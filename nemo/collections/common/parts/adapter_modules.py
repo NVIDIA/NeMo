@@ -70,7 +70,7 @@ class AdapterModuleUtil(access_mixins.AccessMixin):
         for param in self.parameters():
             param.requires_grad_(True)
         self.train()
-    
+
     def adapter_freeze(self,):
         """
         Sets the requires grad for all parameters in the adapter to False.
