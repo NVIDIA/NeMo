@@ -16,10 +16,14 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import IA3AdapterConfig, AttnAdapterConfig, \
-    PtuningAdapterConfig, AttnPtuningAdapterConfig, LoraAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AttnAdapterConfig,
+    AttnPtuningAdapterConfig,
+    IA3AdapterConfig,
+    LoraAdapterConfig,
+    PtuningAdapterConfig,
+)
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -55,6 +59,7 @@ peft_config_map = {
     "adapter_and_ptuning": AttnPtuningAdapterConfig,
     "lora": LoraAdapterConfig,
 }
+
 
 def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
     """
