@@ -842,6 +842,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             }
             if not self.mcore_gpt:
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+            else:
+                # TODO: @eharper can we add this to mcore?
+                forward_args.pop('loss_mask')
             output_tensor = model(**forward_args)
 
             def loss_func(output_tensor):
