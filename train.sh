@@ -10,9 +10,9 @@ rm -rf nemo_experiments
 CUDA_LAUNCH_BLOCKING=1 python examples/nlp/language_modeling/megatron_t5_speechlm.py \
 --config-name=megatron_t5_speechlm_220m_sft.yaml \
 model.data.train_task="tts" \
-+model.freeze_model=False \
 model.data.max_seq_length=2048 \
-model.data.sup_data_path=/data/speech/LibriTTS2/FP_Codec_sup_24khz \
+model.data.sup_data_path=/data/speech/speechlm_codec_sup_24khz \
++init_from_ptl_ckpt=/data/SpeechLM/pretrained/SeqLen1536_MaskProb0.5_MaskLen6_4Nodes/Step60k.ckpt \
 model.language_model_path=/data/megatron_t5_220m/tp1_pp1/megatron_t5_expanded_vocab_posemb.nemo > debug.log
 
 
