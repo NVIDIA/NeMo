@@ -820,8 +820,8 @@ class MegatronBaseModel(NLPModel):
         """
         try:
             element = next(iterator)
-            # reinsert the element back to the iterator
-            return itertools.chain([element], iterator), False
         except StopIteration:
             return iterator, True
+        # reinsert the element back to the iterator
+        return itertools.chain([element], iterator), False
       
