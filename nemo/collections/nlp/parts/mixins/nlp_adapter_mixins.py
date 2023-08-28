@@ -19,16 +19,13 @@ from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    MultiAdaterName,
     PromptEncoderAdapterConfig,
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins.adapter_mixins import (
-    AdapterConfig,
     AdapterModelPTMixin,
     AdapterModuleMixin,
-    MultiAdaterConfig,
+    AdapterNameConfig,
     _prepare_default_adapter_config,
 )
 from nemo.utils import logging, logging_mode, model_utils
@@ -65,27 +62,9 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
-    @classmethod
-    def _unwrap_names_and_cfgs(
-        cls, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]
-    ):
-        if not isinstance(names, List):
-            if names.startswith("MULTI."):
-                names = MultiAdaterName.get_adapter_names(names)
-            else:
-                names = [names]
-        if isinstance(cfgs, MultiAdaterConfig):
-            cfgs = cfgs.list()
-        elif not isinstance(cfgs, List):
-            cfgs = [cfgs]
-        assert len(names) == len(cfgs), f"Lengths of `names` ({len(names)}) and `cfgs` ({len(cfgs)}) do not match."
-        return names, cfgs
-
     def add_adapters(
         self,
-        names: Union[AdapterName, List[AdapterName]],
-        cfgs: Union[AdapterConfig, List[AdapterConfig]],
-        layer_selection: Optional[List] = None,
+        name_cfgs: AdapterNameConfig,
     ):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
@@ -102,15 +81,13 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                 if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                     module.add_adapter(name=peft_name, cfg=peft_cfg)
 
-        if layer_selection is None:
-            layer_selection = list(range(1, self.cfg.num_layers + 1))
+        layer_selection = name_cfgs.layer_selection
 
-        names, cfgs = self._unwrap_names_and_cfgs(names, cfgs)
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-        for peft_name, peft_cfg in zip(names, cfgs):
+        for peft_name, peft_cfg in name_cfgs.get_config_dict().items():
             # hasattr(self, "model") means is GPT and not T5
             if hasattr(self, "model") and not isinstance(peft_cfg, PromptEncoderAdapterConfig):
                 if layer_selection is not None:
@@ -155,28 +132,33 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
 
-    @classmethod
-    def restore_from_nemo_with_adapter(
-        cls,
-        restore_path: str,
-        adapter_names: Union[AdapterName, List[AdapterName]],
-        adapter_cfgs: Union[AdapterConfig, List[AdapterConfig]],
-        strict: bool = True,
-        map_location: Optional[torch.device] = None,
-        trainer: Optional[Trainer] = None,
-    ):
-        adapter_names, adapter_cfgs = cls._unwrap_names_and_cfgs(adapter_names, adapter_cfgs)
-        save_restore_connector = NLPSaveRestoreConnector()
+    def get_adapter_state_dict(self):
+        """
+        Gets the keys associated with the adapters only.
+        """
+        state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
+        adapter_state_dict = {}
+        for k in self.adapter_keys:
+            # state_dict keys needs to be in non-O2 format
+            new_k = k.replace("model.module.", "model.", 1)
+            adapter_state_dict[new_k] = state_dict[k]
+        return adapter_state_dict
 
-        cls.update_save_restore_connector(save_restore_connector)
-        conf, instance, state_dict = save_restore_connector.load_config_and_state_dict(
-            cls, restore_path=restore_path, map_location=map_location, trainer=trainer
-        )
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        if self.setup_complete:
+            # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
+            return self.get_adapter_state_dict()
+        else:
+            return super().state_dict(destination, prefix, keep_vars)
 
-        instance.add_adapters(adapter_names, adapter_cfgs)
-
-        state_dict = save_restore_connector.modify_state_dict(conf, state_dict)
-        save_restore_connector.load_instance_with_state_dict(instance, state_dict, strict)
-        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
-
-        return instance
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if self.setup_complete:
+            # at this stage only adapter params will appear in the state_dict arg
+            # so we only update those while the rest of the model is frozen.
+            # setting strict=False will ignore the missing keys (which are not being updated anyway)
+            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
+            # safety in strict=True anymore.
+            assert set(state_dict.keys()) == self.adapter_keys
+            super().load_state_dict(state_dict, strict=False)
+        else:
+            super().load_state_dict(state_dict, strict=True)

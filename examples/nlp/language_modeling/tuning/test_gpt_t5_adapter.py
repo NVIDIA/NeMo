@@ -12,6 +12,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
+    AttnAdapterConfig,
+    AttnPtuningAdapterConfig,
     IA3AdapterConfig,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
@@ -75,70 +77,6 @@ def validate_checkpoint_loading_args(cfg):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
 
-def generate_lora_config(cfg):
-    peft_name_keys = [AdapterName.LORA_KQV_ADAPTER]
-    lora_cfg = cfg.peft.lora_tuning
-
-    if cfg.get("kv_channels", None) is None:
-        assert (
-            cfg.hidden_size % cfg.num_attention_heads == 0
-        ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-        kv_channels = cfg.hidden_size // cfg.num_attention_heads
-    else:
-        kv_channels = cfg.kv_channels
-
-    projection_size = kv_channels * cfg.num_attention_heads
-    adapter_cfg = LoraKQVAdapterConfig(
-        in_features=cfg.hidden_size,
-        out_features=3 * projection_size,
-        dim=lora_cfg.adapter_dim,
-        norm_position="none",
-        norm_type="none",
-        activation="identity",
-        column_init_method=lora_cfg.get("column_init_method", "normal"),
-        row_init_method=lora_cfg.get("row_init_method", "zero"),
-        gather_output=False,
-        dropout=lora_cfg.adapter_dropout,
-    )
-
-    return peft_name_keys, adapter_cfg
-
-
-def generate_ptuning_config(cfg):
-    peft_name_keys = [AdapterName.PTUNING_ADAPTER]
-
-    adapter_cfg = PromptEncoderAdapterConfig(
-        cfg.peft.p_tuning.virtual_tokens,
-        cfg.peft.p_tuning.bottleneck_dim,
-        cfg.peft.p_tuning.embedding_dim,
-        cfg.peft.p_tuning.init_std,
-        cfg.hidden_size,
-    )
-
-    return peft_name_keys, adapter_cfg
-
-
-def generate_ia3_config(cfg):
-    peft_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
-
-    mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
-        in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
-    )
-    infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
-
-    adapter_cfgs = [infused_adapter_cfg] * 2 + [mlp_infused_adapter_cfg]
-
-    return peft_name_keys, adapter_cfgs
-
-
-def generate_new_ia3_config(cfg):
-    peft_name_keys = AdapterName.IA3_ADAPTER
-
-    adapter_cfgs = IA3AdapterConfig(cfg)
-
-    return peft_name_keys, adapter_cfgs
-
-
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_tuning_config")
 def main(cfg) -> None:
     # for T5, use config name `megatron_t5_peft_tuning_config`
@@ -175,30 +113,20 @@ def main(cfg) -> None:
             restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
         )
 
-        peft_name_keys, adapter_cfg = generate_new_ia3_config(base_model_cfg)
-        model.add_adapters(peft_name_keys, adapter_cfg, layer_selection=[1, 12])
+        adapter_cfg = IA3AdapterConfig(base_model_cfg)
+        model.add_adapters(adapter_cfg)
         trainer.fit(model)
 
         ckpt_dir = os.path.join(trainer._default_root_dir, "checkpoints")
-        adapter_path = os.path.join(ckpt_dir, "adapter.ckpt")
-
-        model.save_adapters(adapter_path)
 
         ckpt_path = os.path.join(ckpt_dir, f"{cfg.name}.nemo")
-        model2 = FTModel.restore_from_nemo_with_adapter(
-            restore_path=ckpt_path, adapter_names=peft_name_keys, adapter_cfgs=adapter_cfg, trainer=trainer,
+
+        model2 = FTModel.restore_from(
+            restore_path=ckpt_path, trainer=trainer, override_config_path=base_model_cfg,
         )
         model2_state = str(model2.state_dict())
 
-        model = FTModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
-        )
-        model.add_adapters(peft_name_keys, adapter_cfg, layer_selection=[1, 12])
-
-        print("Compare state before loading adapter:", str(model.state_dict()) == model2_state)
-        model.load_adapters(adapter_path)
         print("Compare state after loading adapter:", str(model.state_dict()) == model2_state)
-
 
 if __name__ == '__main__':
     main()

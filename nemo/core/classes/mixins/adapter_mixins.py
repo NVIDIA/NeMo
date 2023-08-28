@@ -15,7 +15,7 @@
 import inspect
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Set, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union, Dict
 
 import torch
 import torch.nn as nn
@@ -47,13 +47,17 @@ class AdapterConfig:
     pass
 
 
-class MultiAdaterConfig(AdapterConfig):
-    # superclass for multi adapter config
-    def __init__(self, cfgs: List):
-        self.cfgs = cfgs
+class AdapterNameConfig:
+    # superclass for adapter name and config
+    def __init__(self, cfg: DictConfig, name_key_to_cfg: Dict):
+        self.name_key_to_cfg = name_key_to_cfg
 
-    def list(self):
-        return self.cfgs
+        self.layer_selection = cfg.get("layer_selection", None)
+        if self.layer_selection is None:
+            self.layer_selection = list(range(1, cfg.num_layers + 1))
+
+    def get_config_dict(self):
+        return self.name_key_to_cfg
 
 
 def register_adapter(base_class: type, adapter_class: type):
