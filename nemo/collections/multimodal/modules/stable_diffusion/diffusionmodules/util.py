@@ -222,7 +222,7 @@ def normalization(in_channels, act="", gn_groups=32):
             raise ValueError(f"Unknown activation {act}")
 
         gn = nn.GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True)
-        return nn.Sequential(act, gn)
+        return nn.Sequential(gn, act)
     else:
         return GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True, act=act)
 
