@@ -3189,7 +3189,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
-        trainer.limit_val_batches=1 \
+        trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
         trainer.precision=16 \
@@ -4652,7 +4652,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
-        trainer.limit_val_batches=1 \
+        trainer.limit_val_batches=5 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
         trainer.precision=16 \
@@ -4838,7 +4838,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
           steps {
             sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.max_steps=10 \
-            trainer.limit_val_batches=1 \
+            trainer.limit_val_batches=7 \
             trainer.val_check_interval=10 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
             model.data.data_impl=mock \
@@ -4851,7 +4851,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
           steps {
             sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.max_steps=10 \
-            trainer.limit_val_batches=1 \
+            trainer.limit_val_batches=3 \
             trainer.val_check_interval=10 \
             exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
             model.data.data_impl=mock \
