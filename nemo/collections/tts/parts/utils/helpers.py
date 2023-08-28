@@ -528,6 +528,7 @@ def save_figure_to_numpy(fig):
     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     return data
 
+
 def plot_encodec_to_numpy(encodec, title=''):
     fig, ax = plt.subplots(figsize=(10, 3))
     sns.heatmap(encodec, ax=ax)

@@ -363,8 +363,22 @@ class T5SpeechLMDatasetNew(BasePromptLearningDataset):
                 assert dec_input.dim() == 2 and dec_labels.dim() == 2
                 if self.seq_pattern == "delay_parallel":
                     num_codebooks = dec_input.shape[0]
-                    dec_input_padded = torch.cat([torch.zeros_like(dec_input[:, 0:num_codebooks]), dec_input, torch.zeros_like(dec_input[:, 0:num_codebooks])], dim=1)
-                    dec_labels_padded = torch.cat([torch.zeros_like(dec_labels[:, 0:num_codebooks]), dec_labels, torch.zeros_like(dec_labels[:, 0:num_codebooks])], dim=1)
+                    dec_input_padded = torch.cat(
+                        [
+                            torch.zeros_like(dec_input[:, 0:num_codebooks]),
+                            dec_input,
+                            torch.zeros_like(dec_input[:, 0:num_codebooks]),
+                        ],
+                        dim=1,
+                    )
+                    dec_labels_padded = torch.cat(
+                        [
+                            torch.zeros_like(dec_labels[:, 0:num_codebooks]),
+                            dec_labels,
+                            torch.zeros_like(dec_labels[:, 0:num_codebooks]),
+                        ],
+                        dim=1,
+                    )
                     dec_input_new = []
                     dec_labels_new = []
                     for _c in range(8):
@@ -377,7 +391,6 @@ class T5SpeechLMDatasetNew(BasePromptLearningDataset):
                     dec_labels = torch.stack(dec_labels_new, dim=0)
                     dec_input_len = torch.tensor(dec_input.shape[1]).long()
                     dec_labels_len = torch.tensor(dec_labels.shape[1]).long()
-
 
             return (
                 taskname_id,

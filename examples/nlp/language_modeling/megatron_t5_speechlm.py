@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -27,7 +28,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-import torch
+
 # mp.set_start_method("spawn", force=True)
 
 

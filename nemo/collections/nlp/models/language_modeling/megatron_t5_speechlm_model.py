@@ -37,8 +37,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import AppState, logging
 from nemo.collections.tts.parts.utils.helpers import plot_encodec_to_numpy
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
@@ -301,7 +301,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             output_tokens = output_tokens_new
 
         return output_tokens
-    
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
@@ -365,7 +365,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                             other_layer_tokens.append(speech_logits_example[:, :, _i].argmax(dim=1))
 
                         all_layer_tokens = torch.stack([first_layer_tokens] + other_layer_tokens)  # (8, t)
-                        all_layer_tokens = self.convert_tokens_to_range(all_layer_tokens, apply_offset_correction=False)
+                        all_layer_tokens = self.convert_tokens_to_range(
+                            all_layer_tokens, apply_offset_correction=False
+                        )
                         all_layer_tokens = torch.clip(all_layer_tokens, 0, 1023)
                         predicted_wav = self.additional_models['encodec'].decode([[all_layer_tokens[None], None]])[
                             0, 0
@@ -481,8 +483,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         for tokens in token_list:
             embedding_list.append(self.get_embeddings(tokens, taskname_ids, inference))
         return torch.cat(embedding_list, dim=1)
-    
-    
+
     def validation_step(self, batch, batch_idx, inference=False):
         (
             virtual_tokens,
@@ -503,34 +504,38 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.eval()
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(virtual_tokens.size(0), gbs)
-        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True) #comment this out and add custom forward function to calculate WER
+        loss_mean = self.fwd_bwd_step(
+            itertools.chain([batch]), batch_idx, forward_only=True
+        )  # comment this out and add custom forward function to calculate WER
         # print (f'loss_mean {loss_mean}')
 
-        labels_original = labels.clone() # (b, 8, t)
+        labels_original = labels.clone()  # (b, 8, t)
         output_loss, encoder_input, output_logits = self.forward(
-                    virtual_tokens,
-                    context_and_question_tokens,
-                    enc_mask,
-                    dec_input,
-                    dec_input_mask,
-                    position_ids,
-                    taskname_ids,
-                    labels=labels,
-                    speech_mask=speech_mask,
-                    inference=True,
-                )
-        first_layer_logits, speech_logits = output_logits #first_layer_logits: (t,bs,vocab_size)
-        first_layer_preds = first_layer_logits.argmax(dim=2)  #(t,bs)
-        first_layer_preds = first_layer_preds.transpose(0,1) #(bs,t)
-        labels_first_layer = labels_original[:,0,:] #(bs,t)
-        correct_predictions = first_layer_preds == labels_first_layer #(bs,t)
-        correct_predictions = correct_predictions * loss_mask #(bs,t)
-        total_correct_predictions = torch.sum(correct_predictions) 
+            virtual_tokens,
+            context_and_question_tokens,
+            enc_mask,
+            dec_input,
+            dec_input_mask,
+            position_ids,
+            taskname_ids,
+            labels=labels,
+            speech_mask=speech_mask,
+            inference=True,
+        )
+        first_layer_logits, speech_logits = output_logits  # first_layer_logits: (t,bs,vocab_size)
+        first_layer_preds = first_layer_logits.argmax(dim=2)  # (t,bs)
+        first_layer_preds = first_layer_preds.transpose(0, 1)  # (bs,t)
+        labels_first_layer = labels_original[:, 0, :]  # (bs,t)
+        correct_predictions = first_layer_preds == labels_first_layer  # (bs,t)
+        correct_predictions = correct_predictions * loss_mask  # (bs,t)
+        total_correct_predictions = torch.sum(correct_predictions)
         total_predictions = torch.sum(loss_mask)
-        first_layer_accuracy = total_correct_predictions/total_predictions
-        first_layer_loss = torch.nn.functional.cross_entropy(first_layer_logits.permute(1, 2, 0), labels_first_layer, reduction='none') #(bs,t)
+        first_layer_accuracy = total_correct_predictions / total_predictions
+        first_layer_loss = torch.nn.functional.cross_entropy(
+            first_layer_logits.permute(1, 2, 0), labels_first_layer, reduction='none'
+        )  # (bs,t)
         first_layer_loss = torch.sum(first_layer_loss * loss_mask) / total_predictions
-        
+
         metrics = {
             'loss': loss_mean,
             'first_layer_accuracy': first_layer_accuracy,
@@ -538,27 +543,27 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         }
         loss_total = first_layer_loss
         for i in range(7):
-            speech_logits_i = speech_logits[:,:,:,i]
-            speech_preds_i = speech_logits_i.argmax(dim=2) #(t,bs)
-            speech_preds_i = speech_preds_i.transpose(0,1) #(bs,t)
-            labels_i = labels_original[:,i+1,:] #(bs,t)
-            correct_predictions_i = speech_preds_i == labels_i #(bs,t)
-            correct_predictions_i = correct_predictions_i * loss_mask * speech_mask #(bs,t)
+            speech_logits_i = speech_logits[:, :, :, i]
+            speech_preds_i = speech_logits_i.argmax(dim=2)  # (t,bs)
+            speech_preds_i = speech_preds_i.transpose(0, 1)  # (bs,t)
+            labels_i = labels_original[:, i + 1, :]  # (bs,t)
+            correct_predictions_i = speech_preds_i == labels_i  # (bs,t)
+            correct_predictions_i = correct_predictions_i * loss_mask * speech_mask  # (bs,t)
             total_correct_predictions_i = torch.sum(correct_predictions_i)
-            total_predictions_i = torch.sum(loss_mask*speech_mask)
-            speech_accuracy_i = total_correct_predictions_i/total_predictions_i
-            loss_i = torch.nn.functional.cross_entropy(speech_logits_i.permute(1, 2, 0), labels_i, reduction='none') #(bs,t)
+            total_predictions_i = torch.sum(loss_mask * speech_mask)
+            speech_accuracy_i = total_correct_predictions_i / total_predictions_i
+            loss_i = torch.nn.functional.cross_entropy(
+                speech_logits_i.permute(1, 2, 0), labels_i, reduction='none'
+            )  # (bs,t)
             loss_i = torch.sum(loss_i * loss_mask * speech_mask) / total_predictions_i
             metrics[f'speech_accuracy_{i+1}'] = speech_accuracy_i
             metrics[f'speech_loss_{i+1}'] = loss_i
             loss_total += loss_i
-        
+
         metrics['loss_total_check'] = loss_total
         self.train(mode=mode)
         self.frozen_model.train()
         return metrics
-
-        
 
     def validation_epoch_end(self, outputs):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -568,29 +573,42 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 averaged_loss_total_check = torch.stack([item['loss_total_check'] for item in outputs]).mean()
                 averaged_first_layer_accuracy = torch.stack([item['first_layer_accuracy'] for item in outputs]).mean()
 
-                self.log('val_first_layer_accuracy', averaged_first_layer_accuracy, prog_bar=True, rank_zero_only=True, batch_size=1)
-                self.log('val_loss_total_check', averaged_loss_total_check, prog_bar=True, rank_zero_only=True, batch_size=1)
+                self.log(
+                    'val_first_layer_accuracy',
+                    averaged_first_layer_accuracy,
+                    prog_bar=True,
+                    rank_zero_only=True,
+                    batch_size=1,
+                )
+                self.log(
+                    'val_loss_total_check', averaged_loss_total_check, prog_bar=True, rank_zero_only=True, batch_size=1
+                )
                 logging.info(f'Validation first_layer_accuracy: {averaged_first_layer_accuracy}')
                 logging.info(f'Validation loss_total_check: {averaged_loss_total_check}')
-                
-                for i in range(1,8):
+
+                for i in range(1, 8):
                     averaged_speech_accuracy = torch.stack([item[f'speech_accuracy_{i}'] for item in outputs]).mean()
                     averaged_speech_loss = torch.stack([item[f'speech_loss_{i}'] for item in outputs]).mean()
-                    self.log(f'val_speech_accuracy_{i}', averaged_speech_accuracy, prog_bar=True, rank_zero_only=True, batch_size=1)
-                    self.log(f'val_speech_loss_{i}', averaged_speech_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+                    self.log(
+                        f'val_speech_accuracy_{i}',
+                        averaged_speech_accuracy,
+                        prog_bar=True,
+                        rank_zero_only=True,
+                        batch_size=1,
+                    )
+                    self.log(
+                        f'val_speech_loss_{i}', averaged_speech_loss, prog_bar=True, rank_zero_only=True, batch_size=1
+                    )
                     logging.info(f'Validation speech_accuracy_{i}: {averaged_speech_accuracy}')
                     logging.info(f'Validation speech_loss_{i}: {averaged_speech_loss}')
             else:
                 averaged_loss = torch.tensor(0.0).cuda()
-
 
             # we can only log on one rank if it is rank zero so we broadcast from last rank
             torch.distributed.broadcast(averaged_loss, get_last_rank())
 
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
             logging.info(f'Validation loss: {averaged_loss}')
-            
-        
 
         else:
             if len(outputs) > 0:
@@ -598,21 +616,35 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 averaged_loss_total_check = torch.stack([item['loss_total_check'] for item in outputs]).mean()
                 logging.info(f'Validation loss: {averaged_loss}')
                 self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-                self.log('val_loss_total_check', averaged_loss_total_check, prog_bar=True, rank_zero_only=True, batch_size=1)
+                self.log(
+                    'val_loss_total_check', averaged_loss_total_check, prog_bar=True, rank_zero_only=True, batch_size=1
+                )
 
                 averaged_first_layer_accuracy = torch.stack([item['first_layer_accuracy'] for item in outputs]).mean()
                 logging.info(f'Validation first_layer_accuracy: {averaged_first_layer_accuracy}')
-                self.log('val_first_layer_accuracy', averaged_first_layer_accuracy, prog_bar=True, rank_zero_only=True, batch_size=1)
+                self.log(
+                    'val_first_layer_accuracy',
+                    averaged_first_layer_accuracy,
+                    prog_bar=True,
+                    rank_zero_only=True,
+                    batch_size=1,
+                )
 
-                
-                for i in range(1,8):
+                for i in range(1, 8):
                     averaged_speech_accuracy = torch.stack([item[f'speech_accuracy_{i}'] for item in outputs]).mean()
                     averaged_speech_loss = torch.stack([item[f'speech_loss_{i}'] for item in outputs]).mean()
                     logging.info(f'Validation speech_accuracy_{i}: {averaged_speech_accuracy}')
                     logging.info(f'Validation speech_loss_{i}: {averaged_speech_loss}')
-                    self.log(f'val_speech_accuracy_{i}', averaged_speech_accuracy, prog_bar=True, rank_zero_only=True, batch_size=1)
-                    self.log(f'val_speech_loss_{i}', averaged_speech_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-
+                    self.log(
+                        f'val_speech_accuracy_{i}',
+                        averaged_speech_accuracy,
+                        prog_bar=True,
+                        rank_zero_only=True,
+                        batch_size=1,
+                    )
+                    self.log(
+                        f'val_speech_loss_{i}', averaged_speech_loss, prog_bar=True, rank_zero_only=True, batch_size=1
+                    )
 
         if self.cfg.get("report_validation_metric", False):
             gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
@@ -750,8 +782,10 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     inference=True,
                 )
                 # output_logits (B, T, V, 8)
-                output_logits_currtimestep = output_logits[:, t, :, :].permute(0,2,1).contiguous().view(-1, 1024) # (B*8, V)
-                temperature = 0.7 #0.01 for greedy and 0.7 for sampling
+                output_logits_currtimestep = (
+                    output_logits[:, t, :, :].permute(0, 2, 1).contiguous().view(-1, 1024)
+                )  # (B*8, V)
+                temperature = 0.7  # 0.01 for greedy and 0.7 for sampling
                 output_logits_currtimestep = output_logits_currtimestep / temperature
                 output_logits_currtimestep = torch.nn.functional.softmax(output_logits_currtimestep, dim=1)
                 output_tokens_curr_timestep = torch.multinomial(output_logits_currtimestep, num_samples=1)  # (B*8, 1)
@@ -770,7 +804,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             output_tokens_combined = torch.stack(output_token_list)  # (T, B, 8)
             output_tokens_combined = output_tokens_combined.permute(1, 2, 0)  # (B, 8, T)
-            
 
             # predicting audio
             batch_size = output_tokens_combined.shape[0]
@@ -780,7 +813,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i, :, 0:audio_len])
                 dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0, 0]
                 self.logger.experiment.add_audio("Inf Dec Input Wav", dec_input_wav, step, 24000)
-                
+
                 predicted_tokens = output_tokens_combined[i]
                 predicted_tokens = predicted_tokens[:, 0:audio_len]
                 pred_img = predicted_tokens.data.cpu().float().numpy()
@@ -789,9 +822,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 predicted_tokens = self.convert_tokens_to_range(predicted_tokens, apply_offset_correction=False)
                 predicted_wav = self.additional_models['encodec'].decode([[predicted_tokens[None], None]])[0, 0]
                 self.logger.experiment.add_audio("Inf Pred Wav", predicted_wav, step, 24000)
-                self.logger.experiment.add_image("Inf Pred Tokens", plot_encodec_to_numpy(pred_img), step, dataformats="HWC",)
-                self.logger.experiment.add_image("Inf Dec Input Tokens", plot_encodec_to_numpy(dec_inp_img), step, dataformats="HWC",)
-      
+                self.logger.experiment.add_image(
+                    "Inf Pred Tokens", plot_encodec_to_numpy(pred_img), step, dataformats="HWC",
+                )
+                self.logger.experiment.add_image(
+                    "Inf Dec Input Tokens", plot_encodec_to_numpy(dec_inp_img), step, dataformats="HWC",
+                )
 
             return {'loss': torch.tensor(0.0).to(self.device)}
 

@@ -34,7 +34,6 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-
 @hydra_runner(config_path="conf", config_name="speechlm_inference.yaml")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
