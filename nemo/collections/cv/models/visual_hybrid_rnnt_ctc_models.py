@@ -144,7 +144,8 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
 
             # Switch model to evaluation mode
             self.eval()
-            # Freeze the encoder and decoder modules
+            # Freeze the visual front-end, encoder and decoder modules
+            self.video_front_end.freeze()
             self.encoder.freeze()
             self.decoder.freeze()
             self.joint.freeze()
@@ -200,6 +201,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
 
             logging.set_verbosity(logging_level)
             if mode is True:
+                self.video_front_end.unfreeze()
                 self.encoder.unfreeze()
                 self.decoder.unfreeze()
                 self.joint.unfreeze()

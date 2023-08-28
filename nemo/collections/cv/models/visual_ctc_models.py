@@ -172,7 +172,8 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         try:
             # Switch model to evaluation mode
             self.eval()
-            # Freeze the encoder and decoder modules
+            # Freeze the visual front-end, encoder and decoder modules
+            self.video_front_end.freeze()
             self.encoder.freeze()
             self.decoder.freeze()
             logging_level = logging.get_verbosity()
@@ -229,6 +230,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             # set mode back to its original value
             self.train(mode=mode)
             if mode is True:
+                self.video_front_end.unfreeze()
                 self.encoder.unfreeze()
                 self.decoder.unfreeze()
             logging.set_verbosity(logging_level)
