@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import math
 from inspect import isfunction
 
@@ -111,8 +112,21 @@ def zero_module(module):
     return module
 
 
-def Normalize(in_channels):
-    return GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+def Normalize(in_channels, num_groups=32, act=""):
+    if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+        if act == "silu":
+            act = nn.SiLU()
+        elif act == "relu":
+            act = nn.ReLU()
+        elif act == "":
+            act = nn.Identity()
+        else:
+            raise ValueError(f"Unknown activation {act}")
+
+        gn = nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
+        return nn.Sequential(act, gn)
+    else:
+        return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
 
 
 class LinearAttention(nn.Module):

@@ -14,6 +14,7 @@
 # pytorch_diffusion + derived encoder decoder
 import math
 
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -51,7 +52,20 @@ def nonlinearity(x):
 
 
 def Normalize(in_channels, num_groups=32, act=""):
-    return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
+    if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+        if act == "silu":
+            act = nn.SiLU()
+        elif act == "relu":
+            act = nn.ReLU()
+        elif act == "":
+            act = nn.Identity()
+        else:
+            raise ValueError(f"Unknown activation {act}")
+
+        gn = nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
+        return nn.Sequential(act, gn)
+    else:
+        return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
 
 
 class Upsample(nn.Module):

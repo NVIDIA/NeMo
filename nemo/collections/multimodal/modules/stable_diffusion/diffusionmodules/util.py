@@ -21,6 +21,7 @@
 # thanks!
 
 
+import os
 import math
 
 import numpy as np
@@ -209,14 +210,21 @@ def mean_flat(tensor):
     """
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
+def normalization(in_channels, act="", gn_groups=32):
+    if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+        if act == "silu":
+            act = nn.SiLU()
+        elif act == "relu":
+            act = nn.ReLU()
+        elif act == "":
+            act = nn.Identity()
+        else:
+            raise ValueError(f"Unknown activation {act}")
 
-def normalization(channels, act="", gn_groups=32):
-    """
-    Make a standard normalization layer.
-    :param channels: number of input channels.
-    :return: an nn.Module for normalization.
-    """
-    return GroupNorm(gn_groups, channels, act=act)
+        gn = nn.GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True)
+        return nn.Sequential(act, gn)
+    else:
+        return GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
