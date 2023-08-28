@@ -260,16 +260,14 @@ def convert(args):
         # LayerNorm
         input_ln_weight = model.state_dict()[f'model.layers.{l}.input_layernorm.weight']
         if mcore_gpt:
-            # input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
-            input_ln_base_name = f'model.decoder.layers.{l}.input_layernorm.weight'
+            input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
         else:
             input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
         checkpoint['state_dict'][input_ln_base_name] = param_to_weights(input_ln_weight)
 
         post_attn_ln_weight = model.state_dict()[f'model.layers.{l}.post_attention_layernorm.weight']
         if mcore_gpt:
-            # post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
-            post_attn_ln_base_name = f'model.decoder.layers.{l}.post_self_attn_layernorm.weight'
+            post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
         else:
             post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
         checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
