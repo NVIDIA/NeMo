@@ -18,9 +18,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    PromptEncoderAdapterConfig,
-)
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
@@ -63,8 +61,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         return set(k)
 
     def add_adapters(
-        self,
-        name_cfgs: AdapterNameConfig,
+        self, name_cfgs: AdapterNameConfig,
     ):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights

@@ -15,7 +15,7 @@
 import inspect
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Set, Tuple, Union, Dict
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.nn as nn

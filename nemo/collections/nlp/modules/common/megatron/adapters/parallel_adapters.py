@@ -143,6 +143,7 @@ class LoraAdapterConfig(AdapterNameConfig):
 
         super().__init__(lora_cfg, name_key_to_cfg)
 
+
 class IA3AdapterConfig(AdapterNameConfig):
     def __init__(self, cfg):
         mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
@@ -158,6 +159,7 @@ class IA3AdapterConfig(AdapterNameConfig):
 
         super().__init__(cfg, name_key_to_cfg)
 
+
 class PtuningAdapterConfig(AdapterNameConfig):
     def __init__(self, cfg):
         adapter_cfg = PromptEncoderAdapterConfig(
@@ -170,6 +172,7 @@ class PtuningAdapterConfig(AdapterNameConfig):
         name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
 
         super().__init__(cfg, name_key_to_cfg)
+
 
 class AttnAdapterConfig(AdapterNameConfig):
     def __init__(self, cfg):

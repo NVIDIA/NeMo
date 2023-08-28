@@ -121,12 +121,11 @@ def main(cfg) -> None:
 
         ckpt_path = os.path.join(ckpt_dir, f"{cfg.name}.nemo")
 
-        model2 = FTModel.restore_from(
-            restore_path=ckpt_path, trainer=trainer, override_config_path=base_model_cfg,
-        )
+        model2 = FTModel.restore_from(restore_path=ckpt_path, trainer=trainer, override_config_path=base_model_cfg,)
         model2_state = str(model2.state_dict())
 
         print("Compare state after loading adapter:", str(model.state_dict()) == model2_state)
+
 
 if __name__ == '__main__':
     main()
