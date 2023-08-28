@@ -126,7 +126,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(
-                config=self.model_parallel_config, module=self.enc_dec_model, precision=cfg.precision
+                config=self.model_parallel_config, module=self.enc_dec_model, precision=self.cfg.precision
             )
 
         self.autocast_dtype = utils_funcs.params_dtype_from_precision(self.cfg.precision)
@@ -398,7 +398,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             n = f'reduced_train_{k}'
             self.log(n, v, prog_bar=n.endswith("_loss"), rank_zero_only=True, batch_size=1)
 
-        if self.cfg.precision == 16:
+        if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
