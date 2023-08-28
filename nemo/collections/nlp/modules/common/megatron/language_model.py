@@ -602,7 +602,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
 
         # Transformer.
-        import pdb; pdb.set_trace()
         self.encoder = ParallelTransformer(
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,

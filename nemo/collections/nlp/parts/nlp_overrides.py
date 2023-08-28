@@ -251,12 +251,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         if not HAVE_APEX:
             logging.warning(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/apex\n"
+                "Only support single gpu inference when Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/apex\n"
                 "Megatron-based models require Apex to function correctly."
             )
-            # raise ImportError(
-            #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            # )
         if not HAVE_MEGATRON_CORE:
             logging.warning(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
