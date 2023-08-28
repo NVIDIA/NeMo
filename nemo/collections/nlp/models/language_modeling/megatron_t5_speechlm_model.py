@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import editdistance
 import itertools
 from typing import Any, List
 
@@ -22,6 +22,7 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset_new import T5SpeechLMDatasetNew 
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -37,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.tts.parts.utils.helpers import plot_encodec_to_numpy
 from nemo.utils import AppState, logging
 from encodec import EncodecModel
 
@@ -202,8 +204,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
             t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = 2048 
-            t5_cfg.max_position_embeddings = 2048
+            t5_cfg.seq_length = cfg.data.max_seq_length 
+            t5_cfg.max_position_embeddings = cfg.data.max_seq_length
 
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),
@@ -511,7 +513,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self._reconfigure_batch_sizes(gbs, mbs)
 
     def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+        return self.predict_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
         self.validation_epoch_end(outputs)
@@ -519,7 +521,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
-        dataset = T5SpeechLMDataset(
+        # dataset = T5SpeechLMDataset(
+        dataset = T5SpeechLMDatasetNew(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,
             sample_rate=self.cfg.data.get('sample_rate', 24000),
@@ -571,6 +574,62 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return dataset, dataloader
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+        with torch.no_grad():
+            virtual_tokens, context_and_question_tokens, enc_mask, dec_input_raw, dec_input_mask_raw, labels, loss_mask, position_ids, taskname_ids, speech_mask = batch
+            dec_input = dec_input_raw * 1
+            dec_input_mask = dec_input_mask_raw * 1
+            dec_input_mask[:,:] = 1 # Does not really matter
+
+            output_token_list = []
+            print(f"labels.size() {labels.size()}") # [B, C, T]
+            for t in range(labels.shape[2]-1):
+                print("Batch:{} Timestep:{}".format(batch_idx, t))
+                dec_input[:, :, t+1:] = self.tokenizer.pad_id # Not necessary, but just to be safe
+                output_tensor, enc_output, debug_tensors = self.forward(
+                    virtual_tokens, context_and_question_tokens, enc_mask, dec_input, dec_input_mask, position_ids, taskname_ids, labels=None, speech_mask=speech_mask, inference=True,
+                )
+                output_tokens = output_tensor.argmax(dim=2)  # [B, T, 8]
+                output_tokens_curr_timestep = output_tokens[:, t]
+                output_token_list.append(output_tokens_curr_timestep)
+                output_tokens_curr_timestep_dec_compatible = output_tokens_curr_timestep * 1
+                # print("output_tokens_curr_timestep_dec_compatible", output_tokens_curr_timestep_dec_compatible.size(), output_tokens_curr_timestep_dec_compatible.min(), output_tokens_curr_timestep_dec_compatible.max())
+                for _c in range(8):
+                    output_tokens_curr_timestep_dec_compatible[:,_c] = output_tokens_curr_timestep_dec_compatible[:,_c] + 30000 + (_c * 1024)
+                dec_input[:, :, t+1] = output_tokens_curr_timestep_dec_compatible * 1
+
+            output_tokens_combined = torch.stack(output_token_list) #`` (T, B, 8)
+            output_tokens_combined = output_tokens_combined.permute(1, 2, 0) # (B, 8, T)
+
+            batch_size = output_tokens_combined.shape[0]
+            wers = [[0] for _ in range(8)]
+            for i in range(batch_size):
+                audio_len = (labels[i][0] != 0).sum().item()
+                step = batch_idx*batch_size+i
+                dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i,:,0:audio_len])
+                print(f"dec_input_to_1024 {dec_input_to_1024.size()}")
+                dec_inp_img = dec_input_to_1024.data.cpu().float().numpy()
+                dec_input_wav = self.additional_models['encodec'].decode([[dec_input_to_1024[None], None]])[0,0]
+                self.logger.experiment.add_image("Inf Dec Input Tokens", plot_encodec_to_numpy(dec_inp_img), step, dataformats="HWC",)
+                self.logger.experiment.add_audio("Inf Dec Input Wav", dec_input_wav, step, 24000)
+                predicted_tokens = output_tokens_combined[i]
+                predicted_tokens = predicted_tokens[:,0:audio_len]
+                pred_img = predicted_tokens.data.cpu().float().numpy()
+                predicted_wav = self.additional_models['encodec'].decode([[predicted_tokens[None], None]])[0,0]
+                self.logger.experiment.add_image("Inf Pred Tokens", plot_encodec_to_numpy(pred_img), step, dataformats="HWC",)
+                self.logger.experiment.add_audio("Inf Pred Wav", predicted_wav, step, 24000)
+
+                for j in range(8):
+                    wers[j].append( editdistance.eval(pred_img[j,:], dec_inp_img[j,:]) / audio_len )
+                print(f"wers {wers}")
+                print(f"wers avg {[sum(w)/len(w) for w in wers]}")
+
+            print(f"wers {wers}")
+            return {
+                'loss' : torch.tensor(0.0).to(self.device)
+            }
+            
+
+    def predict_step_old(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 

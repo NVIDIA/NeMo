@@ -236,6 +236,8 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         state_dict_ = {}
         state_dict_["frozen_model_enc_dec_model"] = self.frozen_model.enc_dec_model.state_dict()
         state_dict_["word_embeddings"] = self.word_embeddings.state_dict()
+        if self.prompt_encoder is not None:
+            state_dict_["prompt_encoder"] = self.prompt_encoder.state_dict()
         
         return state_dict_
 
@@ -244,8 +246,11 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method.
         """
+        self.init_prompt_encoder()
         self.frozen_model.enc_dec_model.load_state_dict(state_dict["frozen_model_enc_dec_model"], strict)
         self.word_embeddings.load_state_dict(state_dict["word_embeddings"], strict)
+        if 'prompt_encoder' in state_dict:
+            self.prompt_encoder.load_state_dict(state_dict["prompt_encoder"], strict)
 
     # def setup_optimizer_param_groups(self):
     #     """
