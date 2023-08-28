@@ -51,10 +51,13 @@ model:
   validation_drop_last: False
   report_validation_metric: False
   validation_metric: accuracy
-  num_speech_tokens: 9000 # Vocabulary size pertaining to speech
+  num_speech_tokens: 10112 # Vocabulary size pertaining to speech
+  model_seq_length: 1536
+  seq_pattern: "parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "token_level" # token_level, linear
 
   restore_path: null
-  language_model_path: /datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5_expanded_vocab_posemb.nemo
+  language_model_path: /datap/misc/Checkpoints/megatron_t5_220m/tp1_pp1/megatron_t5_expanded_vocab_posemb1536_220m.nemo
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   existing_tasks: []
   new_tasks: ["squad"]

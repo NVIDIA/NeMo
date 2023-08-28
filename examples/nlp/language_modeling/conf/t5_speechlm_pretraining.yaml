@@ -52,7 +52,9 @@ model:
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
   model_seq_length: 2048
-
+  seq_pattern: "parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "token_level" # token_level, linear
+  cross_entropy_type: "regular" # regular, vocab_parallel
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
@@ -99,6 +101,7 @@ model:
     seq_length: 1536
     mask_context_prob: 0.4
     mask_length_poisson_lambda: 3.5
+    seq_pattern: ${model.seq_pattern}
     speech_offset: 30000
     speech_codebook_size: 1024
     create_loss_mask: False

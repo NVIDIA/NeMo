@@ -1,4 +1,5 @@
 name: p_tuning_squad_t5
+checkpoint_path: "/Data/Experiments/ComparisonBreakUnbreak/DelayParallelLinearHead/Epoch10.ckpt"
 
 trainer:
   devices: 1
@@ -19,7 +20,7 @@ trainer:
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: "/Data/Experiments/Inference"
+  exp_dir: "/Data/Experiments/InferenceDelayParallel"
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
@@ -58,6 +59,9 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
+  seq_pattern: "parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "token_level" # token_level, linear
+  temperature: 0.7 # Temperature to be used for inference
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
@@ -86,7 +90,7 @@ model:
   data:
     train_ds: null
     validation_ds: null
-    test_ds: ["/Data/LibriTTS/inference_test.json"]
+    test_ds: ["/Data/LibriTTS/inference_unseen.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true

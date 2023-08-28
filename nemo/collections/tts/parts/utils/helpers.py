@@ -48,6 +48,7 @@ from typing import Optional, Tuple
 import librosa
 import matplotlib.pylab as plt
 import numpy as np
+import seaborn as sns
 import torch
 from einops import rearrange
 from numba import jit, prange
@@ -525,6 +526,17 @@ def save_figure_to_numpy(fig):
     # save it to a numpy array.
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    return data
+
+
+def plot_encodec_to_numpy(encodec, title=''):
+    fig, ax = plt.subplots(figsize=(10, 3))
+    sns.heatmap(encodec, ax=ax)
+
+    plt.tight_layout()
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
     return data
 
 

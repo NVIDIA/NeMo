@@ -12,7 +12,7 @@ trainer:
   max_steps: 1000000
   log_every_n_steps: 10
   val_check_interval: null
-  check_val_every_n_epoch: 3
+  check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
   limit_val_batches: 25
@@ -58,7 +58,9 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
-  
+  seq_pattern: "parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "token_level" # token_level, linear
+  cross_entropy_type: "regular" # regular, vocab_parallel
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 

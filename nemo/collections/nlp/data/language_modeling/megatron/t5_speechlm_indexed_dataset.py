@@ -134,13 +134,17 @@ def build_train_valid_test_datasets(
     else:
         # Single dataset.
         if len(data_prefix) == 1:
+            if data_impl == "lazy" and cfg.seq_pattern == "flatten":
+                # Audio dataset with lazy mode and flatten seq pattern
+                _seq_len = int(seq_length / 8)
+
             return _build_train_valid_test_datasets(
                 cfg,
                 data_prefix[0],
                 data_impl,
                 splits_string,
                 train_valid_test_num_samples,
-                seq_length,
+                _seq_len,
                 seed,
                 skip_warmup,
                 tokenizer,
@@ -156,13 +160,18 @@ def build_train_valid_test_datasets(
         valid_datasets = []
         test_datasets = []
         for i in range(len(prefixes)):
+            _seq_len = seq_length
+            if data_impl[i] == 'lazy' and cfg.seq_pattern == "flatten":
+                # Audio dataset with lazy mode and flatten seq pattern
+                _seq_len = int(seq_length / 8)
+
             train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
                 cfg,
                 prefixes[i],
                 data_impl[i],
                 splits_string,
                 datasets_train_valid_test_num_samples[i],
-                seq_length,
+                _seq_len,
                 seed,
                 skip_warmup,
                 tokenizer,
@@ -278,6 +287,7 @@ class SpeechLM_T5dataset(Dataset):
             )
 
         super().__init__()
+        self.seq_pattern = cfg.data.get('seq_pattern', "parallel")
         self.name = name
         self.indexed_dataset = indexed_dataset
         self.drop_last = drop_last
@@ -403,27 +413,69 @@ class SpeechLM_T5dataset(Dataset):
         return sample.astype(np.int64)
 
     def _mask_encoder_input(self, enc_input):
-        span_length = torch.poisson(torch.tensor([self.mask_length_poisson_lambda]))
-        span_length = int(span_length.item())
-        span_length = max(span_length, 1)
+        if self.seq_pattern in ["parallel", "delay_parallel"]:
+            span_length = torch.poisson(torch.tensor([self.mask_length_poisson_lambda]))
+            span_length = int(span_length.item())
+            span_length = max(span_length, 1)
 
-        n_timesteps = enc_input.shape[1]
-        span_length = min(span_length, n_timesteps)
-        n_spans = int(n_timesteps // span_length)
-        n_masked_spans = int(n_spans * self.mask_context_prob)
-        masked_spans = torch.randperm(n_spans)[:n_masked_spans]
-        for i in masked_spans:
-            enc_input[:, i * span_length : (i + 1) * span_length] = self.mask_id
+            n_timesteps = enc_input.shape[1]
+            span_length = min(span_length, n_timesteps)
+            n_spans = int(n_timesteps // span_length)
+            n_masked_spans = int(n_spans * self.mask_context_prob)
+            masked_spans = torch.randperm(n_spans)[:n_masked_spans]
+            for i in masked_spans:
+                enc_input[:, i * span_length : (i + 1) * span_length] = self.mask_id
+        elif self.seq_pattern == "flatten":
+            span_length = torch.poisson(torch.tensor([self.mask_length_poisson_lambda]))
+            span_length = int(span_length.item())
+            span_length = max(span_length, 1)
+            n_timesteps = enc_input.shape[1] // 8
+            span_length = min(span_length, n_timesteps)
+            n_spans = int(n_timesteps // span_length)
+            n_masked_spans = int(n_spans * self.mask_context_prob)
+            masked_spans = torch.randperm(n_spans)[:n_masked_spans]
+            for i in masked_spans:
+                enc_input[0, i * span_length * 8 : (i + 1) * span_length * 8] = self.mask_id
+        else:
+            raise NotImplementedError(f"seq_pattern={self.seq_pattern} not implemented")
 
         return enc_input
 
     def _getitem_from_speech(self, tokens):
         assert tokens.ndim == 2
-
         tokens[0] = tokens[0] + self.speech_offset  # add speech offset to the first codebook
-        enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
-        dec_input = tokens[:, :-1] * 1
-        labels = tokens[:, 1:] * 1
+
+        if self.seq_pattern == "parallel":
+            enc_input = tokens[:, 1:] * 1  # to avoid changing the original tensor
+            dec_input = tokens[:, :-1] * 1
+            labels = tokens[:, 1:] * 1
+
+        elif self.seq_pattern == "delay_parallel":
+            # Pad tokens with 8 zeros at the begginging
+            num_codebooks = 8
+            tokens = torch.cat([torch.zeros_like(tokens[:, 0:num_codebooks]), tokens], dim=1)
+            enc_input = tokens[:, num_codebooks + 1 :] * 1  # to avoid changing the original tensor
+            dec_tokens = []
+            for _c in range(8):
+                st = 8 - _c
+                et = tokens.shape[1] - _c
+                dec_tokens.append(tokens[_c, st:et])
+            dec_tokens = torch.stack(dec_tokens, dim=0)
+            dec_input = dec_tokens[:, :-1] * 1
+            labels = dec_tokens[:, 1:] * 1
+        elif self.seq_pattern == "flatten":
+            for _c in range(1, 8):
+                tokens[_c] = tokens[_c] + self.speech_offset + _c * self.speech_codebook_size
+            tokens_flat = tokens.permute(1, 0).flatten()[None]  # (1, seq_len * 8)
+            tokens_flat = tokens_flat[:, : self.seq_length * 8 + 1]
+            tokens_processed = torch.cat(
+                [tokens_flat, torch.zeros(7, tokens_flat.shape[1])], dim=0
+            )  # (8, seq_len * 8)
+            enc_input = tokens_processed[:, 1:] * 1  # to avoid changing the original tensor
+            dec_input = tokens_processed[:, :-1] * 1
+            labels = tokens_processed[:, 1:] * 1
+        else:
+            raise NotImplementedError(f"seq_pattern={self.seq_pattern} not implemented")
 
         enc_input = self._mask_encoder_input(enc_input)
 
@@ -437,12 +489,12 @@ class SpeechLM_T5dataset(Dataset):
             loss_mask = torch.ones_like(dec_mask)
 
         return {
-            'enc_input': enc_input,
-            'dec_input': dec_input,
-            'labels': labels,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
-            'loss_mask': loss_mask,
+            'enc_input': enc_input.long(),
+            'dec_input': dec_input.long(),
+            'labels': labels.long(),
+            'enc_mask': enc_mask.long(),
+            'dec_mask': dec_mask.long(),
+            'loss_mask': loss_mask.long(),
         }
 
     def _getitem_from_text(self, tokens):
