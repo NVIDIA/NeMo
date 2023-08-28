@@ -243,6 +243,7 @@ def main(cfg) -> None:
     # lora_customization = self.preprocessor._get_customization(task_name, tuning_type="lora")
 
     # for i in range(len(proto_request.inputs)):
+
     processed_example = dataset._process_example(
         {
             # 'inference_peft_weights': {'0': self.cfg["lora"]["lora_weights_path"],},
@@ -252,7 +253,7 @@ def main(cfg) -> None:
     )
     processed_example["inference_peft_weights"]["0"] = model_weights
 
-
+    dataset.tokens_to_generate = 200
     # processed_example = dataset._process_example({'inference_peft_weights': {'0': '/workspaces/software/nemo_experiments/megatron_gpt_peft_tuning/checkpoints/model_weights.ckpt'}, 'input': 'Context: In the earl...e ratings?', 'output': 'ABC'})
     batch_input = dataset.collate_fn([processed_example])
     length_params: LengthParam = {
