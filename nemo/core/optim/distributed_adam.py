@@ -14,13 +14,11 @@
 
 import collections
 import itertools
-from typing import  Callable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
 import torch
 from apex.contrib.optimizers.distributed_fused_adam import (
     DistributedFusedAdam,
-    _coalescing_manager,
-    _coalescing_manager_append_work,
     _disable_pre_forward_hook,
 )
 from megatron.core import parallel_state
@@ -144,18 +142,12 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         super().zero_grad(*args, **kwargs)
 
         # Reset main grads
-        ### TODO Consider multiple buffers for each dtype
         if self.contiguous_grad_buffer:
             for param in self.parameters():
                 with _disable_pre_forward_hook(param):
                     bucket_id = self.state[param]["fragments"][0].bucket_id
                     bucket = self.state["buckets"][bucket_id]
-                    if bucket.grad_sync_dtype == self.grad_sync_dtype:
-                        param.main_grad = self.grad_buffer_view(param)
-                    else:
-                        if param.grad is None:
-                            param.grad = torch.zeros_like(param)
-                        param.main_grad = param.grad
+                    param.main_grad = self.grad_buffer_view(param)
 
     def grad_norm(
         self,
