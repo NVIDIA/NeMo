@@ -297,7 +297,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
         )
 
     def process_prompts(self, prompt):
-        from nemo.collections.multimodal.data.neva.neva_dataset import DEFAULT_IMAGE_TOKEN, preprocess
+        from nemo.collections.multimodal.data.neva.neva_dataset import DEFAULT_IMAGE_TOKEN, preprocess_nvgpt
 
         list_data_dict = []
 
@@ -341,7 +341,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
         from nemo.collections.multimodal.data.neva.neva_dataset import preprocess_multimodal
 
         sources = preprocess_multimodal(copy.deepcopy(list_data_dict), multimodal_cfg, 576)  # HARDCODED FOR NOW
-        data_dict = preprocess(sources, self.tokenizer, multimodal_cfg)
+        data_dict = preprocess_nvgpt(sources, self.tokenizer, multimodal_cfg)
         return data_dict['tokens'].tolist()
 
     def tokenize_batch(self, prompt, max_len, add_BOS):

@@ -272,11 +272,6 @@ def main(cfg) -> None:
         input_prompts=final_prompts, length_params=length_params, sampling_params=sampling_params, inference_config=cfg
     )
 
-    if torch.cuda.current_device() == 0:
-        print("***************************")
-        print(responses)
-        print("***************************")
-
     results = []
     for response, prompt in zip(responses, final_prompts):
         prompt['response'] = response
