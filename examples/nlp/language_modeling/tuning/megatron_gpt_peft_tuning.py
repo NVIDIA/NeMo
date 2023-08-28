@@ -25,9 +25,11 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
     MegatronGPTAdapterModel,
+    MegatronGPTAdapterModelWeightTying,
     MegatronGPTAdapterPTuningModel,
     MegatronGPTIA3Model,
     MegatronGPTLoRAModel,
+    MegatronGPTLoRAModelWeightTying,
     MegatronGPTPTuningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTModel
@@ -114,7 +116,10 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
 
 def _get_peft_scheme(cfg):
     if cfg.peft.peft_scheme == "adapter":
-        peft_cls = MegatronGPTAdapterModel
+        if cfg.peft.adapter_tuning.weight_tying:
+            peft_cls = MegatronGPTAdapterModelWeightTying
+        else:
+            peft_cls = MegatronGPTAdapterModel
     elif cfg.peft.peft_scheme == "ia3":
         peft_cls = MegatronGPTIA3Model
     elif cfg.peft.peft_scheme == "ptuning":
@@ -122,7 +127,10 @@ def _get_peft_scheme(cfg):
     elif cfg.peft.peft_scheme == "adapter_and_ptuning":
         peft_cls = MegatronGPTAdapterPTuningModel
     elif cfg.peft.peft_scheme == "lora":
-        peft_cls = MegatronGPTLoRAModel
+        if cfg.peft.lora_tuning.weight_tying:
+            peft_cls = MegatronGPTLoRAModelWeightTying
+        else:
+            peft_cls = MegatronGPTLoRAModel
     else:
         raise RuntimeError("Invalid Peft scheme")
     return peft_cls
@@ -211,8 +219,6 @@ def main(cfg) -> None:
     if cfg.model.resume_from_checkpoint is not None:
         trainer.ckpt_path = cfg.model.resume_from_checkpoint
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
-    trainer._checkpoint_connector = _CheckpointConnector(trainer)
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):

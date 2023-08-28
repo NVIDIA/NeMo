@@ -511,13 +511,13 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
-        state_dict = self.modify_state_dict(conf, state_dict)
 
         if (
             self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
         ):  # we have this check only for training PEFT from scratch
             peft_state_dict = instance.get_peft_state_dict()
             state_dict.update(peft_state_dict)
+        state_dict = self.modify_state_dict(conf, state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
@@ -760,7 +760,6 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
         self,
         optimizer: torch.optim.Optimizer,
         model: Union["pl.LightningModule", torch.nn.Module],
-        optimizer_idx: int,
         closure: Callable[[], Any],
         **kwargs: Any,
     ) -> None:
@@ -771,13 +770,9 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
         if self.scaler is None:
             assert optimizer.fp32_grad_accumulation, "BF16 uses FP32 grad accumulation"
             _ = closure()
-            self._after_closure(model, optimizer, optimizer_idx)
+            self._after_closure(model, optimizer)
             return optimizer.step(**kwargs)
 
-        if isinstance(optimizer, torch.optim.LBFGS):
-            raise MisconfigurationException(
-                f"Native AMP and the LBFGS optimizer are not compatible (optimizer {optimizer_idx})."
-            )
         assert not optimizer.fp32_grad_accumulation, "FP16 uses FP16 grad accumulation"
         closure_result = closure()
 
@@ -788,7 +783,7 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
         # `unscale` after the closure is executed but before the `on_before_optimizer_step` hook.
         # unscale main (fp32) gradients
         self.scaler.unscale_(optimizer)
-        self._after_closure(model, optimizer, optimizer_idx)
+        self._after_closure(model, optimizer)
         skipped_backward = closure_result is None
         # in manual optimization, the closure does not return a value
         if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
