@@ -18,7 +18,8 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, MultiAdaterName
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, MultiAdaterName, \
+    PromptEncoderAdapterConfig
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterConfig,
@@ -78,7 +79,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         return names, cfgs
 
     def add_adapters(
-        self, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]]
+        self, names: Union[AdapterName, List[AdapterName]], cfgs: Union[AdapterConfig, List[AdapterConfig]],
+            layer_selection: Optional[List] = None
     ):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
@@ -86,17 +88,38 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         Args:
             names: One or more globally unique names for the adapter. Will be used to access, enable and disable adapters.
             cfgs: One or more DictConfigs that contains at the bare minimum `__target__` to instantiate a new Adapter module.
+            layer_selection: selects in which layers to add adapters, e.g. [1,12] will add adapters to layer 1 (lowest) and 12.
+                None will apply adapters to all layers. Ignored for non GPT models or p-tuning
         """
+        def _check_and_add_adapter(module, peft_name, peft_cfg):
+            if isinstance(module, AdapterModuleMixin):
+                if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                    module.add_adapter(name=peft_name, cfg=peft_cfg)
+        if layer_selection is None:
+            layer_selection = list(range(1, self.cfg.num_layers + 1))
+
         names, cfgs = self._unwrap_names_and_cfgs(names, cfgs)
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
         for peft_name, peft_cfg in zip(names, cfgs):
-            for _, module in self.named_modules():
-                if isinstance(module, AdapterModuleMixin):
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(name=peft_name, cfg=peft_cfg)
+            # hasattr(self, "model") means is GPT and not T5
+            if hasattr(self, "model") and not isinstance(peft_cfg, PromptEncoderAdapterConfig):
+                if layer_selection is not None:
+                    logging.info(f"Layer selection {layer_selection} is enabled for the current model ("
+                                    f"{self.__class__.__name__} + {peft_name})")
+                for layer in self.model.language_model.encoder.layers:
+                    if layer.layer_number in layer_selection:
+                        for _, module in layer.named_modules():
+                            _check_and_add_adapter(module, peft_name, peft_cfg)
+            else:
+                # Non GPT models, as well as GPT+PTuning do not support layer selection
+                if layer_selection is not None:
+                    logging.warning("Layer selection is specified, but it is not supported for either "
+                                    f"{self.__class__.__name__} or {peft_name})")
+                for _, module in self.named_modules():
+                    _check_and_add_adapter(module, peft_name, peft_cfg)
 
             # Update the model.cfg with information about the new adapter from cfg
             module_name, adapter_name = self.resolve_adapter_module_name_(peft_name)
