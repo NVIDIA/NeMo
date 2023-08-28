@@ -820,13 +820,29 @@ class MegatronBaseModel(NLPModel):
         """
         Check if we reached trainer.limit_val_batches, if so exhaust the iterator to raise a StopIteration and exit validation_step
         """
-        if self._val_micro_batches_consumed == self.trainer.num_sanity_val_steps or self._val_micro_batches_consumed == self.trainer.limit_val_batches:
+        # if self._val_micro_batches_consumed == self.trainer.num_sanity_val_steps or self._val_micro_batches_consumed == self.trainer.limit_val_batches:
+        #     try:
+        #         element = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
+        #         # reinsert the element into the iterator
+        #         return itertools.chain([element], iterator), False
+        #     except StopIteration:
+        #         self._val_micro_batches_consumed=0
+        #         return iterator, True
+        # else:
+        #     return iterator, False
+
+        # try:
+        #     element = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
+        #     return itertools.chain([element], iterator), False
+        # except StopIteration:
+        #     return iterator, True
+        
+        if self._val_micro_batches_consumed and (self.trainer.sanity_checking or self._val_micro_batches_consumed == self.trainer.limit_val_batches):
+            self._val_micro_batches_consumed=0
             try:
-                element = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
-                # reinsert the element into the iterator
-                return itertools.chain([element], iterator), False
+                _ = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
             except StopIteration:
-                self._val_micro_batches_consumed=0
-                return iterator, True
+                return True
         else:
-            return iterator, False
+            return False
+      

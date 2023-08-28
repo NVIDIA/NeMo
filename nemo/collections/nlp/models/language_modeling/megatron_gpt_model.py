@@ -912,7 +912,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         mode = 'test' if self.trainer.testing else 'val'
