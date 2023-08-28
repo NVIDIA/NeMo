@@ -50,8 +50,6 @@ For documentation on fine-tuning this model, please visit:
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 """
 
-import copy
-
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 from pytorch_lightning.utilities import rank_zero_only
@@ -60,6 +58,59 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
+
+
+@rank_zero_only
+def get_base_model(cfg):
+    asr_model = None
+    nemo_model_path = cfg.get('init_from_nemo_model', None)
+    pretrained_name = cfg.get('init_from_pretrained_model', None)
+    if nemo_model_path is not None and pretrained_name is not None:
+        raise ValueError("Only pass `init_from_nemo_model` or `init_from_pretrained_model` but not both")
+    elif nemo_model_path is None and pretrained_name is None:
+        raise ValueError(
+            "Both `init_from_nemo_model` and `init_from_pretrained_model cannot be None, should pass atleast one of them"
+        )
+    elif nemo_model_path is not None:
+        asr_model = ASRModel.restore_from(restore_path=nemo_model_path)
+    elif pretrained_name is not None:
+        asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
+
+    return asr_model
+
+
+def update_tokenizer(asr_model, tokenizer_dir, tokenizer_type):
+    vocab_size = asr_model.tokenizer.vocab_size
+    decoder = asr_model.decoder.state_dict()
+    if hasattr(asr_model, 'joint'):
+        joint_state = asr_model.joint.state_dict()
+    else:
+        joint_state = None
+
+    if tokenizer_dir is None:
+        raise ValueError("dir must be specified if update_tokenizer is True")
+    logging.info("Using the tokenizer provided through config")
+    asr_model.change_vocabulary(new_tokenizer_dir=tokenizer_dir, new_tokenizer_type=tokenizer_type)
+    if asr_model.tokenizer.vocab_size != vocab_size:
+        logging.warning(
+            "The vocabulary size of the new tokenizer differs from that of the loaded model. As a result, finetuning will proceed with the new vocabulary, and the decoder will be reinitialized."
+        )
+    else:
+        asr_model.decoder.load_state_dict(decoder)
+        if joint_state is not None:
+            asr_model.joint.load_state_dict(joint_state)
+
+    return asr_model
+
+
+def setup_dataloaders(asr_model, cfg):
+    cfg = model_utils.convert_model_config_to_dict_config(cfg)
+    asr_model.setup_training_data(cfg.model.train_ds)
+    asr_model.setup_validation_data(cfg.model.validation_ds)
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        asr_model.setup_test_data(cfg.model.test_ds)
+
+    return asr_model
 
 
 @hydra_runner(config_path="conf", config_name="speech_to_text_finetune")
@@ -74,54 +125,16 @@ def main(cfg):
             "Currently for simplicity of single script for all model types, we only support `init_from_nemo_model` and `init_from_pretrained_model`"
         )
 
-    @rank_zero_only
-    def get_base_model(cfg):
-        asr_model = None
-        nemo_model_path = cfg.get('init_from_nemo_model', None)
-        pretrained_name = cfg.get('init_from_pretrained_model', None)
-        if nemo_model_path is not None and pretrained_name is not None:
-            raise ValueError("Only pass `init_from_nemo_model` or `init_from_pretrained_model` but not both")
-        elif nemo_model_path is None and pretrained_name is None:
-            raise ValueError(
-                "Both `init_from_nemo_model` and `init_from_pretrained_model cannot be None, should pass atleast one of them"
-            )
-        elif nemo_model_path is not None:
-            asr_model = ASRModel.restore_from(restore_path=nemo_model_path)
-        elif pretrained_name is not None:
-            asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
-
-        return asr_model
-
     asr_model = get_base_model(cfg)
-    vocab_size = asr_model.tokenizer.vocab_size
 
     # if new tokenizer is provided, use it
     if hasattr(cfg.model.tokenizer, 'update_tokenizer') and cfg.model.tokenizer.update_tokenizer:
-        decoder = copy.deepcopy(asr_model.decoder)
-        joint_state = copy.deepcopy(asr_model.joint)
-
-        if cfg.model.tokenizer.dir is None:
-            raise ValueError("dir must be specified if update_tokenizer is True")
-        logging.info("Using the tokenizer provided through config")
-        asr_model.change_vocabulary(
-            new_tokenizer_dir=cfg.model.tokenizer.dir, new_tokenizer_type=cfg.model.tokenizer.type
-        )
-        if asr_model.tokenizer.vocab_size != vocab_size:
-            logging.warning(
-                "The vocabulary size of the new tokenizer differs from that of the loaded model. As a result, finetuning will proceed with the new vocabulary, and the decoder will be reinitialized."
-            )
-        else:
-            asr_model.decoder = decoder
-            asr_model.joint = joint_state
+        asr_model = update_tokenizer(asr_model, cfg.model.tokenizer.dir, cfg.model.tokenizer.type)
     else:
         logging.info("Reusing the tokenizer from the loaded model.")
 
     # Setup Data
-    cfg = model_utils.convert_model_config_to_dict_config(cfg)
-    asr_model.setup_training_data(cfg.model.train_ds)
-    asr_model.setup_validation_data(cfg.model.validation_ds)
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        asr_model.setup_test_data(cfg.model.test_ds)
+    asr_model = setup_dataloaders(asr_model, cfg)
 
     # Setup Optimizer
     asr_model.setup_optimization(cfg.model.optim)
