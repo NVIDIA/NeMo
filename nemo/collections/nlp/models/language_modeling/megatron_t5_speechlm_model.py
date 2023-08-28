@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import editdistance
 import itertools
 import os
 from typing import Any, List
@@ -28,6 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset_new import T5SpeechLMDatasetNew 
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -253,9 +254,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
-            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056  # cfg.num_speech_tokens 39168
-            t5_cfg.seq_length = 1536
-            t5_cfg.max_position_embeddings = 1536
+            t5_cfg.tokenizer.num_sentinel_tokens = 39184 - 29056 # cfg.num_speech_tokens 39168
+            t5_cfg.seq_length = cfg.data.max_seq_length 
+            t5_cfg.max_position_embeddings = cfg.data.max_seq_length
 
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('language_model_path'),
@@ -746,7 +747,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
-        dataset = T5SpeechLMDataset(
+        # dataset = T5SpeechLMDataset(
+        dataset = T5SpeechLMDatasetNew(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,
             sample_rate=self.cfg.data.get('sample_rate', 24000),

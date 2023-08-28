@@ -1,29 +1,31 @@
 name: p_tuning_squad_t5
 
 trainer:
-  devices: 2
+  devices: 1
   accelerator: gpu
   num_nodes: 1
   precision: 32
   logger: False 
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: -1
-  max_steps: 1000
+  max_epochs: 10000
+  max_steps: -1
   log_every_n_steps: 10
-  val_check_interval: 1.0
+  val_check_interval: null
+  check_val_every_n_epoch: 3
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
+  limit_val_batches: 25
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: null
+  exp_dir: "/Data/Experiments/Inference"
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: PromptLearning-T5
     name: ${name}
-  resume_if_exists: True
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -34,7 +36,7 @@ exp_manager:
     filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
-  create_early_stopping_callback: True
+  create_early_stopping_callback: False
   early_stopping_callback_params:
     monitor: "val_loss"
     mode: "min"
@@ -44,19 +46,20 @@ exp_manager:
 
 model:
   seed: 1234
+  checkpoint_path: ???
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 8 
-  micro_batch_size: 4 # micro batch size should equal global batch size when pipeline parallel = 1
+  global_batch_size: 16 
+  micro_batch_size: 16 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
   validation_drop_last: False
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
-  
+
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
@@ -82,8 +85,9 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/data/speech/LibriTTS2/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
-    validation_ds: ["/data/speech/LibriTTS2/LibriTTS/train_clean_100_normalized_speechlm_alltasks.json"]
+    train_ds: null
+    validation_ds: null
+    test_ds: ["/Data/LibriTTS/inference_test.json"]
     max_seq_length: 512
     sample_rate: 24000
     add_eos: true
@@ -101,15 +105,15 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1e-3
+    lr: 5e-5
     weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 50
-      constant_steps: 0
-      min_lr: 0.0
-      monitor: val_loss
-      reduce_on_plateau: false
+    # sched:
+    #   name: CosineAnnealing
+    #   warmup_steps: 50
+    #   constant_steps: 0
+    #   min_lr: 0.0
+    #   monitor: val_loss
+    #   reduce_on_plateau: false
