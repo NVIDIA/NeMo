@@ -166,6 +166,12 @@ class TextGenerationStrategy:
 
         if end_strings_to_check:
             # The loop below is inefficient (see warning in `_get_end_of_generation_tokens_and_strings()`)
+            # TODO In addition, we will not stop if the model generates an end string followed by extra characters,
+            # e.g., if `end_string` is "Done" and there exists a "Done!" token it could generate tokens
+            #       [..., ".", "Done!"]
+            # which would fail the `endswith("Done")` check. However, stopping when "Done!" is generated would not
+            # work either, since we would need to post-process the generated string to truncate the extra "!".
+            # ==> this is left for future work if there is a compelling use case requiring this feature.
             for idx, token_seq in enumerate(tokens):
                 text = self.model.tokenizer.ids_to_text(token_seq.tolist())
                 is_end[idx] |= any(text.endswith(end_string) for end_string in end_strings_to_check)
