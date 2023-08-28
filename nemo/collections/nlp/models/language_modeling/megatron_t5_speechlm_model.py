@@ -543,12 +543,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             speech_preds_i = speech_preds_i.transpose(0,1) #(bs,t)
             labels_i = labels_original[:,i+1,:] #(bs,t)
             correct_predictions_i = speech_preds_i == labels_i #(bs,t)
-            correct_predictions_i = correct_predictions_i * loss_mask #(bs,t)
+            correct_predictions_i = correct_predictions_i * loss_mask * speech_mask #(bs,t)
             total_correct_predictions_i = torch.sum(correct_predictions_i)
-            total_predictions_i = torch.sum(loss_mask)
+            total_predictions_i = torch.sum(loss_mask*speech_mask)
             speech_accuracy_i = total_correct_predictions_i/total_predictions_i
             loss_i = torch.nn.functional.cross_entropy(speech_logits_i.permute(1, 2, 0), labels_i, reduction='none') #(bs,t)
-            loss_i = torch.sum(loss_i * loss_mask) / total_predictions_i
+            loss_i = torch.sum(loss_i * loss_mask * speech_mask) / total_predictions_i
             metrics[f'speech_accuracy_{i+1}'] = speech_accuracy_i
             metrics[f'speech_loss_{i+1}'] = loss_i
             loss_total += loss_i
