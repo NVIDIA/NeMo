@@ -292,6 +292,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             *rot_tuple,
             relative_position_bias,
             headscale_tensor,
+            inference_mode,
         )
 
         return hidden_states
