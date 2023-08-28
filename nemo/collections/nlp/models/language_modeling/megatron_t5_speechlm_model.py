@@ -22,8 +22,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-# from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset_new import T5SpeechLMDatasetNew
+from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import T5SpeechLMDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -129,7 +128,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.speech_codebook_size = speech_codebook_size
         self.frozen_model.enc_dec_model.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.cross_entropy_type = 'regular'
+        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
         self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
         self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
@@ -695,7 +694,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
-        dataset = T5SpeechLMDatasetNew(
+        dataset = T5SpeechLMDataset(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,
             sample_rate=self.cfg.data.get('sample_rate', 24000),

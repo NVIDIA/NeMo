@@ -138,7 +138,7 @@ class MegatronT5SpeechLMModel(MegatronSpeechLMBaseModel):
         self.speech_codebook_size = speech_codebook_size
         self.frozen_model.enc_dec_model.speech_offset = speech_offset
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
-        self.frozen_model.enc_dec_model.cross_entropy_type = 'regular'
+        self.frozen_model.enc_dec_model.cross_entropy_type = cfg.get('cross_entropy_type', 'regular')
         self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
         self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
