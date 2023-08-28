@@ -34,7 +34,7 @@ from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.tts.parts.utils.tts_dataset_utils import general_padding, get_base_dir
 from nemo.utils import logging
 
-__all__ = ['T5SpeechLMDatasetNew']
+__all__ = ['T5SpeechLMDataset']
 
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
@@ -43,7 +43,7 @@ def pad_text_to_speech_dims(text_tensor, pad_id):
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
 
-class T5SpeechLMDatasetNew(BasePromptLearningDataset):
+class T5SpeechLMDataset(BasePromptLearningDataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained T5 SpeechLM models.
     """
