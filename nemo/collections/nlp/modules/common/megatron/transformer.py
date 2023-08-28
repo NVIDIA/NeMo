@@ -54,7 +54,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
     # fake missing classes with None attributes
-    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    #ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType, AttnType
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -210,8 +211,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.attention_dropout = attention_dropout
         self.bias_dropout_add_fusion = bias_dropout_add_fusion  # if true, enable bias dropout fusion
 
-        print(self.layer_type)
-        import pdb; pdb.set_trace()
         # Self attention.
         # retrieval_decoder_after_self_attn skips the self attention
         if self.layer_type != LayerType.retrieval_decoder_after_self_attn:
@@ -275,7 +274,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     )
                 else:
                     self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-            import pdb; pdb.set_trace()
             if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
                 #  the post_attention_layernorm is used for layermorm after mlp
                 # don't need it for decoder_pre_mlp and post_ln
@@ -1209,8 +1207,6 @@ class ParallelTransformer(MegatronModule):
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
-        print("get layers")
-        import pdb; pdb.set_trace()
         if self.post_process and self.transformer_block_type != 'post_ln':
             # Final layer norm before output.
             if normalization == 'layernorm':
@@ -1496,7 +1492,11 @@ class ParallelTransformer(MegatronModule):
         It indicates if the current step in the forward pass is the first in a gradient accumulation cycle.
         If set, FP8 weights are cached and some minor optimizations are applied to fuse_wgrad_accumulation
         """
-        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        if HAVE_APEX:
+            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        else:
+            from nemo.collections.nlp.parts.microbatch_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
 
         num_micro_batches = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num_micro_batches', 1)
 

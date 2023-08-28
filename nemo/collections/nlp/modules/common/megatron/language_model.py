@@ -19,7 +19,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+#from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.position_embedding import (
     ALiBiRelativePositionEmbedding,
@@ -47,8 +47,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
     # fake missing classes with None attributes
-    AttnMaskType = ApexGuardDefaults()
-    LayerType = ApexGuardDefaults()
+    #AttnMaskType = ApexGuardDefaults()
+    #LayerType = ApexGuardDefaults()
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -601,6 +602,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             )
 
         # Transformer.
+        import pdb; pdb.set_trace()
         self.encoder = ParallelTransformer(
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,

@@ -123,6 +123,7 @@ def initialize_model_parallel_for_nemo(
         else:
             from nemo.collections.nlp.parts.microbatch_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
+        import pdb; pdb.set_trace()
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             setup_microbatch_calculator(
                 rank=global_rank,

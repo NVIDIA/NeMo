@@ -50,8 +50,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
     # fake missing classes with None attributes
-    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
-
+    #ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType, AttnType
+    from nemo.collections.nlp.modules.common.megatron.utils import divide as safe_divide
 
 try:
     from megatron.core import parallel_state, tensor_parallel

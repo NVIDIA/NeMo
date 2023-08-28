@@ -14,7 +14,7 @@
 
 """Transformer based language model."""
 
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+#from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoder_module import MegatronDecoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
@@ -32,9 +32,10 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
     # fake missing classes with None attributes
-    AttnMaskType = ApexGuardDefaults()
-    LayerType = ApexGuardDefaults()
-    ModelType = ApexGuardDefaults()
+    #AttnMaskType = ApexGuardDefaults()
+    #LayerType = ApexGuardDefaults()
+    #ModelType = ApexGuardDefaults()
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType
 
 
 __all__ = ["MegatronTransformerDecoderModule"]

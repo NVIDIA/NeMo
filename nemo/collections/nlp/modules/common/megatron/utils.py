@@ -29,7 +29,7 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
-
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType
     HAVE_APEX = False
 
 try:
@@ -416,3 +416,16 @@ def set_defaults_if_not_set_tensor_model_parallel_attributes(tensor: torch.Tenso
     for attribute in _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS:
         maybe_set(attribute, _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS[attribute])
 
+
+def ensure_divisibility(numerator, denominator):
+    """Ensure that numerator is divisible by the denominator."""
+    assert numerator % denominator == 0, "{} is not divisible by {}".format(
+        numerator, denominator
+    )
+
+
+def divide(numerator, denominator):
+    """Ensure that numerator is divisible by the denominator and return
+    the division value."""
+    ensure_divisibility(numerator, denominator)
+    return numerator // denominator
