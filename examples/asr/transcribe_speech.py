@@ -142,7 +142,7 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
-    amp_dtype: str = "float16"  # can be set to "float32" or "bfloat16" when using amp
+    amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
