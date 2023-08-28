@@ -145,7 +145,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
 
     final_response = []
-    for prompt_dict in prompt_dict_list:
+    for idx, prompt_dict in enumerate(prompt_dict_list):
         img = os.path.join(inference_config.inference.images_base_path, prompt_dict['image'])
         response = generate(
             model,
@@ -162,6 +162,10 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             image_list=img,
             **strategy_args,
         )
+        if torch.cuda.current_device() == 0:
+            print(f"------------- PROMPT {idx} of {len(prompt_dict_list)} ------------ ")
+            print(response['sentences'][0].replace('<extra_id_3>', ''))
+            print("---------------------------------------------\n")
         final_response.append(response)
     return final_response
 
