@@ -925,7 +925,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 model_module.eval()
 
         loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-        
+
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
