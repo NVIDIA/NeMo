@@ -28,6 +28,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from lightning.pytorch.strategies import FSDPStrategy
 import torch.autograd.profiler
 import torch.multiprocessing as mp
 
