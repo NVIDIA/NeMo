@@ -394,4 +394,4 @@ class NLPModel(ModelPT, Exportable):
             and "bert_model.embeddings.position_ids" in state_dict
         ):
             del state_dict["bert_model.embeddings.position_ids"]
-        super(NLPModel, self).load_state_dict(state_dict, strict=strict)
+        super(NLPModel, self).load_state_dict(state_dict, strict=False)
