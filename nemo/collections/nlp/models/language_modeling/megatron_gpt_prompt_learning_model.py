@@ -369,12 +369,12 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter, batch_idx):
-        mode = 'test' if self.trainer.testing else 'val'
-        # Add try except to catch the end of the iterator and exit
-        try:
-            batch = next(dataloader_iter)
-        except StopIteration:
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
             return
+        mode = 'test' if self.trainer.testing else 'val'
+        batch = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)

@@ -418,7 +418,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def validation_step(self, dataloader_iter, batch_idx):
         # Check if iterator is exhausted
-        done = self._val_iterator_done(dataloader_iter)
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         prefix = "test" if self.trainer.testing else "val"
@@ -438,9 +438,6 @@ class MegatronBertModel(MegatronBaseModel):
             seq_length=seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
         )
-
-        # Increment self._val_micro_batches_consumed so that validation is exited properly
-        self._val_micro_batches_consumed += get_num_microbatches()
 
         if losses_reduced_per_micro_batch:
             loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]

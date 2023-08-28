@@ -190,8 +190,6 @@ class MegatronBaseModel(NLPModel):
             gc.disable()
             self.validation_global_step = 1
 
-        self._val_micro_batches_consumed = 0
-
     def _reconfigure_val_batches(self):
         """
         Reconfigure trainer.limit_val_batches for pretraining
@@ -818,14 +816,12 @@ class MegatronBaseModel(NLPModel):
 
     def _val_iterator_done(self, iterator):
         """
-        Check if we reached trainer.limit_val_batches, if so exhaust the iterator to raise a StopIteration and exit validation_step
+        Check if the iterator is exhausted, if so raise a StopIteration and exit validation_step
         """
-        if self._val_micro_batches_consumed and (self.trainer.sanity_checking or self._val_micro_batches_consumed == self.trainer.limit_val_batches):
-            self._val_micro_batches_consumed=0
-            try:
-                _ = next(iterator) # exhausting the iterator so that PTL knows to go to validation_epoch_end
-            except StopIteration:
-                return True
-        else:
-            return False
+        try:
+            element = next(iterator)
+            # reinsert the element back to the iterator
+            return itertools.chain([element], iterator), False
+        except StopIteration:
+            return iterator, True
       

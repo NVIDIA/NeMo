@@ -912,7 +912,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Check if iterator is exhausted
-        done = self._val_iterator_done(dataloader_iter)
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         mode = 'test' if self.trainer.testing else 'val'
@@ -926,8 +926,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
         
-        # Increment self._val_micro_batches_consumed so that validation is exited properly
-        self._val_micro_batches_consumed += get_num_microbatches()
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
