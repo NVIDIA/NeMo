@@ -63,10 +63,21 @@ class AdapterModuleUtil(access_mixins.AccessMixin):
 
     def adapter_unfreeze(self,):
         """
-        Sets the requires grad for all parameters in the adapter to True
+        Sets the requires grad for all parameters in the adapter to True.
+        This method should be overridden for any custom unfreeze behavior that is required.
+        For example, if not all params of the adapter should be unfrozen.
         """
         for param in self.parameters():
             param.requires_grad_(True)
+        self.train()
+    
+    def adapter_freeze(self,):
+        """
+        Sets the requires grad for all parameters in the adapter to False.
+        This method should be overridden for any custom freeze behavior that is required.
+        """
+        for param in self.parameters():
+            param.requires_grad_(False)
 
 
 class LinearAdapter(nn.Module, AdapterModuleUtil):
