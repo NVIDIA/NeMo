@@ -84,7 +84,7 @@ model:
   cond_stage_forward:
   text_embedding_dropout_rate: 0.1
   fused_opt: True
-  inductor: True
+  inductor: False
   inductor_cudagraphs: False
   capture_cudagraph_iters: -1 # -1 to disable
   channels_last: True
@@ -183,7 +183,8 @@ model:
       num_workers: 16
       train:
           dataset_path:
-              - /datasets/coyo/test.pkl
+            - /datasets/coyo/wdinfo/coyo-700m/wdinfo-selene.pkl
+            - /datasets/coyo/wdinfo/laion_aesthetic/wdinfo-selene.pkl
           augmentations:
             resize_smallest_side: 512
             center_crop_h_w: 512, 512

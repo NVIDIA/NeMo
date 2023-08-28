@@ -57,7 +57,7 @@ model:
   inductor: False # Not working right now
   capture_cudagraph_iters: -1
   scale_by_std: False
-  channels_last: False
+  channels_last: True
   fsdp: True
 
   loss_fn_config:

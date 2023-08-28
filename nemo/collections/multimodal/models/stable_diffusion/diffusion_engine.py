@@ -418,10 +418,8 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         tensor_shape = None  # Placeholder
-        print("Calling training step!!!!!!!!")
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
-
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = get_forward_backward_func()
@@ -524,16 +522,15 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
                 Global batch is a list of micro batches.
             """
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
-            print("111111")
             with torch.cuda.amp.autocast(
                 self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
-                x = batch[self.model.input_key].cuda(non_blocking=True)
+                x = batch[self.model.input_key].to(torch.cuda.current_device())
                 if self.model.channels_last:
-                    x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last)
+                    x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last, non_blocking=True)
                 else:
-                    x = rearrange(x, "b h w c -> b c h w").cuda(non_blocking=True)
-                    x = x.to(memory_format=torch.contiguous_format)
+                    x = rearrange(x, "b h w c -> b c h w")
+                    x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
                # x = batch[self.model.input_key].cuda(non_blocking=True)
                 x = self.model.encode_first_stage(x)
                 batch['global_step'] = self.trainer.global_step
@@ -546,8 +543,6 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
 
 
             loss, loss_dict = model(x, batch)
-            print(loss.shape)
-            print(loss.is_contiguous(memory_format=torch.channels_last))
 
             def dummy(output_tensor):
                 return loss, loss_dict
