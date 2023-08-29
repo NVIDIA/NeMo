@@ -624,9 +624,15 @@ class MegatronGPTLoRAModelWeightTying(MegatronGPTLayerwisePEFTModel):
         pos_idx = 0
 
         if self.mcore_gpt:
-            layers = self.model.decoder.layers
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.decoder.layers
+            else:
+                layers = self.model.decoder.layers
         else:
-            layers = self.model.language_model.encoder.layers
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.language_model.encoder.layers
+            else:
+                layers = self.model.language_model.encoder.layers
 
         layer0 = layers[0]
         for adapter_name in layer0.self_attention.adapter_layer:
