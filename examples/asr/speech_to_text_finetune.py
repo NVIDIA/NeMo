@@ -102,7 +102,9 @@ def check_vocabulary(asr_model, cfg):
     """
     if hasattr(cfg.model.tokenizer, 'update_tokenizer') and cfg.model.tokenizer.update_tokenizer:
         if hasattr(cfg.model.char_labels, 'update_labels') and cfg.model.char_labels.update_labels:
-            raise ValueError("Both `model.tokenizer.update_tokenizer` and `model.labels` cannot be passed together")
+            raise ValueError(
+                "Both `model.tokenizer.update_tokenizer` and `model.char_labels.update_labels` cannot be passed together"
+            )
         else:
             asr_model = update_tokenizer(asr_model, cfg.model.tokenizer.dir, cfg.model.tokenizer.type)
     elif hasattr(cfg.model, 'char_labels') and cfg.model.char_labels.update_labels:

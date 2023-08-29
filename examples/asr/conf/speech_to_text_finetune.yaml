@@ -48,7 +48,7 @@ model:
   
   char_labels: # use for char based models
     update_labels: false
-    labels: null
+    labels: null # example list config: \[' ', 'a', 'b', 'c'\]
 
   tokenizer: # use for spe/bpe based tokenizer models
     update_tokenizer: false
