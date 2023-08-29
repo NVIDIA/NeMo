@@ -384,16 +384,19 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
     def _setup_model(self, model: torch.nn.Module):
         def find_frozen_submodules(model):
             frozen_submodules = []
+            frozen_submodule_names = []
             for name, module in model.named_modules():
                 if isinstance(module, nn.Module) and list(module.parameters()) and all(
                         not param.requires_grad for param in module.parameters()
                 ):
+                    frozen_submodule_names.append(name)
                     frozen_submodules.append(module)
-            return frozen_submodules
+            return frozen_submodule_names, frozen_submodules
 
-        frozen_submodules = find_frozen_submodules(model)
+        frozen_submodule_names, frozen_submodules = find_frozen_submodules(model)
         self.kwargs['ignored_modules'] = frozen_submodules
-        super()._setup_model(model)
+        model = super()._setup_model(model)
+        return model
 
     def belongs_fsdp_wrap_module(self, model: torch.nn.Module, attr_names: str) -> bool:
         """

@@ -527,10 +527,10 @@ class MegatronDiffusionEngine(MegatronMultimodalModel):
             ):
                 x = batch[self.model.input_key].to(torch.cuda.current_device())
                 if self.model.channels_last:
-                    x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last, non_blocking=True)
+                    x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last)
                 else:
                     x = rearrange(x, "b h w c -> b c h w")
-                    x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
+                    x = x.to(memory_format=torch.contiguous_format)
                # x = batch[self.model.input_key].cuda(non_blocking=True)
                 x = self.model.encode_first_stage(x)
                 batch['global_step'] = self.trainer.global_step

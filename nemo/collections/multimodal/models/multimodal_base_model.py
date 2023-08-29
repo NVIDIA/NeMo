@@ -48,6 +48,7 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -306,6 +307,8 @@ class MegatronMultimodalModel(MultimodalModel):
             "default_on_step": True,
             "default_on_epoch": False,
         }
+
+        self.use_fsdp = cfg.get('fsdp', False)
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -676,3 +679,20 @@ class MegatronMultimodalModel(MultimodalModel):
                 return True
             else:
                 return False
+
+    def configure_sharded_model(self):
+        if self.use_fsdp:
+            """ Top-evel FSDP model sharding """
+            # Cast the full model to initialization precision to match the precision among parameters.
+            params_dtype = utils_funcs.dtype_from_precision(self.cfg.precision, None)
+            self.model = self.model.to(params_dtype)
+            # Shard the top-level model with FSDP. We shard the strategy-unwrapped model not
+            # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
+            self.model = self.trainer.strategy._setup_model(self.model)
+            # Keep the master parameters in fp32.
+            # The prameters can be initialized in half-precision to save memory before sharding
+            self.model = self.model.float()
+            # Move model from CPU to GPU, which is to avoid out-of-memory carash before sharding.
+            # FSDP with `use_cpu_initialization` has the model initialized on CPU then move GPU after sharding.
+            # In case of GPU-initialized model, this is no-op.
+            self.model = self.model.cuda(torch.cuda.current_device())
