@@ -1312,7 +1312,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 missing_keys, unexpected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
 
                 assert len(unexpected_keys) == 0, 'Unexpected key(s) in state_dict: {}. '.format(
-                    ', '.join('"{}"'.format(k) for k in unexpected_keys))
+                    ', '.join('"{}"'.format(k) for k in unexpected_keys)
+                )
 
         # legacy checkpointing for interleaved
         else:
