@@ -21,6 +21,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
+from einops import rearrange
 from torch import Tensor
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
@@ -386,6 +387,66 @@ class AudioFeatureReader(FeatureReader):
         return batch_dict
 
 
+class AudioCodecFeatureReader(NumpyFeatureReader):
+
+    def __init__(
+        self,
+        feature_name: str = "audio_tokens",
+        feature_filename: str = "audio_tokens",
+        feature_len_field: str = "audio_token_lens",
+        sample_rate: int = 22050,
+        hop_length: int = 256
+    ):
+        super().__init__(
+            feature_name=feature_name, feature_filename=feature_filename, sample_rate=sample_rate, hop_length=hop_length
+        )
+        self.feature_len_field = feature_len_field
+
+    def deserialize(self, bytes_io: io.BytesIO) -> Dict[str, np.ndarray]:
+        feature_dict = super().deserialize(bytes_io)
+        feature_dict[self.feature_len_field] = feature_dict[self.feature_name].shape[0]
+        return feature_dict
+
+    def load(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path) \
+        -> Dict[str, np.ndarray]:
+        """
+        Read saved feature value for given manifest entry.
+
+        Args:
+            manifest_entry: Manifest entry dictionary.
+            audio_dir: base directory where audio is stored.
+            feature_dir: base directory where features are stored.
+
+        Returns:
+            Feature array
+        """
+        feature_dict = super().load(manifest_entry=manifest_entry, audio_dir=audio_dir, feature_dir=feature_dir)
+        feature_dict[self.feature_len_field] = feature_dict[self.feature_name].shape[0]
+        return feature_dict
+
+    def collate_fn(self, train_batch: List[Dict[str, Any]]) -> Dict[str, Tensor]:
+        token_list = []
+        token_len_list = []
+        for example in train_batch:
+            token_array = example[self.feature_name]
+            token_len = example[self.feature_len_field]
+            token_tensor = torch.from_numpy(token_array)
+            token_tensor = rearrange(token_tensor, 'T C -> C T')
+            token_list.append(token_tensor)
+            token_len_list.append(token_len)
+
+        batch_token_len = torch.IntTensor(token_len_list)
+        token_max_len = int(batch_token_len.max().item())
+        batch_tokens = stack_tensors(token_list, max_lens=[token_max_len])
+
+        batch_dict = {
+            self.feature_name: batch_tokens,
+            self.feature_len_field: batch_token_len,
+        }
+
+        return batch_dict
+
+
 class MelSpectrogramFeaturizer(Featurizer):
     def __init__(
         self,
@@ -691,5 +752,3 @@ class PitchFeaturizer(Featurizer):
             audio_dir=audio_dir,
             feature_dir=feature_dir,
         )
-
-

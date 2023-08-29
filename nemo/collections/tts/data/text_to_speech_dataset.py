@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import io
 import json
 from dataclasses import dataclass
+from hydra.utils import instantiate
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
 import webdataset as wd
+import torch.utils.data
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
@@ -61,6 +64,40 @@ class DatasetSample:
     text: str
     speaker: str
     speaker_index: int = None
+
+
+def create_text_to_speech_dataset(
+    dataset_type: str,
+    text_tokenizer: BaseTokenizer,
+    dataset_args: Optional[Dict] = None,
+    global_rank: Optional[int] = None,
+    world_size: Optional[int] = None,
+    is_train: bool = False,
+):
+    if dataset_args:
+        dataset_args = instantiate(dataset_args)
+    else:
+        dataset_args = {}
+
+
+    if not hasattr(text_tokenizer, "set_phone_prob"):
+        phoneme_mode = contextlib.nullcontext()
+    elif is_train:
+        phoneme_mode = text_tokenizer.set_phone_prob(text_tokenizer.phoneme_probability)
+    else:
+        phoneme_mode = text_tokenizer.set_phone_prob(0.0)
+
+    with phoneme_mode:
+        if dataset_type == "default":
+            return TextToSpeechDataset(text_tokenizer=text_tokenizer, **dataset_args)
+        elif dataset_type == "tarred":
+            if not is_train:
+                raise ValueError("Tarred dataset should only be used for training set.")
+            return TarredTextToSpeechDataset(
+                text_tokenizer=text_tokenizer, global_rank=global_rank, world_size=world_size, **dataset_args
+            )
+        else:
+            raise ValueError(f"Unknown dataset type {dataset_type}")
 
 
 def text_to_speech_collate_fn(
@@ -119,18 +156,17 @@ class TextToSpeechDataset(Dataset):
     Args:
         dataset_meta: Dict of dataset names (string) to dataset metadata.
         text_tokenizer: Tokenizer to apply to the text field.
-        weighted_sampling_steps_per_epoch: Optional int, If provided, then data will be sampled (with replacement) based on
-            the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
+        weighted_sampling_steps_per_epoch: Optional int, If provided, then data will be sampled (with replacement)
+            based on the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
         speaker_path: Optional, path to JSON file with speaker indices, for multi-speaker training. Can be created with
             scripts.dataset_processing.tts.create_speaker_map.py
-        featurizers: Optional, list of featurizers to load feature data from. Should be the same config provided
+        featurizers: Optional, list of featurizers to load feature data from. Should include the config provided
             when running scripts.dataset_processing.tts.compute_features.py before training.
         feature_processors: Optional, list of feature processors to run on training examples.
         min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
             will be ignored.
         max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
             will be ignored.
-        volume_norm: Whether to apply volume normalization to loaded audio.
     """
 
     def __init__(
@@ -142,14 +178,12 @@ class TextToSpeechDataset(Dataset):
         feature_readers: Optional[Dict[str, FeatureReader]] = None,
         feature_processors: Optional[Dict[str, FeatureProcessor]] = None,
         min_duration: Optional[float] = None,
-        max_duration: Optional[float] = None,
-        volume_norm: bool = True
+        max_duration: Optional[float] = None
     ):
         super().__init__()
 
         self.text_tokenizer = text_tokenizer
         self.weighted_sampling_steps_per_epoch = weighted_sampling_steps_per_epoch
-        self.volume_norm = volume_norm
 
         if speaker_path:
             self.include_speaker = True
@@ -394,7 +428,7 @@ class TarredTextToSpeechDataset(IterableDataset):
 
         dataset = wd.WebDataset(tar_filepaths, nodesplitter=None)
 
-        key_names = ["key", "audio"]
+        key_names = ["key"]
         rename_args = {
             "key": "__key__"
         }

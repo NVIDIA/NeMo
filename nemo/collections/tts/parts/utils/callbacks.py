@@ -266,6 +266,7 @@ class LoggingCallback(Callback):
         """Log artifacts at the end of an epoch.
         """
         epoch = 1 + model.current_epoch
+
         if (epoch not in self.log_epochs) and (epoch % self.epoch_frequency != 0):
             return
 
@@ -695,6 +696,203 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
         if self.log_audio_gta or self.log_alignment:
             audio_gta_pred, alignments = self._generate_gta_predictions(
                 model=model, dataset_names=dataset_names, audio_ids=audio_ids, batch_dict=batch_dict
+            )
+            audio_artifacts += audio_gta_pred
+            image_artifacts += alignments
+
+        return audio_artifacts, image_artifacts
+
+
+class FastPitchCodecArtifactGenerator(ArtifactGenerator):
+    """
+    Generator for logging FastPitch codec model outputs.
+
+    Args:
+        log_audio: Whether to log predicted audio.
+        log_audio_gta: Whether to log predicted ground-truth aligned audio.
+        log_dequantized: Whether to log dequantized token predictions.
+        log_alignment: Whether to log alignment graphs.
+    """
+
+    def __init__(
+        self,
+        log_audio: bool = False,
+        log_audio_gta: bool = False,
+        log_dequantized: bool = False,
+        log_alignment: bool = False
+    ) -> None:
+        self.log_audio = log_audio
+        self.log_audio_gta = log_audio_gta
+        self.log_dequantized = log_dequantized
+        self.log_alignment = log_alignment
+
+    def _create_ground_truth_artifacts(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], batch_dict: Dict
+    ):
+        audio_artifacts = []
+        image_artifacts = []
+        audio_tokens = batch_dict.get("audio_tokens")
+        audio_token_lens = batch_dict.get("audio_token_lens")
+
+        if self.log_audio:
+            audio, audio_lens = model.audio_codec.decode(tokens=audio_tokens, tokens_len=audio_token_lens)
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_gt_path = Path(f"{dataset_name}/{audio_id}_gt.wav")
+                audio_gt_i = audio[i, : audio_lens[i]].cpu().numpy()
+                audio_artifact = AudioArtifact(
+                    id=f"audio_gt_{audio_id}",
+                    data=audio_gt_i,
+                    filepath=audio_gt_path,
+                    sample_rate=model.audio_codec.sample_rate,
+                )
+                audio_artifacts.append(audio_artifact)
+
+        if self.log_dequantized:
+            dequantized = model.audio_codec.dequantize(tokens=audio_tokens, tokens_len=audio_token_lens)
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                dequantized_gt_path = Path(f"{dataset_name}/{audio_id}_dequantized_gt.png")
+                dequantized_gt_i = dequantized[i, :, : audio_token_lens[i]].cpu().numpy()
+                dequantized_artifact = ImageArtifact(
+                    id=f"dequantized_{audio_id}",
+                    data=dequantized_gt_i,
+                    filepath=dequantized_gt_path,
+                    x_axis="Audio Tokens",
+                    y_axis="Channels",
+                )
+                image_artifacts.append(dequantized_artifact)
+
+        return audio_artifacts, image_artifacts
+
+    def _generate_predictions(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], batch_dict: Dict
+    ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+
+        audio_artifacts = []
+        image_artifacts = []
+        text = batch_dict.get("text")
+        text_lens = batch_dict.get("text_lens")
+        speaker = batch_dict.get("speaker_id", None)
+
+        with torch.no_grad():
+            audio_tokens, audio_token_lens = model.fastpitch.infer(text=text, text_lens=text_lens, speaker=speaker)
+            # [B, D, T]
+            dequantized = model.audio_codec.dequantize(tokens=audio_tokens, tokens_len=audio_token_lens)
+
+        if self.log_dequantized:
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                dequantized_path = Path(f"{dataset_name}/{audio_id}_dequantized.png")
+                dequantized_i = dequantized[i, :, : audio_token_lens[i]].cpu().numpy()
+                dequantized_artifact = ImageArtifact(
+                    id=f"dequantized_{audio_id}",
+                    data=dequantized_i,
+                    filepath=dequantized_path,
+                    x_axis="Audio Tokens",
+                    y_axis="Channels",
+                )
+                image_artifacts.append(dequantized_artifact)
+
+        if self.log_audio:
+            # [B, T_audio]
+            audio_pred, audio_pred_lens = model.audio_codec.decode(tokens=audio_tokens, tokens_len=audio_token_lens)
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_pred_path = Path(f"{dataset_name}/{audio_id}.wav")
+                audio_pred_i = audio_pred[i][: audio_pred_lens[i]].cpu().numpy()
+                audio_artifact = AudioArtifact(
+                    id=f"audio_{audio_id}",
+                    data=audio_pred_i,
+                    filepath=audio_pred_path,
+                    sample_rate=model.audio_codec.sample_rate,
+                )
+                audio_artifacts.append(audio_artifact)
+
+        return audio_artifacts, image_artifacts
+
+    def _generate_gta_predictions(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], batch_dict: Dict
+    ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+        audio_artifacts = []
+        image_artifacts = []
+
+        text = batch_dict.get("text")
+        text_lens = batch_dict.get("text_lens")
+        pitch = batch_dict.get("pitch")
+        energy = batch_dict.get("energy")
+        audio_tokens = batch_dict.get("audio_tokens")
+        audio_token_lens = batch_dict.get("audio_token_lens")
+        speaker = batch_dict.get("speaker_id", None)
+        attn_prior = batch_dict.get("align_prior_matrix", None)
+
+        with torch.no_grad():
+            audio_tokens_pred, _, _, _, _, _, _, _, _, align, _ = model(
+                text=text,
+                text_lens=text_lens,
+                pitch=pitch,
+                energy=energy,
+                audio_tokens=audio_tokens,
+                audio_token_lens=audio_token_lens,
+                speaker=speaker,
+                attn_prior=attn_prior,
+            )
+
+        if self.log_alignment:
+            align = rearrange(align, "B 1 T_audio T_text -> B T_text T_audio")
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                align_path = Path(f"{dataset_name}/{audio_id}_align.png")
+                align_i = align[i, : text_lens[i], : audio_token_lens[i]].cpu().numpy()
+                alignment_artifact = ImageArtifact(
+                    id=f"align_{audio_id}",
+                    data=align_i,
+                    filepath=align_path,
+                    x_axis="Audio Tokens",
+                    y_axis="Text Tokens",
+                )
+                image_artifacts.append(alignment_artifact)
+
+        if self.log_audio_gta:
+            # [B, T_audio]
+            audio_pred, audio_pred_lens = model.audio_codec.decode(
+                tokens=audio_tokens_pred, tokens_len=audio_token_lens
+            )
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_pred_path = Path(f"{dataset_name}/{audio_id}_gta.wav")
+                audio_pred_i = audio_pred[i][: audio_pred_lens[i]].cpu().numpy()
+                audio_artifact = AudioArtifact(
+                    id=f"audio_gta_{audio_id}",
+                    data=audio_pred_i,
+                    filepath=audio_pred_path,
+                    sample_rate=model.audio_codec.sample_rate,
+                )
+                audio_artifacts.append(audio_artifact)
+
+        return audio_artifacts, image_artifacts
+
+    def generate_artifacts(
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
+    ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+
+        dataset_names = batch_dict.get("dataset_names")
+        audio_filepaths = batch_dict.get("audio_filepaths")
+        audio_ids = [create_id(p) for p in audio_filepaths]
+
+        if initial_log:
+            audio_artifacts, image_artifacts = self._create_ground_truth_artifacts(
+                model=model, batch_dict=batch_dict, dataset_names=dataset_names, audio_ids=audio_ids
+            )
+            return audio_artifacts, image_artifacts
+
+        audio_artifacts = []
+        image_artifacts = []
+
+        if self.log_audio or self.log_dequantized:
+            audio_pred, dequantized_pred = self._generate_predictions(
+                model=model, batch_dict=batch_dict, dataset_names=dataset_names, audio_ids=audio_ids
+            )
+            audio_artifacts += audio_pred
+            image_artifacts += dequantized_pred
+
+        if self.log_audio_gta or self.log_alignment:
+            audio_gta_pred, alignments = self._generate_gta_predictions(
+                model=model, batch_dict=batch_dict, dataset_names=dataset_names, audio_ids=audio_ids
             )
             audio_artifacts += audio_gta_pred
             image_artifacts += alignments

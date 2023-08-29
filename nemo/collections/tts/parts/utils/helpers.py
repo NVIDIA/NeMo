@@ -43,7 +43,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Type, Union
 
 import librosa
 import matplotlib.pylab as plt
@@ -53,6 +54,7 @@ from einops import rearrange
 from numba import jit, prange
 
 from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
+from nemo.core.classes import ModelPT
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
@@ -559,6 +561,24 @@ def remove(conv_list):
     return new_conv_list
 
 
+def average_features(features, durs):
+    durs_cums_ends = torch.cumsum(durs, dim=1).long()
+    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
+    feature_nonzero_cums = torch.nn.functional.pad(torch.cumsum(features != 0.0, dim=2), (1, 0))
+    feature_cums = torch.nn.functional.pad(torch.cumsum(features, dim=2), (1, 0))
+
+    bs, l = durs_cums_ends.size()
+    n_formants = features.size(1)
+    dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
+    dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
+
+    feature_sums = (torch.gather(feature_cums, 2, dce) - torch.gather(feature_cums, 2, dcs)).float()
+    feature_nelems = (torch.gather(feature_nonzero_cums, 2, dce) - torch.gather(feature_nonzero_cums, 2, dcs)).float()
+
+    feature_avg = torch.where(feature_nelems == 0.0, feature_nelems, feature_sums / feature_nelems)
+    return feature_avg
+
+
 def regulate_len(
     durations, enc_out, pace=1.0, mel_max_len=None, group_size=1, dur_lens: torch.tensor = None,
 ):
@@ -840,3 +860,27 @@ def g2p_backward_compatible_support(g2p_target: str) -> str:
     # for backward compatibility
     g2p_target_new = g2p_target.replace("nemo_text_processing.g2p", "nemo.collections.tts.g2p")
     return g2p_target_new
+
+
+def load_model(
+    model_type: Type[ModelPT],
+    device: str = "cpu",
+    model_name: Optional[str] = None,
+    checkpoint_path: Optional[Union[Path, str]] = None
+):
+    assert (model_name is None and checkpoint_path is not None) or \
+           (model_name is not None and checkpoint_path is None), \
+           f"Must provide exactly one of model_name or checkpoint: ({model_name}, {checkpoint_path})"
+
+    if checkpoint_path:
+        checkpoint_path = str(checkpoint_path)
+
+    if model_name is not None:
+        model = model_type.from_pretrained(model_name)
+    elif checkpoint_path.endswith(".nemo"):
+        model = model_type.restore_from(checkpoint_path)
+    else:
+        model = model_type.load_from_checkpoint(checkpoint_path)
+
+    model = model.to(device).eval()
+    return model

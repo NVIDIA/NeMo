@@ -154,6 +154,7 @@ class SEANetEncoder(NeuralModule):
         rnn_layers: int = 2,
         rnn_type: str = "lstm",
         rnn_skip: bool = True,
+        layer_norm_output: bool = False
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0

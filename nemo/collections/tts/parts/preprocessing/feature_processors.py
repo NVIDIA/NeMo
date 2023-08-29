@@ -233,9 +233,11 @@ class AlignmentPrior(FeatureProcessor):
         prior_field: str = "align_prior_matrix",
         text_len_field: str = "text_len",
         audio_len_field: str = "audio_lens",
+        convert_to_frames: bool = False
     ):
         """
         """
+        self.convert_to_frames = convert_to_frames
         self.prior_field = prior_field
         self.text_len_field = text_len_field
         self.audio_len_field = audio_len_field
@@ -244,8 +246,9 @@ class AlignmentPrior(FeatureProcessor):
     def process(self, training_example: Dict[str, Any]) -> None:
         text_len = training_example[self.text_len_field]
         audio_len = training_example[self.audio_len_field]
-        frame_len = 1 + librosa.core.samples_to_frames(audio_len, hop_length=self.hop_length)
-        align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=frame_len)
+        if self.convert_to_frames:
+            audio_len = 1 + librosa.core.samples_to_frames(audio_len, hop_length=self.hop_length)
+        align_prior = beta_binomial_prior_distribution(phoneme_count=text_len, mel_count=audio_len)
         training_example[self.prior_field] = align_prior
 
     def collate_fn(self, train_batch: List[Dict[str, Any]]) -> Dict[str, Tensor]:

@@ -23,6 +23,8 @@ import soundfile as sf
 import torch
 
 from nemo.collections.tts.parts.preprocessing.features import (
+    AudioFeaturizer,
+    AudioCodecFeaturizer,
     EnergyFeaturizer,
     MelSpectrogramFeaturizer,
     PitchFeaturizer,
@@ -36,8 +38,9 @@ class TestTTSFeatures:
         self.hop_len = 100
         self.audio_len = 50000
         self.sample_rate = 10000
+        self.duration = self.audio_len / self.sample_rate
         self.spec_len = 1 + (self.audio_len // self.hop_len)
-        self.manifest_entry = {"audio_filepath": self.audio_filename}
+        self.manifest_entry = {"audio_filepath": self.audio_filename, "duration": self.duration}
 
     def _compute_start_end_frames(self, offset, duration):
         start_frame = int(self.sample_rate * offset // self.hop_len)
@@ -55,6 +58,71 @@ class TestTTSFeatures:
             yield test_dir
         finally:
             temp_dir.cleanup()
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_audio_featurizer(self):
+        audio_featurizer = AudioFeaturizer(sample_rate=self.sample_rate, hop_length=self.hop_len)
+
+        with self._create_test_dir() as test_dir:
+            audio_dict = audio_featurizer.load(manifest_entry=self.manifest_entry, audio_dir=test_dir)
+
+        audio = audio_dict["audio"]
+        audio_len = audio_dict["audio_len"]
+        num_frames = audio_dict["num_audio_frames"]
+
+        assert len(audio.shape) == 1
+        assert audio.shape[0] == self.audio_len
+        assert audio.dtype == torch.float32
+
+        assert len(audio_len.shape) == 0
+        assert audio_len.short() == self.audio_len
+        assert audio_len.dtype == torch.int32
+
+        assert num_frames == self.spec_len
+
+    '''
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_compute_audio_tokens(self):
+        # TODO: Run only with pretrained model
+        feature_name = "codec_test"
+        num_codebooks = 8
+        num_frames = 1 + (self.audio_len * (44100 / self.sample_rate) // 512)
+        checkpoint_path = "/home/rlangman/exps/hifitts_vctk_cv_dns4_jamendo_fsd50k_44khz/EnCodec/test_44khz/checkpoints/EnCodec--val_loss=0.1216-epoch=9.ckpt"
+        audio_codec_featurizer = AudioCodecFeaturizer(feature_name=feature_name, model_checkpoint_path=checkpoint_path)
+
+        with self._create_test_dir() as test_dir:
+            audio_tokens = audio_codec_featurizer.compute_tokens(manifest_entry=self.manifest_entry, audio_dir=test_dir)
+
+        assert len(audio_tokens.shape) == 2
+        assert audio_tokens.dtype == np.int32
+        assert audio_tokens.shape[0] == num_codebooks
+        assert audio_tokens.shape[1] == num_frames
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_save_and_load_audio_tokens(self):
+        feature_name = "codec_test"
+        num_codebooks = 8
+        checkpoint_path = "/home/rlangman/exps/hifitts_vctk_cv_dns4_jamendo_fsd50k_44khz/EnCodec/test_44khz/checkpoints/EnCodec--val_loss=0.1216-epoch=9.ckpt"
+        audio_codec_featurizer = AudioCodecFeaturizer(feature_name=feature_name, model_checkpoint_path=checkpoint_path)
+
+        with self._create_test_dir() as test_dir:
+            feature_dir = test_dir / "feature"
+            audio_codec_featurizer.save(manifest_entry=self.manifest_entry, audio_dir=test_dir, feature_dir=feature_dir)
+            codec_dict = audio_codec_featurizer.load(
+                manifest_entry=self.manifest_entry, audio_dir=test_dir, feature_dir=feature_dir
+            )
+
+        audio_tokens = codec_dict[feature_name]
+        num_frames = codec_dict["num_audio_frames"]
+
+        assert len(audio_tokens.shape) == 2
+        assert audio_tokens.dtype == torch.int32
+        assert audio_tokens.shape[0] == num_codebooks
+        assert audio_tokens.shape[1] == num_frames
+    '''
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

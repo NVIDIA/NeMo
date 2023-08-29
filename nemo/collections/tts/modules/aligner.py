@@ -217,6 +217,8 @@ class AlignmentEncoder(torch.nn.Module):
         distance = self.dist_fn(queries_enc=queries_enc, keys_enc=keys_enc)
         attn = -self.temperature * distance
 
+        #print(attn.shape)
+        #print(attn_prior.shape)
         if attn_prior is not None:
             attn = self.log_softmax(attn) + torch.log(attn_prior[:, None] + 1e-8)
 
