@@ -34,6 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
     MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
@@ -124,7 +125,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
+            self.enc_dec_model = Float16Module(
+                config=self.model_parallel_config, module=self.enc_dec_model, precision=cfg.precision
+            )
 
         if self.cfg.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
@@ -261,6 +264,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             embedding_dropout = self.cfg.embedding_dropout
 
         model = MegatronTokenLevelEncoderDecoderModule(
+            config=self.model_parallel_config,
             encoder_cfg=self.cfg.encoder,
             decoder_cfg=self.cfg.decoder,
             vocab_size=self.padded_vocab_size,
@@ -270,7 +274,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             pre_process=pre_process,
             post_process=post_process,
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             megatron_amp_O2=self.cfg.get('megatron_amp_O2', False),
             precision=self.cfg.get('precision', 16),
             embedding_init_method_std=embedding_init_method_std,
@@ -319,18 +322,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         fwd_bwd_function = get_forward_backward_func()
 
+        seq_length = tensor_shape[0]
+
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             data_iterator=data_iterator,
             model=[self.enc_dec_model],
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
-            tensor_shape=tensor_shape,
+            seq_length=seq_length,
+            micro_batch_size=get_micro_batch_size(),
             decoder_seq_length=decoder_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
         # only the last stages of the pipeline return losses
@@ -1091,11 +1093,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_iterator=iter([batch_for_pipeline,]),
             model=[self.enc_dec_model],
             forward_only=True,
-            tensor_shape=tensor_shape,
             num_microbatches=1,
+            seq_length=encoder_seq_length,
             decoder_seq_length=encoder_seq_length,
-            dtype=self.autocast_dtype,
-            enable_autocast=self.enable_autocast,
+            micro_batch_size=get_micro_batch_size(),
         )
 
         if output_tensor:
@@ -1256,11 +1257,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 data_iterator=iter([batch_for_pipeline,]),
                 model=[self.enc_dec_model],
                 forward_only=True,
-                tensor_shape=tensor_shape,
                 num_microbatches=1,
+                seq_length=encoder_seq_length,
                 decoder_seq_length=encoder_seq_length,
-                dtype=self.autocast_dtype,
-                enable_autocast=self.enable_autocast,
+                micro_batch_size=get_micro_batch_size(),
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
@@ -1510,3 +1510,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def list_available_models(self):
         pass
+
+    def build_model_parallel_config(self):
+        """ Hidden size needs to be set from the cfg.encoder for the pipeline schedule.
+        """
+
+        model_parallel_config = super().build_model_parallel_config()
+        try:
+            # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
+            setattr(model_parallel_config, 'hidden_size', self.cfg.encoder.hidden_size)
+        except AttributeError:
+            logging.warning(
+                f'encoder.hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.'
+            )
+        return model_parallel_config
