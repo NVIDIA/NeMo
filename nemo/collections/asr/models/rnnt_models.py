@@ -512,6 +512,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
+        print(f"train_data_config {train_data_config['dataset']}")
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
 
@@ -557,6 +558,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel):
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
+        print(f"val_data_config {val_data_config['dataset']}")
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
 
