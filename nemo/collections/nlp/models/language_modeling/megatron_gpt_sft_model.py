@@ -103,6 +103,7 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
         self._reset_activation_checkpointing_args()
         self._reset_sequence_parallelism_args()
         self.virtual_tokens = 0
+        self.use_peft = False
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -848,3 +849,22 @@ class MegatronGPTSFTModel(MegatronGPTModel, NLPAdapterModelMixin):
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
+
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        if self.use_peft:
+            # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
+            return self.get_peft_state_dict()
+        else:
+            return super().state_dict(destination, prefix, keep_vars)
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if self.use_peft:
+            # at this stage only adapter params will appear in the state_dict arg
+            # so we only update those while the rest of the model is frozen.
+            # setting strict=False will ignore the missing keys (which are not being updated anyway)
+            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
+            # safety in strict=True anymore.
+            assert set(state_dict.keys()) == self.adapter_keys
+            super().load_state_dict(state_dict, strict=False)
+        else:
+            super().load_state_dict(state_dict, strict=True)
