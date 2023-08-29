@@ -137,5 +137,8 @@ class ALiBiRelativePositionEmbedding(torch.nn.Module):
         relative_position = relative_position[:, -query_seq_length:, -key_seq_length:]
         # if not bidirectional, mask out the future positions
 
+        if self.seq_len_interpolation_factor is not None:
+            relative_position *= 1 / self.seq_len_interpolation_factor
+
         # shape (1, num_heads, query_length, key_length)
-        return -relative_position.unsqueeze(0) * self.slopes / self.seq_len_interpolation_factor
+        return -relative_position.unsqueeze(0) * self.slopes
