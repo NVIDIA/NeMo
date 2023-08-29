@@ -462,17 +462,23 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         if offset is None:
             offset = 0
 
-        features = self.featurizer.process(
-            sample.audio_file,
-            offset=offset,
-            duration=sample.duration,
-            trim=self.trim,
-            orig_sr=sample.orig_sr,
-            channel_selector=self.channel_selector,
-        )
-        f, fl = features, torch.tensor(features.shape[0]).long()
-        output["audio_signal"] = f
-        output["audio_length"] = fl
+        if sample.audio_file is not None:
+            features = self.featurizer.process(
+                sample.audio_file,
+                offset=offset,
+                duration=sample.duration,
+                trim=self.trim,
+                orig_sr=sample.orig_sr,
+                channel_selector=self.channel_selector,
+            )
+            f, fl = features, torch.tensor(features.shape[0]).long()
+            output["audio_signal"] = f
+            output["audio_length"] = fl
+        else:
+            # dummy features
+            output["audio_signal"] = torch.zeros([8000])
+            # accomodates normalize_batch
+            output["audio_length"] = torch.tensor(8000)
 
         text_data = self._process_example(context=sample.question, output=sample.answer)
 

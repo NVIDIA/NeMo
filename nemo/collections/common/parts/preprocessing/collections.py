@@ -288,22 +288,22 @@ class AudioQuestAns(_Collection):
             ids, audio_files, durations, offsets, questions, answers, speakers, orig_sampling_rates, langs
         ):
             # Duration filters.
-            if min_duration is not None and duration < min_duration:
-                duration_filtered += duration
-                num_filtered += 1
-                continue
+            if duration is not None:
+                if min_duration is not None and duration < min_duration:
+                    duration_filtered += duration
+                    num_filtered += 1
+                    continue
 
-            if max_duration is not None and duration > max_duration:
-                duration_filtered += duration
-                num_filtered += 1
-                continue
+                if max_duration is not None and duration > max_duration:
+                    duration_filtered += duration
+                    num_filtered += 1
+                    continue
+                total_duration += duration
 
             if answer is None:
                 duration_filtered += duration
                 num_filtered += 1
                 continue
-
-            total_duration += duration
 
             data.append(output_type(id_, audio_file, duration, question, answer, offset, speaker, orig_sr, lang))
             if index_by_file_id:
@@ -404,21 +404,18 @@ class ALMAudioQA(AudioQuestAns):
         elif 'audio_filepath' in item:
             item['audio_file'] = item.pop('audio_filepath')
         elif 'audio_file' not in item:
-            raise ValueError(
-                f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
-            )
+            item['audio_file'] = None
 
         # If the audio path is a relative path and does not exist,
         # try to attach the parent directory of manifest to the audio path.
         # Revert to the original path if the new path still doesn't exist.
         # Assume that the audio path is like "wavs/xxxxxx.wav".
-        item['audio_file'] = manifest.get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+        if item['audio_file'] is not None:
+            item['audio_file'] = manifest.get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
 
         # Duration.
         if 'duration' not in item:
-            raise ValueError(
-                f"Manifest file {manifest_file} has invalid json line structure: {line} without proper duration key."
-            )
+            item['duration'] = None
 
         # Answer.
         if 'answer' in item:
