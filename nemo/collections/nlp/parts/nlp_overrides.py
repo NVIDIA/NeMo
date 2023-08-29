@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dis
 import itertools
 import os
 import shutil
@@ -447,12 +448,33 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
-        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+
+        # Check if using distributed checkpointing
+        dist_ckpt = (
+            hasattr(model, 'sharded_state_dict')
+            and model.sharded_state_dict() is not None
+        )
+
+        dist_ckpt_dir = None
+            
+        if (app_state.model_parallel_size is not None and app_state.model_parallel_size > 1) or dist_ckpt:
 
             dir_name = os.path.dirname(save_path)
 
-            # first we save the weights for each model parallel rank
-            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            # dist ckpt calls save on every rank
+            if dist_ckpt:
+                # model weights is a directory
+                dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
+                fs = get_filesystem(dist_ckpt_dir)
+                if is_global_rank_zero():
+                    fs.makedirs(dist_ckpt_dir, exist_ok=True)
+                sharded_state_dict = model.sharded_state_dict()
+                dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
+
+        
+            else:
+
+                # first we save the weights for each model parallel rank
                 if app_state.data_parallel_rank == 0:
                     if app_state.pipeline_model_parallel_size == 1:
                         mp_model_weights = os.path.join(
@@ -467,54 +489,64 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                     self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
 
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
-                # create nemo file from folder with all mp_ranks checkpoints
-                if (
-                    app_state.pipeline_model_parallel_rank == 0
-                    and app_state.tensor_model_parallel_rank == 0
-                    and app_state.data_parallel_rank == 0
-                ):
-                    with tempfile.TemporaryDirectory() as tmpdir:
+            # create nemo file from folder with all mp_ranks checkpoints
+            if (
+                app_state.pipeline_model_parallel_rank == 0
+                and app_state.tensor_model_parallel_rank == 0
+                and app_state.data_parallel_rank == 0
+            ):
+                with tempfile.TemporaryDirectory() as tmpdir:
 
-                        if app_state.pipeline_model_parallel_size == 1:
-                            # move weights to the tmpdir
-                            for tp_rank in range(app_state.tensor_model_parallel_size):
-                                os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
-                                mp_model_weights = os.path.join(
-                                    dir_name, f'mp_rank_{tp_rank:02d}_' + self.model_weights_ckpt
-                                )
-                                shutil.move(
-                                    mp_model_weights,
-                                    os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
-                                )
-                        else:
-                            # move weights to the tmpdir
-                            for tp_rank, pp_rank in itertools.product(
-                                range(app_state.tensor_model_parallel_size),
-                                range(app_state.pipeline_model_parallel_size),
-                            ):
-                                os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
-                                mp_model_weights = os.path.join(
-                                    dir_name, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}_' + self.model_weights_ckpt
-                                )
-                                shutil.move(
-                                    mp_model_weights,
-                                    os.path.join(
-                                        tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
-                                    ),
-                                )
+                    if dist_ckpt:
+                        # model weights is a directory
+                        model_weights_dir = ckpt_to_dir(self.model_weights_ckpt)
+                        tmp_model_weights_dir = os.path.join(tmpdir, model_weights_dir)
+                        os.makedirs(tmp_model_weights_dir)
+                        shutil.move(
+                            str(dist_ckpt_dir),
+                            tmp_model_weights_dir
+                        )
 
-                        # create config and artifacts in tmpdir
-                        config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-                        model.to_config_file(path2yaml_file=config_yaml)
-                        if hasattr(model, 'artifacts') and model.artifacts is not None:
-                            self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                            self._update_artifact_paths(model, path2yaml_file=config_yaml)
+                    elif app_state.pipeline_model_parallel_size == 1:
+                        # move weights to the tmpdir
+                        for tp_rank in range(app_state.tensor_model_parallel_size):
+                            os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
+                            mp_model_weights = os.path.join(
+                                dir_name, f'mp_rank_{tp_rank:02d}_' + self.model_weights_ckpt
+                            )
+                            shutil.move(
+                                mp_model_weights,
+                                os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
+                            )
+                    else:
+                        # move weights to the tmpdir
+                        for tp_rank, pp_rank in itertools.product(
+                            range(app_state.tensor_model_parallel_size),
+                            range(app_state.pipeline_model_parallel_size),
+                        ):
+                            os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
+                            mp_model_weights = os.path.join(
+                                dir_name, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}_' + self.model_weights_ckpt
+                            )
+                            shutil.move(
+                                mp_model_weights,
+                                os.path.join(
+                                    tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
+                                ),
+                            )
 
-                        # create tar file
-                        self._make_nemo_file_from_folder(save_path, tmpdir)
+                    # create config and artifacts in tmpdir
+                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                    model.to_config_file(path2yaml_file=config_yaml)
+                    if hasattr(model, 'artifacts') and model.artifacts is not None:
+                        self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                        self._update_artifact_paths(model, path2yaml_file=config_yaml)
+
+                    # create tar file
+                    self._make_nemo_file_from_folder(save_path, tmpdir)
 
         else:
             return super().save_to(model, save_path)
