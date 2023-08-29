@@ -501,13 +501,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 with tempfile.TemporaryDirectory() as tmpdir:
 
                     if dist_ckpt:
-                        # model weights is a directory
-                        model_weights_dir = ckpt_to_dir(self.model_weights_ckpt)
-                        tmp_model_weights_dir = os.path.join(tmpdir, model_weights_dir)
-                        os.makedirs(tmp_model_weights_dir)
                         shutil.move(
                             str(dist_ckpt_dir),
-                            tmp_model_weights_dir
+                            tmpdir
                         )
 
                     elif app_state.pipeline_model_parallel_size == 1:
