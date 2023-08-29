@@ -15,6 +15,7 @@
 import asyncio
 import os
 import threading
+import logging
 from functools import partial
 
 import torch
@@ -27,7 +28,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 # from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_server_bsd import MegatronServer
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
+# from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.collections.nlp.modules.common.text_generation_utils_pad import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
@@ -158,6 +160,8 @@ class RequestDataSet(Dataset):
     def __getitem__(self, idx):
         return self.sentences[idx]
 
+STRING_SPK_TOKENS = [str(k) for k in range(10)]
+
 def int_to_token(index):
     t_dict = {0: 251521,
         1: 251525,
@@ -171,49 +175,100 @@ def int_to_token(index):
         9: 251561}
     return t_dict[index]
 
+# def rindex(mylist, myvalue):
+#     return len(mylist) - mylist[::-1].index(myvalue) - 1
+
 def rindex(lst, value):
-    lst.reverse()
-    i = lst.index(value)
-    lst.reverse()
-    return len(lst) - i - 1
+    rev_list= lst[::-1]
+    i = rev_list.index(value)
+    # lst = lst[::-1]
+    return len(rev_list) - i - 1
 
-def rindex(mylist, myvalue):
-    return len(mylist) - mylist[::-1].index(myvalue) - 1
 
-def get_ngram_probs(cfg, model, response, target_index_from_end=1):
+def get_ngram_probs(sentences, model, response, target_index_from_end=1):
+    response['word_probs'] = []
+    if response['full_logprob'] is None:
+        raise ValueError("response['full_logprob'] is None. Abort.")
+        
     for k in range(len(response['full_logprob'])):
-        # ridx = len(model.tokenizer.text_to_ids(cfg.prompts[k])) - 1
-        target_word = cfg.prompts[k].split()[-1*target_index_from_end]
+        target_word = sentences[k].split()[-1*target_index_from_end]
         token_id = model.tokenizer.text_to_ids(target_word)[0]
         ridx = rindex(response['token_ids'][k], token_id)
         idx_from_end = len(response['token_ids'][k]) - ridx
         probs = F.softmax(response['full_logprob'][k][-1*idx_from_end], dim=-1)
         
-        if True: 
+        if False: 
             vals, idxs = torch.topk(probs, 10)
             bub_string = model.tokenizer.ids_to_text(idxs.tolist())
             word_list = bub_string.split()
             for top_word in word_list:
                 print(f"{response['tokens'][k][ridx-5:ridx]}: {top_word}")
-        print(f"target word <{target_word}> p(W) probs: {probs[token_id]}")
-    return probs[token_id]
+        response['word_probs'].append(probs[token_id].item())
+    return response
 
-def get_speaker_probs(cfg, model, response, num_of_speakers=5):
+def get_speaker_probs(sentences, model, response, num_of_speakers=5):
+    response['spk_probs'] = []
     for k in range(len(response['full_logprob'])):
-        # Find the '▁speaker' or 'speaker' token and get the probabilities of the next token
-        print(f"response['sentences'][{k}] = {response['sentences'][k]}")
-        ridx = rindex(response['token_ids'][k], 211466)
-        idx_from_end = len(response['token_ids'][k]) - ridx
-        print(f"ridx: {ridx} token: {response['tokens'][k][idx_from_end]}")
+        # Find the '▁speaker'(17595) or 'speaker'(211466) token and get the probabilities of the next token
+        ridx_nub = rindex(response['token_ids'][k], 211466)
+        ridx_wub = rindex(response['token_ids'][k], 17595)
         
-        # full_logprob is shifted 1 to the left (first token does not have a probability)
-        probs = F.softmax(response['full_logprob'][k][ridx], dim=-1)
-        probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
+        ridx = max(ridx_nub, ridx_wub)
+        spk_id = response['tokens'][k][ridx+1] 
+        if response['token_ids'][k][ridx] not in [211466, 17595]:
+            # There is no speaker token in the sentence: 
+            logging.info(f"[WARNING] No speaker token found -- ridx: {ridx} token: {response['tokens'][k][ridx]}")
+            probs = torch.tensor([(1/num_of_speakers) for q in range(num_of_speakers)])
+        else:
+            if ridx == -1 or spk_id not in STRING_SPK_TOKENS:
+                # token for ridx+1 index is not a number (speaker token)
+                logging.info(f"[WARNING] Not a number: speaker number token found -- ridx+1: {ridx+1} token: {response['tokens'][k][ridx+1]}")
+        
+            idx_from_end = len(response['token_ids'][k]) - (ridx + 1)
+            
+            # full_logprob is shifted 1 to the left (first token does not have a probability)
+            probs = F.softmax(response['full_logprob'][k][-idx_from_end], dim=-1)
+            probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
         probs_tensor = probs / probs.sum()
-        probs_tensor= probs_tensor.numpy()
-        print(f"probs_tensor: {probs_tensor}")
-        # print(f" speaker0: {probs[int_to_token(0)]:.4f} \n speaker1: {probs[int_to_token(1)]:.4f} \n speaker2: {probs[int_to_token(2)]:.4f} \n speaker3: {probs[int_to_token(3)]:.4f} \n speaker4: {probs[int_to_token(4)]:.4f}")
-    return probs_tensor
+        probs_tensor = probs_tensor.numpy()
+        response['spk_probs'].append(probs_tensor.tolist())
+        # print(f"Speaker Prob Tensor: {probs_tensor}")
+    return response 
+
+# def get_ngram_probs(cfg, model, response, target_index_from_end=1):
+#     for k in range(len(response['full_logprob'])):
+#         # ridx = len(model.tokenizer.text_to_ids(cfg.prompts[k])) - 1
+#         target_word = cfg.prompts[k].split()[-1*target_index_from_end]
+#         token_id = model.tokenizer.text_to_ids(target_word)[0]
+#         ridx = rindex(response['token_ids'][k], token_id)
+#         idx_from_end = len(response['token_ids'][k]) - ridx
+#         probs = F.softmax(response['full_logprob'][k][-1*idx_from_end], dim=-1)
+        
+#         if True: 
+#             vals, idxs = torch.topk(probs, 10)
+#             bub_string = model.tokenizer.ids_to_text(idxs.tolist())
+#             word_list = bub_string.split()
+#             for top_word in word_list:
+#                 print(f"{response['tokens'][k][ridx-5:ridx]}: {top_word}")
+#         print(f"target word <{target_word}> p(W) probs: {probs[token_id]}")
+#     return probs[token_id]
+
+# def get_speaker_probs(cfg, model, response, num_of_speakers=5):
+#     for k in range(len(response['full_logprob'])):
+#         # Find the '▁speaker' or 'speaker' token and get the probabilities of the next token
+#         print(f"response['sentences'][{k}] = {response['sentences'][k]}")
+#         ridx = rindex(response['token_ids'][k], 211466)
+#         idx_from_end = len(response['token_ids'][k]) - ridx
+#         print(f"ridx: {ridx} token: {response['tokens'][k][idx_from_end]}")
+        
+#         # full_logprob is shifted 1 to the left (first token does not have a probability)
+#         probs = F.softmax(response['full_logprob'][k][ridx], dim=-1)
+#         probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
+#         probs_tensor = probs / probs.sum()
+#         probs_tensor= probs_tensor.numpy()
+#         print(f"probs_tensor: {probs_tensor}")
+#         # print(f" speaker0: {probs[int_to_token(0)]:.4f} \n speaker1: {probs[int_to_token(1)]:.4f} \n speaker2: {probs[int_to_token(2)]:.4f} \n speaker3: {probs[int_to_token(3)]:.4f} \n speaker4: {probs[int_to_token(4)]:.4f}")
+#     return probs_tensor
     
 
 def remove_padded_prompts(response, nb_paddings):
@@ -339,18 +394,23 @@ def main(cfg) -> None:
             cfg.prompts.append("")
             nb_paddings += 1
     # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    )
+    if True:
+        response = model.generate(
+            inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+        )
+        
+        if fp8_enabled:
+            response = remove_padded_prompts(response, nb_paddings)
+        target_word = "rent"
     
-    if fp8_enabled:
-        response = remove_padded_prompts(response, nb_paddings)
-    target_word = "rent"
+        print("***************************")
+        print(response['sentences'])
+        print("***************************")
     
-    if cfg.inference.tokens_to_generate == 0:
-        get_ngram_probs(cfg, model, response, target_index_from_end=1)
-    else:
-        get_speaker_probs(cfg, model, response, num_of_speakers=5)
+        if cfg.inference.tokens_to_generate == 0:
+            response = get_ngram_probs(cfg, model, response, target_index_from_end=1)
+        else:
+            response = get_speaker_probs(cfg, model, response, num_of_speakers=5)
 
     # Second method of running text generation, call trainer.predict [recommended]
     if False:

@@ -438,10 +438,7 @@ def synced_generate(
         if all_probs:
             src = parallel_state.get_pipeline_model_parallel_last_rank()
             group = parallel_state.get_embedding_group()
-            try:
-                torch.distributed.broadcast(full_logits, src, group)
-            except:
-                import ipdb; ipdb.set_trace()
+            torch.distributed.broadcast(full_logits, src, group)
 
     else:
         if parallel_state.is_pipeline_first_stage():
@@ -475,15 +472,19 @@ def synced_generate(
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits
 
-def right_pad(context_tokens_tensor, eos_id, pad_id):
-    padded_tensor = torch.empty_like(context_tokens_tensor).fill_(pad_id)
+def right_pad(context_tokens_tensor, context_length_tensor, eos_id, pad_id):
+    max_token_len = context_tokens_tensor.shape[1]
+    padded_tensor = torch.empty_like(context_tokens_tensor[:, :max_token_len+1]).fill_(pad_id)
     for idx, row in enumerate(context_tokens_tensor):
         # Find the first occurrence of eos_id
         eos_positions = (row == eos_id).nonzero(as_tuple=True)[0]
         if len(eos_positions) > 0:
             first_eos_position = eos_positions[0].item()
+            first_eos_position = context_length_tensor[idx].item()
             # Truncate everything after the first eos_id and append a single eos_id
-            truncated_row = torch.cat([row[:first_eos_position], torch.tensor([eos_id], device='cuda:0')])
+            # truncated_row = torch.cat([row[:first_eos_position], torch.tensor([eos_id], device='cuda:0')])
+            eos_len = max_token_len - first_eos_position 
+            truncated_row = torch.cat([row[:first_eos_position], torch.tensor([eos_id]*eos_len, device='cuda:0')])
         else:
             truncated_row = row
         
@@ -546,12 +547,10 @@ def generate(
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
-            
             # TJ park: Right pad the context_tokens_tensor with eos_id            
-            context_tokens_tensor = right_pad(context_tokens_tensor, model.tokenizer.eos_id, model.tokenizer.pad_id)
             max_len = torch.max(context_length_tensor)
+            context_tokens_tensor = right_pad(context_tokens_tensor, context_length_tensor, model.tokenizer.eos_id, model.tokenizer.pad_id)
             context_length_tensor[:] = max_len
-        # import ipdb; ipdb.set_trace()
 
         send_generate_info(
             context_tokens_tensor,
@@ -738,14 +737,6 @@ def sample_sequence_batch(
                     output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                     assert output is not None
                     logits = output[:, -1].view(batch_size, -1).contiguous()
-                    
-                # if compute_logprob:
-                #     logits = output[0]['logits'][:, -1].contiguous()
-                #     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
-                #     assert logits is not None
-                #     logits = logits.view(batch_size, -1)
-
-
                 else:
                     logits = output[0]['logits'][:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
@@ -787,7 +778,7 @@ def sample_sequence_batch(
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
-
+    
                 # Replace sampled tokens w/ done token if EOD has already been sampled
                 new_tokens = switch(new_tokens, eod_id, is_done)
 

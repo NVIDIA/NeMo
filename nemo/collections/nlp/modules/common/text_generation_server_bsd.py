@@ -20,6 +20,7 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 import torch.nn.functional as F
+import torch.distributed as dist
 
 from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
@@ -66,16 +67,27 @@ def int_to_token(index):
         9: 251561}
     return t_dict[index]
 
+def find_end_from_right(token_ids, end_tokens_list=[982, 426, 251642]):
+    index = len(token_ids) - 1
+    found = False
+    sequence = end_tokens_list
+    while index >= 2:  # We check until 2 because we're looking for a sequence of 3
+        if token_ids[index] == sequence[2] and token_ids[index-1] == sequence[1] and token_ids[index-2] == sequence[0]:
+            found = True
+            break
+        index -= 1
+    if found:
+        return index
+    else:
+        return -1
+
 def rindex(lst, value):
     if value not in lst:
         return -1
-    lst.reverse()
-    i = lst.index(value)
-    lst.reverse()
-    return len(lst) - i - 1
+    rev_list= lst[::-1]
+    i = rev_list.index(value)
+    return len(rev_list) - i - 1
 
-def rindex(mylist, myvalue):
-    return len(mylist) - mylist[::-1].index(myvalue) - 1
 
 def get_ngram_probs(sentences, model, response, target_index_from_end=1):
     if response['full_logprob'] is None:
@@ -87,7 +99,6 @@ def get_ngram_probs(sentences, model, response, target_index_from_end=1):
         ridx = rindex(response['token_ids'][k], token_id)
         idx_from_end = len(response['token_ids'][k]) - ridx
         probs = F.softmax(response['full_logprob'][k][-1*idx_from_end], dim=-1)
-        
         if False: 
             vals, idxs = torch.topk(probs, 10)
             bub_string = model.tokenizer.ids_to_text(idxs.tolist())
@@ -95,22 +106,42 @@ def get_ngram_probs(sentences, model, response, target_index_from_end=1):
             for top_word in word_list:
                 print(f"{response['tokens'][k][ridx-5:ridx]}: {top_word}")
         response['word_probs'].append(probs[token_id].item())
+        # import ipdb; ipdb.set_trace()
     return response
 
-def get_speaker_probs(sentences, model, response, num_of_speakers=5):
+def get_speaker_probs(sentences, model, response, num_of_speakers=5, cal_word_probs=True):
     for k in range(len(response['full_logprob'])):
         # Find the '▁speaker'(17595) or 'speaker'(211466) token and get the probabilities of the next token
         ridx_nub = rindex(response['token_ids'][k], 211466)
         ridx_wub = rindex(response['token_ids'][k], 17595)
         
+         
+        if cal_word_probs: 
+            end_tokens_list = [982, 426, 251642] # '▁[', 'end', ']'
+            the_next_word_is_sym = [3346, 339, 379] # '▁word', '▁is', '('
+            end_of_trans_idx_last = find_end_from_right(response['token_ids'][k], end_tokens_list=end_tokens_list)
+            end_of_trans_idx = end_of_trans_idx_last - len(end_tokens_list) + 1
+            word_idx_anchor = find_end_from_right(response['token_ids'][k], end_tokens_list=the_next_word_is_sym)
+            next_word_idx = word_idx_anchor + 1
+            next_word_token_id = response['token_ids'][k][next_word_idx]
+            # print(f"end_of_trans_idx id : {end_of_trans_idx} end tokens { response['tokens'][k][end_of_trans_idx:end_of_trans_idx+3]}")
+            # print(f"Check next word index : {response['tokens'][k][next_word_idx-3:next_word_idx+3]}")
+            # print(f"next_word_token_id: {next_word_token_id} next word: ({ model.tokenizer.ids_to_text([next_word_token_id])})")
+            probs = F.softmax(response['full_logprob'][k][end_of_trans_idx], dim=-1)
+            response['word_probs'].append(probs[next_word_token_id].item())
+            # import ipdb; ipdb.set_trace()
+        
         ridx = max(ridx_nub, ridx_wub)
         spk_id = response['tokens'][k][ridx+1] 
-            
-        if ridx == -1 or spk_id not in STRING_SPK_TOKENS or response['token_ids'][k][ridx] not in [211466, 17595]:
+        if response['token_ids'][k][ridx] not in [211466, 17595]:
             # There is no speaker token in the sentence: 
             logging.info(f"[WARNING] No speaker token found -- ridx: {ridx} token: {response['tokens'][k][ridx]}")
             probs = torch.tensor([(1/num_of_speakers) for q in range(num_of_speakers)])
         else:
+            # if ridx == -1 or spk_id not in STRING_SPK_TOKENS:
+            #     # token for ridx+1 index is not a number (speaker token)
+            #     logging.info(f"[WARNING] Not a number: speaker number token found -- ridx+1: {ridx+1} token: {response['tokens'][k][ridx+1]}")
+            #     pass
             idx_from_end = len(response['token_ids'][k]) - (ridx + 1)
             # full_logprob is shifted 1 to the left (first token does not have a probability)
             probs = F.softmax(response['full_logprob'][k][-idx_from_end], dim=-1)
@@ -118,6 +149,7 @@ def get_speaker_probs(sentences, model, response, num_of_speakers=5):
         probs_tensor = probs / probs.sum()
         probs_tensor = probs_tensor.numpy()
         response['spk_probs'].append(probs_tensor.tolist())
+        # import ipdb; ipdb.set_trace()
     return response 
 
 
@@ -251,6 +283,12 @@ class MegatronGenerate(Resource):
                 ):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
+               
+            if request.get_json()["tokens_to_generate"] <= 1:
+                is_word_probs = True
+            else:
+                is_word_probs = False
+                tokens_to_generate = 1
                 
             output = generate(
                 self.model,
@@ -268,14 +306,21 @@ class MegatronGenerate(Resource):
                 min_tokens_to_generate=min_tokens_to_generate,
                 **extra,
             )
-            if request.get_json()["tokens_to_generate"] <= 1:
-                output.update({'word_probs': []})
-                output = get_ngram_probs(request.get_json()["sentences"], self.model, output, target_index_from_end=1)
-            else:
-                output.update({'spk_probs': []})
-                output = get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=5)
+            # if request.get_json()["tokens_to_generate"] <= 1:
+            # if is_word_probs:
+            #     output.update({'word_probs': []})
+            #     output = get_ngram_probs(request.get_json()["sentences"], self.model, output, target_index_from_end=1)
+            # else:
+            #     output.update({'spk_probs': []})
+            #     output.update({'word_probs': []})
+            #     output = get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=4)
+            output.update({'spk_probs': []})
+            output.update({'word_probs': []})
+            output = get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=4)
             
-            for keys in ['sentences', 'token_ids', 'tokens', 'full_logprob', 'logprob', 'offsets']:
+             
+            # for keys in ['sentences', 'token_ids', 'tokens', 'full_logprob', 'logprob', 'offsets']:
+            for keys in ['token_ids', 'tokens', 'full_logprob', 'logprob', 'offsets']:
                 del output[keys]
             torch.cuda.empty_cache()
             # output['task_ids'] = task_ids

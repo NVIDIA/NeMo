@@ -41,7 +41,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_params_for_weight_decay_optimization,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import (
+# from nemo.collections.nlp.modules.common.text_generation_utils import (
+from nemo.collections.nlp.modules.common.text_generation_utils_pad import (
     generate,
     get_computeprob_response,
     get_default_length_params,
