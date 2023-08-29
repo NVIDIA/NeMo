@@ -46,7 +46,11 @@ model:
     num_workers: 8
     pin_memory: true
   
-  tokenizer:
+  char_labels: # use for char based models
+    update_labels: false
+    labels: null
+
+  tokenizer: # use for spe/bpe based tokenizer models
     update_tokenizer: false
     dir: null  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
     type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)

@@ -62,6 +62,16 @@ from nemo.utils.exp_manager import exp_manager
 
 @rank_zero_only
 def get_base_model(cfg):
+    """
+    Returns the base model to be fine-tuned.
+    Currently supports two types of initializations:
+    1) `init_from_nemo_model`, and
+    2) `init_from_pretrained_model`.
+    Args:
+        cfg: config
+    Returns:
+        asr_model: ASRModel instance
+    """
     asr_model = None
     nemo_model_path = cfg.get('init_from_nemo_model', None)
     pretrained_name = cfg.get('init_from_pretrained_model', None)
@@ -79,7 +89,42 @@ def get_base_model(cfg):
     return asr_model
 
 
+def check_vocabulary(asr_model, cfg):
+    """
+    Checks if the decoder and vocabulary of the model needs to be updated.
+    If either of them needs to be updated, it updates them and returns the updated model.
+    else vocabulary will be reused from the pre-trained model.
+    Args:
+        asr_model: ASRModel instance
+        cfg: config
+    Returns:
+        asr_model: ASRModel instance with updated decoder and vocabulary
+    """
+    if hasattr(cfg.model.tokenizer, 'update_tokenizer') and cfg.model.tokenizer.update_tokenizer:
+        if hasattr(cfg.model.char_labels, 'update_labels') and cfg.model.char_labels.update_labels:
+            raise ValueError("Both `model.tokenizer.update_tokenizer` and `model.labels` cannot be passed together")
+        else:
+            asr_model = update_tokenizer(asr_model, cfg.model.tokenizer.dir, cfg.model.tokenizer.type)
+    elif hasattr(cfg.model, 'char_labels') and cfg.model.char_labels.update_labels:
+        asr_model.change_vocabulary(new_vocabulary=cfg.model.char_labels.labels)
+        logging.warning("The vocabulary of the model has been updated with provided char labels.")
+    else:
+        logging.info("Reusing the vocabulary from the pre-trained model.")
+
+    return asr_model
+
+
 def update_tokenizer(asr_model, tokenizer_dir, tokenizer_type):
+    """
+    Updates the tokenizer of the model and also reinitializes the decoder if the vocabulary size 
+    of the new tokenizer differs from that of the loaded model.
+    Args:
+        asr_model: ASRModel instance
+        tokenizer_dir: tokenizer directory
+        tokenizer_type: tokenizer type
+    Returns:
+        asr_model: ASRModel instance with updated tokenizer and decoder
+    """
     vocab_size = asr_model.tokenizer.vocab_size
     decoder = asr_model.decoder.state_dict()
     if hasattr(asr_model, 'joint'):
@@ -104,11 +149,19 @@ def update_tokenizer(asr_model, tokenizer_dir, tokenizer_type):
 
 
 def setup_dataloaders(asr_model, cfg):
+    """
+    Sets up the training, validation and test dataloaders for the model.
+    Args:
+        asr_model: ASRModel instance
+        cfg: config
+    Returns:
+        asr_model: ASRModel instance with updated dataloaders
+    """
     cfg = model_utils.convert_model_config_to_dict_config(cfg)
     asr_model.setup_training_data(cfg.model.train_ds)
-    asr_model.setup_validation_data(cfg.model.validation_ds)
+    asr_model.setup_multiple_validation_data(cfg.model.validation_ds)
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        asr_model.setup_test_data(cfg.model.test_ds)
+        asr_model.setup_multiple_test_data(cfg.model.test_ds)
 
     return asr_model
 
@@ -127,11 +180,8 @@ def main(cfg):
 
     asr_model = get_base_model(cfg)
 
-    # if new tokenizer is provided, use it
-    if hasattr(cfg.model.tokenizer, 'update_tokenizer') and cfg.model.tokenizer.update_tokenizer:
-        asr_model = update_tokenizer(asr_model, cfg.model.tokenizer.dir, cfg.model.tokenizer.type)
-    else:
-        logging.info("Reusing the tokenizer from the loaded model.")
+    # Check vocabulary type and update if needed
+    asr_model = check_vocabulary(asr_model, cfg)
 
     # Setup Data
     asr_model = setup_dataloaders(asr_model, cfg)
