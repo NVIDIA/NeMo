@@ -66,7 +66,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
         assert not self.mcore_gpt or hasattr(
             self, 'name_key_to_mcore_mixins'
-        ), "some of the PEFT modules are not supported in megatron core mode yet."
+        ), f"{self.__class__.__name__} is not supported in megatron core mode yet."
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
         for name, module in self.named_modules():
@@ -192,7 +192,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
         assert len(self.peft_name_keys) > 0, "peft_name_keys have not been set no PEFT modules will be added"
         assert not self.mcore_gpt or hasattr(
             self, 'name_key_to_mcore_mixins'
-        ), "some of the PEFT modules are not supported in megatron core mode yet."
+        ), f"{self.__class__.__name__} is not supported in megatron core mode yet."
         assert len(self.name_key_to_cfg) > 0, "name_key_to_cfg has not been set no PEFT modules will be added"
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
         if self.mcore_gpt:
