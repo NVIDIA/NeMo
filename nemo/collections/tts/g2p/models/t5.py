@@ -24,6 +24,7 @@ from transformers import AutoTokenizer, T5ForConditionalGeneration
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.tts.g2p.data.t5 import T5G2PDataset
 from nemo.collections.tts.models.base import G2PModel
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LabelsType, LossType, MaskType, NeuralType, TokenIndex
 from nemo.utils import logging
@@ -38,7 +39,7 @@ class T5G2PConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-class T5G2PModel(G2PModel):
+class T5G2PModel(G2PModel, Exportable):
     """
     T5-based grapheme-to-phoneme model.
     """
@@ -260,3 +261,12 @@ class T5G2PModel(G2PModel):
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
         return []
+
+    # ===== export methods ===========$
+
+    def input_example(self, max_batch=1, max_dim=64, seq_len=16):
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=max_dim, size=(max_batch, seq_len), device=sample.device)
+        labels = torch.randint(low=0, high=max_dim, size=(max_batch, seq_len), device=sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=(max_batch, seq_len), device=sample.device)
+        return tuple([input_ids, attention_mask, labels])

@@ -188,7 +188,9 @@ class Exportable(ABC):
                 input_list, input_dict = parse_input_example(input_example)
                 input_names = self.input_names
                 output_names = self.output_names
-                output_example = tuple(self.forward(*input_list, **input_dict))
+                output_example = self.forward(*input_list, **input_dict)
+                if torch.is_tensor(output_example):
+                    output_example = (output_example,)
 
                 if check_trace:
                     if isinstance(check_trace, bool):

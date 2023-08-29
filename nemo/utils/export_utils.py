@@ -144,6 +144,8 @@ def verify_torchscript(model, output, input_examples, check_tolerance=0.01):
         # We disable autocast here to make sure exported TS will run under Triton or other C++ env
         with torch.cuda.amp.autocast(enabled=False):
             output_example = model.forward(*input_list, **input_dict)
+            if torch.is_tensor(output_example):
+                output_example = (output_example,)
             ts_model = torch.jit.load(output)
             all_good = all_good and run_ts_and_compare(
                 ts_model, input_list, input_dict, output_example, check_tolerance
@@ -172,6 +174,8 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         output_example = model.forward(*input_list, **input_dict)
+        if torch.is_tensor(output_example):
+            output_example = (output_example,)
         ort_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
         all_good = all_good and run_ort_and_compare(sess, ort_input, output_example, check_tolerance)
     status = "SUCCESS" if all_good else "FAIL"
@@ -184,6 +188,8 @@ def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, c
     ts_out = ts_model(*ts_input_list, **ts_input_dict)
 
     all_good = True
+    if torch.is_tensor(ts_out):
+        ts_out = (ts_out,)
     for i, out in enumerate(ts_out):
         expected = output_example[i]
 
@@ -206,6 +212,8 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
     # Verify the model can be read, and is valid
     ort_out = sess.run(None, ort_input)
     all_good = True
+    if torch.is_tensor(ort_out):
+        ort_out = (ort_out,)
     for i, out in enumerate(ort_out):
         expected = output_example[i]
 
