@@ -449,13 +449,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         app_state = AppState()
 
         # Check if using distributed checkpointing
-        dist_ckpt = (
-            hasattr(model, 'sharded_state_dict')
-            and model.sharded_state_dict() is not None
-        )
+        dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
 
         dist_ckpt_dir = None
-            
+
         if (app_state.model_parallel_size is not None and app_state.model_parallel_size > 1) or dist_ckpt:
 
             dir_name = os.path.dirname(save_path)
@@ -470,7 +467,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 sharded_state_dict = model.sharded_state_dict()
                 dist_checkpointing.save(sharded_state_dict=sharded_state_dict, checkpoint_dir=dist_ckpt_dir)
 
-        
             else:
 
                 # first we save the weights for each model parallel rank
@@ -500,10 +496,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 with tempfile.TemporaryDirectory() as tmpdir:
 
                     if dist_ckpt:
-                        shutil.move(
-                            str(dist_ckpt_dir),
-                            tmpdir
-                        )
+                        shutil.move(str(dist_ckpt_dir), tmpdir)
 
                     elif app_state.pipeline_model_parallel_size == 1:
                         # move weights to the tmpdir
@@ -519,8 +512,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     else:
                         # move weights to the tmpdir
                         for tp_rank, pp_rank in itertools.product(
-                            range(app_state.tensor_model_parallel_size),
-                            range(app_state.pipeline_model_parallel_size),
+                            range(app_state.tensor_model_parallel_size), range(app_state.pipeline_model_parallel_size),
                         ):
                             os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
                             mp_model_weights = os.path.join(
