@@ -15,7 +15,9 @@
 import logging
 import re
 import string
+import subprocess
 from collections import Counter
+from pathlib import Path
 from typing import List, Union
 
 import torch
@@ -226,7 +228,19 @@ class CodeGenerationAccuracy(Metric):
     def update(self, pred: str, target):
         if '<extra_id_1>' in pred:
             pred = pred.split('<extra_id_1>')[0].strip()
-        pred_answer = get_result(pred, 0.01)
+        pred = pred.replace('\n', '\\n')
+        p = subprocess.run(
+            f'python {Path(__file__).absolute().parent / "execution.py"}',
+            input=pred,
+            capture_output=True,
+            text=True,
+            shell=True,
+            check=True,
+        )
+        if 'None' in p.stdout:
+            pred_answer = None
+        else:
+            pred_answer = float(p.stdout)
         self.correct += pred_answer == round(float(target), 6)
         self.total += 1
 

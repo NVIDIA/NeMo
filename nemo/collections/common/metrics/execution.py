@@ -15,7 +15,7 @@ from typing import Callable, Dict, Optional
 
 # when run during training we **really** don't want any interuptions,
 # so let's have a slower, but guaranteed eval here
-USING_MULTIPROCESSING = True
+USING_MULTIPROCESSING = False
 
 
 def get_result(output: str, timeout: float):
@@ -207,7 +207,7 @@ def reliability_guard(maximum_memory_bytes: Optional[int] = None):
     import os
 
     # VERY IMPORTANT TO DISABLE THIS - OTHERWISE THERE ARE ERRORS
-    # os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
     # TODO: NOT SURE ABOUT SECURITY IMPLICATIONS!
 
     os.kill = None
@@ -248,7 +248,7 @@ def reliability_guard(maximum_memory_bytes: Optional[int] = None):
 
     subprocess.Popen = None  # type: ignore
 
-    __builtins__['help'] = None
+    # __builtins__['help'] = None
 
     import sys
 
@@ -257,3 +257,10 @@ def reliability_guard(maximum_memory_bytes: Optional[int] = None):
     sys.modules['resource'] = None
     sys.modules['psutil'] = None
     sys.modules['tkinter'] = None
+
+
+if __name__ == '__main__':
+    output = input()
+    output = '\n'.join(output.split("\\n"))  # weird hack for multiline input
+    verdict = get_result(output, 1.0)
+    print(verdict)
