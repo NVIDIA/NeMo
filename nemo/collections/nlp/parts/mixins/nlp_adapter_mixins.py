@@ -53,6 +53,10 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         write Adapter config information to `self.cfg.adapters`.
     """
 
+    def __init__(self, *args, **kwargs):
+        self.use_peft = False
+        super().__init__(*args, **kwargs)
+
     def _get_all_keys(self,):
         """
         Returns all the keys in the model
@@ -128,28 +132,29 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
+        self.use_peft = True
 
-    def get_adapter_state_dict(self):
+    def get_peft_state_dict(self):
         """
         Gets the keys associated with the adapters only.
         """
         state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
-        adapter_state_dict = {}
+        peft_state_dict = {}
         for k in self.adapter_keys:
-            # state_dict keys needs to be in non-O2 format
+            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
-            adapter_state_dict[new_k] = state_dict[k]
-        return adapter_state_dict
+            peft_state_dict[new_k] = state_dict[k]
+        return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        if self.setup_complete:
+        if self.use_peft:
             # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
-            return self.get_adapter_state_dict()
+            return self.get_peft_state_dict()
         else:
             return super().state_dict(destination, prefix, keep_vars)
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        if self.setup_complete:
+        if self.use_peft:
             # at this stage only adapter params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
             # setting strict=False will ignore the missing keys (which are not being updated anyway)

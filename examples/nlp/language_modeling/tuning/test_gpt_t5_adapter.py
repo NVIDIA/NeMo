@@ -21,6 +21,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     PromptEncoderAdapterConfig,
 )
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import exp_manager
@@ -121,7 +122,13 @@ def main(cfg) -> None:
 
         ckpt_path = os.path.join(ckpt_dir, f"{cfg.name}.nemo")
 
-        model2 = FTModel.restore_from(restore_path=ckpt_path, trainer=trainer, override_config_path=base_model_cfg,)
+        save_restore_connector = PEFTSaveRestoreConnector(peft_model_nemo_path=ckpt_path, peft_model_ckpt_path=None,)
+        model2 = FTModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=base_model_cfg,
+            save_restore_connector=save_restore_connector,
+        )
         model2_state = str(model2.state_dict())
 
         print("Compare state after loading adapter:", str(model.state_dict()) == model2_state)
