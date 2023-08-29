@@ -31,6 +31,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
 )
@@ -60,6 +61,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -124,7 +127,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
         if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            # set hidden size in the model parallel config for pipeline parallel schedules
             self.autocast_dtype = torch.bfloat16
         elif self.trainer.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
@@ -367,8 +369,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter, batch_idx):
-        # Prefetch the dataloader_iter before fwd_bwd func to avoid PP rank 2 from waiting indefinitely when PP rank 1 reaches the end of dataloader_iter
-        dataloader_iter, done = self._prefetch(dataloader_iter)
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
         mode = 'test' if self.trainer.testing else 'val'

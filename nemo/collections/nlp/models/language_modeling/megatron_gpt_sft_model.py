@@ -339,6 +339,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
+        self.model.config.no_sync_func = no_sync_func
+        self.model.config.grad_sync_func = grad_sync_func
+        self.model.config.param_sync_func = param_sync_func
+
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
@@ -381,20 +385,17 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
-        except StopIteration:
-            return
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
-        except StopIteration:
-            return
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
         batch = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -402,21 +403,24 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
-        # We need _inference_config to get generation params
-        # add_BOS and tokens_to_generate are set in dataset
-        if self.get_inference_config() is None:
-            self.set_inference_config(inference_config={})
-        self._inference_config['add_BOS'] = data_cfg.add_bos
-        self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+        if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
+            # We need _inference_config to get generation params
+            # add_BOS and tokens_to_generate are set in dataset
+            if self.get_inference_config() is None:
+                self.set_inference_config(inference_config={})
+            self._inference_config['add_BOS'] = data_cfg.add_bos
+            self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 
-        output = self.predict_step(batch, batch_idx, dataloader_idx)
+            output = self.predict_step(batch, batch_idx, dataloader_idx)
+            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+            preds_text = [
+                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                for t, l in zip(output['token_ids'], batch['context_lengths'])
+            ]
+        else:
+            inputs_text, labels_text, preds_text = [], [], []
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-        preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-            for t, l in zip(output['token_ids'], batch['context_lengths'])
-        ]
         outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
@@ -583,6 +587,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,

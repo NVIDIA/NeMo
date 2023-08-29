@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraKQVAdapterWeightTyingConfig,
     LoraKVAdapterConfig,
     LoraQAdapterConfig,
 )
@@ -59,6 +60,8 @@ try:
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
+
+    ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -141,6 +144,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 LoraKQVAdapterConfig._target_,
                 LoraQAdapterConfig._target_,
                 LoraKVAdapterConfig._target_,
+                LoraKQVAdapterWeightTyingConfig._target_,
             ]
         )
 
@@ -241,7 +245,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         """Forward method with activation checkpointing."""
 
         def custom_forward(*inputs):
-            if len(inputs) == 8:
+            if len(inputs) == 7:
                 query_layer = inputs[0]
                 key_layer = inputs[1]
                 value_layer = inputs[2]
@@ -249,8 +253,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb = inputs[4]
                 relative_position_bias = inputs[5]
                 headscale_tensor = inputs[6]
-                inference_mode = inputs[7]
-            elif len(inputs) == 9:
+            elif len(inputs) == 8:
                 query_layer = inputs[0]
                 key_layer = inputs[1]
                 value_layer = inputs[2]
@@ -258,7 +261,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb = (inputs[4], inputs[5])
                 relative_position_bias = inputs[6]
                 headscale_tensor = inputs[7]
-                inference_mode = inputs[8]
             else:
                 raise ValueError('unexpected number of inputs')
             output_ = self.core_attention(
