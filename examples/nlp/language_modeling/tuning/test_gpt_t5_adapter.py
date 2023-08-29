@@ -10,16 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    AttnAdapterConfig,
-    AttnPtuningAdapterConfig,
-    IA3AdapterConfig,
-    InfusedAdapterConfig,
-    LoraKQVAdapterConfig,
-    MLPInfusedAdapterConfig,
-    PromptEncoderAdapterConfig,
-)
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
 from nemo.core.config import hydra_runner
@@ -114,21 +105,23 @@ def main(cfg) -> None:
             restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
         )
 
-        adapter_cfg = IA3AdapterConfig(base_model_cfg)
-        model.add_adapters(adapter_cfg)
+        AdapterConfig = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
+        model.add_adapters(AdapterConfig(base_model_cfg))
         trainer.fit(model)
 
         ckpt_dir = os.path.join(trainer._default_root_dir, "checkpoints")
 
         ckpt_path = os.path.join(ckpt_dir, f"{cfg.name}.nemo")
 
-        save_restore_connector = PEFTSaveRestoreConnector(peft_model_nemo_path=ckpt_path, peft_model_ckpt_path=None,)
+        save_restore_connector = PEFTSaveRestoreConnector(peft_model_nemo_path=ckpt_path)
         model2 = FTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             override_config_path=base_model_cfg,
             save_restore_connector=save_restore_connector,
         )
+        model = model.cuda()
+        model2 = model2.cuda()
         model2_state = str(model2.state_dict())
 
         print("Compare state after loading adapter:", str(model.state_dict()) == model2_state)

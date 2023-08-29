@@ -36,6 +36,7 @@ from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PEFT_CONFIG_MAP
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.classes.mixins.adapter_mixins import AdapterNameConfig
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -514,6 +515,9 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
+        if self.adapter_cfg is None:
+            AdapterConfig = PEFT_CONFIG_MAP[conf.peft.peft_scheme]
+            self.adapter_cfg = AdapterConfig(conf)
         instance.add_adapters(self.adapter_cfg)
 
         if (
