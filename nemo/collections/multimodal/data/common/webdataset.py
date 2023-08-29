@@ -137,7 +137,9 @@ class WebDatasetCommon(NeMoIterableDataset):
 
         # Need to expand as a glob pattern
         if isinstance(dataset_path, str):
+            glob_path = dataset_path
             dataset_path = glob.glob(dataset_path)
+            assert len(dataset_path) > 0, f"No files found for {glob_path}"
 
         # wdinfo in a dict containing webdata information
         self.wdinfo = dict()
