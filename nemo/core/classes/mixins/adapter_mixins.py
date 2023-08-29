@@ -49,10 +49,10 @@ class AdapterConfig:
 
 class AdapterNameConfig:
     # superclass for adapter name and config
-    def __init__(self, cfg: DictConfig, name_key_to_cfg: Dict):
+    def __init__(self, cfg: DictConfig, peft_cfg: DictConfig, name_key_to_cfg: Dict):
         self.name_key_to_cfg = name_key_to_cfg
 
-        self.layer_selection = cfg.get("layer_selection", None)
+        self.layer_selection = peft_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
 

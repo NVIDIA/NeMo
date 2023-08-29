@@ -141,7 +141,7 @@ class LoraAdapterConfig(AdapterNameConfig):
             AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
         }
 
-        super().__init__(lora_cfg, name_key_to_cfg)
+        super().__init__(cfg, lora_cfg, name_key_to_cfg)
 
 
 class IA3AdapterConfig(AdapterNameConfig):
@@ -157,7 +157,7 @@ class IA3AdapterConfig(AdapterNameConfig):
             AdapterName.MLP_INFUSED: mlp_infused_adapter_cfg,
         }
 
-        super().__init__(cfg.peft.ia3_tuning, name_key_to_cfg)
+        super().__init__(cfg, cfg.peft.ia3_tuning, name_key_to_cfg)
 
 
 class PtuningAdapterConfig(AdapterNameConfig):
@@ -171,7 +171,7 @@ class PtuningAdapterConfig(AdapterNameConfig):
         )
         name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
 
-        super().__init__(cfg.peft.p_tuning, name_key_to_cfg)
+        super().__init__(cfg, cfg.peft.p_tuning, name_key_to_cfg)
 
 
 class AttnAdapterConfig(AdapterNameConfig):
@@ -192,7 +192,7 @@ class AttnAdapterConfig(AdapterNameConfig):
             AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
         }
 
-        super().__init__(adapter_tuning_cfg, name_key_to_cfg)
+        super().__init__(cfg, adapter_tuning_cfg, name_key_to_cfg)
 
 
 class AttnPtuningAdapterConfig(AdapterNameConfig):
@@ -220,7 +220,7 @@ class AttnPtuningAdapterConfig(AdapterNameConfig):
             AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
             AdapterName.PTUNING_ADAPTER: ptuning_cfg,
         }
-        super().__init__(adapter_tuning_cfg, name_key_to_cfg)
+        super().__init__(cfg, adapter_tuning_cfg, name_key_to_cfg)
 
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):

@@ -37,6 +37,7 @@ from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hoo
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.core.classes.mixins.adapter_mixins import AdapterNameConfig
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -440,9 +441,11 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         peft_model_nemo_path: Optional[str] = None,
         peft_model_ckpt_path: Optional[str] = None,
         peft_model_ckpt_name: Optional[str] = "model_weights.ckpt",
+        adapter_cfg: Optional[AdapterNameConfig] = None,
     ) -> None:
         super().__init__()
         self.peft_model_ckpt_name = peft_model_ckpt_name
+        self.adapter_cfg = adapter_cfg
         if peft_model_ckpt_path:
             # First we will try to load a adapter ckpt path
             # this is given priority over loading from nemo path to make resumption of training possible
@@ -511,6 +514,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
         conf, instance, state_dict = loaded_params
+        instance.add_adapters(self.adapter_cfg)
 
         if (
             self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None
