@@ -668,3 +668,13 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
 @dataclass
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
+
+
+
+PEFT_CONFIG_MAP = {
+    "adapter": AttnAdapterConfig,
+    "ia3": IA3AdapterConfig,
+    "ptuning": PtuningAdapterConfig,
+    "adapter_and_ptuning": AttnPtuningAdapterConfig,
+    "lora": LoraAdapterConfig,
+}

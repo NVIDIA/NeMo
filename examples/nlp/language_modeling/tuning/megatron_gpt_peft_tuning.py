@@ -16,13 +16,7 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AttnAdapterConfig,
-    AttnPtuningAdapterConfig,
-    IA3AdapterConfig,
-    LoraAdapterConfig,
-    PtuningAdapterConfig,
-)
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -51,14 +45,6 @@ Usage:
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
             trainer.max_epochs=2
 """
-
-peft_config_map = {
-    "adapter": AttnAdapterConfig,
-    "ia3": IA3AdapterConfig,
-    "ptuning": PtuningAdapterConfig,
-    "adapter_and_ptuning": AttnPtuningAdapterConfig,
-    "lora": LoraAdapterConfig,
-}
 
 
 def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
@@ -129,11 +115,10 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     base_model_cfg = build_config(cfg, trainer)
-    model = MegatronGPTSFTModel.restore_from(
-        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
-    )
+    model = MegatronGPTSFTModel.restore_from(restore_path=base_model_cfg.restore_from_path, trainer=trainer,
+                                             override_config_path=base_model_cfg)
 
-    AdapterConfig = peft_config_map[base_model_cfg.peft.peft_scheme]
+    AdapterConfig = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
     model.add_adapters(AdapterConfig(base_model_cfg))
 
     trainer.fit(model)
