@@ -27,7 +27,6 @@ from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import (
     get_param_id_to_sharded_param_map,
-    make_sharded_optimizer_tensor,
     optim_state_to_sharding_state,
 )
 
