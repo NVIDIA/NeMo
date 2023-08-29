@@ -34,11 +34,18 @@ def swap_mcore_mixin(module, mcore_mixin):
 
 class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
     def mcore_register_adapters(self):
+        """
+        Performs any necessary setup after swapping class.
+        Must use self.set_accepted_adapter_types([<NeMo adapter config>_target_]) to register adapter.
+        """
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
 
 
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
+        """
+        Setup NeMo LoRA adapter to this MCore layer.
+        """
         self.set_accepted_adapter_types([LoraKQVAdapterConfig._target_])  # only self attn (packed qkv) for now
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
 
@@ -88,6 +95,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
 class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
+        """
+        Setup NeMo ptuning adapter to this MCore layer.
+        """
         self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
 
     def forward(self, input_ids, position_ids):
