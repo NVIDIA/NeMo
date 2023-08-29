@@ -1673,7 +1673,6 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
         return_sample_id: bool = False,
         **kwargs,
     ):
-        print("---0000")
         # Initialize text tokenizer
         self.text_tokenizer = text_tokenizer
 
@@ -1795,7 +1794,6 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
             getattr(self, f"add_{data_type.name}")(**kwargs)
 
         self.pad_multiple = pad_multiple
-        print("---1111")
 
 
     def add_log_mel(self, **kwargs):
@@ -1960,15 +1958,12 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
-        print("****1111")
         audio_bytes, audio_filename, offset_id = tup
 
         # Grab manifest entry from self.manifest_preprocessor.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
         manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
         manifest_entry = self.manifest_processor.collection[manifest_idx]
-        print(f"file_id {file_id}")
-        print(f"audio_filename {audio_filename}")
 
         offset = manifest_entry.offset
         if offset is None:
@@ -1991,7 +1986,7 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
 
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
         self.base_data_dir = self.base_data_dir.replace("/", "_")
-        rel_audio_path_as_text_id = audio_filename.split(self.base_data_dir)[1]
+        rel_audio_path_as_text_id = audio_filename.split(self.base_data_dir)[1] if self.base_data_dir in audio_filename else audio_filename
         # rel_audio_path = Path(audio_filename).relative_to(self.base_data_dir).with_suffix("")
         # rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
 
@@ -2115,7 +2110,8 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
         # Load speaker id if needed
         speaker_id = None
         if SpeakerID in self.sup_data_types_set:
-            speaker_id = torch.tensor(manifest_entry.speaker).long()
+            speaker_id = torch.tensor(1).long()
+            # speaker_id = torch.tensor(manifest_entry.speaker).long()
 
         reference_audio, reference_audio_length = None, None
         if ReferenceAudio in self.sup_data_types_set:
@@ -2132,15 +2128,12 @@ class TarredTTSDataset(_TarredAudioToTextDataset):
 
         semantic_code, semantic_code_len = None, None
         if SemanticCode in self.sup_data_types_set:
-            print(f"audio_filename {file_id}")
-            semantic_filename = file_id
-            semantic_filename[3:] = "npz"
-            print(f"semantic_filename {semantic_filename}")
-            semantic_code = np.load(os.path.join(self.semantic_code_folder, str(semantic_filename)))
+            semantic_filename = file_id + ".npz"
+            semantic_code = np.load(os.path.join(self.semantic_code_folder, str(semantic_filename)))['codes']
             semantic_code = torch.from_numpy(semantic_code).long()
-            semantic_code_len = torch.tensor(semantic_code.shape[0]).long()
-
-        print("****2222")
+            semantic_code_len = torch.tensor(semantic_code.shape[1]).long()
+            if semantic_code.dim() > 1:
+                semantic_code = semantic_code.squeeze(0)
 
         return (
             audio,

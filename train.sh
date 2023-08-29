@@ -12,11 +12,11 @@ TRAIN_MANIFEST="/data/LibriTTS-R/manifests/dev.json"
 VAL_AUDIO="/data/LibriTTS-R/dev_all_tar/audio__OP_0..3_CL_.tar"
 VAL_MANIFEST="/data/LibriTTS-R/manifests/dev.json"
 num_workers=8
-batch_size=4
+batch_size=32
 num_epochs=10
 grad_accumulation=1
 precision=16
-sup_data_types="['align_prior_matrix','speaker_id','semantic_code']"
+sup_data_types="['speaker_id','semantic_code']" # 'align_prior_matrix','speaker_id'
 sup_data_path="/data/LibriTTS-R/dev_ssup"
 
 # model.tokenizer.dir=${tokenizer_dir} \

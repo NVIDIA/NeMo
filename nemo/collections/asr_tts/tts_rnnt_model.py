@@ -44,7 +44,6 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         TTS = "tts"
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        print("....1111")
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
@@ -57,12 +56,14 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
 
         # Setup the tokenizer
         self.tokenizer: TokenizerSpec
+        self.ds_class = None
 
         if self.dataset_type == self.DatasetType.ASR_BPE:
             self._setup_tokenizer(cfg.tokenizer)
             vocabulary = self.tokenizer.tokenizer.get_vocab()
             vocabulary_size = len(vocabulary)
         elif self.dataset_type == self.DatasetType.TTS:
+            self.ds_class = cfg.train_ds.dataset._target_
             # self.vocab = None
             self._setup_tokenizer_tts(cfg)
             assert self.tokenizer is not None
@@ -157,7 +158,6 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
-        print(f"....2222 {self.dataset_type}")
 
     def change_vocabulary(self, *args, **kwargs):
         raise NotImplementedError
@@ -219,7 +219,6 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         return encoded, encoded_len
 
     def training_step(self, batch, batch_nb):
-        print("++++1111")
         if not isinstance(batch, AudioTextBatchWithSpeakerId) and self.dataset_type != self.DatasetType.TTS:
             raise NotImplementedError("Unsupported batch type")
         # Reset access registry
@@ -227,14 +226,12 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
             AccessMixin.reset_registry(self)
 
         if isinstance(batch, AudioTextBatchWithSpeakerId) and self.dataset_type != self.DatasetType.ASR_BPE:
-            print("1111")
             transcript = batch.transcripts
             transcript_len = batch.transcripts_length
             speaker_ids = batch.speaker_ids
             audio = batch.audio_signal
             audio_len = batch.audio_signal_length
-        elif self.dataset_type != self.DatasetType.TTS:
-            print("2222")
+        elif self.dataset_type == self.DatasetType.TTS:
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             transcript = batch_dict.get("text")
             transcript_len = batch_dict.get("text_lens")
@@ -253,7 +250,6 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         )
 
         if semantic_code is None:
-            print("NO SEMANTIC CODE")
             with torch.no_grad():
                 if self.encodec_model.training:
                     self.encodec_model.eval()
@@ -269,7 +265,6 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
 
                 quantized_signal_len = torch.ceil(torch.div(audio_len * 75, 24000)).to(torch.long)
         else:
-            print("YES SEMANTIC CODE")
             quantized_signal = semantic_code
             quantized_signal_len = semantic_code_len
         # logging.warning(f"signal: {signal.shape}, {signal_len}")
@@ -378,7 +373,6 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         return list(zip(sample_id, best_hyp_text))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        print("++++----1111")
         if not isinstance(batch, AudioTextBatchWithSpeakerId) and self.dataset_type != self.DatasetType.TTS:
             raise NotImplementedError("Unsupported batch type")
         
@@ -388,7 +382,7 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
             speaker_ids = batch.speaker_ids
             audio = batch.audio_signal
             audio_len = batch.audio_signal_length
-        elif self.dataset_type != self.DatasetType.TTS:
+        elif self.dataset_type == self.DatasetType.TTS:
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             transcript = batch_dict.get("text")
             transcript_len = batch_dict.get("text_lens")
@@ -532,13 +526,13 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         if self.dataset_type == self.DatasetType.ASR_BPE:
             super(TextToSpeechTransducerModel, self).setup_training_data(config)
         else:
-            self._setup_dataloader_from_config(config)
+            self._train_dl = self._setup_dataloader_from_config(config)
 
     def setup_validation_data(self, config):
         if self.dataset_type == self.DatasetType.ASR_BPE:
             super(TextToSpeechTransducerModel, self).setup_validation_data(config)
         else:
-            self._setup_dataloader_from_config(config)
+            self._validation_dl = self._setup_dataloader_from_config(config)
 
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -567,20 +561,20 @@ class TextToSpeechTransducerModel(EncDecRNNTModel, ASRBPEMixin):
         elif config.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        # if self.ds_class == "nemo.collections.tts.data.dataset.TTSDataset":
-        #     phon_mode = contextlib.nullcontext()
-        #     if hasattr(self.vocab, "set_phone_prob"):
-        #         phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
+        if self.ds_class == "nemo.collections.tts.data.dataset.TTSDataset":
+            phon_mode = contextlib.nullcontext()
+            if hasattr(self.vocab, "set_phone_prob"):
+                phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
 
-        #     with phon_mode:
-        #         dataset = instantiate(
-        #             config.dataset,
-        #             text_normalizer=self.normalizer,
-        #             text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
-        #             text_tokenizer=self.vocab,
-        #         )
-        # else:
-        dataset = instantiate(config.dataset, text_tokenizer=self.tokenizer,)
+            with phon_mode:
+                dataset = instantiate(
+                    config.dataset,
+                    text_normalizer=self.normalizer,
+                    text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+                    text_tokenizer=self.vocab,
+                )
+        else:
+            dataset = instantiate(config.dataset, text_tokenizer=self.tokenizer,)
 
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **config.dataloader_params)
 
