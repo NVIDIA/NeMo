@@ -35,7 +35,7 @@ exp_manager:
     filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
-  create_early_stopping_callback: True
+  create_early_stopping_callback: False
   early_stopping_callback_params:
     monitor: "val_loss"
     mode: "min"
@@ -57,9 +57,9 @@ model:
   report_validation_metric: False
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
-  seq_pattern: "parallel" # parallel, delay_parallel, flatten
-  speech_head_type: "token_level" # token_level, linear
-  cross_entropy_type: "regular" # regular, vocab_parallel
+  seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
+  speech_head_type: "linear" # token_level, linear
+  cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
