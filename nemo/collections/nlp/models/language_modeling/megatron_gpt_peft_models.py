@@ -145,7 +145,18 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
             return self.model.sharded_state_dict(prefix="model.")
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        return  # everything is done in on_load_checkpoint
+        if len(state_dict) == 0:
+            return  # checkpoint is loaded in on_load_checkpoint()
+        if self.setup_complete:
+            # at this stage only PEFT params will appear in the state_dict arg
+            # so we only update those while the rest of the model is frozen.
+            # setting strict=False will ignore the missing keys (which are not being updated anyway)
+            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
+            # safety in strict=True anymore.
+            assert set(state_dict.keys()) == self.adapter_keys
+            super().load_state_dict(state_dict, strict=False)
+        else:
+            super().load_state_dict(state_dict, strict=True)
 
     def setup_optimizer_param_groups(self):
         """
@@ -414,6 +425,22 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
             return {}
         else:
             return self.model.state_dict(prefix="model.")
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """ 
+        Reimplement load_state_dict for ptuning because we also need to check the stage of the pipeline.
+        The check is required to make pp>1 to work.
+        """
+        if len(state_dict) == 0:
+            return  # checkpoint is loaded in on_load_checkpoint()
+        if self.setup_complete:
+            if self.first_stage_of_pipeline():
+                # if we are not in the first state of pipeline after setup is done
+                # there should be no params to load...
+                assert set(state_dict.keys()) == self.adapter_keys
+                super().load_state_dict(state_dict, strict=False)
+        else:
+            super().load_state_dict(state_dict, strict=True)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
