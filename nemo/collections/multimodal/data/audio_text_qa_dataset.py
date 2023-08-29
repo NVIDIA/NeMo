@@ -790,33 +790,38 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         """
         audio_bytes, audio_filename, offset_id = tup
 
-        # Grab manifest entry from self.manifest_preprocessor.collection
-        file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-        manifest_idx = self.collection.mapping[file_id][offset_id]
-        manifest_entry = self.collection[manifest_idx]
+        if audio_filename is not None:
+            # Grab manifest entry from self.manifest_preprocessor.collection
+            file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+            manifest_idx = self.collection.mapping[file_id][offset_id]
+            manifest_entry = self.collection[manifest_idx]
 
-        # init output dict
-        output = {"idx": manifest_idx}
+            # init output dict
+            output = {"idx": manifest_idx}
 
-        offset = manifest_entry.offset
-        if offset is None:
-            offset = 0
+            offset = manifest_entry.offset
+            if offset is None:
+                offset = 0
+            # Convert audio bytes to IO stream for processing (for SoundFile to read)
+            audio_filestream = io.BytesIO(audio_bytes)
+            features = self.featurizer.process(
+                audio_filestream,
+                offset=offset,
+                duration=manifest_entry.duration,
+                trim=self.trim,
+                orig_sr=manifest_entry.orig_sr,
+            )
+            audio_filestream.close()
 
-        # Convert audio bytes to IO stream for processing (for SoundFile to read)
-        audio_filestream = io.BytesIO(audio_bytes)
-        features = self.featurizer.process(
-            audio_filestream,
-            offset=offset,
-            duration=manifest_entry.duration,
-            trim=self.trim,
-            orig_sr=manifest_entry.orig_sr,
-        )
-        audio_filestream.close()
-
-        # Audio features
-        f, fl = features, torch.tensor(features.shape[0]).long()
-        output["audio_signal"] = f
-        output["audio_length"] = fl
+            # Audio features
+            f, fl = features, torch.tensor(features.shape[0]).long()
+            output["audio_signal"] = f
+            output["audio_length"] = fl
+        else:
+            # dummy features
+            output["audio_signal"] = torch.zeros([8000])
+            # accomodates normalize_batch
+            output["audio_length"] = torch.tensor(8000)
 
         # Text features
         text_data = self._process_example(context=manifest_entry.question, output=manifest_entry.answer)

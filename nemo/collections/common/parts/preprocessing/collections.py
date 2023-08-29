@@ -306,7 +306,7 @@ class AudioQuestAns(_Collection):
                 continue
 
             data.append(output_type(id_, audio_file, duration, question, answer, offset, speaker, orig_sr, lang))
-            if index_by_file_id:
+            if index_by_file_id and audio_file is not None:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 if file_id not in self.mapping:
                     self.mapping[file_id] = []
