@@ -229,18 +229,23 @@ class CodeGenerationAccuracy(Metric):
         if '<extra_id_1>' in pred:
             pred = pred.split('<extra_id_1>')[0].strip()
         pred = pred.replace('\n', '\\n')
-        p = subprocess.run(
-            f'python {Path(__file__).absolute().parent / "execution.py"}',
-            input=pred,
-            capture_output=True,
-            text=True,
-            shell=True,
-            check=True,
-        )
-        if 'None' in p.stdout:
+        try:
+            p = subprocess.run(
+                f'python {Path(__file__).absolute().parent / "execution.py"}',
+                input=pred,
+                capture_output=True,
+                text=True,
+                shell=True,
+                check=True,
+            )
+            if 'None' in p.stdout:
+                pred_answer = None
+            else:
+                pred_answer = float(p.stdout)
+        except Exception as e:
+            print("Some error occured during code verification!")
+            print(e)
             pred_answer = None
-        else:
-            pred_answer = float(p.stdout)
         self.correct += pred_answer == round(float(target), 6)
         self.total += 1
 
