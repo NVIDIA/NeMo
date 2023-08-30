@@ -55,7 +55,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronT5SFTModel']
 
 
-class MegatronT5SFTModel(MegatronT5Model, NLPAdapterModelMixin):
+class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
     """ T5 Finetuning model in the same format as MegatronGPTSFTModel """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -146,6 +146,10 @@ class MegatronT5SFTModel(MegatronT5Model, NLPAdapterModelMixin):
     def _metrics_require_string2category_map(self):
         return set(["f1", "accuracy", "average_precision"])
 
+    @property
+    def model(self):
+        return self.enc_dec_model
+
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
         self.init_consumed_samples = 0
@@ -161,6 +165,7 @@ class MegatronT5SFTModel(MegatronT5Model, NLPAdapterModelMixin):
             self.setup_test_data()
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
+        self.setup_complete = True
 
     def on_validation_epoch_start(self):
         app_state = AppState()

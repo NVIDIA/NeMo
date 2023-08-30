@@ -23,7 +23,7 @@ from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModuleMixin,
     _prepare_default_adapter_config,
 )
-from nemo.utils import logging, logging_mode, model_utils
+from nemo.utils import logging, model_utils
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
     """ NLP Adapter Mixin that can augment any Encoder module with Adapter module support.
@@ -53,6 +53,10 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         self.use_peft = False
         self.setup_complete = False
         super().__init__(*args, **kwargs)
+        if hasattr(self, "enc_dec_model"):
+            self.model_prefix = "enc_dec_model."  # for T5
+        else:
+            self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
 
     def _get_all_keys(self,):
         """
@@ -138,7 +142,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         """
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
+        state_dict = self.model.state_dict(prefix=self.model_prefix)
         peft_state_dict = {}
         for k in self.adapter_keys:
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
@@ -154,7 +158,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix="model.")
+            return self.model.state_dict(prefix=self.model_prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.use_peft and self.setup_complete:
