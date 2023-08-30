@@ -600,40 +600,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 max_seq_len=max_position_embeddings,
             )
 
-        elif position_embedding_type == 'alibi':
-            # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
-            # addition for decoder. Currently it is only used for decoder model only.
-            # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
-            self.encoder_relative_position_embedding = ALiBiRelativePositionEmbedding(
-                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
-                num_attention_heads=num_attention_heads,
-                layer_type=LayerType.encoder,
-                num_attention_heads_alibi=None,
-                max_seq_len=max_position_embeddings,
-            )
-
-        elif position_embedding_type == 'kerple':
-            # TODO: If this is used for encoder-decodemax_position_embeddingsr model, implement proper logic and following
-            # addition for decoder. Currently it is only used for decoder model only.
-            # Encoder-decoder model, such as T5 is implemented in token_level_encoder_decoder.py
-            self.encoder_relative_position_embedding = KERPLERelativePositionEmbedding(
-                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
-                num_attention_heads=num_attention_heads,
-                layer_type=LayerType.encoder,
-                num_attention_heads_kerple=None,
-                max_seq_len=max_position_embeddings,
-            )
-            assert use_flash_attention == False  # flash-attention not supported with kerple at this point
-
-        elif position_embedding_type == 'sandwich':
-            self.encoder_relative_position_embedding = SandwichRelativePositionEmbedding(
-                bidirectional=encoder_attn_mask_type != AttnMaskType.causal,
-                num_attention_heads=num_attention_heads,
-                layer_type=LayerType.encoder,
-                hidden_size=self.hidden_size // num_attention_heads if kv_channels is None else kv_channels,
-                max_seq_len=max_position_embeddings,
-            )
-
         # Transformer.
         self.encoder = ParallelTransformer(
             config=config,

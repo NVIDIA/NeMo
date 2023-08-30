@@ -150,7 +150,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
-            rampup_batch_size=cfg.get('rampup_batch_size'),
+            rampup_batch_size=cfg.get('rampup_batch_size', None),
             use_fp8=cfg.get('fp8', False),
             init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
             seed=self.cfg.get('seed', 1234),
@@ -189,6 +189,15 @@ class MegatronBaseModel(NLPModel):
         if self.gc_interval > 0:
             gc.disable()
             self.validation_global_step = 1
+
+    def _reconfigure_val_batches(self):
+        """
+        Reconfigure trainer.limit_val_batches for pretraining
+        """
+        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
+        self.trainer.limit_val_batches *= get_num_microbatches()
+        # Override num sanity steps equal to num of microbatches and perform one val_step
+        self.trainer.num_sanity_val_steps = get_num_microbatches()
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
@@ -627,14 +636,6 @@ class MegatronBaseModel(NLPModel):
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
 
-        if self.cfg.get('ub_tp_comm_overlap', False):
-            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
-                logging.info(
-                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
-                )
-                with open_dict(self.cfg):
-                    self.cfg.ub_tp_comm_overlap = False
-
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
             return True
@@ -818,19 +819,13 @@ class MegatronBaseModel(NLPModel):
 
         return model_parallel_config
 
-    def _prefetch(self, iterator):
-        """Checks if the iterator still has elements to return.
-        Used in models using dataloader_iter to prefetch the next batch before fwd_bwd func
-        is called to avoid PP rank 2 from wait indefinitely to get outpits from PP 1
+    def _val_iterator_done(self, iterator):
         """
-        elements = []
-        num_microbatches = get_num_microbatches()
-        for _ in range(num_microbatches):
-            try:
-                element = next(iterator)
-                elements.append(element)
-            except StopIteration:
-                return iterator, True
-
-        # return a new iterator with the prefetched element reinserted at the front
-        return itertools.chain(elements, iterator), False
+        Check if the iterator is exhausted, if so raise a StopIteration and exit validation_step
+        """
+        try:
+            element = next(iterator)
+        except StopIteration:
+            return iterator, True
+        # reinsert the element back to the iterator
+        return itertools.chain([element], iterator), False
