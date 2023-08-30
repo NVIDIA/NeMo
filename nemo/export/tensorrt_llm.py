@@ -219,9 +219,9 @@ class TensorRTLLM(ITritonDeployable):
             input_texts (List(str)): list of sentences.
             tasks (str): task type. Currently not used and added for later use.
             max_output_len (int): max generated tokens.
-            top_k (int):
-            top_p (float):
-            temperature (float):
+            top_k (int): limits us to a certain number (K) of the top tokens to consider.
+            top_p (float): limits us to the top tokens within a certain probability mass (p).
+            temperature (float): A parameter of the softmax function, which is the last layer in the network.
         """
         if self.model is None:
             raise Exception(
@@ -258,7 +258,18 @@ class TensorRTLLM(ITritonDeployable):
         try:
             input_texts = str_ndarray2list(inputs.pop("prompts"))
             max_output_len = inputs.pop("max_output_len")
-            output_texts = self.forward(input_texts=input_texts, max_output_len=max_output_len[0][0])
+            top_k = inputs.pop("top_k")
+            top_p = inputs.pop("top_p")
+            temperature = inputs.pop("temperature")
+
+            output_texts = self.forward(
+                input_texts=input_texts,
+                max_output_len=max_output_len[0][0],
+                top_k=top_k[0][0],
+                top_p=top_p[0][0],
+                temperature=temperature[0][0],
+            )
+
             output = cast_output(output_texts, np.bytes_)
             return {"outputs": output}
         except Exception as error:
