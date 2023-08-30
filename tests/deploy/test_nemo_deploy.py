@@ -66,14 +66,26 @@ class TestNemoDeployment:
                 nq = NemoQuery(url="localhost", model_name=model_name)
 
                 prompts = ["hello, testing GPT inference", "another GPT inference test?"]
-                output = nq.query_llm(prompts=prompts, max_output_len=100)
+                output = nq.query_llm(
+                    prompts=prompts,
+                    max_output_len=100,
+                    top_k=1,
+                    top_p=0.0,
+                    temperature=0.0,
+                )
                 print("prompts: ", prompts)
                 print("")
                 print("output: ", output)
                 print("")
 
                 prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
-                output = nq.query_llm(prompts=prompts, max_output_len=250)
+                output = nq.query_llm(
+                    prompts=prompts,
+                    max_output_len=250,
+                    top_k=1,
+                    top_p=0.2,
+                    temperature=0.3,
+                )
                 print("prompts: ", prompts)
                 print("")
                 print("output: ", output)

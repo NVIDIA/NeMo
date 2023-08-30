@@ -22,16 +22,64 @@ from .utils import str_list2numpy
 
 
 class NemoQuery:
+    """
+    Sends a query to Triton for LLM inference
+
+    Example:
+        from nemo.deploy import NemoQuery
+
+        nq = NemoQuery(url="localhost", model_name="GPT-2B")
+
+        prompts = ["hello, testing GPT inference", "another GPT inference test?"]
+        output = nq.query_llm(
+            prompts=prompts,
+            max_output_len=100,
+            top_k=1,
+            top_p=0.0,
+            temperature=0.0,
+        )
+        print("prompts: ", prompts)
+    """
+
     def __init__(self, url, model_name):
         self.url = url
         self.model_name = model_name
 
-    def query_llm(self, prompts, max_output_len=200, init_timeout=600.0):
+    def query_llm(
+            self,
+            prompts,
+            max_output_len=200,
+            top_k=1,
+            top_p=0.0,
+            temperature=0.0,
+            init_timeout=600.0,
+    ):
+        """
+        Exports nemo checkpoints to TensorRT-LLM.
+
+        Args:
+            prompts (List(str)): list of sentences.
+            max_output_len (int): max generated tokens.
+            top_k (int): limits us to a certain number (K) of the top tokens to consider.
+            top_p (float): limits us to the top tokens within a certain probability mass (p).
+            temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            init_timeout (flat): timeout for the connection.
+        """
+
         prompts = str_list2numpy(prompts)
         max_output_len = np.full(prompts.shape, max_output_len, dtype=np.int_)
+        top_k = np.full(prompts.shape, top_k, dtype=np.int_)
+        top_p = np.full(prompts.shape, top_p, dtype=np.single)
+        temperature = np.full(prompts.shape, temperature, dtype=np.single)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
-            result_dict = client.infer_batch(prompts=prompts, max_output_len=max_output_len)
+            result_dict = client.infer_batch(
+                prompts=prompts,
+                max_output_len=max_output_len,
+                top_k=top_k,
+                top_p=top_p,
+                temperature=temperature,
+            )
             output_type = client.model_config.outputs[0].dtype
 
         if output_type == np.bytes_:
