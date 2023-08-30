@@ -245,6 +245,9 @@ class TensorRTLLM(ITritonDeployable):
         inputs = (
             Tensor(name="prompts", shape=(1,), dtype=bytes),
             Tensor(name="max_output_len", shape=(1,), dtype=np.int_),
+            Tensor(name="top_k", shape=(1,), dtype=np.int_),
+            Tensor(name="top_p", shape=(1,), dtype=np.single),
+            Tensor(name="temperature", shape=(1,), dtype=np.single),
         )
         return inputs
 
