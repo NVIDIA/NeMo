@@ -348,7 +348,8 @@ class ALMAudioQA(AudioQuestAns):
         self,
         manifests_files: Union[str, List[str]],
         question_file: Optional[str] = None,
-        random_context_prob=Optional[float],
+        random_context_prob: Optional[float] = None,
+        random_context_num: Optional[int] = 3,
         *args,
         **kwargs,
     ):
@@ -380,6 +381,7 @@ class ALMAudioQA(AudioQuestAns):
         else:
             self.random_questions = None
         self.random_context_prob = random_context_prob
+        self.random_context_num = random_context_num
         self.random_context = []
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
@@ -444,9 +446,11 @@ class ALMAudioQA(AudioQuestAns):
             question = np.random.choice(self.random_questions).strip()
             if self.random_context_prob is not None:
                 if np.random.random() < self.random_context_prob:
-                    current_words = item['answer'].split()
-                    candidate_words = current_words + self.random_context
-                    context = f"Following words may occur in audio: {np.random.choice(candidate_words, 3)} "
+                    current_words = item['answer'].strip().split()
+                    candidate_words = current_words[: len(current_words) // 2] + self.random_context
+                    context = f"Following words may occur in audio: {np.random.choice(candidate_words, self.random_context_num)} ".replace(
+                        '\n', ''
+                    )
                     self.random_context = current_words
                     question = context + question
             item['question'] = question

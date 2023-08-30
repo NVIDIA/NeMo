@@ -406,6 +406,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         end_string: Optional[str] = None,
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
+        random_context_num: Optional[int] = 3,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -444,6 +445,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             index_by_file_id=index_by_file_id,
             max_num_samples=max_num_samples,
             question_file=question_file,
+            random_context_num=random_context_num,
             random_context_prob=random_context_prob,
         )
 
@@ -687,6 +689,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         end_string: Optional[str] = None,
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
+        random_context_num: Optional[int] = 3,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -732,6 +735,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             index_by_file_id=True,
             question_file=question_file,
             random_context_prob=random_context_prob,
+            random_context_num=random_context_num,
         )
 
         self.len = self._compute_len()
@@ -940,6 +944,7 @@ def get_tarred_aqa_dataset(
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
             question_file=question_file,
+            random_context_num=config.get('random_context_num', 3),
             random_context_prob=config.get('random_context_prob', None),
         )
 
@@ -1103,6 +1108,7 @@ def get_aqa_dataset_from_config(
         end_string=config.get('end_string', None),
         sample_alpha=config.get('sample_alpha', None),
         random_context_prob=config.get('random_context_prob', None),
+        random_context_num=config.get('random_context_num', 3),
         question_file=question_file,
     )
     return dataset
