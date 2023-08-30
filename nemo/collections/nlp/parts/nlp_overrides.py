@@ -377,6 +377,7 @@ class NLPFSDPStrategy(DDPFullyShardedNativeStrategy, ModelParallelCheckpointMeth
         assert kwargs['sharding_strategy'] in list(fsdp_sharding_strategy.keys()), "Not a supported sharding strategy."
         assert kwargs['sharding_strategy'] != 'hybrid', "Hybrid sharding is currrently not supported."
         kwargs['sharding_strategy'] = fsdp_sharding_strategy[kwargs['sharding_strategy']]
+        kwargs['use_orig_params']=False ### Dynamo_ requires this part, but has some issue with retrieveing parameters to optimizer
 
         super().__init__(parallel_devices, cluster_environment, checkpoint_io, **kwargs)
 
