@@ -119,7 +119,7 @@ def main(cfg) -> None:
                                              override_config_path=base_model_cfg)
 
     AdapterConfig = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
-    model.add_adapters(AdapterConfig(base_model_cfg))
+    model.add_adapter(AdapterConfig(base_model_cfg))
 
     trainer.fit(model)
 

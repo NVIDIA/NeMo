@@ -517,7 +517,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         if self.adapter_cfg is None:
             AdapterConfig = PEFT_CONFIG_MAP[conf.peft.peft_scheme]
             self.adapter_cfg = AdapterConfig(conf)
-        instance.add_adapters(self.adapter_cfg)
+        instance.add_adapter(self.adapter_cfg)
 
         if (
             self.peft_model_nemo_path is None and self.peft_model_ckpt_dir is None

@@ -182,7 +182,7 @@ def main(cfg) -> None:
         restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=peft_model_cfg,
     )
 
-    model.add_adapters(names, cfgs)
+    model.add_adapter(names)
 
     model.load_adapters("nemo_experiments/new_api/checkpoints/gpt-adapter.ckpt")
 

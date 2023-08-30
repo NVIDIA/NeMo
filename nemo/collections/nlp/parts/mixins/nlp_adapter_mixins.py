@@ -65,17 +65,12 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
-    def add_adapters(
-        self, name_cfgs: Union[PEFTConfig, List[PEFTConfig]],
-    ):
+    def add_adapter(self, name_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
 
         Args:
-            names: One or more globally unique names for the adapter. Will be used to access, enable and disable adapters.
-            cfgs: One or more DictConfigs that contains at the bare minimum `__target__` to instantiate a new Adapter module.
-            layer_selection: selects in which layers to add adapters, e.g. [1,12] will add adapters to layer 1 (lowest) and 12.
-                None will apply adapters to all layers. Ignored for non GPT models or p-tuning
+            name_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
         def _check_and_add_adapter(module, peft_name, peft_cfg):
@@ -149,6 +144,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
         return peft_state_dict
+
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.use_peft and self.setup_complete:

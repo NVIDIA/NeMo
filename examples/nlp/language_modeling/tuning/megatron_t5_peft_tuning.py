@@ -134,7 +134,7 @@ def main(cfg) -> None:
     )
 
     AdapterConfig = peft_config_map[base_model_cfg.peft.peft_scheme]
-    model.add_adapters(AdapterConfig(base_model_cfg))
+    model.add_adapter(AdapterConfig(base_model_cfg))
 
     trainer.fit(model)
 
