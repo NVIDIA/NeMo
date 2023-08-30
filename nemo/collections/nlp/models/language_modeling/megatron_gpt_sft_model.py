@@ -80,10 +80,12 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             )
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
-        self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
-        self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
-        if hasattr(self.cfg.data.validation_ds, "metric"):
-            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+        
+        if hasattr(self.cfg.data, "validation_ds"):
+            self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+            self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
+            if hasattr(self.cfg.data.validation_ds, "metric"):
+                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
