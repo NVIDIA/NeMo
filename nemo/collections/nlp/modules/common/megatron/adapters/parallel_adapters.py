@@ -27,7 +27,7 @@ from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
 from nemo.core.classes.mixins import adapter_mixin_strategies
-from nemo.core.classes.mixins.adapter_mixins import AdapterConfig, AdapterNameConfig
+from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
 try:
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
@@ -110,117 +110,6 @@ class InfusedAdapterConfig(AdapterConfig):
 @dataclass
 class MLPInfusedAdapterConfig(InfusedAdapterConfig):
     _target_: str = "{0}.{1}".format(MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__)
-
-
-class LoraAdapterConfig(AdapterNameConfig):
-    def __init__(self, cfg):
-        lora_cfg = cfg.peft.lora_tuning
-        if cfg.get("kv_channels", None) is None:
-            assert (
-                cfg.hidden_size % cfg.num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-            kv_channels = cfg.hidden_size // cfg.num_attention_heads
-        else:
-            kv_channels = cfg.kv_channels
-        projection_size = kv_channels * cfg.num_attention_heads
-
-        adapter_cfg = LoraKQVAdapterConfig(
-            in_features=cfg.hidden_size,
-            out_features=3 * projection_size,
-            dim=lora_cfg.adapter_dim,
-            norm_position=None,
-            norm_type=None,
-            activation="identity",
-            column_init_method=lora_cfg.get("column_init_method", "normal"),
-            row_init_method=lora_cfg.get("row_init_method", "zero"),
-            gather_output=False,
-            dropout=lora_cfg.adapter_dropout,
-        )
-
-        name_key_to_cfg = {
-            AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
-        }
-
-        super().__init__(cfg, lora_cfg, name_key_to_cfg)
-
-
-class IA3AdapterConfig(AdapterNameConfig):
-    def __init__(self, cfg):
-        mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
-            in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
-        )
-        infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
-
-        name_key_to_cfg = {
-            AdapterName.KEY_INFUSED: infused_adapter_cfg,
-            AdapterName.VALUE_INFUSED: infused_adapter_cfg,
-            AdapterName.MLP_INFUSED: mlp_infused_adapter_cfg,
-        }
-
-        super().__init__(cfg, cfg.peft.ia3_tuning, name_key_to_cfg)
-
-
-class PtuningAdapterConfig(AdapterNameConfig):
-    def __init__(self, cfg):
-        adapter_cfg = PromptEncoderAdapterConfig(
-            cfg.peft.p_tuning.virtual_tokens,
-            cfg.peft.p_tuning.bottleneck_dim,
-            cfg.peft.p_tuning.embedding_dim,
-            cfg.peft.p_tuning.init_std,
-            cfg.hidden_size,
-        )
-        name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
-
-        super().__init__(cfg, cfg.peft.p_tuning, name_key_to_cfg)
-
-
-class AttnAdapterConfig(AdapterNameConfig):
-    def __init__(self, cfg):
-        adapter_tuning_cfg = cfg.peft.adapter_tuning
-        adapter_cfg = ParallelLinearAdapterConfig(
-            in_features=cfg.hidden_size,
-            out_features=cfg.hidden_size,
-            dim=adapter_tuning_cfg.adapter_dim,
-            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
-            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
-            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
-            dropout=adapter_tuning_cfg.adapter_dropout,
-        )
-        name_key_to_cfg = {
-            AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
-            AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
-        }
-
-        super().__init__(cfg, adapter_tuning_cfg, name_key_to_cfg)
-
-
-class AttnPtuningAdapterConfig(AdapterNameConfig):
-    def __init__(self, cfg):
-        ptuning_cfg = PromptEncoderAdapterConfig(
-            cfg.peft.p_tuning.virtual_tokens,
-            cfg.peft.p_tuning.bottleneck_dim,
-            cfg.peft.p_tuning.embedding_dim,
-            cfg.peft.p_tuning.init_std,
-            cfg.hidden_size,
-        )
-        adapter_tuning_cfg = cfg.peft.adapter_tuning
-        adapter_cfg = ParallelLinearAdapterConfig(
-            in_features=cfg.hidden_size,
-            out_features=cfg.hidden_size,
-            dim=adapter_tuning_cfg.adapter_dim,
-            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
-            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
-            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
-            dropout=adapter_tuning_cfg.adapter_dropout,
-        )
-        name_key_to_cfg = {
-            AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
-            AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
-            AdapterName.PTUNING_ADAPTER: ptuning_cfg,
-        }
-        super().__init__(cfg, adapter_tuning_cfg, name_key_to_cfg)
 
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
@@ -668,12 +557,3 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
 @dataclass
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
-
-
-PEFT_CONFIG_MAP = {
-    "adapter": AttnAdapterConfig,
-    "ia3": IA3AdapterConfig,
-    "ptuning": PtuningAdapterConfig,
-    "adapter_and_ptuning": AttnPtuningAdapterConfig,
-    "lora": LoraAdapterConfig,
-}

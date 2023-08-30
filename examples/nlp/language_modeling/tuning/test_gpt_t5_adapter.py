@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PEFT_CONFIG_MAP
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
 from nemo.core.config import hydra_runner
@@ -120,8 +120,7 @@ def main(cfg) -> None:
             override_config_path=base_model_cfg,
             save_restore_connector=save_restore_connector,
         )
-        model = model.cuda()
-        model2 = model2.cuda()
+        model2.setup_complete = True
         model2_state = str(model2.state_dict())
 
         print("Compare state after loading adapter:", str(model.state_dict()) == model2_state)

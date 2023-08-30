@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Union
 
-import torch
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
-    AdapterNameConfig,
     _prepare_default_adapter_config,
 )
 from nemo.utils import logging, logging_mode, model_utils
-
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
     """ NLP Adapter Mixin that can augment any Encoder module with Adapter module support.
@@ -66,7 +62,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         return set(k)
 
     def add_adapters(
-        self, name_cfgs: AdapterNameConfig,
+        self, name_cfgs: Union[PEFTConfig, List[PEFTConfig]],
     ):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
@@ -83,53 +79,56 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                 if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                     module.add_adapter(name=peft_name, cfg=peft_cfg)
 
-        layer_selection = name_cfgs.layer_selection
+        if not isinstance(name_cfgs, List):
+            name_cfgs = [name_cfgs]
 
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-        for peft_name, peft_cfg in name_cfgs.get_config_dict().items():
-            # hasattr(self, "model") means is GPT and not T5
-            if hasattr(self, "model") and not isinstance(peft_cfg, PromptEncoderAdapterConfig):
-                if layer_selection is not None:
-                    logging.info(
-                        f"Layer selection {layer_selection} is enabled for the current model ("
-                        f"{self.__class__.__name__} + {peft_name})"
+        for cfg in name_cfgs:
+            layer_selection = cfg.layer_selection
+            for peft_name, peft_cfg in cfg.get_config_dict().items():
+                # hasattr(self, "model") means is GPT and not T5
+                if hasattr(self, "model") and not isinstance(peft_cfg, PromptEncoderAdapterConfig):
+                    if layer_selection is not None:
+                        logging.info(
+                            f"Layer selection {layer_selection} is enabled for the current model ("
+                            f"{self.__class__.__name__} + {peft_name})"
+                        )
+                    for layer in self.model.language_model.encoder.layers:
+                        if layer.layer_number in layer_selection:
+                            for _, module in layer.named_modules():
+                                _check_and_add_adapter(module, peft_name, peft_cfg)
+                else:
+                    # Non GPT models, as well as GPT+PTuning do not support layer selection
+                    if layer_selection is not None:
+                        logging.warning(
+                            "Layer selection is specified, but it is not supported for either "
+                            f"{self.__class__.__name__} or {peft_name})"
+                        )
+                    for _, module in self.named_modules():
+                        _check_and_add_adapter(module, peft_name, peft_cfg)
+
+                # Update the model.cfg with information about the new adapter from cfg
+                module_name, adapter_name = self.resolve_adapter_module_name_(peft_name)
+                with open_dict(self.cfg):
+                    # Construct the minimum config required to be updated by adapter implementations
+                    if 'adapters' not in self.cfg:
+                        self.cfg.adapters = OmegaConf.create({})
+
+                    self.cfg.adapters = _prepare_default_adapter_config(
+                        global_key=self.adapter_global_cfg_key,
+                        meta_key=self.adapter_metadata_cfg_key,
+                        cfg=self.cfg.adapters,
                     )
-                for layer in self.model.language_model.encoder.layers:
-                    if layer.layer_number in layer_selection:
-                        for _, module in layer.named_modules():
-                            _check_and_add_adapter(module, peft_name, peft_cfg)
-            else:
-                # Non GPT models, as well as GPT+PTuning do not support layer selection
-                if layer_selection is not None:
-                    logging.warning(
-                        "Layer selection is specified, but it is not supported for either "
-                        f"{self.__class__.__name__} or {peft_name})"
-                    )
-                for _, module in self.named_modules():
-                    _check_and_add_adapter(module, peft_name, peft_cfg)
 
-            # Update the model.cfg with information about the new adapter from cfg
-            module_name, adapter_name = self.resolve_adapter_module_name_(peft_name)
-            with open_dict(self.cfg):
-                # Construct the minimum config required to be updated by adapter implementations
-                if 'adapters' not in self.cfg:
-                    self.cfg.adapters = OmegaConf.create({})
+                    # Inject the module name in the adapter metadata cfg
+                    gcfg = self.adapter_global_cfg_key
+                    mcfg = self.adapter_metadata_cfg_key
+                    self.cfg.adapters[gcfg][mcfg]['modules'][adapter_name] = module_name
 
-                self.cfg.adapters = _prepare_default_adapter_config(
-                    global_key=self.adapter_global_cfg_key,
-                    meta_key=self.adapter_metadata_cfg_key,
-                    cfg=self.cfg.adapters,
-                )
-
-                # Inject the module name in the adapter metadata cfg
-                gcfg = self.adapter_global_cfg_key
-                mcfg = self.adapter_metadata_cfg_key
-                self.cfg.adapters[gcfg][mcfg]['modules'][adapter_name] = module_name
-
-                self.cfg.adapters[adapter_name] = OmegaConf.create(peft_cfg)
+                    self.cfg.adapters[adapter_name] = OmegaConf.create(peft_cfg)
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
@@ -146,10 +145,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
         return peft_state_dict
-
-    def setup(self, stage=None):
-        super().setup(stage)
-        self.setup_complete = True
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.use_peft and self.setup_complete:

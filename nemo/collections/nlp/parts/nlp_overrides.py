@@ -36,9 +36,8 @@ from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PEFT_CONFIG_MAP
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.core.classes.mixins.adapter_mixins import AdapterNameConfig
+from nemo.collections.nlp.parts.peft_config import PEFTConfig, PEFT_CONFIG_MAP
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -442,7 +441,7 @@ class PEFTSaveRestoreConnector(NLPSaveRestoreConnector):
         peft_model_nemo_path: Optional[str] = None,
         peft_model_ckpt_path: Optional[str] = None,
         peft_model_ckpt_name: Optional[str] = "model_weights.ckpt",
-        adapter_cfg: Optional[AdapterNameConfig] = None,
+        adapter_cfg: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None,
     ) -> None:
         super().__init__()
         self.peft_model_ckpt_name = peft_model_ckpt_name
