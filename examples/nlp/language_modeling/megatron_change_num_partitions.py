@@ -142,12 +142,12 @@ def force_cpu_model(cfg):
         original_cpu_init = cfg.get('use_cpu_initialization', False)
         if 'megatron_amp_O2' in cfg:
             key = 'megatron_amp_O2'
-            original_amp_o2 = cfg.megatron_amp_O2
+            original_amp_O2 = cfg.megatron_amp_O2
         elif 'megatron_amp_02' in cfg:
             key = 'megatron_amp_02'
-            original_amp_o2 = cfg.megatron_amp_02
+            original_amp_O2 = cfg.megatron_amp_02
         else:
-            key, original_amp_o2 = None, None
+            key, original_amp_O2 = None, None
 
         # Set new values
         cfg.use_cpu_initialization = True
@@ -155,9 +155,9 @@ def force_cpu_model(cfg):
             cfg[key] = False
 
     # Setup restore dict
-    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
+    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_O2
     if key is not None:
-        restore_dict[key] = original_amp_o2
+        restore_dict[key] = original_amp_O2
 
     return cfg, restore_dict
 
@@ -1022,6 +1022,8 @@ def main():
                                 save_restore_connector=save_restore_connector,
                                 return_config=True,
                             )
+                            if "neva" in args.model_class:
+                                tmp_cfg.mm_cfg.llm.from_pretrained = None
 
                             # Force model onto CPU
                             tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
@@ -1269,6 +1271,8 @@ def main():
             save_restore_connector=save_restore_connector,
             return_config=True,
         )
+        if "neva" in args.model_class:
+            tmp_cfg.mm_cfg.llm.from_pretrained = None
 
         tmp_cfg, restore_dict = force_cpu_model(tmp_cfg)
 
@@ -1277,6 +1281,7 @@ def main():
             trainer=trainer,
             map_location=torch.device("cpu"),
             save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
         )
         model.to(dtype=dtype)
 

@@ -413,8 +413,8 @@ def synced_generate(
     compute_attention_mask=True,
     compute_logprob=False,
     repetition_penalty=1.2,
-    min_tokens_to_generate=0,
     end_strings=[],
+    min_tokens_to_generate=0,
     image_list=None,
 ):
     context_length = context_length_tensor.min().item()

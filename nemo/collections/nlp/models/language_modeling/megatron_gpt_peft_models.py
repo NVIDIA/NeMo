@@ -49,6 +49,10 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
             return self.model.pre_process
+        elif hasattr(self, "model") and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
+            # (guyueh1): this if condition is used to handle amp O2
+            # when amp_O2 is on, self.model will be wrapped by the Float16Module class
+            return self.model.module.pre_process
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
 
@@ -65,7 +69,7 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                     peft_cfg = self.name_key_to_cfg[peft_key]
                     if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
-                            name=peft_key, cfg=peft_cfg,
+                            name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
                         )
                 if self.megatron_amp_O2:
                     for adapter_name in getattr(module, 'adapter_layer', []):
@@ -77,21 +81,25 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
         super().setup(stage)
         self.setup_complete = True
 
-    def get_all_keys(self,):  # TODO (yuya): why just state_dict?
+    def get_all_keys(self,):
         """ 
         Returns all the keys in the model
         """
         k = [n for n, p in self.named_parameters()]
-        return set(k)
+        b = [n for n, p in self.named_buffers() if n in self.state_dict().keys()]
+        # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
+        return set(k + b)
 
     def get_peft_state_dict(self,):
         """ 
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix="model.")
+        state_dict = self.model.state_dict(prefix="model.module." if self.cfg.megatron_amp_O2 else "model.")
         peft_state_dict = {}
         for k in self.adapter_keys:
-            peft_state_dict[k] = state_dict[k]
+            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
+            new_k = k.replace("model.module.", "model.", 1)
+            peft_state_dict[new_k] = state_dict[k]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -137,7 +145,6 @@ class MegatronGPTPEFTModel(MegatronGPTSFTModel):
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters() if p.requires_grad]
-
         self._optimizer_param_groups = ({"params": opt_params},)
         logging.info(f"Optimizer groups set:\n{self.summarize()}")
 
@@ -166,7 +173,7 @@ class MegatronGPTLayerwisePEFTModel(MegatronGPTPEFTModel):
                                 in module.get_accepted_adapter_types()
                             ):
                                 module.add_adapter(
-                                    name=peft_key, cfg=peft_cfg,
+                                    name=peft_key, cfg=peft_cfg, model_parallel_config=self.model_parallel_config
                                 )
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         return True
@@ -329,12 +336,6 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
         self.name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
-        self.trainable_keys = self.adapter_keys - set(
-            [
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
-            ]
-        )
-        # we exclude the above parameter from training because it is present for backward compatibility for inference using FasterTransformer (@adithyare)
 
     def init_peft_modules(self,):
         """ 
@@ -378,15 +379,7 @@ class MegatronGPTPTuningModel(MegatronGPTPEFTModel):
 
     def setup_optimizer_param_groups(self):
         if self.first_stage_of_pipeline():
-            # super().setup_optimizer_param_groups()
-            self.freeze()  # Freeze the entire model
-            opt_params = []
-            for n, p in self.named_parameters():
-                if n in self.trainable_keys:
-                    p.requires_grad = True
-                    opt_params.append(p)
-
-            self._optimizer_param_groups = ({"params": opt_params},)
+            super().setup_optimizer_param_groups()
         else:
             self.freeze()  # Freeze the entire model
             self._optimizer_param_groups = ({"params": []},)
