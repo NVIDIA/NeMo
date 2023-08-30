@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.06-py3'
+          image 'nvcr.io/nvidia/pytorch:23.08-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1 --env HYDRA_FULL_ERROR=1'
         }
   }
@@ -5042,24 +5042,24 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 
-    // requires TE>=v0.11. I couldn't install it in CI...
-    // stage('L??: Community LLM Checkpoints tests') {
-    //   when {
-    //     anyOf {
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps {
-    //     sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
-    //     --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-    //     --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
-    //     --fast-swiglu \
-    //     --precision=16'
-    //     sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
-    //   }
-    // }
+    // requires TE>=v0.11.
+    stage('L??: Community LLM Checkpoints tests') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
+        --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
+        --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
+        --fast-swiglu \
+        --precision=16'
+        sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+      }
+    }
   }
 
   post {
