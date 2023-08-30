@@ -6,14 +6,16 @@ import sys
 en_data = open(sys.argv[1], 'r').readlines()
 zh_data = open(sys.argv[2], 'r').readlines()
 question_data = open(sys.argv[3], 'r').readlines()
-final = open(sys.argv[4], "w")
+content = ""
 for en, zh in zip(en_data, zh_data):
     en = en.strip()
     zh = zh.strip()
     question = random.choice(question_data).strip()
     record = {}
-    record['question'] = f"{en}\n{question}"
+    record['question'] = f"{question}: {en}\n"
     record['text'] = f"{zh}"
-    json.dump(record, final)
-    final.write('\n')
+    content += json.dumps(record)
+    content += "\n"
+final = open(sys.argv[4], "w")
+final.write(content)
 final.close()

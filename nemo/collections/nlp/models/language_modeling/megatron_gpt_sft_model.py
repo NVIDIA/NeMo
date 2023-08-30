@@ -525,7 +525,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             if metric_name != 'loss':
                 metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
                 # TODO(zhehuai)
-                metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[dataloader_idx]
+                metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[0]
                 if metric_label_key in deduplicated_outputs['metadata'][0]:
                     labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
                 else:
