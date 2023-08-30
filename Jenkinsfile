@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.06-py3'
+          image 'nvcr.io/nvidia/pytorch:23.08-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1 --env HYDRA_FULL_ERROR=1'
         }
   }
@@ -72,17 +72,6 @@ pipeline {
         // pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
         sh 'pip install flash-attn && \
             pip install triton==2.0.0.dev20221202'
-      }
-    }
-
-    stage('Transformer Engine installation') {
-      steps {
-        // pinned TE https://github.com/NVIDIA/TransformerEngine/commit/85928d0887234a64c63b220e3c09d8a7a0d01c7b
-        sh 'git clone --recursive https://github.com/NVIDIA/TransformerEngine.git && \
-            cd TransformerEngine && \
-            git checkout 85928d0887234a64c63b220e3c09d8a7a0d01c7b && \
-            export NVTE_FRAMEWORK=pytorch && \
-            pip install -e .'
       }
     }
 

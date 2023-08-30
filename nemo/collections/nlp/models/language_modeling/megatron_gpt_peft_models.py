@@ -20,6 +20,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
     MCoreGPTEmbeddingMixin,
     MCoreSelfAttentionMixin,
+    MCoreTransformerLayerMixin,
     swap_mcore_mixin,
 )
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -273,8 +274,10 @@ class MegatronGPTAdapterModel(MegatronGPTLayerwisePEFTModel):
         )
 
         self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = [("", MCoreTransformerLayerMixin)]
 
         self.layer_selection = adapter_tuning_cfg.get("layer_selection", None)
         if self.layer_selection is None:
@@ -311,8 +314,10 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
         )
 
         self.name_key_to_cfg = {}
+        self.name_key_to_mcore_mixins = {}
         for k in self.peft_name_keys:
             self.name_key_to_cfg[k] = adapter_cfg
+            self.name_key_to_mcore_mixins[k] = [("", MCoreTransformerLayerMixin)]
 
         self.layer_selection = adapter_tuning_cfg.get("layer_selection", None)
         if self.layer_selection is None:
@@ -322,14 +327,26 @@ class MegatronGPTAdapterModelWeightTying(MegatronGPTLayerwisePEFTModel):
 
     def tie_weights(self,):
         pos_idx = 0
-        layer0 = self.model.language_model.encoder.layers[0]
+
+        if self.mcore_gpt:
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.decoder.layers
+            else:
+                layers = self.model.decoder.layers
+        else:
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.language_model.encoder.layers
+            else:
+                layers = self.model.language_model.encoder.layers
+
+        layer0 = layers[0]
         for adapter_name in layer0.adapter_layer:
             adapter = layer0.get_adapter_module(adapter_name)
             print(adapter_name, pos_idx)
             adapter.set_position(pos_idx)
             pos_idx += 1
 
-        for layer in self.model.language_model.encoder.layers[1:]:
+        for layer in layers[1:]:
             for adapter_name in layer.adapter_layer:
                 print(adapter_name, pos_idx)
                 adapter_l = layer.get_adapter_module(adapter_name)
@@ -496,6 +513,12 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
             AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
             AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
             AdapterName.PTUNING_ADAPTER: ptuning_cfg,
+        }
+        logging.warning("AdapterPTuning doesn't support mcore for now. need to use regex to match target.")
+        self.name_key_to_mcore_mixins = {
+            AdapterName.PRE_ATTN_ADAPTER: [('', MCoreTransformerLayerMixin)],
+            AdapterName.POST_ATTN_ADAPTER: [('', MCoreTransformerLayerMixin)],
+            AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]
         }
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens

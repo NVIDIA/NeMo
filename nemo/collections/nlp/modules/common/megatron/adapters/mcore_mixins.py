@@ -15,11 +15,15 @@
 import torch
 from megatron.core.models.gpt.gpt_embedding import GPTEmbedding
 from megatron.core.transformer.attention import SelfAttention
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     LoraKQVAdapterConfig,
+    ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
+    
 )
 from nemo.core import adapter_mixins
 
@@ -114,3 +118,90 @@ class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):
                 ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
                 encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
         return encoder_input
+
+    
+class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
+    def mcore_register_adapters(self):
+        self.set_accepted_adapter_types([ParallelLinearAdapterConfig._target_])
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        encoder_output=None,
+        enc_dec_attn_mask=None,
+        inference_params=None,
+        rotary_pos_emb=None,
+    ):
+        # hidden_states: [s, b, h]
+
+        # Layer norm at the beginning of the transformer layer.
+        layernorm_output = self.input_layernorm(hidden_states)
+        # Self attention.
+        attention_output_with_bias = self.self_attention(
+            layernorm_output,
+            attention_mask,
+            inference_params=inference_params,
+            rotary_pos_emb=rotary_pos_emb,
+        )
+
+        # adapter logic
+        if self.is_adapter_available():
+            adapter_1 = self.get_adapter_module(AdapterName.PRE_ATTN_ADAPTER)
+            if adapter_1:
+                attention_output, bias = attention_output_with_bias
+                attention_output = (
+                    adapter_1(attention_output) + attention_output
+                )  # simple adapter call with residual connection
+                attention_output_with_bias = (attention_output, bias)
+
+        # Residual connection.
+        if self.config.apply_residual_connection_post_layernorm:
+            residual = layernorm_output
+        else:
+            residual = hidden_states
+
+        # bias_dropout_add fusion returning fp32 instead of bf16
+        with self.bias_dropout_add_exec_handler():
+            layernorm_input = self.bias_dropout_add_func(
+                attention_output_with_bias, residual, self.config.hidden_dropout
+            )
+
+        # Layer norm post the self attention.
+        layernorm_output = self.post_self_attn_layernorm(layernorm_input)
+
+        # MLP.
+        mlp_output_with_bias = self.mlp(layernorm_output)
+
+        # adapter logic
+        if self.is_adapter_available():
+            adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
+            if adapter_2:
+                mlp_output, bias = mlp_output_with_bias
+                mlp_output = adapter_2(mlp_output) + mlp_output  # simple adapter call with residual connection
+                mlp_output_with_bias = (mlp_output, bias)
+
+        # Second residual connection.
+        if self.config.apply_residual_connection_post_layernorm:
+            residual = layernorm_output
+        else:
+            residual = layernorm_input
+
+        with self.bias_dropout_add_exec_handler():
+            output = self.bias_dropout_add_func(
+                mlp_output_with_bias, residual, self.config.hidden_dropout
+            )
+
+        # Jit compiled function creates 'view' tensor. This tensor
+        # potentially gets saved in the MPU checkpoint function context,
+        # which rejects view tensors. While making a viewless tensor here
+        # won't result in memory savings (like the data loader, or
+        # p2p_communication), it serves to document the origin of this
+        # 'view' tensor.
+        output = make_viewless_tensor(
+            inp=output, requires_grad=output.requires_grad, keep_graph=True
+        )
+
+        return output
+
+
