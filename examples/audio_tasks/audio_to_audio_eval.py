@@ -61,6 +61,7 @@ python audio_to_audio_eval.py \
 import json
 import os
 import tempfile
+from collections import defaultdict
 from dataclasses import dataclass, field, is_dataclass
 from typing import List, Optional
 
@@ -98,6 +99,9 @@ class AudioEvaluationConfig(process_audio.ProcessConfig):
 
     # Metrics to calculate
     metrics: List[str] = field(default_factory=lambda: ['sdr', 'estoi'])
+
+    # Return metric values for each example
+    return_values_per_example: bool = False
 
 
 def get_evaluation_dataloader(config):
@@ -167,6 +171,9 @@ def main(cfg: AudioEvaluationConfig):
     # Setup metrics
     metrics = get_metrics(cfg)
 
+    if cfg.return_values_per_example and cfg.batch_size > 1:
+        raise ValueError('return_example_values is only supported for batch_size=1.')
+
     # Processing
     if not cfg.only_score_manifest:
         # Process audio using the configured model and save in the output directory
@@ -229,6 +236,10 @@ def main(cfg: AudioEvaluationConfig):
 
                 num_files += 1
 
+                if cfg.max_utts is not None and num_files >= cfg.max_utts:
+                    logging.info('Reached max_utts: %s', cfg.max_utts)
+                    break
+
         # Prepare dataloader
         config = {
             'manifest_filepath': temporary_manifest_filepath,
@@ -242,6 +253,8 @@ def main(cfg: AudioEvaluationConfig):
         }
         temporary_dataloader = get_evaluation_dataloader(config)
 
+        metrics_value_per_example = defaultdict(list)
+
         # Calculate metrics
         for eval_batch in tqdm(temporary_dataloader, desc='Evaluating'):
             processed_signal, processed_length, target_signal, target_length = eval_batch
@@ -250,7 +263,9 @@ def main(cfg: AudioEvaluationConfig):
                 raise RuntimeError(f'Length mismatch.')
 
             for name, metric in metrics.items():
-                metric.update(preds=processed_signal, target=target_signal, input_length=target_length)
+                value = metric(preds=processed_signal, target=target_signal, input_length=target_length)
+                if cfg.return_values_per_example:
+                    metrics_value_per_example[name].append(value.item())
 
     # Convert to a dictionary with name: value
     metrics_value = {name: metric.compute().item() for name, metric in metrics.items()}
@@ -270,6 +285,7 @@ def main(cfg: AudioEvaluationConfig):
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):
         cfg.metrics_value = metrics_value
+        cfg.metrics_value_per_example = dict(metrics_value_per_example)
 
     return cfg
 

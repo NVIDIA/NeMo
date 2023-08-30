@@ -36,6 +36,7 @@ def get_audio_to_target_dataset(config: dict) -> audio_to_audio.AudioToTargetDat
         max_utts=config.get('max_utts', 0),
         input_channel_selector=config.get('input_channel_selector', None),
         target_channel_selector=config.get('target_channel_selector', None),
+        normalize_input=config.get('normalize_input', False),
     )
     return dataset
 
@@ -65,6 +66,7 @@ def get_audio_to_target_with_reference_dataset(config: dict) -> audio_to_audio.A
         reference_channel_selector=config.get('reference_channel_selector', None),
         reference_is_synchronized=config.get('reference_is_synchronized', True),
         reference_duration=config.get('reference_duration', None),
+        normalize_input=config.get('normalize_input', False),
     )
     return dataset
 
@@ -91,5 +93,6 @@ def get_audio_to_target_with_embedding_dataset(config: dict) -> audio_to_audio.A
         max_utts=config.get('max_utts', 0),
         input_channel_selector=config.get('input_channel_selector', None),
         target_channel_selector=config.get('target_channel_selector', None),
+        normalize_input=config.get('normalize_input', False),
     )
     return dataset
