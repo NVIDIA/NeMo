@@ -76,14 +76,15 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     alphas_prev = np.asarray([alphacums[0]] + alphacums[ddim_timesteps[:-1]].tolist())
 
     # according the the formula provided in https://arxiv.org/abs/2010.02502
-    sigmas = eta * np.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
+    variance = (1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev)
+    sigmas = eta * np.sqrt(variance)
     if verbose:
         print(f"Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}")
         print(
             f"For the chosen value of eta, which is {eta}, "
             f"this results in the following sigma_t schedule for ddim sampler {sigmas}"
         )
-    return sigmas, alphas, alphas_prev
+    return sigmas, alphas, alphas_prev, variance
 
 
 def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):

@@ -25,6 +25,14 @@ from einops import rearrange
 from PIL import Image, ImageDraw, ImageFont
 
 
+class DataParallelWrapper(torch.nn.DataParallel):
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
+
 def log_txt_as_img(wh, xc, size=10):
     # wh a tuple of (width, height)
     # xc a list of captions to plot
