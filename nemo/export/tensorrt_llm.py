@@ -85,7 +85,9 @@ class TensorRTLLM(ITritonDeployable):
                     self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir)
                     self._load_prompt_table()
                 except:
-                    raise Exception("Files in the TensorRT-LLM folder is corrupted and model needs to be exported again.")
+                    raise Exception(
+                        "Files in the TensorRT-LLM folder is corrupted and model needs to be exported again."
+                    )
 
     def _load_prompt_table(self):
         path = Path(os.path.join(self.model_dir, "__prompt_embeddings__.npy"))
@@ -129,14 +131,14 @@ class TensorRTLLM(ITritonDeployable):
         self,
         nemo_checkpoint_path: str,
         model_type: str,
-        prompt_checkpoint_path: str=None,
-        delete_existing_files: bool=True,
-        n_gpus: int=1,
-        max_input_len: int=200,
-        max_output_len: int=200,
-        max_prompt_embedding_table_size: int=100,
-        max_batch_size: int=32,
-        quantization: bool=None,
+        prompt_checkpoint_path: str = None,
+        delete_existing_files: bool = True,
+        n_gpus: int = 1,
+        max_input_len: int = 200,
+        max_output_len: int = 200,
+        max_prompt_embedding_table_size: int = 100,
+        max_batch_size: int = 32,
+        quantization: bool = None,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -201,7 +203,15 @@ class TensorRTLLM(ITritonDeployable):
         shutil.rmtree(nemo_export_dir)
         self._load()
 
-    def forward(self, input_texts, tasks=None, max_output_len=200):
+    def forward(
+        self,
+        input_texts,
+        tasks=None,
+        max_output_len=200,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 0.0,
+    ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
 
@@ -209,18 +219,33 @@ class TensorRTLLM(ITritonDeployable):
             input_texts (List(str)): list of sentences.
             tasks (str): task type. Currently not used and added for later use.
             max_output_len (int): max generated tokens.
+            top_k (int):
+            top_p (float):
+            temperature (float):
         """
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported and " "TensorRT LLM should be loaded first to run inference."
             )
         else:
-            return generate(self.model, input_texts, tasks, max_output_len, self.prompt_table, self.task_vocab_size)
+            return generate(
+                host_context=self.model,
+                input_texts=input_texts,
+                tasks=tasks,
+                max_output_len=max_output_len,
+                top_k=top_k,
+                top_p=top_p,
+                temperature=temperature,
+                prompt_table=self.prompt_table,
+                task_vocab_size=self.task_vocab_size,
+            )
 
     @property
     def get_triton_input(self):
-        inputs = (Tensor(name="prompts", shape=(1,), dtype=bytes),
-                  Tensor(name="max_output_len", shape=(1,), dtype=np.int_),)
+        inputs = (
+            Tensor(name="prompts", shape=(1,), dtype=bytes),
+            Tensor(name="max_output_len", shape=(1,), dtype=np.int_),
+        )
         return inputs
 
     @property

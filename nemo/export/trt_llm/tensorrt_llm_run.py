@@ -117,6 +117,9 @@ def _forward(
     input_tensors: List[torch.IntTensor],
     tasks=None,
     max_output_len: int = 200,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 0.0,
     prompt_table=None,
     task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
@@ -166,6 +169,10 @@ def _forward(
             ptuning_args = [prompt_table, tasks, task_vocab_size]
 
         with torch.no_grad():
+            sampling_config.top_k = top_k
+            sampling_config.top_p = top_p
+            sampling_config.temperature = temperature
+
             decoder.setup(batch_size, max_input_length=max_length, max_new_tokens=max_output_len)
 
             if decoder.remove_input_padding:
@@ -234,6 +241,9 @@ def forward(
     input_tensors: List[torch.IntTensor],
     tasks=None,
     max_output_len: int = 200,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 0.0,
     prompt_table=None,
     task_vocab_size=None,
 ) -> Optional[torch.IntTensor]:
@@ -248,12 +258,22 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
+        return _forward(input_tensors, tasks, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
+            future = executor.submit(
+                _forward,
+                input_tensors,
+                tasks,
+                max_output_len,
+                top_k,
+                top_p,
+                temperature,
+                prompt_table,
+                task_vocab_size,
+            )
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -268,6 +288,9 @@ def generate(
     input_texts: List[torch.IntTensor],
     tasks=None,
     max_output_len: int = 200,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 0.0,
     prompt_table=None,
     task_vocab_size=None,
 ) -> Optional[List[List[str]]]:
@@ -277,7 +300,9 @@ def generate(
     """
     tokenizer = host_context.tokenizer
     input_tensors = [torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts]
-    output_tensor = forward(host_context, input_tensors, tasks, max_output_len, prompt_table, task_vocab_size)
+    output_tensor = forward(
+        host_context, input_tensors, tasks, max_output_len, top_k, top_p, temperature, prompt_table, task_vocab_size
+    )
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
