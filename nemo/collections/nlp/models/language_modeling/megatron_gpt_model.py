@@ -1517,6 +1517,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         recompute_method = self.cfg.get('activations_checkpoint_method', None)
         recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
 
+        if not self.cfg.get('fp8', False):
+            fp8 = None
+        elif self.cfg.get('fp8_e4m3', False):
+            fp8 = 'e4m3'
+        elif self.cfg.get('fp8_hybrid', False):
+            fp8 = 'hybrid'
+        else:
+            raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
+
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
@@ -1534,6 +1543,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
+            'fp8': fp8,
         }
 
         # populate the transformer config dict
