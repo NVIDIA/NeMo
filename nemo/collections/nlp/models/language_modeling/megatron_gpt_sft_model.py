@@ -280,6 +280,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 truncation_method=data_cfg.get(
                     'truncation_method', 'right'
                 ), # used to enable random truncation 
+                use_flash_attention=self.cfg.get(
+                    'use_flash_attention', False
+                ),
             )
             datasets.append(dataset)
 

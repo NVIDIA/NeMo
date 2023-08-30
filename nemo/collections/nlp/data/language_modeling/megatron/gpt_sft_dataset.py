@@ -52,6 +52,7 @@ class GPTSFTDataset(Dataset):
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
         truncation_method: str = "right",
+        use_flash_attention: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -98,6 +99,7 @@ class GPTSFTDataset(Dataset):
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
         self.truncation_method = truncation_method
+        self.use_flash_attention = use_flash_attention
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
@@ -379,9 +381,13 @@ class GPTSFTDataset(Dataset):
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
 
         assert max_length <= self.max_seq_length
-
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-        attention_mask = torch.stack(attention_mask)
+        
+        if self.use_flash_attention:
+            attention_mask = None
+        else:
+            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+            attention_mask = torch.stack(attention_mask)
+        
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
