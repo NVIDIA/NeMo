@@ -299,16 +299,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 labels=labels,
                 inference_params=inference_params,
             )
-        elif self.autocast_dtype == torch.float32:
-            output = self.frozen_model.model(
-                input_ids=None,
-                position_ids=None,
-                encoder_input=encoder_input,
-                attention_mask=attention_mask,
-                labels=labels,
-                set_inference_key_value_memory=set_inference_key_value_memory,
-                inference_max_sequence_len=inference_max_sequence_len,
-            )
         else:
             output = self.frozen_model.model(
                 input_ids=None,
@@ -533,7 +523,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     def setup(self, stage=None):
         super().setup(stage)
 
-        if self.frozen_model.cfg.get('transformer_engine', False):
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.frozen_model.setup_transformer_engine_tp_groups()
 
     def setup_training_data(self, training_data_config=None):
