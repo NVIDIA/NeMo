@@ -62,7 +62,7 @@ pipeline {
         // commit has api fix for TE
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
-            git checkout f24fac4ed0dcf0522056521a93445d9a82f501a9 && \
+            git checkout 84f64880b3651c4f7cf90da337ee4e7d9968acab && \
             pip install -e .'
       }
     }
@@ -134,7 +134,7 @@ pipeline {
           }
         }
 
-        stage('L2: Speech to Text WPE - CitriNet') {
+        stage('Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/citrinet/" --config-name="config_bpe" \
@@ -150,7 +150,7 @@ pipeline {
           }
         }
 
-        stage('L2: Speech Pre-training - CitriNet') {
+        stage('Speech Pre-training - CitriNet') {
           steps {
             sh 'python examples/asr/speech_pretraining/speech_pre_training.py \
             --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
@@ -161,6 +161,22 @@ pipeline {
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_pre_training_results'
             sh 'rm -rf examples/asr/speech_pre_training_results'
+          }
+        }
+
+        stage('Speech To Text Finetuning') {
+          steps {
+            sh 'python examples/asr/speech_to_text_finetune.py \
+            --config-path="conf" --config-name="speech_to_text_finetune" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
+            model.tokenizer.update_tokenizer=False \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_finetuning_results'
+            sh 'rm -rf examples/asr/speech_finetuning_results'
           }
         }
 
@@ -1351,7 +1367,7 @@ pipeline {
       parallel {
         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/dialogue && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1595,7 +1611,7 @@ pipeline {
         stage('GPT2 SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'TRANSFORMERS_OFFLINE=1 && cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -3745,11 +3761,11 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
         model.data.train_ds.num_workers=0 \
         model.data.test_ds.micro_batch_size=1 \
-        model.data.test_ds.global_batch_size=4 \
+        model.data.test_ds.global_batch_size=1 \
         model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.test_ds.names=[quarel] \
         model.data.validation_ds.micro_batch_size=1 \
-        model.data.validation_ds.global_batch_size=4 \
+        model.data.validation_ds.global_batch_size=1 \
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]"
@@ -4652,6 +4668,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
+        trainer.limit_val_batches=5 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
         trainer.precision=16 \
@@ -4837,6 +4854,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
           steps {
             sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.max_steps=10 \
+            trainer.limit_val_batches=7 \
             trainer.val_check_interval=10 \
             exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
             model.data.data_impl=mock \
@@ -4849,6 +4867,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
           steps {
             sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.max_steps=10 \
+            trainer.limit_val_batches=3 \
             trainer.val_check_interval=10 \
             exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
             model.data.data_impl=mock \
