@@ -59,6 +59,7 @@ pipeline {
 
     stage('Megatron Core installation') {
       steps {
+        // pinned MCore https://github.com/NVIDIA/Megatron-LM/commit/1b1a798bca149ecf98d43b6082cd1ee80079eadf (to be updated)
         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
             cd Megatron-LM && \
             git checkout 1b1a798bca149ecf98d43b6082cd1ee80079eadf && \
@@ -71,6 +72,17 @@ pipeline {
         // pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
         sh 'pip install flash-attn && \
             pip install triton==2.0.0.dev20221202'
+      }
+    }
+
+    stage('Transformer Engine installation') {
+      steps {
+        // pinned TE https://github.com/NVIDIA/TransformerEngine/commit/85928d0887234a64c63b220e3c09d8a7a0d01c7b
+        sh 'git clone --recursive https://github.com/NVIDIA/TransformerEngine.git && \
+            cd TransformerEngine && \
+            git checkout 85928d0887234a64c63b220e3c09d8a7a0d01c7b && \
+            export NVTE_FRAMEWORK=pytorch && \
+            pip install -e .'
       }
     }
 
