@@ -50,9 +50,9 @@ class NemoQuery:
             prompts,
             max_output_len=200,
             top_k=1,
-            top_p=0.2,
-            temperature=0.3,
-            init_timeout=600.0
+            top_p=0.0,
+            temperature=0.0,
+            init_timeout=600.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -63,6 +63,7 @@ class NemoQuery:
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            init_timeout (flat): timeout for the connection.
         """
 
         prompts = str_list2numpy(prompts)
