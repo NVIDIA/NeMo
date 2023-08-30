@@ -64,12 +64,13 @@ class AbstractBaseSampler(ABC):
             "sqrt_recipm1_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod.cpu() - 1)),
         )
         # ddim sampling parameters
-        ddim_sigmas, ddim_alphas, ddim_alphas_prev = make_ddim_sampling_parameters(
+        ddim_sigmas, ddim_alphas, ddim_alphas_prev, ddim_variance = make_ddim_sampling_parameters(
             alphacums=alphas_cumprod.cpu(), ddim_timesteps=self.ddim_timesteps, eta=ddim_eta, verbose=verbose,
         )
         self.register_buffer("ddim_sigmas", ddim_sigmas)
         self.register_buffer("ddim_alphas", ddim_alphas)
         self.register_buffer("ddim_alphas_prev", ddim_alphas_prev)
+        self.register_buffer("ddim_variance", ddim_variance)
         self.register_buffer("ddim_sqrt_one_minus_alphas", np.sqrt(1.0 - ddim_alphas))
         sigmas_for_original_sampling_steps = ddim_eta * torch.sqrt(
             (1 - self.alphas_cumprod_prev)
@@ -83,6 +84,9 @@ class AbstractBaseSampler(ABC):
         pass
 
     def dpm_sampling_fn(self):
+        pass
+
+    def para_ddim_sampling_fn(self):
         pass
 
     @torch.no_grad()
@@ -108,6 +112,8 @@ class AbstractBaseSampler(ABC):
         log_every_t=100,
         unconditional_guidance_scale=1.0,
         unconditional_conditioning=None,
+        parallelism=8,
+        tolerance=0.1,
         # this has to come in the same format as the conditioning, # e.g. as encoded tokens, ...
         **kwargs,
     ):
@@ -136,6 +142,24 @@ class AbstractBaseSampler(ABC):
                 unconditional_conditioning=unconditional_conditioning,
                 unconditional_guidance_scale=unconditional_guidance_scale,
                 x_T=x_T,
+            )
+
+        if self.sampler is Sampler.PARA_DDIM:
+            return self.para_ddim_sampling_fn(
+                cond=conditioning,
+                batch_size=batch_size,
+                per_latent_shape=shape,
+                x_T=x_T,
+                steps=S,
+                parallelism=parallelism,
+                tolerance=tolerance,
+                temperature=temperature,
+                noise_dropout=noise_dropout,
+                quantize_denoised=quantize_x0,
+                unconditional_guidance_scale=unconditional_guidance_scale,
+                unconditional_conditioning=unconditional_conditioning,
+                score_corrector=score_corrector,
+                corrector_kwargs=corrector_kwargs,
             )
 
         samples, intermediates = self.sampling_fn(
