@@ -131,7 +131,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
-        self.autocast_dtype = utils_funcs.params_dtype_from_precision(self.cfg.precision)
+        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
 
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(

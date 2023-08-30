@@ -115,7 +115,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
                 margin=0, interval=1, fp8_format=transformer_engine.common.recipe.Format.E4M3
             )
 
-        self.dtype = utils_funcs.params_dtype_from_precision(model.cfg.precision)
+        self.dtype = utils_funcs.torch_dtype_from_precision(model.cfg.precision)
 
     def forward(self, tokens, position_ids, attention_mask):
         if self.fp8_enabled and HAVE_TE:
@@ -253,7 +253,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             self._wrap_model_for_O2()
 
-        self.autocast_dtype = utils_funcs.params_dtype_from_precision(self.cfg.precision)
+        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False

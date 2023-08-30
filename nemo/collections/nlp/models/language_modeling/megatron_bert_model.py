@@ -90,7 +90,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         self._validate_trainer()
 
-        self.autocast_dtype = utils_funcs.params_dtype_from_precision(self.cfg.precision)
+        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
