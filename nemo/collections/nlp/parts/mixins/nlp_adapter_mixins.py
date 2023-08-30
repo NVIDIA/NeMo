@@ -65,12 +65,12 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         k = [n for n, p in self.named_parameters()]
         return set(k)
 
-    def add_adapter(self, name_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
+    def add_adapter(self, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
         """
         High level API to add one or more adapter modules to the model, and freeze the base weights
 
         Args:
-            name_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
+            peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
         def _check_and_add_adapter(module, peft_name, peft_cfg):
@@ -78,14 +78,14 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                 if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                     module.add_adapter(name=peft_name, cfg=peft_cfg)
 
-        if not isinstance(name_cfgs, List):
-            name_cfgs = [name_cfgs]
+        if not isinstance(peft_cfgs, List):
+            peft_cfgs = [peft_cfgs]
 
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-        for cfg in name_cfgs:
+        for cfg in peft_cfgs:
             layer_selection = cfg.layer_selection
             for peft_name, peft_cfg in cfg.get_config_dict().items():
                 # hasattr(self, "model") means is GPT and not T5
