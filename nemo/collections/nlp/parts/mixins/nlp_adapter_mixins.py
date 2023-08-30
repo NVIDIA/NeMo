@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 from omegaconf import OmegaConf, open_dict
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig
+from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PEFT_CONFIG_MAP
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
@@ -58,6 +59,50 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             self.model_prefix = "enc_dec_model."  # for T5
         else:
             self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
+
+    @classmethod
+    def restore_cfg(
+        cls,
+        restore_path: str,
+        overwrites: Optional[OmegaConf] = None,
+    ) -> OmegaConf:
+        output = cls.restore_from(restore_path, return_config=True)
+
+        if overwrites:
+            OmegaConf.resolve(overwrites)
+            with open_dict(output):
+                for key, val in overwrites.model.items():
+                    output[key] = val
+                if "test_ds" in overwrites.model.data:
+                    output.micro_batch_size = overwrites.model.data.train_ds.micro_batch_size
+                    output.global_batch_size = overwrites.model.data.train_ds.global_batch_size
+                if overwrites.get("trainer", None) and overwrites.trainer.get("precision"):
+                    output.precision = overwrites.trainer.precision
+
+        return output
+
+    @classmethod
+    def load(
+        cls,
+        to_load: Union["str", OmegaConf],
+        trainer: Optional[Trainer] = None,
+        peft: Optional[Union[OmegaConf, PEFTConfig]] = None
+    ):
+        if isinstance(to_load, str):
+            return cls.restore_from(to_load, trainer=trainer)
+
+        restore_path = to_load.model.restore_from_path
+        override_cfg = cls.restore_cfg(restore_path, to_load)
+
+        output = cls.restore_from(
+            restore_path, override_cfg, trainer=trainer
+        )
+
+        if peft:
+            AdapterConfig = PEFT_CONFIG_MAP[peft.peft_scheme]
+            output.add_adapter(AdapterConfig(override_cfg))
+
+        return output
 
     def _get_all_keys(self,):
         """
@@ -179,6 +224,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
         return peft_state_dict
+
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.use_peft and self.setup_complete:

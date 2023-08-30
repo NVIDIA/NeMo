@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.utils import logging
 
 
 class MegatronTrainerBuilder:
@@ -85,7 +86,13 @@ class MegatronTrainerBuilder:
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
+        trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
+        
+        if self.cfg.model.resume_from_checkpoint is not None:
+            trainer.ckpt_path = self.cfg.model.resume_from_checkpoint
+            logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
+            
+        return trainer
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):

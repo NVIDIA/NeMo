@@ -47,65 +47,6 @@ Usage:
 """
 
 
-def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
-    """
-    This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
-    The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
-    """
-    OmegaConf.set_struct(gpt_cfg, True)
-    OmegaConf.resolve(cfg)
-    with open_dict(gpt_cfg):
-        gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
-        gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
-        gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
-        gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
-        gpt_cfg.activations_checkpoint_granularity = cfg.model.get("activations_checkpoint_granularity", None)
-        gpt_cfg.activations_checkpoint_num_layers = cfg.model.get("activations_checkpoint_num_layers", None)
-        gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
-        gpt_cfg.activations_checkpoint_layers_per_pipeline = cfg.model.get(
-            "activations_checkpoint_layers_per_pipeline", None
-        )
-        gpt_cfg.data = cfg.model.data
-        gpt_cfg.optim = cfg.model.optim
-        gpt_cfg.precision = cfg.trainer.precision
-        gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
-        gpt_cfg.restore_from_path = cfg.model.restore_from_path
-        gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
-        gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
-        gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
-        gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
-        gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
-        gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
-        gpt_cfg.peft = cfg.model.peft
-
-        # This is needed when modifying a hparam file directly to load `.ckpt` files.
-        # This is not needed to modify the cfg in `.nemo` files.
-        if add_cfg_to_tree:
-            OmegaConf.resolve(gpt_cfg)
-            gpt_cfg.cfg = gpt_cfg
-
-    return gpt_cfg
-
-
-def build_config(cfg, trainer):
-    # update resume from checkpoint found by exp_manager
-    if cfg.model.resume_from_checkpoint is not None:
-        trainer.ckpt_path = cfg.model.resume_from_checkpoint
-    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
-
-    assert cfg.model.restore_from_path, "PEFT training needs a trained base model present."
-
-    base_model_cfg = MegatronGPTSFTModel.restore_from(
-        restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
-    )
-    base_model_cfg = _modify_config(base_model_cfg, cfg, add_cfg_to_tree=False)
-    return base_model_cfg
-
-
 @hydra_runner(config_path="conf", config_name="megatron_gpt_peft_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -114,14 +55,7 @@ def main(cfg) -> None:
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    base_model_cfg = build_config(cfg, trainer)
-    model = MegatronGPTSFTModel.restore_from(
-        restore_path=base_model_cfg.restore_from_path, trainer=trainer, override_config_path=base_model_cfg
-    )
-
-    peft_cfg_cls = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
-    model.add_adapter(peft_cfg_cls(base_model_cfg))
-
+    model = MegatronGPTSFTModel.load(cfg, trainer, peft=cfg.model.peft)
     trainer.fit(model)
 
 
