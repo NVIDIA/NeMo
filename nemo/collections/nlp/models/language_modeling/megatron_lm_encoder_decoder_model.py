@@ -398,7 +398,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             n = f'reduced_train_{k}'
             self.log(n, v, prog_bar=n.endswith("_loss"), rank_zero_only=True, batch_size=1)
 
-        if self.cfg.precision in [16, '16', '16-mixed']:
+        if self.torch_dtype == torch.float16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)

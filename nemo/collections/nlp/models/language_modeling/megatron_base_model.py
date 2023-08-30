@@ -106,6 +106,7 @@ class MegatronBaseModel(NLPModel):
 
         with open_dict(self.cfg):
             self.cfg.precision = trainer.precision
+            self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)
 
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
@@ -475,10 +476,10 @@ class MegatronBaseModel(NLPModel):
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
         if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
-            if self.cfg.precision in ['bf16', 'bf16-mixed']:
+            if self.torch_dtype == torch.bfloat16:
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
-            elif self.cfg.precision == [16, '16', '16-mixed']:
+            elif self.torch_dtype == torch.float16:
                 fp32_grad_accum = False
                 # TODO: contiguous grad bucket for fp16 is also planned to be supported
                 contiguous_grad_bucket = False
@@ -755,11 +756,10 @@ class MegatronBaseModel(NLPModel):
         megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         # instantiate weights in bfloat16 if using megatron amp O2 and bf16
-        params_dtype = utils_funcs.params_dtype_from_precision(precision, megatron_amp_O2)
-        params_dtype = params_dtype if params_dtype == torch.bfloat16 else torch.float32
+        params_dtype = self.torch_dtype
 
         # dtype used in p2p communication
-        pipeline_dtype = utils_funcs.params_dtype_from_precision(precision)
+        pipeline_dtype = self.torch_dtype
 
         # same as pipeline_dtype when not using megatron amp O2
         autocast_dtype = pipeline_dtype if not megatron_amp_O2 else None
@@ -768,14 +768,16 @@ class MegatronBaseModel(NLPModel):
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
             "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
-            "bf16": precision in ['bf16', 'bf16-mixed'] and megatron_amp_O2,
+            "bf16": self.torch_dtype == torch.bfloat16,
             "params_dtype": params_dtype,
             "timers": None,  # NeMo does not currently support megatron core timers
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
-            "grad_scale_func": self.trainer.precision_plugin.scaler.scale if pipeline_dtype == torch.float16 else None,
-            "enable_autocast": not megatron_amp_O2 and pipeline_dtype in [torch.bfloat16, torch.float16],
+            "grad_scale_func": self.trainer.precision_plugin.scaler.scale
+            if self.torch_dtype == torch.float16
+            else None,
+            "enable_autocast": not megatron_amp_O2 and self.torch_dtype in [torch.bfloat16, torch.float16],
             "autocast_dtype": autocast_dtype,
             "variable_seq_lengths": False,  # set dynamically during training
             "num_microbatches_with_partial_activation_checkpoints": self.cfg.get(
