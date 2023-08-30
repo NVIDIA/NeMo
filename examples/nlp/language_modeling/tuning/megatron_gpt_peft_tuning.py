@@ -115,8 +115,9 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     base_model_cfg = build_config(cfg, trainer)
-    model = MegatronGPTSFTModel.restore_from(restore_path=base_model_cfg.restore_from_path, trainer=trainer,
-                                             override_config_path=base_model_cfg)
+    model = MegatronGPTSFTModel.restore_from(
+        restore_path=base_model_cfg.restore_from_path, trainer=trainer, override_config_path=base_model_cfg
+    )
 
     AdapterConfig = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
     model.add_adapter(AdapterConfig(base_model_cfg))

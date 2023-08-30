@@ -25,6 +25,7 @@ from nemo.core.classes.mixins.adapter_mixins import (
 )
 from nemo.utils import logging, model_utils
 
+
 class NLPAdapterModelMixin(AdapterModelPTMixin):
     """ NLP Adapter Mixin that can augment any Encoder module with Adapter module support.
     # Todo rewrite doc string
@@ -144,7 +145,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
         return peft_state_dict
-
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.use_peft and self.setup_complete:

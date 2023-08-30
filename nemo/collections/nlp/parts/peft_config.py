@@ -13,15 +13,18 @@
 # limitations under the License.
 
 from typing import Dict
+
 from omegaconf import DictConfig
+
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
+    InfusedAdapterConfig,
     LoraKQVAdapterConfig,
     MLPInfusedAdapterConfig,
-    InfusedAdapterConfig,
-    PromptEncoderAdapterConfig,
     ParallelLinearAdapterConfig,
+    PromptEncoderAdapterConfig,
 )
+
 
 class PEFTConfig:
     # superclass for adapter name and config
@@ -34,6 +37,7 @@ class PEFTConfig:
 
     def get_config_dict(self):
         return self.name_key_to_cfg
+
 
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
