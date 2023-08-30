@@ -23,7 +23,6 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
-    
 )
 from nemo.core import adapter_mixins
 
@@ -119,7 +118,7 @@ class MCoreGPTEmbeddingMixin(GPTEmbedding, MCoreAdapterModuleMixin):
                 encoder_input = torch.concat([virtual_embeddings, encoder_input], dim=0)
         return encoder_input
 
-    
+
 class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         self.set_accepted_adapter_types([ParallelLinearAdapterConfig._target_])
@@ -139,10 +138,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
         layernorm_output = self.input_layernorm(hidden_states)
         # Self attention.
         attention_output_with_bias = self.self_attention(
-            layernorm_output,
-            attention_mask,
-            inference_params=inference_params,
-            rotary_pos_emb=rotary_pos_emb,
+            layernorm_output, attention_mask, inference_params=inference_params, rotary_pos_emb=rotary_pos_emb,
         )
 
         # adapter logic
@@ -188,9 +184,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
             residual = layernorm_input
 
         with self.bias_dropout_add_exec_handler():
-            output = self.bias_dropout_add_func(
-                mlp_output_with_bias, residual, self.config.hidden_dropout
-            )
+            output = self.bias_dropout_add_func(mlp_output_with_bias, residual, self.config.hidden_dropout)
 
         # Jit compiled function creates 'view' tensor. This tensor
         # potentially gets saved in the MPU checkpoint function context,
@@ -198,10 +192,6 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(
-            inp=output, requires_grad=output.requires_grad, keep_graph=True
-        )
+        output = make_viewless_tensor(inp=output, requires_grad=output.requires_grad, keep_graph=True)
 
         return output
-
-

@@ -518,7 +518,7 @@ class MegatronGPTAdapterPTuningModel(MegatronGPTPEFTModel):
         self.name_key_to_mcore_mixins = {
             AdapterName.PRE_ATTN_ADAPTER: [('', MCoreTransformerLayerMixin)],
             AdapterName.POST_ATTN_ADAPTER: [('', MCoreTransformerLayerMixin)],
-            AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]
+            AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)],
         }
         super().__init__(cfg, trainer)
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
