@@ -16,14 +16,8 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AttnAdapterConfig,
-    AttnPtuningAdapterConfig,
-    IA3AdapterConfig,
-    LoraAdapterConfig,
-    PtuningAdapterConfig,
-)
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -51,14 +45,6 @@ Usage:
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
             trainer.max_epochs=2
 """
-
-peft_config_map = {
-    "adapter": AttnAdapterConfig,
-    "ia3": IA3AdapterConfig,
-    "ptuning": PtuningAdapterConfig,
-    "adapter_and_ptuning": AttnPtuningAdapterConfig,
-    "lora": LoraAdapterConfig,
-}
 
 
 def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
@@ -133,8 +119,8 @@ def main(cfg) -> None:
         restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=base_model_cfg,
     )
 
-    AdapterConfig = peft_config_map[base_model_cfg.peft.peft_scheme]
-    model.add_adapter(AdapterConfig(base_model_cfg))
+    peft_cfg_cls = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
+    model.add_adapter(peft_cfg_cls(base_model_cfg))
 
     trainer.fit(model)
 
