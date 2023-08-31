@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.06-py3'
+          image 'nvcr.io/nvidia/pytorch:23.08-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=1 --env HYDRA_FULL_ERROR=1'
         }
   }
@@ -67,13 +67,13 @@ pipeline {
       }
     }
       
-    stage('Flash Attention installation') {
-      steps {
-        // pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-        sh 'pip install flash-attn && \
-            pip install triton==2.0.0.dev20221202'
-      }
-    }
+    // stage('Flash Attention installation') {
+    //   steps {
+    //     // pinned triton version for flash-attention https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
+    //     sh 'pip install flash-attn && \
+    //         pip install triton==2.0.0.dev20221202'
+    //   }
+    // }
 
     stage('PyTorch Lightning version') {
       steps {
@@ -114,23 +114,23 @@ pipeline {
 
     // TODO: this requires TE >= v0.11 which is not available in 23.06.
     //        please uncomment this test once mcore CI is ready.
-    // stage('L2: Community LLM Checkpoints tests') {
-    //   when {
-    //     anyOf {
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps {
-    //     sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
-    //     --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-    //     --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
-    //     --fast-swiglu \
-    //     --precision=16'
-    //     sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
-    //   }
-    // }
+    stage('L2: Community LLM Checkpoints tests') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
+        --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
+        --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
+        --fast-swiglu \
+        --precision=16'
+        sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+      }
+    }
 
     stage('L2: ASR dev run') {
       when {
