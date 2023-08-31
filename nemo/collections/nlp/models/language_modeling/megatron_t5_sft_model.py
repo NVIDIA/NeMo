@@ -339,21 +339,22 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         else:
             categories = batch['lang']
 
-        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-        assert len(categories) == len(preds_text) == len(labels_text)
-        for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
-            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-            pred, label = self.cast_for_metric(
-                pred=pred,
-                label=label,
-                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                class_labels=data_cfg.metric.get('class_labels', None),
-                labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
-            )
-            if batch_has_lang_information:
-                _ = metric(pred, label, category)
-            else:
-                _ = metric(pred, label)
+        if self.val_metric is not None:
+            metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            assert len(categories) == len(preds_text) == len(labels_text)
+            for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
+                # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+                pred, label = self.cast_for_metric(
+                    pred=pred,
+                    label=label,
+                    metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
+                    class_labels=data_cfg.metric.get('class_labels', None),
+                    labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
+                )
+                if batch_has_lang_information:
+                    _ = metric(pred, label, category)
+                else:
+                    _ = metric(pred, label)
 
         outputs = {
             'preds': preds_text,
