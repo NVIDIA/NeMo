@@ -18,8 +18,12 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from apex.contrib.group_norm import GroupNorm
 from einops import rearrange
+
+if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+    from apex.contrib.group_norm import GroupNorm
+else:
+    from nemo.gn_native import GroupNormNormlization as GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
@@ -52,20 +56,7 @@ def nonlinearity(x):
 
 
 def Normalize(in_channels, num_groups=32, act=""):
-    if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
-        if act == "silu":
-            act = nn.SiLU()
-        elif act == "relu":
-            act = nn.ReLU()
-        elif act == "":
-            act = nn.Identity()
-        else:
-            raise ValueError(f"Unknown activation {act}")
-
-        gn = nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
-        return nn.Sequential(gn, act)
-    else:
-        return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
+    return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
 
 
 class Upsample(nn.Module):

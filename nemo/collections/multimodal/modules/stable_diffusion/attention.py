@@ -11,16 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import math
+import os
 from inspect import isfunction
 
 import torch
 import torch.nn.functional as F
-from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
 from torch import einsum, nn
 from torch._dynamo import disable
+
+if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+    from apex.contrib.group_norm import GroupNorm
+else:
+    from nemo.gn_native import GroupNormNormlization as GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 
@@ -40,7 +44,7 @@ def check_cuda():
 
 try:
     import torch.nn as nn
-    from flash_attn.modules.mha import FlashSelfAttention, FlashCrossAttention
+    from flash_attn.modules.mha import FlashCrossAttention, FlashSelfAttention
 
     flash_attn_installed = check_cuda()
     print("FlashAttention Installed")
@@ -113,20 +117,7 @@ def zero_module(module):
 
 
 def Normalize(in_channels, num_groups=32, act=""):
-    if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
-        if act == "silu":
-            act = nn.SiLU()
-        elif act == "relu":
-            act = nn.ReLU()
-        elif act == "":
-            act = nn.Identity()
-        else:
-            raise ValueError(f"Unknown activation {act}")
-
-        gn = nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
-        return nn.Sequential(gn, act)
-    else:
-        return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
+    return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
 
 
 class LinearAttention(nn.Module):

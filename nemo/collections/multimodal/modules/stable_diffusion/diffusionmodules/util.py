@@ -21,15 +21,19 @@
 # thanks!
 
 
-import os
 import math
+import os
 
 import numpy as np
 import torch
 import torch.nn as nn
-from apex.contrib.group_norm import GroupNorm
 from einops import repeat
 from torch._dynamo import disable
+
+if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+    from apex.contrib.group_norm import GroupNorm
+else:
+    from nemo.gn_native import GroupNormNormlization as GroupNorm
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -210,21 +214,9 @@ def mean_flat(tensor):
     """
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
-def normalization(in_channels, act="", gn_groups=32):
-    if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
-        if act == "silu":
-            act = nn.SiLU()
-        elif act == "relu":
-            act = nn.ReLU()
-        elif act == "":
-            act = nn.Identity()
-        else:
-            raise ValueError(f"Unknown activation {act}")
 
-        gn = nn.GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True)
-        return nn.Sequential(gn, act)
-    else:
-        return GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True, act=act)
+def normalization(in_channels, act="", gn_groups=32):
+    return GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True, act=act)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
