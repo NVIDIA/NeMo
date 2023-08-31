@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union, Optional
+from typing import List, Union
 
-from omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from omegaconf import OmegaConf, open_dict, DictConfig
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.peft_config import PEFTConfig
+from nemo.collections.nlp.parts.peft_config import PEFTConfig, LoraPEFTConfig, AdapterPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
@@ -60,49 +59,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         else:
             self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
 
-    @classmethod
-    def restore_cfg(
-        cls,
-        restore_path: str,
-        overwrites: Optional[OmegaConf] = None,
-    ) -> OmegaConf:
-        output = cls.restore_from(restore_path, return_config=True)
-
-        if overwrites:
-            OmegaConf.resolve(overwrites)
-            with open_dict(output):
-                for key, val in overwrites.model.items():
-                    output[key] = val
-                if "test_ds" in overwrites.model.data:
-                    output.micro_batch_size = overwrites.model.data.train_ds.micro_batch_size
-                    output.global_batch_size = overwrites.model.data.train_ds.global_batch_size
-                if overwrites.get("trainer", None) and overwrites.trainer.get("precision"):
-                    output.precision = overwrites.trainer.precision
-
-        return output
-
-    @classmethod
-    def load(
-        cls,
-        to_load: Union["str", OmegaConf],
-        trainer: Optional[Trainer] = None,
-        peft: Optional[Union[OmegaConf, PEFTConfig]] = None
-    ):
-        if isinstance(to_load, str):
-            return cls.restore_from(to_load, trainer=trainer)
-
-        restore_path = to_load.model.restore_from_path
-        override_cfg = cls.restore_cfg(restore_path, to_load)
-
-        output = cls.restore_from(
-            restore_path, override_cfg, trainer=trainer
-        )
-
-        if peft:
-            AdapterConfig = PEFT_CONFIG_MAP[peft.peft_scheme]
-            output.add_adapter(AdapterConfig(override_cfg))
-
-        return output
 
     def _get_all_keys(self,):
         """
@@ -247,3 +203,43 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
+
+    @classmethod
+    def merge_cfg_with(cls, path: str, cfg: DictConfig) -> DictConfig:
+        """
+        Merge a given configuration dictionary `cfg` with the configuration dictionary
+        obtained from restoring a MegatronGPTSFTModel or MegatronT5SFTModel at the specified `path`.
+
+        Args:
+            path (str): The path to the SFT model checkpoint to be restored.
+            cfg (DictConfig): The configuration dictionary to merge.
+
+        Returns:
+            DictConfig: The merged configuration dictionary.
+
+        Examples:
+            >>> path = "/path/to/model/checkpoint"
+            >>> cfg = DictConfig({"model": {"key": "value"}, "trainer": {"precision": 16}})
+            >>> merged_cfg = merge_cfg_with(path, cfg)
+
+        Notes:
+            - The function resolves variables within the `cfg` dictionary using `OmegaConf.resolve`.
+            - Keys in `cfg.model` will override the corresponding keys in the output dictionary.
+            - If "test_ds" exists in `cfg.model.data`, it updates `micro_batch_size` and `global_batch_size`.
+            - If `cfg.trainer` contains a "precision" key, it updates `output.precision`.
+
+        """
+
+        output = cls.restore_from(path, return_config=True)
+
+        OmegaConf.resolve(cfg)
+        with open_dict(output):
+            for key, val in cfg.model.items():
+                output[key] = val
+            if "test_ds" in cfg.model.data:
+                output.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
+                output.global_batch_size = cfg.model.data.train_ds.global_batch_size
+            if cfg.get("trainer", None) and cfg.trainer.get("precision"):
+                output.precision = cfg.trainer.precision
+
+        return output

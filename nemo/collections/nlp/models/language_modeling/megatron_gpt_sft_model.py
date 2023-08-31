@@ -66,7 +66,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ['MegatronGPTSFTModel', 'merge_cfg_with']
+__all__ = ['MegatronGPTSFTModel']
 
 
 class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
@@ -853,41 +853,3 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return super().on_train_epoch_start()
 
 
-def merge_cfg_with(path: str, cfg: DictConfig) -> DictConfig:
-    """
-    Merge a given configuration dictionary `cfg` with the configuration dictionary
-    obtained from restoring a MegatronGPTSFTModel at the specified `path`.
-
-    Args:
-        path (str): The path to the MegatronGPTSFTModel checkpoint to be restored.
-        cfg (DictConfig): The configuration dictionary to merge.
-
-    Returns:
-        DictConfig: The merged configuration dictionary.
-
-    Examples:
-        >>> path = "/path/to/model/checkpoint"
-        >>> cfg = DictConfig({"model": {"key": "value"}, "trainer": {"precision": 16}})
-        >>> merged_cfg = merge_cfg_with(path, cfg)
-
-    Notes:
-        - The function resolves variables within the `cfg` dictionary using `OmegaConf.resolve`.
-        - Keys in `cfg.model` will override the corresponding keys in the output dictionary.
-        - If "test_ds" exists in `cfg.model.data`, it updates `micro_batch_size` and `global_batch_size`.
-        - If `cfg.trainer` contains a "precision" key, it updates `output.precision`.
-
-    """
-    
-    output = MegatronGPTSFTModel.restore_from(path, return_config=True)
-        
-    OmegaConf.resolve(cfg)
-    with open_dict(output):
-        for key, val in cfg.model.items():
-            output[key] = val
-        if "test_ds" in cfg.model.data:
-            output.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
-            output.global_batch_size = cfg.model.data.train_ds.global_batch_size
-        if cfg.get("trainer", None) and cfg.trainer.get("precision"):
-            output.precision = cfg.trainer.precision
-
-    return output

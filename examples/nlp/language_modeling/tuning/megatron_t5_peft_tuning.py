@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import torch.multiprocessing as mp
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import merge_cfg_with
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -26,11 +25,10 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 """
-# TODO
-This is the script to train an Adapter infused GPT Model for text generation.
-A base GPT Model is required as a starting point. This script will then insert
+This is the script to finetuning a T5 Model with any PEFT method.
+A base T5 Model is required as a starting point. This script will then insert
 Adapters into each Transformer layer and will train/update only these adapters
-during training. The base GPT Model weights will remain frozen.
+during training. The base T5 Model weights will remain frozen.
 
 During training this script will only save the newly trained Adapter weights
 in checkpoints. At the end of training a .nemo file of Adapter weights will 
@@ -39,13 +37,15 @@ be saved.
 Usage:
     Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
     a. run a training run for a base gpt nemo file:
-        python megatron_gpt_adapter_tuning.py \
-            "model.data.train_ds=[PATH TO TRAINING JSONL FILE]",
-            "model.data.validation_ds=[PATH TO VALIDATION JSONL FILE]",
-            model.language_model_path="PATH TO BASE GPT MODEL .nemo FILE"
+        python megatron_gpt_peft_tuning.py \
+            "model.data.train_ds.file_names=[PATH TO TRAINING JSONL FILE]",
+            "model.data.train_ds.concat_sampling_probabilities=[SAMPLING VAL]",
+            "model.data.validation_ds.file_names=[PATH TO VALIDATION JSONL FILE]",
+            "model.data.validation_ds.names=[NAME FOR METRIC LOGGING]",
+            model.restore_from_path="PATH TO BASE GPT MODEL .nemo FILE"
             name="NAME OF TRAINING RUN"
             exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
-            trainer.max_epochs=2
+Please see TODO for a step-by-step guide.
 """
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_peft_tuning_config")
@@ -56,7 +56,7 @@ def main(cfg) -> None:
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model_cfg = MegatronT5SFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     model = MegatronT5SFTModel.restore_from(
         cfg.model.restore_from_path, model_cfg, trainer=trainer
     )
