@@ -174,7 +174,7 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        nemo_export_dir = os.path.join(self.model_dir, "__tmp_nemo__/")
+        nemo_export_dir = os.path.join(self.model_dir, "/tmp_nemo/")
         model_configs, self.tokenizer = nemo_to_model_config(
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
