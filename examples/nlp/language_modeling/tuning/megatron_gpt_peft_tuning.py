@@ -13,13 +13,12 @@
 # limitations under the License.
 
 import torch.multiprocessing as mp
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import (
     MegatronGPTSFTModel,
     merge_cfg_with
 )
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP   
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
@@ -63,8 +62,8 @@ def main(cfg) -> None:
     model = MegatronGPTSFTModel.restore_from(
         cfg.model.restore_from_path, model_cfg, trainer=trainer
     )
-    AdapterConfig = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-    model.add_adapter(AdapterConfig(model_cfg))
+    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+    model.add_adapter(peft_cfg_cls(model_cfg))
     
     trainer.fit(model)
 
