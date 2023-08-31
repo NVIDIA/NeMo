@@ -14,7 +14,8 @@
 
 from typing import List, Union
 
-from omegaconf import DictConfig, OmegaConf, open_dict
+import torch
+from omegaconf import OmegaConf, open_dict, DictConfig
 
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
@@ -171,6 +172,95 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             if cfg.weight_tying:
                 self.tie_weights(cfg, use_mcore_gpt)
         self.use_peft = True
+
+    def load_adapters(self, filepath: str, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]],
+                      map_location: str = None, strict: bool = True):
+        """
+        Utility method that restores only the adapter module(s), and not the entire model itself.
+        This allows the sharing of adapters which are often just a fraction of the size of the full model,
+        enabling easier deliver.
+
+        .. note::
+
+            During restoration, assumes that the model does not currently already have an adapter with
+            the name (if provided), or any adapter that shares a name with the state dict's modules
+            (if name is not provided). This is to ensure that each adapter name is globally unique
+            in a model.
+
+        Args:
+            filepath: Filepath of the .pt file.
+            name: Optional name of the adapter that will be saved to this file. If None is passed,
+                all adapters will be saved to the file. The name must be either the global name (adapter_name),
+                or the module level name (module:adapter_name), whichever exactly matches the state dict.
+            map_location: Pytorch flag, where to place the adapter(s) state dict(s).
+            strict: Pytorch flag, whether to load the weights of the adapter(s) strictly or not.
+        """
+        # Add a new adapter with random weights
+        self.add_adapter(peft_cfgs)
+
+        # Determine device
+        if map_location is None:
+            if torch.cuda.is_available():
+                map_location = 'cuda'
+            else:
+                map_location = 'cpu'
+
+        # Load the state dict and extract the internal config
+        state_dict = torch.load(filepath, map_location=map_location)
+
+        if not isinstance(peft_cfgs, List):
+            peft_cfgs = [peft_cfgs]
+
+        # For all module:adapter names (note, for global modules, we ignore the module: part)
+        for peft_cfg in peft_cfgs:
+            for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
+                # Restore weights with exact key, if it fails, give useful error message.
+                try:
+                    adapter_state = state_dict[adapter_name]
+                except KeyError:
+                    all_keys = list(state_dict.keys())
+                    raise KeyError(
+                        f"Requested to load adapter with name `{adapter_name}`, but could not "
+                        f"the adapter in the state dict. \nAvailable adapter names in state dict are: "
+                        f"{all_keys}"
+                    )
+
+                # Determine apriori how many modules must be loaded from the state dict
+                # This is dont to guarentee that partial match does not occur, only exact match
+                # between state dict and the adapters parameters will be allowed.
+                modules_to_load = []  # type: List[torch.nn.Module]
+                for module in self.modules():
+                    if isinstance(module, AdapterModuleMixin):
+                        adapter_module = module.get_adapter_module(adapter_name)
+                        if adapter_module is not None:
+                            modules_to_load.append(adapter_module)
+
+                # Assert that the number of states in the state dict matches the newly created adapter
+                if len(adapter_state) != len(modules_to_load):
+                    raise ValueError(
+                        f"The number of adapters in current model ({len(modules_to_load)}) does not "
+                        f"match the number of modules in the state dict for adapter `{adapter_name}`: "
+                        f"({len(adapter_state)})"
+                    )
+
+                # For the pair of (adapter_state_in_checkpoint, adapter_in_model), restore the weights
+                for state, module in zip(adapter_state, modules_to_load):
+                    # Note that state is a list of multiple state dicts for 1:1 Module mapping.
+                    # However, the state_dict keys are of the form `adapter_name.<module hierarchy with dots>`.
+                    # We therefore strip the `adapter_name.` part of the state dict
+                    # And then directly load each module with its 1:1 state dict.
+                    sub_dict = {}
+                    for k, v in state.items():
+                        if adapter_name in k:
+                            k_ = k.replace(f"{adapter_name}.", "")
+                            sub_dict[k_] = v
+
+                    module.load_state_dict(sub_dict, strict=strict)
+                    del sub_dict
+
+                # delete the dictionaries to preserve memory for next adapter
+                del adapter_state, modules_to_load
+
 
     def tie_weights(self, peft_cfg, use_mcore_gpt):
         pos_idx = 0
