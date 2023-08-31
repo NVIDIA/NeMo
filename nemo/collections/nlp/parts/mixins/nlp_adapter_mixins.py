@@ -281,7 +281,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         with open_dict(output):
             for key, val in cfg.model.items():
                 output[key] = val
-            if "test_ds" in cfg.model.data:
+            if "train_ds" in cfg.model.data:
                 output.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
                 output.global_batch_size = cfg.model.data.train_ds.global_batch_size
             if cfg.get("trainer", None) and cfg.trainer.get("precision"):
