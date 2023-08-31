@@ -71,7 +71,9 @@ def load_model(cls, checkpoint, strict, **kwargs):
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
             if len(checkpoint['state_dict'].keys()) != 0:
-                raise RuntimeError(f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model.")
+                raise RuntimeError(
+                    f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
+                )
 
             # register the artifacts
             cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
