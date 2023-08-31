@@ -16,8 +16,8 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -119,8 +119,8 @@ def main(cfg) -> None:
         restore_path=base_model_cfg.restore_from_path, trainer=trainer, override_config_path=base_model_cfg
     )
 
-    AdapterConfig = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
-    model.add_adapter(AdapterConfig(base_model_cfg))
+    peft_cfg_cls = PEFT_CONFIG_MAP[base_model_cfg.peft.peft_scheme]
+    model.add_adapter(peft_cfg_cls(base_model_cfg))
 
     trainer.fit(model)
 
