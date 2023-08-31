@@ -87,11 +87,11 @@ class MegatronTrainerBuilder:
         strategy = self._training_strategy()
         plugins = self._plugins()
         trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
-        
+
         if self.cfg.model.resume_from_checkpoint is not None:
             trainer.ckpt_path = self.cfg.model.resume_from_checkpoint
             logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
-            
+
         return trainer
 
 

@@ -48,6 +48,7 @@ Usage:
 Please see TODO for a step-by-step guide.
 """
 
+
 @hydra_runner(config_path="conf", config_name="megatron_t5_peft_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -57,9 +58,7 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronT5SFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    model = MegatronT5SFTModel.restore_from(
-        cfg.model.restore_from_path, model_cfg, trainer=trainer
-    )
+    model = MegatronT5SFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
     model.add_adapter(peft_cfg_cls(model_cfg))
 

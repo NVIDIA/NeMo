@@ -58,12 +58,10 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    model = MegatronGPTSFTModel.restore_from(
-        cfg.model.restore_from_path, model_cfg, trainer=trainer
-    )
+    model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
     model.add_adapter(peft_cfg_cls(model_cfg))
-    
+
     trainer.fit(model)
 
 
