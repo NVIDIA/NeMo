@@ -90,8 +90,11 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             layer_selection = cfg.layer_selection
             for peft_name, peft_cfg in cfg.get_config_dict().items():
                 # self.model.language_model means is GPT and not T5
-                if hasattr(self, "model") and hasattr(self.model, "language_model") \
-                        and not isinstance(peft_cfg, PromptEncoderAdapterConfig):
+                if (
+                    hasattr(self, "model")
+                    and hasattr(self.model, "language_model")
+                    and not isinstance(peft_cfg, PromptEncoderAdapterConfig)
+                ):
                     if layer_selection is not None:
                         logging.info(
                             f"Layer selection {layer_selection} is enabled for the current model ("
