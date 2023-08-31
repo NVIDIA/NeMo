@@ -91,7 +91,9 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(module=self.model, precision=self.cfg.precision)
+            self.model = Float16Module(
+                config=self.model_parallel_config, module=self.model, precision=self.cfg.precision
+            )
 
         # self.setup_optimizer_param_groups()
         if self.cfg.precision == 'bf16':
@@ -171,6 +173,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
 
         model = MegatronRetrievalTokenLevelEncoderDecoderModule(
+            config=self.model_parallel_config,
             vocab_size=self.padded_vocab_size,
             hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
@@ -184,7 +187,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             post_process=post_process,
             init_method_std=self.cfg.get('init_method_std', 0.02),
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
             precision=self.cfg.get('precision', 16),
@@ -300,10 +302,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             self.log('lr', lr, batch_size=1)
             self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
             self.log(
-                'consumed_samples',
-                self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-                prog_bar=True,
-                batch_size=1,
+                'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
             )
             self._reduced_loss_buffer = []
         return lm_loss

@@ -276,115 +276,99 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        # Get seq length of batch
         batch = next(dataloader_iter)
         if isinstance(batch, dict):
             # convert to list if not already converted.
             batch = self._process_batch(batch)
 
-        _, seq_length = batch[0].shape
-        _, dec_seq_length = batch[1].shape
-        tensor_shape = [seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+        # Get seq length of batch
+        encoder_seq_length = batch[0].size(1)
+        decoder_seq_length = batch[1].size(1)
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
+        return self._execute_fwd_bwd_function(
             data_iterator=data_iter,
-            model=[self.enc_dec_model],
-            num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             tensor_shape=tensor_shape,
-            decoder_seq_length=dec_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
+            decoder_seq_length=decoder_seq_length,
         )
 
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor(0.0).cuda()
-
-        return loss_mean
-
     def inference_step(self, dataloader_iter, batch_idx: int, mode: str, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of the iterator
-        try:
-            # Regular finetuning datasets will return a list of dicts for each microbatch.
-            # But T0 datasets will return a single dict for the global batch.
-            batch = next(dataloader_iter)
-            batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
-            data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-
-            self._reconfigure_and_process_inference_batch(batch, data_cfg)
-
-            # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
-            # this will be ignored.
-            loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
-
-            predicted_token_ids, _ = self.decode(
-                tokens_enc=batch['text_enc'],
-                enc_mask=batch['enc_mask'],
-                num_tokens_to_generate=30,
-                bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
-            )
-
-            # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-            preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-            labels_text = MegatronT5FinetuneModel.ids_to_text(batch['labels'], self.tokenizer)
-            input_text = MegatronT5FinetuneModel.ids_to_text(batch['text_enc'], self.tokenizer)
-
-            if not batch_has_lang_information:
-                categories = [None] * len(preds_text)
-            else:
-                categories = batch['lang']
-
-            metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
-            assert len(categories) == len(preds_text) == len(labels_text)
-            for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
-                # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-                pred, label = self.cast_for_metric(
-                    pred=pred,
-                    label=label,
-                    metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                    class_labels=data_cfg.metric.get('class_labels', None),
-                    labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
-                )
-                if batch_has_lang_information:
-                    _ = metric(pred, label, category)
-                else:
-                    _ = metric(pred, label)
-
-            outputs = {
-                'loss': loss,
-                'preds': preds_text,
-                'labels': labels_text,
-                'categories': categories,
-                'inputs': input_text,
-            }
-            if mode == 'validation':
-                if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-                    self.validation_step_outputs[dataloader_idx].append(outputs)
-                else:
-                    self.validation_step_outputs.append(outputs)
-            else:
-                if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-                    self.test_step_outputs[dataloader_idx].append(outputs)
-                else:
-                    self.test_step_outputs.append(outputs)
-            return outputs
-        except StopIteration:
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
             return
+        # Regular finetuning datasets will return a list of dicts for each microbatch.
+        # But T0 datasets will return a single dict for the global batch.
+        batch = next(dataloader_iter)
+        batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
+        data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
+
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
+
+        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
+        # this will be ignored.
+        loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
+
+        predicted_token_ids, _ = self.decode(
+            tokens_enc=batch['text_enc'],
+            enc_mask=batch['enc_mask'],
+            num_tokens_to_generate=30,
+            bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
+        )
+
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        labels_text = MegatronT5FinetuneModel.ids_to_text(batch['labels'], self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(batch['text_enc'], self.tokenizer)
+
+        if not batch_has_lang_information:
+            categories = [None] * len(preds_text)
+        else:
+            categories = batch['lang']
+
+        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+        assert len(categories) == len(preds_text) == len(labels_text)
+        for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
+            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+            pred, label = self.cast_for_metric(
+                pred=pred,
+                label=label,
+                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
+                class_labels=data_cfg.metric.get('class_labels', None),
+                labels_are_strings=data_cfg.metric.get('labels_are_strings', False),
+            )
+            if batch_has_lang_information:
+                _ = metric(pred, label, category)
+            else:
+                _ = metric(pred, label)
+
+        outputs = {
+            'preds': preds_text,
+            'labels': labels_text,
+            'categories': categories,
+            'inputs': input_text,
+        }
+
+        if isinstance(loss, dict):
+            outputs.update(loss)
+        else:
+            outputs['loss'] = loss
+        if mode == 'validation':
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(outputs)
+            else:
+                self.validation_step_outputs.append(outputs)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(outputs)
+            else:
+                self.test_step_outputs.append(outputs)
+        return outputs
 
     @classmethod
     def ids_to_text(cls, batch_ids, tokenizer):
