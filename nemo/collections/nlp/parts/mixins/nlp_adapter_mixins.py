@@ -100,25 +100,25 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
 
-        for cfg in peft_cfgs:
-            layer_selection = cfg.layer_selection
+        for peft_cfg in peft_cfgs:
+            layer_selection = peft_cfg.layer_selection
 
             assert not use_mcore_gpt or hasattr(
-                cfg, 'name_key_to_mcore_mixins'
-            ), f"{cfg.__class__.__name__} is not supported in megatron core mode yet."
-            name_key_to_mcore_mixins = cfg.name_key_to_mcore_mixins if use_mcore_gpt else None
+                peft_cfg, 'name_key_to_mcore_mixins'
+            ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
+            name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if use_mcore_gpt else None
 
-            for peft_name, peft_cfg in cfg.get_config_dict().items():
+            for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
                 # self.model.language_model means is GPT and not T5
                 if (
                     hasattr(self, "model")
                     and hasattr(self.model, "language_model")
-                    and not isinstance(peft_cfg, PromptEncoderAdapterConfig)
+                    and not isinstance(adapter_cfg, PromptEncoderAdapterConfig)
                 ):
                     if layer_selection is not None:
                         logging.info(
                             f"Layer selection {layer_selection} is enabled for the current model ("
-                            f"{self.__class__.__name__} + {peft_name})"
+                            f"{self.__class__.__name__} + {adapter_name})"
                         )
                     if use_mcore_gpt:
                         if self.cfg.megatron_amp_O2:
@@ -133,19 +133,19 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                     for layer in layers:
                         if layer.layer_number in layer_selection:
                             for name, module in layer.named_modules():
-                                _check_and_add_adapter(name, module, peft_name, peft_cfg, name_key_to_mcore_mixins)
+                                _check_and_add_adapter(name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins)
                 else:
                     # Non GPT models, as well as GPT+PTuning do not support layer selection
                     if layer_selection is not None:
                         logging.warning(
                             "Layer selection is specified, but it is not supported for either "
-                            f"{self.__class__.__name__} or {peft_name})"
+                            f"{self.__class__.__name__} or {adapter_name})"
                         )
                     for name, module in self.named_modules():
-                        _check_and_add_adapter(name, module, peft_name, peft_cfg, name_key_to_mcore_mixins)
+                        _check_and_add_adapter(name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins)
 
                 # Update the model.cfg with information about the new adapter from cfg
-                module_name, adapter_name = self.resolve_adapter_module_name_(peft_name)
+                module_name, adapter_name = self.resolve_adapter_module_name_(adapter_name)
                 with open_dict(self.cfg):
                     # Construct the minimum config required to be updated by adapter implementations
                     if 'adapters' not in self.cfg:
@@ -162,7 +162,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                     mcfg = self.adapter_metadata_cfg_key
                     self.cfg.adapters[gcfg][mcfg]['modules'][adapter_name] = module_name
 
-                    self.cfg.adapters[adapter_name] = OmegaConf.create(peft_cfg)
+                    self.cfg.adapters[adapter_name] = OmegaConf.create(adapter_cfg)
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
