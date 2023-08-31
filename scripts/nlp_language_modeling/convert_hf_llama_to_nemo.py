@@ -60,9 +60,19 @@ def load_model(cls, checkpoint, strict, **kwargs):
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
-            model = ptl_load_state(
-                cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
-            )
+            # model = ptl_load_state(
+            #     cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
+            # )
+            model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
+            for name, module in model.named_parameters():
+                if name in checkpoint['state_dict']:
+                    module.data = checkpoint['state_dict'][name]
+                    checkpoint['state_dict'].pop(name)
+                else:
+                    print(f"Unexpected key: {name} not in checkpoint but in model.")
+            if len(checkpoint['state_dict'].keys()) != 0:
+                raise RuntimeError(f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model.")
+
             # register the artifacts
             cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
             if cfg.tokenizer.model is not None:
