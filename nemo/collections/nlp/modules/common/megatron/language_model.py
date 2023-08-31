@@ -577,6 +577,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 num_attention_heads_alibi=None,
                 max_seq_len=max_position_embeddings,
                 use_FA=use_flash_attention,
+                seq_len_interpolation_factor=seq_len_interpolation_factor,
             )
 
         elif position_embedding_type == 'kerple':
