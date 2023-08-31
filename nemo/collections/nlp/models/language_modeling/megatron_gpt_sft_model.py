@@ -450,8 +450,13 @@ class MegatronGPTSFTModel(MegatronGPTModel):
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
         if not outputs:
+            # Handle case where no metrics. This can break checkpoint save/load.
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e2
             logging.warning(f"No outputs to log for {mode} epoch")
-            return
+            return torch.Tensor([1e2]), torch.Tensor([averaged_metric])
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]

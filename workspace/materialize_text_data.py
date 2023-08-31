@@ -4,11 +4,18 @@ import random
 import sys
 
 en_data = open(sys.argv[1], 'r').readlines()
-final = open(sys.argv[2], "w")
+content = ""
 for en in en_data:
-    en = en.strip()
+    en = en.strip().lower()
+    ens = en.split()
+    if len(ens) < 5 or (ens[0] == ens[1] and ens[0] == ens[2]):
+        continue
+    ens = ens[:64]
+    en = " ".join(ens)
     record = {}
     record['text'] = f"{en}"
-    json.dump(record, final)
-    final.write('\n')
+    content += json.dumps(record)
+    content += "\n"
+final = open(sys.argv[2], "w")
+final.write(content)
 final.close()

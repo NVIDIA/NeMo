@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import os
 from functools import partial
 from typing import Dict, Optional, Union
@@ -772,3 +773,19 @@ class ModularizedAudioGPTModel(MegatronGPTLoRAModel):
     def test_epoch_end(self, outputs):
         averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
         return averaged_loss
+
+    # consistent with speech models
+    def write_predictions_to_file(self, outputs, output_file_path_prefix):
+        output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
+        with open(output_file_path, "w") as f_json:
+            assert (
+                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
+            )
+            for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
+                json_string = {'input': i, 'pred_text': p, 'text': l}
+                for k, v in m.items():
+                    if k not in json_string:
+                        json_string[k] = v
+                f_json.write(json.dumps(json_string) + '\n')
+
+        logging.info(f'Predictions saved to {output_file_path}')
