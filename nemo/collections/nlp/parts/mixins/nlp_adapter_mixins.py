@@ -15,7 +15,7 @@
 from typing import List, Union
 
 import torch
-from omegaconf import OmegaConf, open_dict, DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
@@ -134,7 +134,9 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                     for layer in layers:
                         if layer.layer_number in layer_selection:
                             for name, module in layer.named_modules():
-                                _check_and_add_adapter(name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins)
+                                _check_and_add_adapter(
+                                    name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
+                                )
                 else:
                     # Non GPT models, as well as GPT+PTuning do not support layer selection
                     if layer_selection is not None:
@@ -173,8 +175,13 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                 self.tie_weights(cfg, use_mcore_gpt)
         self.use_peft = True
 
-    def load_adapters(self, filepath: str, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]],
-                      map_location: str = None, strict: bool = True):
+    def load_adapters(
+        self,
+        filepath: str,
+        peft_cfgs: Union[PEFTConfig, List[PEFTConfig]],
+        map_location: str = None,
+        strict: bool = True,
+    ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
         This allows the sharing of adapters which are often just a fraction of the size of the full model,
@@ -260,7 +267,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
                 # delete the dictionaries to preserve memory for next adapter
                 del adapter_state, modules_to_load
-
 
     def tie_weights(self, peft_cfg, use_mcore_gpt):
         pos_idx = 0
