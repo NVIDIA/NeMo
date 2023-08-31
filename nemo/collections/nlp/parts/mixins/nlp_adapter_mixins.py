@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Union
+from typing import List, Union, Optional
 
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PEFT_CONFIG_MAP
+from nemo.collections.nlp.parts.peft_config import PEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,

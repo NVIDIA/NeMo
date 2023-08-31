@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Union
+from typing import Any, Optional
 import itertools
 import json
 from functools import partial
@@ -66,7 +66,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ['MegatronGPTSFTModel']
+__all__ = ['MegatronGPTSFTModel', 'merge_cfg_with']
 
 
 class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
@@ -851,3 +851,43 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
+
+
+def merge_cfg_with(path: str, cfg: DictConfig) -> DictConfig:
+    """
+    Merge a given configuration dictionary `cfg` with the configuration dictionary
+    obtained from restoring a MegatronGPTSFTModel at the specified `path`.
+
+    Args:
+        path (str): The path to the MegatronGPTSFTModel checkpoint to be restored.
+        cfg (DictConfig): The configuration dictionary to merge.
+
+    Returns:
+        DictConfig: The merged configuration dictionary.
+
+    Examples:
+        >>> path = "/path/to/model/checkpoint"
+        >>> cfg = DictConfig({"model": {"key": "value"}, "trainer": {"precision": 16}})
+        >>> merged_cfg = merge_cfg_with(path, cfg)
+
+    Notes:
+        - The function resolves variables within the `cfg` dictionary using `OmegaConf.resolve`.
+        - Keys in `cfg.model` will override the corresponding keys in the output dictionary.
+        - If "test_ds" exists in `cfg.model.data`, it updates `micro_batch_size` and `global_batch_size`.
+        - If `cfg.trainer` contains a "precision" key, it updates `output.precision`.
+
+    """
+    
+    output = MegatronGPTSFTModel.restore_from(path, return_config=True)
+        
+    OmegaConf.resolve(cfg)
+    with open_dict(output):
+        for key, val in cfg.model.items():
+            output[key] = val
+        if "test_ds" in cfg.model.data:
+            output.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
+            output.global_batch_size = cfg.model.data.train_ds.global_batch_size
+        if cfg.get("trainer", None) and cfg.trainer.get("precision"):
+            output.precision = cfg.trainer.precision
+
+    return output
