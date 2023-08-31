@@ -14,10 +14,11 @@
 
 from typing import List, Union
 
-from omegaconf import OmegaConf, open_dict, DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 
+from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.peft_config import PEFTConfig, LoraPEFTConfig, AdapterPEFTConfig
+from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
@@ -59,7 +60,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         else:
             self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
 
-
     def _get_all_keys(self,):
         """
         Returns all the keys in the model
@@ -75,8 +75,19 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
-        def _check_and_add_adapter(module, peft_name, peft_cfg):
-            if isinstance(module, AdapterModuleMixin):
+        def _check_and_add_adapter(name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+            if name_key_to_mcore_mixins is not None:
+                for mcore_target, mcore_mixin in name_key_to_mcore_mixins[peft_name]:
+                    if name in [
+                        mcore_target,
+                        f'model.{mcore_target}',
+                        f'model.module.{mcore_target}',
+                    ]:  # simple string match for now
+                        swap_mcore_mixin(module, mcore_mixin)
+                        peft_cfg = self.name_key_to_cfg[peft_name]
+                        if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                            module.add_adapter(name=peft_name, cfg=peft_cfg)
+            elif isinstance(module, AdapterModuleMixin):
                 if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                     module.add_adapter(name=peft_name, cfg=peft_cfg)
 
@@ -87,8 +98,16 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
+        use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
+
         for cfg in peft_cfgs:
             layer_selection = cfg.layer_selection
+
+            assert not use_mcore_gpt or hasattr(
+                cfg, 'name_key_to_mcore_mixins'
+            ), f"{cfg.__class__.__name__} is not supported in megatron core mode yet."
+            name_key_to_mcore_mixins = cfg.name_key_to_mcore_mixins if use_mcore_gpt else None
+
             for peft_name, peft_cfg in cfg.get_config_dict().items():
                 # self.model.language_model means is GPT and not T5
                 if (
@@ -101,10 +120,20 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                             f"Layer selection {layer_selection} is enabled for the current model ("
                             f"{self.__class__.__name__} + {peft_name})"
                         )
-                    for layer in self.model.language_model.encoder.layers:
+                    if use_mcore_gpt:
+                        if self.cfg.megatron_amp_O2:
+                            layers = self.model.module.decoder.layers
+                        else:
+                            layers = self.model.decoder.layers
+                    else:
+                        if self.cfg.megatron_amp_O2:
+                            layers = self.model.module.language_model.encoder.layers
+                        else:
+                            layers = self.model.language_model.encoder.layers
+                    for layer in layers:
                         if layer.layer_number in layer_selection:
-                            for _, module in layer.named_modules():
-                                _check_and_add_adapter(module, peft_name, peft_cfg)
+                            for name, module in layer.named_modules():
+                                _check_and_add_adapter(name, module, peft_name, peft_cfg, name_key_to_mcore_mixins)
                 else:
                     # Non GPT models, as well as GPT+PTuning do not support layer selection
                     if layer_selection is not None:
@@ -112,8 +141,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                             "Layer selection is specified, but it is not supported for either "
                             f"{self.__class__.__name__} or {peft_name})"
                         )
-                    for _, module in self.named_modules():
-                        _check_and_add_adapter(module, peft_name, peft_cfg)
+                    for name, module in self.named_modules():
+                        _check_and_add_adapter(name, module, peft_name, peft_cfg, name_key_to_mcore_mixins)
 
                 # Update the model.cfg with information about the new adapter from cfg
                 module_name, adapter_name = self.resolve_adapter_module_name_(peft_name)
@@ -140,16 +169,27 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         for cfg in peft_cfgs:
             if cfg.weight_tying:
-                self.tie_weights(cfg)
+                self.tie_weights(cfg, use_mcore_gpt)
         self.use_peft = True
 
-    def tie_weights(self, peft_cfg):
+    def tie_weights(self, peft_cfg, use_mcore_gpt):
         pos_idx = 0
 
+        if use_mcore_gpt:
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.decoder.layers
+            else:
+                layers = self.model.decoder.layers
+        else:
+            if self.cfg.megatron_amp_O2:
+                layers = self.model.module.language_model.encoder.layers
+            else:
+                layers = self.model.language_model.encoder.layers
+
         if isinstance(peft_cfg, LoraPEFTConfig):
-            layer0 = self.model.language_model.encoder.layers[0].self_attention
+            layer0 = layers[0].self_attention
         elif isinstance(peft_cfg, AdapterPEFTConfig):
-            layer0 = self.model.language_model.encoder.layers[0]
+            layer0 = layers[0]
         else:
             raise RuntimeError(f"{peft_cfg} is not supported for tied weights")
 
@@ -159,7 +199,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             adapter.set_position(pos_idx)
             pos_idx += 1
 
-        for layer in self.model.language_model.encoder.layers[1:]:
+        for layer in layers[1:]:
             if isinstance(peft_cfg, LoraPEFTConfig):
                 layer = layer.self_attention
             for adapter_name in layer.adapter_layer:
@@ -181,7 +221,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             peft_state_dict[new_k] = state_dict[k]
         return peft_state_dict
 
-
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.use_peft and self.setup_complete:
             # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
@@ -191,6 +230,12 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
             return self.model.state_dict(prefix=self.model_prefix)
+
+    def sharded_state_dict(self, prefix: str = ''):
+        if self.use_peft and self.setup_complete:
+            return None
+        else:
+            return self.model.sharded_state_dict(prefix=self.model_prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.use_peft and self.setup_complete:

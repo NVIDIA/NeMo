@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
+from typing import Dict, Optional
 
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
+    MCoreGPTEmbeddingMixin,
+    MCoreSelfAttentionMixin,
+    MCoreTransformerLayerMixin,
+)
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
@@ -97,6 +102,7 @@ class LoraPEFTConfig(PEFTConfig):
         name_key_to_cfg = {
             AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
         }
+        self.name_key_to_mcore_mixins = {AdapterName.LORA_KQV_ADAPTER: [("self_attention", MCoreSelfAttentionMixin)]}
 
         super().__init__(cfg, lora_cfg, name_key_to_cfg)
 
@@ -127,6 +133,7 @@ class PtuningPEFTConfig(PEFTConfig):
             cfg.hidden_size,
         )
         name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
+        self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
 
         super().__init__(cfg, cfg.peft.p_tuning, name_key_to_cfg)
 
@@ -161,6 +168,10 @@ class AdapterPEFTConfig(PEFTConfig):
         name_key_to_cfg = {
             AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
             AdapterName.POST_ATTN_ADAPTER: adapter_cfg,
+        }
+        self.name_key_to_mcore_mixins = {
+            AdapterName.PRE_ATTN_ADAPTER: [("", MCoreTransformerLayerMixin)],
+            AdapterName.POST_ATTN_ADAPTER: [("", MCoreTransformerLayerMixin)],
         }
 
         super().__init__(cfg, adapter_tuning_cfg, name_key_to_cfg)
