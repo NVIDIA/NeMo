@@ -20,8 +20,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     InfusedAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
+    ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
 )
 
@@ -34,6 +36,7 @@ class PEFTConfig:
         self.layer_selection = peft_cfg.get("layer_selection", None)
         if self.layer_selection is None:
             self.layer_selection = list(range(1, cfg.num_layers + 1))
+        self.weight_tying = peft_cfg.get("weight_tying", False)
 
     def get_config_dict(self):
         return self.name_key_to_cfg
@@ -51,18 +54,45 @@ class LoraPEFTConfig(PEFTConfig):
             kv_channels = cfg.kv_channels
         projection_size = kv_channels * cfg.num_attention_heads
 
-        adapter_cfg = LoraKQVAdapterConfig(
-            in_features=cfg.hidden_size,
-            out_features=3 * projection_size,
-            dim=lora_cfg.adapter_dim,
-            norm_position=None,
-            norm_type=None,
-            activation="identity",
-            column_init_method=lora_cfg.get("column_init_method", "normal"),
-            row_init_method=lora_cfg.get("row_init_method", "zero"),
-            gather_output=False,
-            dropout=lora_cfg.adapter_dropout,
-        )
+        config_args = {
+            "in_features": cfg.hidden_size,
+            "out_features": 3 * projection_size,
+            "dim": lora_cfg.adapter_dim,
+            "norm_position": None,
+            "norm_type": None,
+            "activation": "identity",
+            "column_init_method": lora_cfg.get("column_init_method", "normal"),
+            "row_init_method": lora_cfg.get("row_init_method", "zero"),
+            "gather_output": False,
+            "dropout": lora_cfg.adapter_dropout,
+        }
+
+        if lora_cfg.weight_tying:
+            position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
+            if position_embedding_strategy is None:
+                dim_position_embeddings = 0
+            elif position_embedding_strategy == "add":
+                dim_position_embeddings = cfg.hidden_size
+            elif position_embedding_strategy == "biasadd":
+                dim_position_embeddings = 3 * projection_size
+            elif position_embedding_strategy == "concat":
+                dim_position_embeddings = lora_cfg.adapter_dim
+            elif position_embedding_strategy == "mlpconcat":
+                dim_position_embeddings = lora_cfg.adapter_dim
+            else:
+                raise RuntimeError(
+                    f"Unknown position embedding strategy {position_embedding_strategy} for tied weights"
+                )
+            config_args.update(
+                {
+                    "num_position_embeddings": cfg.num_layers,
+                    "dim_position_embeddings": dim_position_embeddings,
+                    "position_embedding_strategy": position_embedding_strategy,
+                }
+            )
+            adapter_cfg = LoraKQVAdapterWeightTyingConfig(**config_args)
+        else:
+            adapter_cfg = LoraKQVAdapterConfig(**config_args)
 
         name_key_to_cfg = {
             AdapterName.LORA_KQV_ADAPTER: adapter_cfg,
@@ -104,16 +134,30 @@ class PtuningPEFTConfig(PEFTConfig):
 class AdapterPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         adapter_tuning_cfg = cfg.peft.adapter_tuning
-        adapter_cfg = ParallelLinearAdapterConfig(
-            in_features=cfg.hidden_size,
-            out_features=cfg.hidden_size,
-            dim=adapter_tuning_cfg.adapter_dim,
-            norm_position=adapter_tuning_cfg.get("norm_position", "pre"),
-            norm_type=adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
-            column_init_method=adapter_tuning_cfg.get("column_init_method", "xavier"),
-            row_init_method=adapter_tuning_cfg.get("row_init_method", "zero"),
-            dropout=adapter_tuning_cfg.adapter_dropout,
-        )
+
+        config_args = {
+            "in_features": cfg.hidden_size,
+            "out_features": cfg.hidden_size,
+            "dim": adapter_tuning_cfg.adapter_dim,
+            "norm_position": adapter_tuning_cfg.get("norm_position", "pre"),
+            "norm_type": adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
+            "column_init_method": adapter_tuning_cfg.get("column_init_method", "xavier"),
+            "row_init_method": adapter_tuning_cfg.get("row_init_method", "zero"),
+            "dropout": adapter_tuning_cfg.adapter_dropout,
+        }
+
+        if adapter_tuning_cfg.weight_tying:
+            config_args.update(
+                {
+                    "num_position_embeddings": cfg.num_layers * 2,
+                    "dim_position_embeddings": cfg.hidden_size,
+                    "position_embedding_strategy": adapter_tuning_cfg.get("position_embedding_strategy", None),
+                }
+            )
+            adapter_cfg = ParallelLinearAdapterWeightTyingConfig(**config_args)
+        else:
+            adapter_cfg = ParallelLinearAdapterConfig(**config_args)
+
         name_key_to_cfg = {
             AdapterName.PRE_ATTN_ADAPTER: adapter_cfg,
             AdapterName.POST_ATTN_ADAPTER: adapter_cfg,

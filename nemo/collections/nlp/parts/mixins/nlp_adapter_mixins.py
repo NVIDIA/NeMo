@@ -17,7 +17,7 @@ from typing import List, Union
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.peft_config import PEFTConfig
+from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
@@ -136,7 +136,37 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
+
+        for cfg in peft_cfgs:
+            if cfg.weight_tying:
+                self.tie_weights(cfg)
         self.use_peft = True
+
+    def tie_weights(self, peft_cfg):
+        pos_idx = 0
+
+        if isinstance(peft_cfg, LoraPEFTConfig):
+            layer0 = self.model.language_model.encoder.layers[0].self_attention
+        elif isinstance(peft_cfg, AdapterPEFTConfig):
+            layer0 = self.model.language_model.encoder.layers[0]
+        else:
+            raise RuntimeError(f"{peft_cfg} is not supported for tied weights")
+
+        for adapter_name in layer0.adapter_layer:
+            adapter = layer0.get_adapter_module(adapter_name)
+            print(adapter_name, pos_idx)
+            adapter.set_position(pos_idx)
+            pos_idx += 1
+
+        for layer in self.model.language_model.encoder.layers[1:]:
+            if isinstance(peft_cfg, LoraPEFTConfig):
+                layer = layer.self_attention
+            for adapter_name in layer.adapter_layer:
+                print(adapter_name, pos_idx)
+                adapter_l = layer.get_adapter_module(adapter_name)
+                adapter_0 = layer0.get_adapter_module(adapter_name)
+                adapter_l.tie_weights(pos_idx, adapter_0)
+                pos_idx += 1
 
     def get_peft_state_dict(self):
         """
