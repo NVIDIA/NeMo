@@ -18,7 +18,10 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, PromptEncoderAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PtuningPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
