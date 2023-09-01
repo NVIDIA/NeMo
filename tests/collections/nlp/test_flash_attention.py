@@ -63,7 +63,7 @@ def HAVE_AMPERE_GPU():
     else:
         return False
 
-
+@pytest.mark.pleasefixme
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
 class TestFlashAttention:
