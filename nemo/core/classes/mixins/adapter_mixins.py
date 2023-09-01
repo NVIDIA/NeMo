@@ -411,6 +411,8 @@ class AdapterModuleMixin(ABC):
                     if self.adapter_cfg[name]['enabled'] and name in module.adapter_layer:
 
                         # Recursively set training mode of submodules
+                        module.adapter_layer[name].train()
+
                         # Recursively set grad required for submodules
                         module.adapter_layer[name].adapter_unfreeze()
 
