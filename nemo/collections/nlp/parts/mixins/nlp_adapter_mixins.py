@@ -18,7 +18,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import AdapterName, PromptEncoderAdapterConfig
 from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PtuningPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
@@ -26,6 +26,11 @@ from nemo.core.classes.mixins.adapter_mixins import (
     _prepare_default_adapter_config,
 )
 from nemo.utils import logging, model_utils
+
+try:
+    from megatron.core import parallel_state
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE = False
 
 
 class NLPAdapterModelMixin(AdapterModelPTMixin):
@@ -343,6 +348,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             return self.model.sharded_state_dict(prefix=self.model_prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
+        if len(state_dict) == 0:
+            return  # checkpoint is loaded in on_load_checkpoint()
         if self.use_peft and self.setup_complete:
             # at this stage only adapter params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
@@ -353,6 +360,42 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
+        if self.use_peft and self.setup_complete:
+            if AdapterName.PTUNING_ADAPTER not in self.cfg.adapters.keys() or self.first_stage_of_pipeline():
+                # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
+                # mcore uses distributed checkpointing
+                print('enter peft loading')
+                if self.mcore_gpt:
+                    for index, module in enumerate(self.get_gpt_module_list()):
+                        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                            checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                        else:
+                            checkpoint_state_dict = checkpoint['state_dict']
+                        # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
+                        checkpoint_state_dict = {
+                            key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                            for key in list(checkpoint_state_dict.keys())
+                        }
+                        missing_keys, unexpected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+
+                        assert len(unexpected_keys) == 0, 'Unexpected key(s) in state_dict: {}. '.format(
+                            ', '.join('"{}"'.format(k) for k in unexpected_keys)
+                        )
+
+                # legacy checkpointing for interleaved
+                else:
+                    if isinstance(self.model, list):
+                        for i in range(len(self.model)):
+                            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                            self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+        else:
+            super().on_load_checkpoint(checkpoint)
 
     @classmethod
     def merge_cfg_with(cls, path: str, cfg: DictConfig) -> DictConfig:
