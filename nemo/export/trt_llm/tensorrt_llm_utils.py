@@ -1,15 +1,31 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
 
+"""Utils to convert model_config layers to tensorrt_llm modules."""
 
 import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, RmsNorm
 from tensorrt_llm.module import Module
 
-from .model_config import LAYERNORM_DEFAULT, LAYERNORM_RMS, EmbeddingConfig, LayernormConfig
+from .model_config import (
+    LAYERNORM_DEFAULT,
+    LAYERNORM_RMS,
+    EmbeddingConfig,
+    LayernormConfig,
+)
 from .tensor_utils import get_tensor_parallel_group
 
 
-def build_embedding_from_config(config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1):
+def build_embedding_from_config(
+    config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1
+):
     """Returns the tensorrt_llm embedding layer from the embedding config."""
     # If the config is empty, return an empty impl.
     if config is None:
@@ -26,7 +42,7 @@ def build_embedding_from_config(config: EmbeddingConfig, dtype: trt.DataType, te
 
 
 def build_layernorm_from_config(config: LayernormConfig, dtype: trt.DataType):
-    """Returns the tensorrt_llm layernorm layer from the torch layernorm"""
+    """Returns the tensorrt_llm layernorm layer from the torch layernorm."""
     # If the config is empty, return an empty impl.
     if config is None:
         return None
@@ -45,14 +61,19 @@ def build_layernorm_from_config(config: LayernormConfig, dtype: trt.DataType):
 
 def print_tensorrt_llm(name: str, tensorrt_llm_module: Module):
     """Prints the tensorrt llm structure including weights and related data for debugging purpose."""
-    if hasattr(tensorrt_llm_module, "weight") and tensorrt_llm_module.weight:
-        print(f"{name}.weight:\n{tensorrt_llm_module.weight._value}")
-    if hasattr(tensorrt_llm_module, "bias") and tensorrt_llm_module.bias:
-        print(f"{name}.bias:\n{tensorrt_llm_module.bias._value}")
-    if hasattr(tensorrt_llm_module, "activation_scaling_factor") and tensorrt_llm_module.activation_scaling_factor:
-        print(f"{name}.activation_scaling_factor:\n{tensorrt_llm_module.activation_scaling_factor._value}")
-    if hasattr(tensorrt_llm_module, "weights_scaling_factor") and tensorrt_llm_module.weights_scaling_factor:
-        print(f"{name}.weights_scaling_factor:\n{tensorrt_llm_module.weights_scaling_factor._value}")
+    for tensor_name in [
+        "weight",
+        "bias",
+        "activation_scaling_factor",
+        "weights_scaling_factor",
+        "prequant_scaling_factor",
+    ]:
+        if hasattr(tensorrt_llm_module, tensor_name):
+            tensor = getattr(tensorrt_llm_module, tensor_name)
+            if tensor is not None:
+                print(
+                    f"{name}.{tensor_name}:{tensor._value.dtype}:{tensor._value.shape}:\n{tensor._value}"
+                )
 
     for k, v in tensorrt_llm_module.named_children():
         print_tensorrt_llm(f"{name}.{k}({v._get_name()})", v)

@@ -181,10 +181,6 @@ class TensorRTLLM(ITritonDeployable):
             in_file=nemo_checkpoint_path, decoder_type=model_type, gpus=n_gpus, nemo_export_dir=nemo_export_dir
         )
 
-        for model_config in model_configs:
-            if quantization is not None:
-                naive_quantization(model_config, quantization)
-
         if prompt_checkpoint_path is None:
             max_prompt_embedding_table_size = 0
 
@@ -195,8 +191,8 @@ class TensorRTLLM(ITritonDeployable):
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
-            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-            parallel_build=parallel_build
+            #max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            #parallel_build=parallel_build
         )
 
         if prompt_checkpoint_path is not None:
@@ -234,13 +230,13 @@ class TensorRTLLM(ITritonDeployable):
             return generate(
                 host_context=self.model,
                 input_texts=input_texts,
-                tasks=tasks,
+                #tasks=tasks,
                 max_output_len=max_output_len,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
-                prompt_table=self.prompt_table,
-                task_vocab_size=self.task_vocab_size,
+                #top_k=top_k,
+                #top_p=top_p,
+                #temperature=temperature,
+                #prompt_table=self.prompt_table,
+                #task_vocab_size=self.task_vocab_size,
             )
 
     @property
