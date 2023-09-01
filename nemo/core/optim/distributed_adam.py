@@ -137,8 +137,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
     def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
         def is_grad_copy_enabled(param: torch.nn.Parameter) -> bool:
             return (
-                not getattr(p, '_disable_greedy_grad_copy', False)
-                and not getattr(p, '_disable_overlap_grad_sync', False)
+                not getattr(param, '_disable_greedy_grad_copy', False)
+                and not getattr(param, '_disable_overlap_grad_sync', False)
             )
         params = list(filter(is_grad_copy_enabled, params))
         for p in params:
