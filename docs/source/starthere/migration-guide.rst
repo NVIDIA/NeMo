@@ -46,8 +46,8 @@ Migration guide to use lightning 2.0
   this can be found under migration guide of `lightning's PR 16520 <https://github.com/Lightning-AI/lightning/pull/16520>`_. Example from NeMo 
   can be found `here <https://github.com/NVIDIA/NeMo/pull/6433/files#diff-e93ccae74f4b67d341676afc9f3c7e2c50f751ec64df84eb3b2a86b62029ef76R904-R911>`_.
 ..
-* Lightning 2.0 is not currently supporting multiple dataloders for validation and testing. The support for this will be added back soon in an 
-  upcoming release. If your config passes multiple files to ``validation_ds.file_names`` or ``test_ds.file_names``, please use just one file 
+* Lightning 2.0 is not currently supporting multiple dataloders for validation and testing in case of ``dataloader_iter``. The support for this will be added back soon in an 
+  upcoming release. If ``dataloader_iter`` is being and your config passes multiple files to ``validation_ds.file_names`` or ``test_ds.file_names``, please use just one file 
   until this issue is fixed with pytorch lightning.
 ..
 * With lightning 2.0 it's required to set ``limit_val_batches`` and ``num_sanity_val_steps`` to be a multiple of number of microbatches while 
