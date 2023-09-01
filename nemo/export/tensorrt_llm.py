@@ -139,6 +139,7 @@ class TensorRTLLM(ITritonDeployable):
         max_prompt_embedding_table_size: int = 100,
         max_batch_size: int = 32,
         quantization: bool = None,
+        parallel_build: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -154,6 +155,7 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size (int): max prompt embedding table size.
             max_batch_size (int): max batch size.
             quantization (bool): if True, applies naive quantization.
+            parallel_build (bool): build in parallel or not.
         """
 
         if Path(self.model_dir).exists():
@@ -194,6 +196,7 @@ class TensorRTLLM(ITritonDeployable):
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            parallel_build=parallel_build
         )
 
         if prompt_checkpoint_path is not None:

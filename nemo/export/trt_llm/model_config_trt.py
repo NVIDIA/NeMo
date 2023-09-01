@@ -17,6 +17,7 @@ def model_config_to_tensorrt_llm(
     max_batch_size: int = 1,
     max_beam_width: int = 1,
     max_prompt_embedding_table_size: int = 0,
+    parallel_build: bool = False,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -29,6 +30,7 @@ def model_config_to_tensorrt_llm(
         max_batch_size: The max batch size.
         max_beam_width: The max beam search width.
         max_prompt_embedding_table_size: The max prompt embedding table size.
+        parallel_build: bool = build the engine in parallel,
     """
     if os.path.exists(engine_dir):
         shutil.rmtree(engine_dir)
@@ -41,6 +43,6 @@ def model_config_to_tensorrt_llm(
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
             max_beam_width=max_beam_width,
-            parallel_build=False,
+            parallel_build=parallel_build,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
         )
