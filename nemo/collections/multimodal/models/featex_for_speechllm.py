@@ -258,3 +258,26 @@ class KmeansFeatExModel(EmbFeatExModel):
             codes = np.expand_dims(codes, axis=0)
             result.append((id, {'codes': codes}))
         return result
+    
+
+class EncodecFeatExModel(FeatExBaseModel):
+    """Wrapper for Encodec Model"""
+    def __init__(
+            self,
+            cfg: DictConfig,
+            trainer: Trainer = None,
+    ):
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_devices
+        
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        # Encodec Model
+        try:
+            from encodec import EncodecModel
+        except ImportError:
+            raise ImportError("encodec module not available")
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        pass

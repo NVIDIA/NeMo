@@ -201,7 +201,7 @@ def main(cfg: ParallelTranscriptionConfig):
     # now, for the actual feat-ex model
     trainer = ptl.Trainer(**cfg.trainer)
     
-    # model = RQFeatExModel(cfg.model_cfg.model, trainer=trainer)
+    if cfg.featex_model_# model = RQFeatExModel(cfg.model_cfg.model, trainer=trainer)
     # model = EmbFeatExModel(cfg.model_cfg, trainer=trainer)
     model = KmeansFeatExModel(cfg.model_cfg, trainer=trainer)
 

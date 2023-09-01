@@ -20,7 +20,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+# from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.multimodal.models.megatron_mm_gpt_sft_model import MegatronMMGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -62,6 +63,16 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
 
+        sft_cls = MegatronMMGPTSFTModel
+        gpt_cfg.target = f"{sft_cls.__module__}.{sft_cls.__name__}"
+
+        # =====> Audio related configs
+        # Update Tokenizer Config
+        gpt_cfg.tokenizer.sentencepiece_legacy = True
+        gpt_cfg.tokenizer.expand_tokens_dataset_type = "audio"      # is there any better name? 
+        gpt_cfg.tokenizer.num_sentinel_tokens = 1000
+        # end Audio related configs <=====
+        
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
@@ -171,16 +182,16 @@ def main(cfg) -> None:
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.model.restore_from_path):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-        gpt_cfg = MegatronGPTSFTModel.restore_from(
+        gpt_cfg = MegatronMMGPTSFTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
-        model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+        model = load_from_nemo(MegatronMMGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-        model = load_from_checkpoint_dir(MegatronGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
+        model = load_from_checkpoint_dir(MegatronMMGPTSFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
     trainer.fit(model)
 
