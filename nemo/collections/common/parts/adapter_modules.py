@@ -71,7 +71,6 @@ class AdapterModuleUtil(access_mixins.AccessMixin):
             param.requires_grad_(True)
 
 
-
 class LinearAdapter(nn.Module, AdapterModuleUtil):
 
     """
