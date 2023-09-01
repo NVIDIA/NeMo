@@ -51,13 +51,10 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
-try:
+if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+    from nemo.gn_native import GroupNormNormlization as GroupNorm
+else:
     from apex.contrib.group_norm import GroupNorm
-
-    OPT_GROUP_NORM = True
-except Exception:
-    print('Fused optimized group norm has not been installed.')
-    OPT_GROUP_NORM = False
 
 DUMMY_TENSOR = torch.tensor([1.0])
 

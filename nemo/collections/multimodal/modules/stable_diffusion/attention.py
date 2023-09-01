@@ -22,9 +22,9 @@ from torch import einsum, nn
 from torch._dynamo import disable
 
 if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
-    from apex.contrib.group_norm import GroupNorm
-else:
     from nemo.gn_native import GroupNormNormlization as GroupNorm
+else:
+    from apex.contrib.group_norm import GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 

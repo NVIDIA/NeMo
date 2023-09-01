@@ -9,10 +9,13 @@ class GroupNormNormlization(nn.GroupNorm):
         elif act == "relu":
             self.act = nn.ReLU()
         elif act == "":
-            self.act = nn.Identity()
+            self.act = None
         else:
             raise ValueError(f"Unknown activation {act}")
 
     def forward(self, x):
         x = super().forward(x)
-        return self.act(x)
+        if self.act is None:
+            return x
+        else:
+            return self.act(x)

@@ -24,11 +24,11 @@ from nemo.collections.multimodal.models.stable_diffusion.samplers.sampler_dpm im
 
 
 def encode_prompt(cond_stage_model, prompt, unconditional_guidance_scale, batch_size):
-    c = cond_stage_model.encode(batch_size * [prompt])
     if unconditional_guidance_scale != 1.0:
         uc = cond_stage_model.encode(batch_size * [""])
     else:
         uc = None
+    c = cond_stage_model.encode(batch_size * [prompt])
     return c, uc
 
 

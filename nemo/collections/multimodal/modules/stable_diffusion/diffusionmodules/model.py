@@ -21,9 +21,9 @@ import torch.nn as nn
 from einops import rearrange
 
 if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
-    from apex.contrib.group_norm import GroupNorm
-else:
     from nemo.gn_native import GroupNormNormlization as GroupNorm
+else:
+    from apex.contrib.group_norm import GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config

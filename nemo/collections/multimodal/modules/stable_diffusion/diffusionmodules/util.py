@@ -31,9 +31,9 @@ from einops import repeat
 from torch._dynamo import disable
 
 if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
-    from apex.contrib.group_norm import GroupNorm
-else:
     from nemo.gn_native import GroupNormNormlization as GroupNorm
+else:
+    from apex.contrib.group_norm import GroupNorm
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
