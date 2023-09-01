@@ -753,10 +753,10 @@ class MegatronBaseModel(NLPModel):
 
         # map precision related configs
         precision = cfg.get('precision', 32)  # PTL trainer precision
-        megatron_amp_O2 = cfg.get('megatron_amp_O2')
+        megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         # instantiate weights in bfloat16 if using megatron amp O2 and bf16
-        params_dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
+        params_dtype = self.torch_dtype
 
         # dtype used in p2p communication
         pipeline_dtype = self.torch_dtype
