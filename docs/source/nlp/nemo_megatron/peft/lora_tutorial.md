@@ -8,7 +8,6 @@ We are going to show you how to:
     1. Train a LoRA model on a simple Extractive QA task.
     2. Inspect the trained LoRA model showing the parameters it contains.
     3. Run inference with the based model with the LoRA parameters.
-    4. Merge the LoRA parameters into the base model and run inference again on the merged model.
 
 In this tutorial we will be focusing on LoRA, but the training and evaluation methods described here will be applicable 
 for other Parameter-efficient finetuning (PEFT) methods in NeMo. 
@@ -40,17 +39,18 @@ because NeMo's instruction-tuned models are trained with a prefix of `User:` and
 
 Let's download and preprocess the dataset. 
 For each dataset we have preprocessing scripts pre-written in NeMo's example directory located in `examples/nlp`. 
-Let's also download those scripts now. 
+Let's also download those scripts now.
+
 ```python
 import os
 
 # You can replace DATA_DIR and NEMO_DIR with your own locations
-NEMO_DIR = "."
+NEMO_DIR = ".."
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 SQUAD_DIR = os.path.join(DATA_DIR, "SQuAD")
 os.makedirs(SQUAD_DIR, exist_ok=True)
-BRANCH='main'
+BRANCH = 'main'
 ```
 ```bash
 # download the preprocessing scripts from github for the purpose of this tutorial
