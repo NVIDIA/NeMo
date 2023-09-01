@@ -148,6 +148,17 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
             self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
+            self.task_template = {
+                self.cfg["task_templates"]["taskname"]: {
+                    "prompt_template": self.cfg["task_templates"]["prompt_template"],
+                    "prompt_template_fields": self.cfg["task_templates"]["prompt_template_fields"],
+                    "total_virtual_tokens": self.cfg["task_templates"]["total_virtual_tokens"],
+                    "virtual_token_splits": self.cfg["task_templates"]["virtual_token_splits"],
+                    "truncate_field": self.cfg["task_templates"]["truncate_field"],
+                    "answer_only_loss": self.cfg["task_templates"]["answer_only_loss"],
+                    "answer_field":self.cfg["task_templates"]["answer_field"],
+            }}
+
             if self.megatron_amp_o2:
 
                 if not self.with_distributed_adam:
@@ -804,23 +815,23 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         num_neighbors=2,
         retrieved_doc_len = 128 
     ):
-        task_template = {
-            "boolq": {
-                "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
-                "prompt_template_fields": ["question", "answer"],
-                "total_virtual_tokens": 0,
-                "virtual_token_splits": [],
-                "truncate_field": "question",
-                "answer_only_loss": True,
-                "answer_field": "answer"
-        }}
+        # task_template = {
+        #     "boolq": {
+        #         "prompt_template": ' \nQuestion: {question} \nAnswer: {answer}',
+        #         "prompt_template_fields": ["question", "answer"],
+        #         "total_virtual_tokens": 0,
+        #         "virtual_token_splits": [],
+        #         "truncate_field": "question",
+        #         "answer_only_loss": True,
+        #         "answer_field": "answer"
+        # }}
        
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         dataset = RetroPromptLearningDataset(
             data=data,
             tokenizer=self.tokenizer,
             virtual_prompt_source= VirtualPromptSource.NO_PROMPT,
-            task_templates=task_template,
+            task_templates=self.task_template,
             pseudo_tokens=[],
             pad_token_id=self.tokenizer.eos_id if self.cfg.get('megatron_lm_compatible', False) else self.pad_token_id, # self.tokenizer.eos_id if self.cfg.get('megatron_lm_compatible', False) else self.pad_token_id
             max_seq_length=max_seq_length,

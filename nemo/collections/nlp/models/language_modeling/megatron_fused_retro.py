@@ -121,6 +121,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
                 "activations_checkpoint_num_layers", None
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+            frozen_model_cfg.task_templates = cfg["task_templates"]
 
         self.model = MegatronRetrievalModel.restore_from(
             cfg.get('restore_from_path'),
@@ -386,6 +387,7 @@ class MegatronFusedRetrievalLoraModel(MegatronRetrievalModel):
                 "activations_checkpoint_num_layers", None
             )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+            frozen_model_cfg.task_templates = cfg["task_templates"]
 
         self.model = MegatronRetrievalModel.restore_from(
             cfg.get('restore_from_path'),

@@ -110,6 +110,9 @@ def main(cfg) -> None:
     frozen_model_cfg.micro_batch_size = cfg.model.micro_batch_size
     frozen_model_cfg.precision = trainer.precision
 
+    frozen_model_cfg.task_templates = cfg["model"]["task_templates"]
+
+
     if "shape_file" in frozen_model_cfg:
         frozen_model_cfg.pop("shape_file")
 
