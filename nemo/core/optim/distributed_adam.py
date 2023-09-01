@@ -17,10 +17,7 @@ import itertools
 from typing import Callable, Iterable, Optional, Union
 
 import torch
-from apex.contrib.optimizers.distributed_fused_adam import (
-    DistributedFusedAdam,
-    _disable_pre_forward_hook,
-)
+from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam, _disable_pre_forward_hook
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
@@ -91,27 +88,17 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             fp32_params = []
             for param_group in param_groups:
                 fp32_params.extend(
-                    filter(
-                        lambda param: getattr(param, '_with_fp32_optimizer', False),
-                        param_group['params'],
-                    )
+                    filter(lambda param: getattr(param, '_with_fp32_optimizer', False), param_group['params'],)
                 )
             if fp32_params:
                 assert self.dtype == torch.float32, (
-                    'Param requires FP32 state, '
-                    f'but optimizer is initialized with {dtype}'
+                    'Param requires FP32 state, ' f'but optimizer is initialized with {dtype}'
                 )
                 self.init_params_bucket(
-                    fp32_params,
-                    grad_sync_dtype=torch.float32,
+                    fp32_params, grad_sync_dtype=torch.float32,
                 )
 
-    def _make_post_backward_hook(
-        self,
-        param: torch.nn.Parameter,
-        param_group_id: int,
-        param_id: int,
-    ) -> Callable:
+    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int,) -> Callable:
         def hook(*unused):
             if getattr(param, '_pre_forward_hook_is_enabled', False):
                 raise RuntimeError(
@@ -136,10 +123,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
     def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
         def is_grad_copy_enabled(param: torch.nn.Parameter) -> bool:
-            return (
-                not getattr(param, '_disable_greedy_grad_copy', False)
-                and not getattr(param, '_disable_overlap_grad_sync', False)
+            return not getattr(param, '_disable_greedy_grad_copy', False) and not getattr(
+                param, '_disable_overlap_grad_sync', False
             )
+
         params = list(filter(is_grad_copy_enabled, params))
         for p in params:
             self._grad_copy(p)
@@ -157,10 +144,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     param.main_grad = self.grad_buffer_view(param)
 
     def grad_norm(
-        self,
-        parameters: Optional[Iterable[torch.nn.Parameter]] = None,
-        norm_type: float = 2.0,
-        force: bool = False,
+        self, parameters: Optional[Iterable[torch.nn.Parameter]] = None, norm_type: float = 2.0, force: bool = False,
     ) -> torch.Tensor:
         assert norm_type == 2
 
@@ -172,10 +156,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if force or self._grad_norm is None:
 
             # Compute norm of local gradients for distributed optimizer
-            grad_norm_sq = self._local_grad_norm(
-                parameters=parameters,
-                norm_type=norm_type,
-            )
+            grad_norm_sq = self._local_grad_norm(parameters=parameters, norm_type=norm_type,)
             if self.redundant_size > 1:
                 grad_norm_sq /= self.redundant_size
 
@@ -192,8 +173,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         optimizer_state_dict = self.state_dict()
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
-            model_sharded_state_dict=model_sharded_state_dict,
-            optim_params_iter=self.parameters(),
+            model_sharded_state_dict=model_sharded_state_dict, optim_params_iter=self.parameters(),
         )
         # Convert state
         step = optimizer_state_dict['state'].pop('step')
