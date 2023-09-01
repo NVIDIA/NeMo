@@ -63,6 +63,7 @@ def main(cfg) -> None:
     model.add_adapter(peft_cfg_cls(model_cfg))
 
     trainer.fit(model)
+    model.save_adapters(f"{trainer.default_root_dir}/checkpoints/gpt-{cfg.model.peft.peft_scheme}.ckpt")
 
 
 if __name__ == '__main__':
