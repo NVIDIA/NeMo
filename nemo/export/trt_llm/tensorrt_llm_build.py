@@ -209,7 +209,7 @@ def build(
     args.builder_opt = None
     args.output_dir = output_dir
     args.multi_query_mode = False
-    args.remove_input_padding = False
+    args.remove_input_padding = True
     args.use_smooth_quant = False
     args.use_weight_only = False
     args.weight_only_precision = "int8"
