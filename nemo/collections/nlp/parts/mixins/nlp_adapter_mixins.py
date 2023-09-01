@@ -345,7 +345,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             return self.model.state_dict(prefix=self.model_prefix)
 
     def sharded_state_dict(self, prefix: str = ''):
-        if self.use_peft and self.setup_complete:
+        use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
+        if not use_mcore_gpt or (self.use_peft and self.setup_complete):
             return None
         else:
             return self.model.sharded_state_dict(prefix=self.model_prefix)
