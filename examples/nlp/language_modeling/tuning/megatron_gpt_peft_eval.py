@@ -105,7 +105,16 @@ def main(cfg) -> None:
     if cfg.get("cluster_type", None) == "BCP":
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    # trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(
+        strategy=NLPDDPStrategy(),
+        devices=1,
+        accelerator="gpu",
+        num_nodes=1,
+        precision=16,
+        logger=False,
+        enable_checkpointing=False,
+    )
     if cfg.model.peft.restore_from_path:
         if cfg.model.peft.restore_from_path.endswith(".nemo"):
             peft_model_cfg = MegatronGPTPEFTModel.restore_from(
@@ -237,7 +246,7 @@ def main(cfg) -> None:
     # )
     # 
 
-    model_weights = torch.load("/dataset/gpt/nemo/model-downloads/model_weights.ckpt")
+    model_weights = torch.load("/dataset/gpt/nemo/model-downloads-temp/model_weights.ckpt")
 
 
     # lora_customization = self.preprocessor._get_customization(task_name, tuning_type="lora")
@@ -247,7 +256,7 @@ def main(cfg) -> None:
     processed_example = dataset._process_example(
         {
             # 'inference_peft_weights': {'0': self.cfg["lora"]["lora_weights_path"],},
-            'input': "Hello world",
+            'input': "Once upon a time",
             'output': '',
         },
     )
@@ -256,6 +265,8 @@ def main(cfg) -> None:
     dataset.tokens_to_generate = 200
     # processed_example = dataset._process_example({'inference_peft_weights': {'0': '/workspaces/software/nemo_experiments/megatron_gpt_peft_tuning/checkpoints/model_weights.ckpt'}, 'input': 'Context: In the earl...e ratings?', 'output': 'ABC'})
     batch_input = dataset.collate_fn([processed_example])
+
+    batch_input = dataset.collate_fn([processed_example])
     length_params: LengthParam = {
         "max_length": 200,
         "min_length": 1,
@@ -263,8 +274,8 @@ def main(cfg) -> None:
     sampling_params: SamplingParam = {
         "use_greedy": True,
         "temperature": 1.0,
-        "top_k": 0,
-        "top_p": 0.9,
+        "top_k": 2,
+        "top_p": 0,
         "repetition_penalty": 1.0,
         "add_BOS": True,
         "all_probs": False,
@@ -282,6 +293,26 @@ def main(cfg) -> None:
     #     "compute_logprob": False,
     #     "end_strings": ["<|endoftext|>", "<extra_id_1>"],
     # }
+    input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
+    output = model.generate(input_tuple, length_params, sampling_params)
+    processed_example = dataset._process_example({'input': "Once upon a time", 'output': '',},)
+    processed_example["inference_peft_weights"]["0"] = model_weights
+    input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
+    output = model.generate(input_tuple, length_params, sampling_params)
+    processed_example = dataset._process_example({'input': "Once upon a time", 'output': '',},)
+    processed_example["inference_peft_weights"]["0"] = model_weights
+    input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
+    output = model.generate(input_tuple, length_params, sampling_params)
+    processed_example = dataset._process_example({'input': "Once upon a time", 'output': '',},)
+    processed_example["inference_peft_weights"]["0"] = model_weights
+    input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
+    output = model.generate(input_tuple, length_params, sampling_params)
+    processed_example = dataset._process_example({'input': "Once upon a time", 'output': '',},)
+    processed_example["inference_peft_weights"]["0"] = model_weights
+    input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
+    output = model.generate(input_tuple, length_params, sampling_params)
+    processed_example = dataset._process_example({'input': "Once upon a time", 'output': '',},)
+    processed_example["inference_peft_weights"]["0"] = model_weights
     input_tuple = (batch_input["contexts"].cuda(), batch_input["context_lengths"].cuda(), batch_input["inference_peft_weights"])
     output = model.generate(input_tuple, length_params, sampling_params)
     output = model.generate(input_tuple, length_params, sampling_params)
