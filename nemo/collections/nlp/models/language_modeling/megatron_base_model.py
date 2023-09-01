@@ -756,7 +756,7 @@ class MegatronBaseModel(NLPModel):
         megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         # instantiate weights in bfloat16 if using megatron amp O2 and bf16
-        params_dtype = self.torch_dtype
+        params_dtype = torch.bfloat16 if self.torch_dtype == torch.bfloat16 and megatron_amp_O2 else torch.float32
 
         # dtype used in p2p communication
         pipeline_dtype = self.torch_dtype
@@ -768,7 +768,7 @@ class MegatronBaseModel(NLPModel):
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
             "fp16": False,  # NeMo does not currently support fp16 training with megatron amp O2
-            "bf16": self.torch_dtype == torch.bfloat16,
+            "bf16": self.torch_dtype == torch.bfloat16 and megatron_amp_O2,
             "params_dtype": params_dtype,
             "timers": None,  # NeMo does not currently support megatron core timers
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
