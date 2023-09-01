@@ -19,7 +19,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
-from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig
+from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PtuningPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
@@ -60,6 +60,16 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             self.model_prefix = "enc_dec_model."  # for T5
         else:
             self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
+
+    def first_stage_of_pipeline(self):
+        if hasattr(self, "model") and hasattr(self.model, "pre_process"):
+            return self.model.pre_process
+        elif hasattr(self, "model") and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
+            # (guyueh1): this if condition is used to handle amp O2
+            # when amp_O2 is on, self.model will be wrapped by the Float16Module class
+            return self.model.module.pre_process
+        logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
+        return False
 
     def _get_all_keys(self,):
         """
@@ -102,6 +112,10 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
 
         for peft_cfg in peft_cfgs:
+            if isinstance(peft_cfg, PtuningPEFTConfig) and not self.first_stage_of_pipeline():
+                # There are no params to add if we are not in the first state of the pipeline
+                continue
+
             layer_selection = peft_cfg.layer_selection
 
             assert not use_mcore_gpt or hasattr(
