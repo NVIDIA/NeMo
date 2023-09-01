@@ -21,7 +21,6 @@ from functools import partial
 
 import torch
 import torch.multiprocessing as mp
-from nemo.utils.exp_manager import exp_manager
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -44,6 +43,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 try:
     from megatron.core import parallel_state
@@ -84,6 +84,7 @@ python examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py \
 
 """
 
+
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
         raise ValueError('Megatron-core needs to be installed to use this feature!')
@@ -110,9 +111,7 @@ def use_inference_server(cfg, model, trainer):
                 web_ui = get_demo
             loop = asyncio.new_event_loop()
             thread = threading.Thread(
-                target=web_ui,
-                daemon=True,
-                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                target=web_ui, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
             )
             thread.start()
         server = MegatronServer(model.cuda())
@@ -133,12 +132,11 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    model = MegatronGPTSFTModel.restore_from(
-        cfg.model.restore_from_path, model_cfg, trainer=trainer
-    )
+    model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-    model.load_adapters(f"{trainer.default_root_dir}/checkpoints/gpt-{cfg.model.peft.peft_scheme}.ckpt",
-                        peft_cfg_cls(model_cfg))
+    model.load_adapters(
+        f"{trainer.default_root_dir}/checkpoints/gpt-{cfg.model.peft.peft_scheme}.ckpt", peft_cfg_cls(model_cfg)
+    )
 
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")
