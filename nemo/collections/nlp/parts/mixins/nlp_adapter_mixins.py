@@ -95,7 +95,6 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
                         f'model.module.{mcore_target}',
                     ]:  # simple string match for now
                         swap_mcore_mixin(module, mcore_mixin)
-                        peft_cfg = self.name_key_to_cfg[peft_name]
                         if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                             module.add_adapter(name=peft_name, cfg=peft_cfg)
             elif isinstance(module, AdapterModuleMixin):
@@ -124,12 +123,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if use_mcore_gpt else None
 
             for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
-                # self.model.language_model means is GPT and not T5
-                if (
-                    hasattr(self, "model")
-                    and hasattr(self.model, "language_model")
-                    and not isinstance(adapter_cfg, PromptEncoderAdapterConfig)
-                ):
+                # self.mcore_gpt means is GPT and not T5
+                if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
                     if layer_selection is not None:
                         logging.info(
                             f"Layer selection {layer_selection} is enabled for the current model ("
