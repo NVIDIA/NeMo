@@ -246,7 +246,7 @@ def build(
     args.gpus_per_node = gpus_per_node
     args.builder_opt = None
     args.output_dir = Path(output_dir)
-    args.remove_input_padding = False
+    args.remove_input_padding = True
     args.use_smooth_quant = False
     args.use_weight_only = False
     args.weight_only_precision = "int8"
