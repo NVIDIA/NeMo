@@ -56,14 +56,14 @@ class TestNemoExport:
                     )
                     output = trt_llm_exporter.forward(
                         input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
-                        max_output_len=200,
+                        max_output_token=200,
                     )
                     print("output 1: ", output)
 
                     trt_llm_exporter2 = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
                     output = trt_llm_exporter2.forward(
                         input_texts=["Let's see how this works", "Did you get the result yet?"],
-                        max_output_len = 200,
+                        max_output_token = 200,
                     )
                     print("output 2: ", output)
 

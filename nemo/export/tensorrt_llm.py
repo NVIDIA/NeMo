@@ -261,7 +261,7 @@ class TensorRTLLM(ITritonDeployable):
 
             output_texts = self.forward(
                 input_texts=input_texts,
-                max_output_len=max_output_len[0][0],
+                max_output_token=max_output_len[0][0],
                 top_k=top_k[0][0],
                 top_p=top_p[0][0],
                 temperature=temperature[0][0],
