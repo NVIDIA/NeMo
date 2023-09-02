@@ -63,15 +63,12 @@ class TestNemoDeployment:
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
                 nm.deploy()
                 nm.run()
-                nq = NemoQuery(url="localhost", model_name=model_name)
+                nq = NemoQuery(url="http://localhost", model_name=model_name)
 
                 prompts = ["hello, testing GPT inference", "another GPT inference test?"]
                 output = nq.query_llm(
                     prompts=prompts,
                     max_output_len=100,
-                    top_k=1,
-                    top_p=0.0,
-                    temperature=0.0,
                 )
                 print("prompts: ", prompts)
                 print("")
@@ -82,9 +79,6 @@ class TestNemoDeployment:
                 output = nq.query_llm(
                     prompts=prompts,
                     max_output_len=250,
-                    top_k=1,
-                    top_p=0.2,
-                    temperature=0.3,
                 )
                 print("prompts: ", prompts)
                 print("")

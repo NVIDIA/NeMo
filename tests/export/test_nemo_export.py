@@ -57,9 +57,6 @@ class TestNemoExport:
                     output = trt_llm_exporter.forward(
                         input_texts=["Hi, how are you?", "I am good, thanks, how about you?"],
                         max_output_len=200,
-                        top_k=1,
-                        top_p=0.0,
-                        temperature=0.0,
                     )
                     print("output 1: ", output)
 
@@ -67,9 +64,6 @@ class TestNemoExport:
                     output = trt_llm_exporter2.forward(
                         input_texts=["Let's see how this works", "Did you get the result yet?"],
                         max_output_len = 200,
-                        top_k = 2,
-                        top_p = 0.2,
-                        temperature = 0.1,
                     )
                     print("output 2: ", output)
 

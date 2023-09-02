@@ -205,7 +205,7 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts,
-        max_output_len=200,
+        max_output_token=512,
         top_k: int = 1,
         top_p: float = 0.0,
         temperature: float = 1.0,
@@ -215,7 +215,7 @@ class TensorRTLLM(ITritonDeployable):
 
         Args:
             input_texts (List(str)): list of sentences.
-            max_output_len (int): max generated tokens.
+            max_output_token (int): max generated tokens.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -227,8 +227,11 @@ class TensorRTLLM(ITritonDeployable):
         else:
             return generate(
                 input_texts=input_texts,
-                max_output_len=max_output_len,
+                max_output_len=max_output_token,
                 host_context=self.model,
+                top_k= top_k,
+                top_p= top_p,
+                temperature= temperature,
             )
 
     @property
