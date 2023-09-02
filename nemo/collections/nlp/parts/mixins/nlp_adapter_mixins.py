@@ -251,13 +251,8 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
         else:
             raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
 
-        setup_complete = self.setup_complete
-        if not setup_complete:
-            # Set setup_complete to True for loading adapter only
-            self.setup_complete = True
-
-        self.load_state_dict(state_dict, strict)
-        self.setup_complete = setup_complete
+        assert set(state_dict.keys()) == self.adapter_keys
+        super().load_state_dict(state_dict, strict=False)
 
     def tie_weights(self, peft_cfg, use_mcore_gpt):
         pos_idx = 0
