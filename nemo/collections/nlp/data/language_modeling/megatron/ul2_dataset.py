@@ -894,7 +894,7 @@ class UGPTDataset(GPTDataset):
             #     if decoder_only
             #     else seq_length
             # )
-            target_seq_length = seq_length
+            target_seq_length = min(seq_length, self.max_seq_length)
             example = UL2Dataset.get_r_masking_training_sample(
                 sample=sample,
                 tokenizer=self.tokenizer,
@@ -957,7 +957,7 @@ class UGPTDataset(GPTDataset):
             #         if decoder_only
             #         else seq_length
             #     )
-            target_seq_length = seq_length
+            target_seq_length = min(seq_length, self.max_seq_length)
 
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
             example = UL2Dataset.get_x_masking_training_sample(
