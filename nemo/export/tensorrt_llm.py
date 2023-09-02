@@ -205,7 +205,6 @@ class TensorRTLLM(ITritonDeployable):
     def forward(
         self,
         input_texts,
-        tasks=None,
         max_output_len=200,
         top_k: int = 1,
         top_p: float = 0.0,
@@ -216,7 +215,6 @@ class TensorRTLLM(ITritonDeployable):
 
         Args:
             input_texts (List(str)): list of sentences.
-            tasks (str): task type. Currently not used and added for later use.
             max_output_len (int): max generated tokens.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
@@ -230,11 +228,10 @@ class TensorRTLLM(ITritonDeployable):
             return generate(
                 host_context=self.model,
                 input_texts=input_texts,
-                #tasks=tasks,
                 max_output_len=max_output_len,
-                #top_k=top_k,
-                #top_p=top_p,
-                #temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                temperature=temperature,
                 #prompt_table=self.prompt_table,
                 #task_vocab_size=self.task_vocab_size,
             )

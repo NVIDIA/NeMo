@@ -141,7 +141,11 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
 
 
 def _forward(
-    input_tensors: List[torch.IntTensor], max_output_len: int
+        input_tensors: List[torch.IntTensor],
+        max_output_len: int,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 0.0,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -175,6 +179,10 @@ def _forward(
             ).cuda()
             input_lengths = torch.tensor(input_lengths, dtype=torch.int32).cuda()
         with torch.no_grad():
+            sampling_config.top_k = top_k
+            sampling_config.top_p = top_p
+            sampling_config.temperature = temperature
+
             decoder.setup(batch_size, max_context_length=max_length, max_new_tokens=max_output_len)
 
             if decoder.remove_input_padding:
@@ -235,7 +243,12 @@ def load(
 
 
 def forward(
-    input_tensors: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext
+        input_tensors: List[torch.IntTensor],
+        max_output_len: int,
+        host_context: TensorrtLLMHostContext,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 0.0,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
@@ -251,12 +264,12 @@ def forward(
 
     tensor_parallel = host_context.tensor_parallel
     if tensor_parallel == 1:
-        return _forward(input_tensors, max_output_len)
+        return _forward(input_tensors, max_output_len, top_k, top_p, temperature)
     else:
         executor = host_context.executor
         futures = []
         for _ in range(tensor_parallel):
-            future = executor.submit(_forward, input_tensors, max_output_len)
+            future = executor.submit(_forward, input_tensors, max_output_len, top_k, top_p, temperature)
             futures.append(future)
         for future in futures:
             result = future.result()
@@ -267,7 +280,12 @@ def forward(
 
 
 def generate(
-    input_texts: List[torch.IntTensor], max_output_len: int, host_context: TensorrtLLMHostContext
+        input_texts: List[torch.IntTensor],
+        max_output_len: int,
+        host_context: TensorrtLLMHostContext,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 0.0,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
@@ -277,7 +295,7 @@ def generate(
     input_tensors = [
         torch.IntTensor(tokenizer.encode(t, add_special_tokens=False)) for t in input_texts
     ]
-    output_tensor = forward(input_tensors, max_output_len, host_context)
+    output_tensor = forward(input_tensors, max_output_len, host_context, top_k, top_p, temperature)
     assert output_tensor is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
