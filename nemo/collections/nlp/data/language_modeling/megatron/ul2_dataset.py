@@ -382,7 +382,7 @@ class UL2Dataset(T5Dataset):
             #     if decoder_only
             #     else seq_length
             # )
-            target_seq_length = seq_length
+            target_seq_length = min(seq_length, self.max_seq_length)
             example = UL2Dataset.get_r_masking_training_sample(
                 sample=sample,
                 tokenizer=self.tokenizer,
@@ -443,7 +443,7 @@ class UL2Dataset(T5Dataset):
             #         if decoder_only
             #         else seq_length
             #     )
-            target_seq_length = seq_length
+            target_seq_length = min(seq_length, self.max_seq_length)
 
             # For GPT models, the insertion of sentinel tokens means that the sequence length can exceed the max_seq_length, so we need to adjust the target_seq_length for the worst case scenario accordingly.
             example = UL2Dataset.get_x_masking_training_sample(
@@ -733,8 +733,7 @@ class UGPTDataset(UL2Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length
-            + 1,  # +1 to account for the fact that compared to T5/UL2 we don't need to account for separate BOS/EOS.
+            max_seq_length=max_seq_length,
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
@@ -778,15 +777,17 @@ class UGPTDataset(UL2Dataset):
         #     assert (example['labels'] == self.tokenizer.pad_id).sum() == 0, 'Padding token found in labels.'
         # Adapt the example to the UGPT format.
         tokens = np.concatenate([example['text_enc'], example['labels']])
-        assert (
-            len(tokens) <= self.max_seq_length
-        ), f'Input length {len(tokens)} exceeds max_seq_length {self.max_seq_length} for masking type {example["masking_type"]}'
         inputs = tokens[:-1]
         labels = tokens[1:]
+
+        assert (
+            len(inputs) <= self.max_seq_length
+        ), f'Input length {len(inputs)} exceeds max_seq_length {self.max_seq_length} for masking type {example["masking_type"]}'
 
         if len(inputs) < self.max_seq_length:
             inputs = np.concatenate([inputs, [self.tokenizer.pad_id] * (self.max_seq_length - len(inputs))])
             labels = np.concatenate([labels, [self.tokenizer.pad_id] * (self.max_seq_length - len(labels))])
+
         loss_mask = (
             [0] * (len(example['text_enc']) - 1)
             + [1] * (len(example['labels']))
