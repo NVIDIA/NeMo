@@ -68,7 +68,7 @@ class TestNemoDeployment:
                 prompts = ["hello, testing GPT inference", "another GPT inference test?"]
                 output = nq.query_llm(
                     prompts=prompts,
-                    max_output_token=100,
+                    max_output_token=200,
                 )
                 print("prompts: ", prompts)
                 print("")
@@ -78,7 +78,7 @@ class TestNemoDeployment:
                 prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
                 output = nq.query_llm(
                     prompts=prompts,
-                    max_output_token=250,
+                    max_output_token=200,
                 )
                 print("prompts: ", prompts)
                 print("")
