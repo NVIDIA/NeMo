@@ -22,7 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     PromptEncoderAdapterConfig,
 )
-from nemo.collections.nlp.parts.peft_config import AdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PtuningPEFTConfig
+from nemo.collections.nlp.parts.peft_config import AttentionAdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PtuningPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
@@ -301,7 +301,7 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
         if isinstance(peft_cfg, LoraPEFTConfig):
             layer0 = layers[0].self_attention
-        elif isinstance(peft_cfg, AdapterPEFTConfig):
+        elif isinstance(peft_cfg, AttentionAdapterPEFTConfig):
             layer0 = layers[0]
         else:
             raise RuntimeError(f"{peft_cfg} is not supported for tied weights")

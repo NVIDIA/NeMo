@@ -138,7 +138,7 @@ class PtuningPEFTConfig(PEFTConfig):
         super().__init__(cfg, cfg.peft.p_tuning, name_key_to_cfg)
 
 
-class AdapterPEFTConfig(PEFTConfig):
+class AttentionAdapterPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         adapter_tuning_cfg = cfg.peft.adapter_tuning
 
@@ -178,7 +178,7 @@ class AdapterPEFTConfig(PEFTConfig):
 
 
 PEFT_CONFIG_MAP = {
-    "adapter": AdapterPEFTConfig,
+    "adapter": AttentionAdapterPEFTConfig,
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,

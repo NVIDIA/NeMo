@@ -246,7 +246,7 @@ print("Parameter count manually:\n", model.summarize())
 ```
 Simply substitute with the `MegatronT5SFTModel` class to use T5 instead of GPT.
 
-To use a different PEFT method, you can use a different config class in place of `LoraPEFTConfig`, such as `AdapterPEFTConfig`, `IA3PEFTConfig`, `PtuningPEFTConfig`. You can also use a combination of the methods by passing in a list:
+To use a different PEFT method, you can use a different config class in place of `LoraPEFTConfig`, such as `AttentionAdapterPEFTConfig`, `IA3PEFTConfig`, `PtuningPEFTConfig`. You can also use a combination of the methods by passing in a list:
 `model.add_adapter([LoraPEFTConfig(model_cfg), PtuningPEFTConfig(model_cfg)])`
 
 You can now start training.

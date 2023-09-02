@@ -15,15 +15,15 @@ Or, if you wish to follow a practical example, take a look at the
 NeMo supports the following PFET tuning methods
 TODO add a few sentences to describe each paper
 
-- **(The original) Adapter**: [Parameter-Efficient Transfer Learning for NLP](http://arxiv.org/abs/1902.00751)
+- **Attention (Canonical) Adapter**: [Parameter-Efficient Transfer Learning for NLP](http://arxiv.org/abs/1902.00751)
 - **LoRA**: [LoRA: Low-Rank Adaptation of Large Language Models](http://arxiv.org/abs/2106.09685)
 - **IA3**: [Infused Adapter by Inhibiting and Amplifying Inner Activations](http://arxiv.org/abs/2205.05638)
 - **P-Tuning**: [GPT Understands, Too](https://arxiv.org/abs/2103.10385)
 
 
 ## Supported Models
-- GPT 
-- T5
+- GPT: `MegatronGPTSFTModel`
+- T5: `MegatronT5SFTModel`
 
 
 
