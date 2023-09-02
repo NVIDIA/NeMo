@@ -208,7 +208,7 @@ class TensorRTLLM(ITritonDeployable):
         max_output_len=200,
         top_k: int = 1,
         top_p: float = 0.0,
-        temperature: float = 0.0,
+        temperature: float = 1.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.

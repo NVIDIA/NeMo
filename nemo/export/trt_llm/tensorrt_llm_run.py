@@ -145,7 +145,7 @@ def _forward(
         max_output_len: int,
         top_k: int = 1,
         top_p: float = 0.0,
-        temperature: float = 0.0,
+        temperature: float = 1.0,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -248,7 +248,7 @@ def forward(
         host_context: TensorrtLLMHostContext,
         top_k: int = 1,
         top_p: float = 0.0,
-        temperature: float = 0.0,
+        temperature: float = 1.0,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
@@ -285,7 +285,7 @@ def generate(
         host_context: TensorrtLLMHostContext,
         top_k: int = 1,
         top_p: float = 0.0,
-        temperature: float = 0.0,
+        temperature: float = 1.0,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
