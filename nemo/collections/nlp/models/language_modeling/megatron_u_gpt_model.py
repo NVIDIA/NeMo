@@ -331,7 +331,3 @@ class MegatronUGPTModel(MegatronGPTModel):
         logging.info(f'Finished building U-GPT datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
-
-    def training_step(self, dataloader_iter, batch_idx):
-        torch.set_grad_enabled(True)
-        super().training_step(dataloader_iter, batch_idx)

@@ -363,6 +363,8 @@ class T5Dataset(Dataset):
             max_seq_length_dec=max_seq_length_dec,
         )
 
+        # print("enc", len(tokens_enc), "labels", len(labels))
+
         train_sample = {
             'text_enc': tokens_enc,
             'text_dec': tokens_dec_in,

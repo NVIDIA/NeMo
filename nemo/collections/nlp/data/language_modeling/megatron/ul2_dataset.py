@@ -783,14 +783,14 @@ class UGPTDataset(GPTDataset):
         # T5 arguments
         self.masked_lm_prob = masked_lm_prob
         self.short_seq_prob = short_seq_prob
-        self.max_ngram_size = None   # TODO: Determine if we want to actually pass mean ngram as an override to max here.
+        self.max_ngram_size = max_ngram_size
         self.permutation=permutation
         self.whole_word_masking = whole_word_masking
         self.favor_long_ngrams = favor_long_ngrams
         self.respect_document_boundaries = respect_document_boundaries
 
         self.extreme_masked_lm_prob = extreme_masked_lm_prob
-        self.mean_ngram_size = mean_ngram_size
+        self.mean_ngram_size = None  # TODO: Determine if we want to actually pass mean ngram as an override to max here.
         self.min_ngram_size = min_ngram_size
         self.extreme_max_ngram_size = extreme_max_ngram_size
         self.extreme_min_ngram_size = extreme_min_ngram_size
@@ -851,7 +851,7 @@ class UGPTDataset(GPTDataset):
         # concat the tokens and last token in labels to recreate the original text
         sample = torch.cat((tokens, labels[-1:]))
         seq_length = len(sample)
-        sample = [sample]  # for compat with T5Dataset
+        sample = [sample.numpy()]  # for compat with T5Dataset
 
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
