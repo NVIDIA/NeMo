@@ -124,8 +124,6 @@ config.model.peft.peft_scheme="lora"  # You also set this to adapter or ptuning 
 print(OmegaConf.to_yaml(config.model.peft.lora_tuning))
 ```
 
-print(OmegaConf.to_yaml(config.model.peft.lora_tuning))
-#%% md
 **Note:** In the original LoRA paper each attention projection (`K`, `Q`, `V` and `O`) can have their own Low-Rank 
 projections. However, NeMo's attention implementation fuses `KQV` into a single projection and thus our LoRA 
 implementation learns a single Low-Rank projection for `KQV` in a combined fashion. NeMO does not support LoRA for the 
