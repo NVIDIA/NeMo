@@ -416,7 +416,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             torch.cuda.synchronize()
 
         # Step the optimizer.
-        self.optimizer.step(**kwargs)
+        self.optimizer.step(closure=None, **kwargs)
 
         # Update params from main params.
         with torch.no_grad():
