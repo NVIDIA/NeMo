@@ -48,10 +48,10 @@ class NemoQuery:
     def query_llm(
             self,
             prompts,
-            max_output_len=200,
+            max_output_token=512,
             top_k=1,
             top_p=0.0,
-            temperature=0.0,
+            temperature=1.0,
             init_timeout=600.0,
     ):
         """
@@ -59,7 +59,7 @@ class NemoQuery:
 
         Args:
             prompts (List(str)): list of sentences.
-            max_output_len (int): max generated tokens.
+            max_output_token (int): max generated tokens.
             top_k (int): limits us to a certain number (K) of the top tokens to consider.
             top_p (float): limits us to the top tokens within a certain probability mass (p).
             temperature (float): A parameter of the softmax function, which is the last layer in the network.
@@ -67,7 +67,7 @@ class NemoQuery:
         """
 
         prompts = str_list2numpy(prompts)
-        max_output_len = np.full(prompts.shape, max_output_len, dtype=np.int_)
+        max_output_token = np.full(prompts.shape, max_output_token, dtype=np.int_)
         top_k = np.full(prompts.shape, top_k, dtype=np.int_)
         top_p = np.full(prompts.shape, top_p, dtype=np.single)
         temperature = np.full(prompts.shape, temperature, dtype=np.single)
@@ -75,7 +75,7 @@ class NemoQuery:
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(
                 prompts=prompts,
-                max_output_len=max_output_len,
+                max_output_token=max_output_token,
                 top_k=top_k,
                 top_p=top_p,
                 temperature=temperature,
