@@ -226,14 +226,9 @@ class TensorRTLLM(ITritonDeployable):
             )
         else:
             return generate(
-                host_context=self.model,
                 input_texts=input_texts,
                 max_output_len=max_output_len,
-                #top_k=top_k,
-                #top_p=top_p,
-                #temperature=temperature,
-                #prompt_table=self.prompt_table,
-                #task_vocab_size=self.task_vocab_size,
+                host_context=self.model,
             )
 
     @property

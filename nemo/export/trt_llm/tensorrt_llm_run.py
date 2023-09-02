@@ -285,9 +285,6 @@ def generate(
         input_texts: List[torch.IntTensor],
         max_output_len: int,
         host_context: TensorrtLLMHostContext,
-        #top_k: int = 1,
-        #top_p: float = 0.0,
-        t#emperature: float = 1.0,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
