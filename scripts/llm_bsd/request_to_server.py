@@ -5,6 +5,7 @@ import time
 
 batch_size = 1
 port_num = 5501
+# port_num = 5502
 headers = {"Content-Type": "application/json"}
 
 
@@ -88,6 +89,40 @@ f"{SPEAKER1} i got another apartment for when i moved out {SPEAKER0} oh you did 
 # prompt3_spk="[speaker1]: i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the \n [End of Dialogue] \n The next word is [rent]. Which speaker spoke this word [speaker0] or [speaker1] ?\n\n Answer:[speaker"
 # prompt4_spk="[speaker1]: and i already got another apartment for when i moved out [speaker0]: oh you did [speaker1]: i had to put down like a deposit and um you know and pay the \n [End of Dialogue] \n The next word is [rent]. Which speaker spoke this word [speaker0] or [speaker1] ?\n\n Answer:[speaker"
 
+count = 0
+total_time = 0
+total_count_requests = 100
+while count < total_count_requests:
+    user_input = 2
+    # user_input = f"{output}{user_input}"
+    if user_input in [1, "1"]:
+        tokens_to_generate = 1
+        user_input_raw = [prompt1, prompt2, prompt3, prompt4]
+    else:
+        # tokens_to_generate = 4
+        tokens_to_generate = 12
+        # user_input_raw = [prompt1_spk, prompt2_spk, prompt3_spk, prompt4_spk]
+        # user_input_raw = [prompt1_spk, prompt2_spk]
+        user_input_raw = user_input_raw 
+    # user_input_raw = [f"{user_input}"]
+    user_input_list = []
+    if type(user_input_raw) == list:
+        for prompt in user_input_raw:
+            prompt_qa = prompt
+            # prompt_qa = f"User: {prompt} \n\nAssistant: "
+            # prompt_qa = f"Question: {prompt} \n\nAnswer: "
+            user_input_list.append(prompt_qa)
+    else:
+        user_input_list = user_input_raw
+    stt = time.time()
+    resp_dict = send_chat(user_input_list, tokens_to_generate=tokens_to_generate)
+    print(f"Time taken: {(time.time() - stt):.4f} sec for {len(user_input_list)} Questions, count = {count}/{total_count_requests}")
+    count += 1
+    eta = time.time() - stt
+    total_time += eta
+    # print(f"output = {resp_dict}")
+    
+print(f"Average time taken: {(total_time/count):.4f} sec for {len(user_input_list)} Questions")
 
 while True:
     user_input = input("===> ")
@@ -115,4 +150,4 @@ while True:
     resp_dict = send_chat(user_input_list, tokens_to_generate=tokens_to_generate)
     print(f"Time taken: {(time.time() - stt):.4f} sec for {len(user_input_list)} Questions")
     print(f"output = {resp_dict}")
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
