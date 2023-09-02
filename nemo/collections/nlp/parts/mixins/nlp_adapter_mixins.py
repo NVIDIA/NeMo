@@ -224,7 +224,9 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
 
     def save_adapters(self, filepath: str, name: str = None):
         # override save_adapters for consistency
-        self.save_to(filepath)
+        checkpoint = {}
+        checkpoint['state_dict'] = self.get_peft_state_dict()
+        torch.save(checkpoint, filepath)
 
     def load_adapters(
         self,
@@ -242,12 +244,20 @@ class NLPAdapterModelMixin(AdapterModelPTMixin):
             else:
                 map_location = 'cpu'
 
-        _, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
+        if filepath.endswith('.nemo'):
+            _, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
+        elif filepath.endswith('.ckpt'):
+            state_dict = torch.load(filepath, map_location)['state_dict']
+        else:
+            raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
 
-        # Set setup_complete to True for loading adapter only
-        self.setup_complete = True
+        setup_complete = self.setup_complete
+        if not setup_complete:
+            # Set setup_complete to True for loading adapter only
+            self.setup_complete = True
+
         self.load_state_dict(state_dict, strict)
-        self.setup_complete = False
+        self.setup_complete = setup_complete
 
     def tie_weights(self, peft_cfg, use_mcore_gpt):
         pos_idx = 0
