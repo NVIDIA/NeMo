@@ -25,7 +25,12 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     PromptEncoderAdapterConfig,
 )
 from nemo.collections.nlp.parts.nlp_overrides import PEFTSaveRestoreConnector
-from nemo.collections.nlp.parts.peft_config import AttentionAdapterPEFTConfig, LoraPEFTConfig, PEFTConfig, PtuningPEFTConfig
+from nemo.collections.nlp.parts.peft_config import (
+    AttentionAdapterPEFTConfig,
+    LoraPEFTConfig,
+    PEFTConfig,
+    PtuningPEFTConfig,
+)
 from nemo.core.classes.mixins.adapter_mixins import (
     AdapterModelPTMixin,
     AdapterModuleMixin,
