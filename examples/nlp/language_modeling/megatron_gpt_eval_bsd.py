@@ -27,9 +27,13 @@ import torch.nn.functional as F
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 # from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
-from nemo.collections.nlp.modules.common.text_generation_server_bsd import MegatronServer
 # from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.modules.common.text_generation_utils_pad import generate
+
+# from nemo.collections.nlp.modules.common.text_generation_server_bsd import MegatronServer
+# from nemo.collections.nlp.modules.common.text_generation_utils_pad import generate
+from nemo.collections.nlp.modules.common.text_generation_server_bsd_opt import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils_pad_opt import generate
+
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner

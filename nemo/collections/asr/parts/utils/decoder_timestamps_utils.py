@@ -369,7 +369,6 @@ class ASRDecoderTimeStamps:
             asr_model = self.encdec_class.restore_from(restore_path=self.ASR_model_name)
         else:
             asr_model = self.encdec_class.from_pretrained(model_name=self.ASR_model_name, strict=False)
-
         if self.ctc_decoder_params['pretrained_language_model']:
             if not PYCTCDECODE:
                 raise ImportError(

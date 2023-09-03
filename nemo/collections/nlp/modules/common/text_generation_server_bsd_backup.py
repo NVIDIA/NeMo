@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroQAModelTextGenerationStrategy,
 )
 # from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.modules.common.text_generation_utils_pad_opt import generate
+from nemo.collections.nlp.modules.common.text_generation_utils_pad import generate
 from nemo.utils import logging
 
 GENERATE_NUM = 0
@@ -52,7 +52,6 @@ API_ALLOWED_KEYS = set(
         "end_strings",
     ]
 )
-DEBUG = False
 
 def int_to_token(index):
     t_dict = {0: 251521,
@@ -78,48 +77,52 @@ def rindex(lst, value):
 def rindex(mylist, myvalue):
     return len(mylist) - mylist[::-1].index(myvalue) - 1
 
-def separate_prompt_last_word(prompts):
-    updated_prompt_list = []
-    last_word_list = []
-
-    for prompt in prompts:
-        prompt_words = prompt.split()
-        last_word_list.append(prompt_words[-1])
-        updated_prompt_list.append(' '.join(prompt_words[:-1]))
-
-    return updated_prompt_list, last_word_list
-
-def get_ngram_probs(sentences, next_word_list, model, response, target_index_from_end=1):
+def get_ngram_probs(sentences, model, response, target_index_from_end=1):
     if response['full_logprob'] is None:
         raise ValueError("response['full_logprob'] is None. Abort.")
         
     for k in range(len(response['full_logprob'])):
-        target_word = next_word_list[k]
+        target_word = sentences[k].split()[-1*target_index_from_end]
         token_id = model.tokenizer.text_to_ids(target_word)[0]
-        probs = F.softmax(torch.squeeze(response['full_logprob'][k]), dim=-1)
-        response['word_probs'].append(probs[token_id].item())
-
-        if DEBUG: 
+        ridx = rindex(response['token_ids'][k], token_id)
+        idx_from_end = len(response['token_ids'][k]) - ridx
+        probs = F.softmax(response['full_logprob'][k][-1*idx_from_end], dim=-1)
+        
+        if False: 
             vals, idxs = torch.topk(probs, 10)
             bub_string = model.tokenizer.ids_to_text(idxs.tolist())
             word_list = bub_string.split()
             for top_word in word_list:
-                print(f"{response['tokens'][k][-5]}: {top_word}")
-        
-            print(f"target word <{target_word}> p(W) probs: {probs[token_id]}")
-
+                print(f"{response['tokens'][k][ridx-5:ridx]}: {top_word}")
+        response['word_probs'].append(probs[token_id].item())
     return response
 
 def get_speaker_probs(sentences, model, response, num_of_speakers=5):
     for k in range(len(response['full_logprob'])):
-
-        probs = F.softmax(torch.squeeze(response['full_logprob'][k]), dim=-1)
-        probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
+        # Find the '▁speaker'(17595) or 'speaker'(211466) token and get the probabilities of the next token
+        ridx_nub = rindex(response['token_ids'][k], 211466)
+        ridx_wub = rindex(response['token_ids'][k], 17595)
+        
+        ridx = max(ridx_nub, ridx_wub)
+        try:
+            spk_id = response['tokens'][k][ridx+1] 
+        except:
+            print(f"ridx: {ridx} token: {response['tokens'][k]}")
+            print(f" length of tokens: {len(response['tokens'][k])}")
+            
+        if ridx == -1 or spk_id not in STRING_SPK_TOKENS or response['token_ids'][k][ridx] not in [211466, 17595]:
+            # There is no speaker token in the sentence: 
+            logging.info(f"[WARNING] No speaker token found -- ridx: {ridx} token: {response['tokens'][k][ridx]}")
+            probs = torch.tensor([(1/num_of_speakers) for q in range(num_of_speakers)])
+        else:
+            idx_from_end = len(response['token_ids'][k]) - (ridx + 1)
+            
+            # full_logprob is shifted 1 to the left (first token does not have a probability)
+            probs = F.softmax(response['full_logprob'][k][-idx_from_end], dim=-1)
+            probs = torch.tensor([probs[int_to_token(q)] for q in range(num_of_speakers)])
         probs_tensor = probs / probs.sum()
         probs_tensor = probs_tensor.numpy()
         response['spk_probs'].append(probs_tensor.tolist())
-        if DEBUG:
-            print(f"probs_tensor: {probs_tensor}")
     return response 
 
 
@@ -253,14 +256,6 @@ class MegatronGenerate(Resource):
                 ):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
-
-            # identify if want to calculate p(W) or p(S|W)
-            next_word_list = []
-            if tokens_to_generate <= 1:
-                sentences, next_word_list = separate_prompt_last_word(sentences)
-
-            # In both cases we want to do just one decoding step
-            tokens_to_generate = 1
                 
             output = generate(
                 self.model,
@@ -278,15 +273,11 @@ class MegatronGenerate(Resource):
                 min_tokens_to_generate=min_tokens_to_generate,
                 **extra,
             )
-
-
             if request.get_json()["tokens_to_generate"] <= 1:
-                assert len(next_word_list) > 0 
                 output.update({'word_probs': []})
-                output = get_ngram_probs(request.get_json()["sentences"], next_word_list, self.model, output, target_index_from_end=1)
+                output = get_ngram_probs(request.get_json()["sentences"], self.model, output, target_index_from_end=1)
             else:
                 output.update({'spk_probs': []})
-                assert len(next_word_list) == 0
                 output = get_speaker_probs(request.get_json()["sentences"], self.model, output, num_of_speakers=5)
             
             for keys in ['sentences', 'token_ids', 'tokens', 'full_logprob', 'logprob', 'offsets']:
