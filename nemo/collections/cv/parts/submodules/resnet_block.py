@@ -18,6 +18,7 @@ from torch.nn.modules.utils import _pair
 
 from nemo.collections.cv.parts.submodules.conv2d import Conv2d
 
+
 class ResNetBlock(nn.Module):
 
     """ ResNet Residual Block used by ResNet18 and ResNet34 networks.

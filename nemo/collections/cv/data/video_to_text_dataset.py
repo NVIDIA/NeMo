@@ -21,9 +21,9 @@ from omegaconf import DictConfig
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
 
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.cv.data import video_to_text
 from nemo.utils import logging
-from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 
 
 def get_video_to_text_bpe_dataset_from_config(

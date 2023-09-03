@@ -14,6 +14,7 @@
 
 from torch import nn
 
+
 class Permute(nn.Module):
     def __init__(self, dims, make_contiguous=False):
         super(Permute, self).__init__()
