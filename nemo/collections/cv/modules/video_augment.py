@@ -15,12 +15,17 @@
 import random
 
 import torch
-import torchvision
 from torch import nn
 
 from nemo.core.classes.module import NeuralModule
 from collections import OrderedDict
 from nemo.core.neural_types import VideoSignal, NeuralType
+
+try:
+    import torchvision
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 class VideoAugmentation(NeuralModule):
 
@@ -50,12 +55,18 @@ class VideoAugmentation(NeuralModule):
 
         # Random Crop
         if self.random_crop:
-            self.training_augments.append(torchvision.transforms.RandomCrop(self.crop_size))
-            self.inference_augments.append(torchvision.transforms.CenterCrop(self.crop_size))
+            if TORCHVISION_AVAILABLE:
+                self.training_augments.append(torchvision.transforms.RandomCrop(self.crop_size))
+                self.inference_augments.append(torchvision.transforms.CenterCrop(self.crop_size))
+            else:
+                raise Exception("RandomCrop transform requires torchvision")
 
         # Horizontal Flip
         if self.horizontal_flip:
-            self.training_augments.append(torchvision.transforms.RandomHorizontalFlip())
+            if TORCHVISION_AVAILABLE:
+                self.training_augments.append(torchvision.transforms.RandomHorizontalFlip())
+            else:
+                raise Exception("RandomHorizontalFlip transform requires torchvision")
 
         # Time Masking
         if self.time_masking:

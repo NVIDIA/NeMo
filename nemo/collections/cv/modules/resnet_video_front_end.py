@@ -15,7 +15,7 @@
 import torch
 from torch import nn
 
-from nemo.collections.cv.modules.resnet import ResNet
+from nemo.collections.cv.parts.submodules.resnet import ResNet
 from nemo.core.classes.module import NeuralModule
 from collections import OrderedDict
 from nemo.core.neural_types import LengthsType, VideoSignal, NeuralType

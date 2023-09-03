@@ -13,12 +13,16 @@
 # limitations under the License.
 
 import torch
-import torchvision
 from torch import nn
 
 from nemo.collections.cv.parts.submodules.permute import Permute
 from nemo.core.classes import NeuralModule, typecheck
 
+try:
+    import torchvision
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 class VideoPreprocessor(NeuralModule):
 
@@ -48,7 +52,10 @@ class VideoPreprocessor(NeuralModule):
         self.transforms = nn.ModuleList()
 
         # Convert float32 [0:255] -> [0:1]
-        self.transforms.append(torchvision.transforms.ConvertImageDtype(dtype=torch.float32))
+        if TORCHVISION_AVAILABLE:
+            self.transforms.append(torchvision.transforms.ConvertImageDtype(dtype=torch.float32))
+        else:
+            raise Exception("ConvertImageDtype transform requires torchvision")
 
         # Convert Channels First
         self.transforms.append(Permute(dims=(0, 4, 1, 2, 3)))  # (B, T, H, W, C) -> (B, C, T, H, W)
@@ -59,13 +66,16 @@ class VideoPreprocessor(NeuralModule):
 
         # Grayscale
         if self.grayscale:
-            self.transforms.append(
-                nn.Sequential(
-                    Permute(dims=(0, 2, 1, 3, 4)),  # (B, C, T, H, W) -> (B, T, C, H, W)
-                    torchvision.transforms.Grayscale(),
-                    Permute(dims=(0, 2, 1, 3, 4)),  # (B, T, C, H, W) -> (B, C, T, H, W)
+            if TORCHVISION_AVAILABLE:
+                self.transforms.append(
+                    nn.Sequential(
+                        Permute(dims=(0, 2, 1, 3, 4)),  # (B, C, T, H, W) -> (B, T, C, H, W)
+                        torchvision.transforms.Grayscale(),
+                        Permute(dims=(0, 2, 1, 3, 4)),  # (B, T, C, H, W) -> (B, C, T, H, W)
+                    )
                 )
-            )
+            else:
+                raise Exception("Grayscale transform requires torchvision")
 
         # Normalize
         if self.normalize:
@@ -79,7 +89,6 @@ class VideoPreprocessor(NeuralModule):
             input_signal = transform(input_signal)
 
         return input_signal, length
-
 
 class NormalizeVideo(NeuralModule):
     def __init__(self, mean, std):
@@ -98,13 +107,15 @@ class NormalizeVideo(NeuralModule):
 
         return x
 
-
 class ResizeVideo(NeuralModule):
     def __init__(self, size):
         super().__init__()
 
         self.size = size
-        self.resize = torchvision.transforms.Resize(size=self.size)
+        if TORCHVISION_AVAILABLE:
+            self.resize = torchvision.transforms.Resize(size=self.size)
+        else:
+            raise Exception("Resize transform requires torchvision")
 
     def forward(self, x):
 

@@ -14,8 +14,12 @@
 
 import os
 import tempfile
-import torchvision
 
+try:
+    import torchvision
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 class VideoFeaturizer(object):
     def __init__(self):
@@ -29,6 +33,9 @@ class VideoFeaturizer(object):
         return video
 
     def from_file(self, video_file, offset, duration):
+
+        if not TORCHVISION_AVAILABLE:
+            raise Exception("Reading Video requires torchvision")
 
         # Load from filename
         if isinstance(video_file, str):
