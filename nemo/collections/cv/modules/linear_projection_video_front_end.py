@@ -1,7 +1,22 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
 from torch import nn
-
+from collections import OrderedDict
 from nemo.core.classes.module import NeuralModule
+from nemo.core.neural_types import LengthsType, VideoSignal, NeuralType
 
 
 class LinearProjectionVideoFrontEnd(NeuralModule):
@@ -26,10 +41,10 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
 
     def __init__(
         self,
-        in_channels=1,
-        in_height=88,
-        in_width=88,
-        dim_output=512,
+        in_channels,
+        in_height,
+        in_width,
+        dim_output,
         out_channels_first=True,
         circle_crop=False,
         circle_radius=1.0,
@@ -53,6 +68,26 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
         else:
             self.linear_proj = nn.Identity()
 
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return OrderedDict(
+            {
+                "audio_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
+                "length": NeuralType(tuple('B'), LengthsType())
+            }
+        )
+
+    @property
+    def input_types_for_export(self):
+        """Returns definitions of module input ports."""
+        return OrderedDict(
+            {
+                "output_signal": NeuralType(('B', 'D', 'T'), NeuralType()),
+                "length": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
+
     def get_circle_indices(self):
 
         """ return image indices inside circle of radius circle_radius """
@@ -73,7 +108,7 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
 
         return circle_indices
 
-    def forward(self, input_signal):
+    def forward(self, input_signal, length):
 
         # Permute (B, C, T, H, W) -> (B, T, H, W, C)
         input_signal = input_signal.permute(0, 2, 3, 4, 1)
@@ -99,6 +134,8 @@ class LinearProjectionVideoFrontEnd(NeuralModule):
 
         # Transpose to channels_last format (Batch, Dout, Time) -> (Batch, Time, Dout)
         if self.out_channels_first:
-            input_signal = input_signal.transpose(1, 2)
+            output_signal = input_signal.transpose(1, 2)
+        else:
+            output_signal = input_signal
 
-        return input_signal
+        return output_signal, length

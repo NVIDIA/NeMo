@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.cv import data, models, modules
-from nemo.package_info import __version__
+from torch import nn
 
-# Set collection version equal to NeMo version.
-__version = __version__
+class Permute(nn.Module):
+    def __init__(self, dims, make_contiguous=False):
+        super(Permute, self).__init__()
+        self.dims = dims
+        self.make_contiguous = make_contiguous
 
-# Authorship.
-__author__ = "NVIDIA Corporation"
-
-# Set collection name.
-__description__ = "Computer Vision collection"
+    def forward(self, x):
+        x = x.permute(self.dims)
+        if self.make_contiguous:
+            x = x.contiguous()
+        return x

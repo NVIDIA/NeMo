@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import copy
 import json
 import os
@@ -52,16 +53,16 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         # Init
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Preprocessors
+        # Preprocessor, video transforms
         self.video_preprocessor = VisualEncDecCTCModel.from_config_dict(self._cfg.video_preprocessor)
 
-        # Augmentations
+        # Augmentation, video augmentations
         self.video_augmentation = VisualEncDecCTCModel.from_config_dict(self._cfg.video_augment)
 
-        # Front-end Networks
+        # Front-end Network, learned module that transform videos to temporal sequence
         self.video_front_end = VisualEncDecCTCModel.from_config_dict(self._cfg.video_front_end)
 
-        # Back-end Networks
+        # Encoder Network
         self.encoder = VisualEncDecCTCModel.from_config_dict(self._cfg.encoder)
 
         with open_dict(self._cfg):
@@ -499,16 +500,13 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         # Front-end Networks
-        processed_video_signal, processed_video_signal_length = (
-            self.video_front_end(input_signal=processed_video_signal),
-            processed_video_signal_length,
+        processed_video_signal, processed_video_signal_length = self.video_front_end(
+            input_signal=processed_video_signal, length=processed_video_signal_length
         )
 
         # Back-end Networks
-        encoder_output = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)
-
-        encoded = encoder_output[0]
-        encoded_len = encoder_output[1]
+        encoded, encoded_len = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)
+        
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 

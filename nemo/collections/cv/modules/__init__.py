@@ -1,10 +1,18 @@
-from nemo.collections.cv.modules.conv2d import Conv2d
-from nemo.collections.cv.modules.global_avg_pool2d import GlobalAvgPool2d
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from nemo.collections.cv.modules.linear_projection_video_front_end import LinearProjectionVideoFrontEnd
-from nemo.collections.cv.modules.permute import Permute
-from nemo.collections.cv.modules.resnet import ResNet
-from nemo.collections.cv.modules.resnet_block import ResNetBlock
-from nemo.collections.cv.modules.resnet_bottleneck_block import ResNetBottleneckBlock
 from nemo.collections.cv.modules.resnet_video_front_end import ResNetVideoFrontEnd
 from nemo.collections.cv.modules.video_augment import VideoAugmentation
 from nemo.collections.cv.modules.video_preprocessing import VideoPreprocessor

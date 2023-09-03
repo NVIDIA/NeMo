@@ -1,3 +1,17 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import random
 from math import isclose
 from typing import Optional
@@ -7,9 +21,9 @@ from omegaconf import DictConfig
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
 
-from nemo.collections.asr.data import audio_to_text
 from nemo.collections.cv.data import video_to_text
 from nemo.utils import logging
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 
 
 def get_video_to_text_bpe_dataset_from_config(
@@ -271,91 +285,3 @@ def get_tarred_dataset(
             datasets.append(dataset)
 
     return get_chain_dataset(datasets=datasets, ds_config=config)
-
-
-def convert_to_config_list(initial_list):
-    if type(initial_list) is str:
-        initial_list = initial_list.split(",")
-    if initial_list is None or initial_list == []:
-        raise ValueError("manifest_filepaths and tarred_audio_filepaths must not be empty.")
-    if not isinstance(initial_list, ListConfig):
-        initial_list = ListConfig([initial_list])
-
-    for list_idx, list_val in enumerate(initial_list):
-        if type(list_val) != type(initial_list[0]):
-            raise ValueError(
-                "manifest_filepaths and tarred_audio_filepaths need to be a list of lists for bucketing or just a list of strings"
-            )
-    if type(initial_list[0]) is not ListConfig:
-        initial_list = ListConfig([initial_list])
-    return initial_list
-
-
-def get_chain_dataset(datasets, ds_config):
-    if len(datasets) > 1:
-        if ds_config.get('bucketing_batch_size', None) is not None:
-            bucketing_batch_sizes = calc_bucketing_batch_sizes(ds_config, len(datasets))
-            logging.info(
-                f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
-            )
-            for idx, dataset in enumerate(datasets):
-                datasets[idx] = audio_to_text.BucketingDataset(
-                    dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx]
-                )
-        else:
-            logging.info(
-                f"Batch bucketing is enabled for {len(datasets)} buckets with fixed batch size of {ds_config['batch_size']}!"
-            )
-
-    if len(datasets) == 1:
-        return datasets[0]
-    bucketing_strategy = ds_config.get('bucketing_strategy', 'synced_randomized')
-    if bucketing_strategy == 'fixed_order':
-        return ChainDataset(datasets)
-    elif bucketing_strategy == 'synced_randomized':
-        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=0)
-    elif bucketing_strategy == 'fully_randomized':
-        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
-    else:
-        raise ValueError(
-            f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are [fixed_order, fully_randomized, synced_randomized].'
-        )
-
-
-def calc_bucketing_batch_sizes(ds_config, datasets_len):
-    bucketing_batch_size = ds_config['bucketing_batch_size']
-    bucketing_weights = ds_config.get('bucketing_weights', None)  # To adjust for upsampled buckets
-
-    bucketing_batch_sizes = []
-
-    if ds_config['batch_size'] != 1:
-        raise ValueError(
-            f"batch_size should be set to one when bucketing_batch_size is set and adaptive bucketing is enabled (batch_size={ds_config['batch_size']}!"
-        )
-    if type(bucketing_batch_size) == int:  # linear scaling
-        if bucketing_weights:  # Want same batchsize for the same duplicated bucket
-            for idx, weight in enumerate(bucketing_weights):
-                scale_factor = datasets_len - idx
-                [bucketing_batch_sizes.append(scale_factor * bucketing_batch_size) for _ in range(weight)]
-        else:
-            for idx in range(datasets_len):
-                scale_factor = datasets_len - idx
-                bucketing_batch_sizes.append(scale_factor * bucketing_batch_size)
-    elif isinstance(bucketing_batch_size, ListConfig) or isinstance(
-        bucketing_batch_size, list
-    ):  # assigned bucket sizes
-        if bucketing_weights:  # Want same batchsize for same duplicated bucket
-            for idx, weight in enumerate(bucketing_weights):
-                [bucketing_batch_sizes.append(bucketing_batch_size[idx]) for _ in range(weight)]
-        else:
-            bucketing_batch_sizes = bucketing_batch_size
-    else:
-        raise ValueError(
-            f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={bucketing_batch_size})!"
-        )
-
-    if len(bucketing_batch_sizes) != datasets_len:
-        raise ValueError(
-            f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={datasets_len}) "
-        )
-    return bucketing_batch_sizes

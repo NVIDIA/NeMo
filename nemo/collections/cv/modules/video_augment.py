@@ -1,12 +1,26 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import random
 
 import torch
-import torchaudio
 import torchvision
 from torch import nn
 
 from nemo.core.classes.module import NeuralModule
-
+from collections import OrderedDict
+from nemo.core.neural_types import VideoSignal, NeuralType
 
 class VideoAugmentation(NeuralModule):
 
@@ -51,6 +65,24 @@ class VideoAugmentation(NeuralModule):
         if self.spatial_masking:
             self.training_augments.append(SpatialVideoMasking(mean_frame=mean_frame))
 
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return OrderedDict(
+            {
+                "input_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
+            }
+        )
+
+    @property
+    def input_types_for_export(self):
+        """Returns definitions of module input ports."""
+        return OrderedDict(
+            {
+                "output_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
+            }
+        )
+
     @torch.no_grad()
     def forward(self, input_signal, length):
 
@@ -59,13 +91,15 @@ class VideoAugmentation(NeuralModule):
         else:
             augments = self.inference_augments
 
+        output_signal = input_signal
+
         for augment in augments:
             if isinstance(augment, VideoFrameMasking) or isinstance(augment, SpatialVideoMasking):
-                input_signal = augment(input_signal, length)
+                output_signal = augment(output_signal, length)
             else:
-                input_signal = augment(input_signal)
+                output_signal = augment(output_signal)
 
-        return input_signal
+        return output_signal
 
 
 class SpatialVideoMasking(NeuralModule):

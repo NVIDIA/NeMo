@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.cv import data, models, modules
-from nemo.package_info import __version__
+from torch import nn
 
-# Set collection version equal to NeMo version.
-__version = __version__
+class GlobalAvgPool2d(nn.Module):
+    def __init__(self, dim=(2, 3), keepdim=False):
+        super(GlobalAvgPool2d, self).__init__()
+        self.dim = dim
+        self.keepdim = keepdim
 
-# Authorship.
-__author__ = "NVIDIA Corporation"
+    def forward(self, x):
 
-# Set collection name.
-__description__ = "Computer Vision collection"
+        assert x.dim() == 4, "input signal should have 4 dims, has {}".format(x.dim())
+
+        return x.mean(dim=self.dim, keepdim=self.keepdim)

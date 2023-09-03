@@ -1,3 +1,17 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -5,7 +19,7 @@ import braceexpand
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
@@ -114,7 +128,7 @@ class _VideoTextDataset(Dataset):
                """
         return {
             'video_signal': NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal()),
-            'v_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'video_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
@@ -298,7 +312,7 @@ class VideoToBPEDataset(_VideoTextDataset):
                """
         return {
             'video_signal': NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal()),
-            'v_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'video_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
@@ -402,7 +416,7 @@ class VideoToCharDataset(_VideoTextDataset):
                """
         return {
             'video_signal': NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal()),
-            'v_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'video_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
@@ -577,7 +591,7 @@ class _TarredVideoToTextDataset(IterableDataset):
         self.pad_id = pad_id
         self.return_sample_id = return_sample_id
 
-        audio_tar_filepaths = expand_audio_filepaths(
+        audio_tar_filepaths = expand_sharded_filepaths(
             audio_tar_filepaths=audio_tar_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
@@ -680,12 +694,6 @@ class _TarredVideoToTextDataset(IterableDataset):
 
         # Load Video
         video_features = video_tuple[0]
-
-        if video_features.shape[1:] == (1, 1, 3):
-            print(audio_filename)
-            # raise Exception(audio_filename)
-            print(audio_filename, flush=True)
-            video_features = video_features.repeat(1, 96, 96, 1)
 
         # Signal length
         vf, vfl = video_features, torch.tensor(video_features.shape[0]).long()
@@ -860,56 +868,3 @@ class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
             world_size=world_size,
             return_sample_id=return_sample_id,
         )
-
-
-def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size: int, global_rank: int):
-    valid_shard_strategies = ['scatter', 'replicate']
-    if shard_strategy not in valid_shard_strategies:
-        raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
-
-    if isinstance(audio_tar_filepaths, str):
-        # Replace '(' and '[' with '{'
-        brace_keys_open = ['(', '[', '<', '_OP_']
-        for bkey in brace_keys_open:
-            if bkey in audio_tar_filepaths:
-                audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "{")
-
-        # Replace ')' and ']' with '}'
-        brace_keys_close = [')', ']', '>', '_CL_']
-        for bkey in brace_keys_close:
-            if bkey in audio_tar_filepaths:
-                audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
-
-    if isinstance(audio_tar_filepaths, str):
-        # Brace expand
-        audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
-
-    # Expand store paths into WebDataset URLs
-    audio_tar_filepaths = [
-        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in audio_tar_filepaths
-    ]
-
-    # Check for distributed and partition shards accordingly
-    if world_size > 1:
-        if shard_strategy == 'scatter':
-            logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
-
-            if len(audio_tar_filepaths) % world_size != 0:
-                logging.warning(
-                    f"Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible "
-                    f"by number of distributed workers ({world_size})."
-                )
-
-            begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
-            end_idx = begin_idx + len(audio_tar_filepaths) // world_size
-            audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
-            logging.info(
-                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
-            )
-
-        elif shard_strategy == 'replicate':
-            logging.info("All tarred dataset shards will be replicated across all nodes.")
-        else:
-            raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
-
-    return audio_tar_filepaths

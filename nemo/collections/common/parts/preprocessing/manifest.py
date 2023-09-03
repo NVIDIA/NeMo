@@ -86,17 +86,17 @@ def item_iter(
 def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
 
-    # Video File
-    if 'video_filename' in item:
-        item['video_file'] = item.pop('video_filename')
-    elif 'video_filepath' in item:
-        item['video_file'] = item.pop('video_filepath')
-
     # Audio file
     if 'audio_filename' in item:
         item['audio_file'] = item.pop('audio_filename')
     elif 'audio_filepath' in item:
         item['audio_file'] = item.pop('audio_filepath')
+
+    # Video File
+    if 'video_filename' in item:
+        item['video_file'] = item.pop('video_filename')
+    elif 'video_filepath' in item:
+        item['video_file'] = item.pop('video_filepath')
 
     if 'video_file' not in item and 'audio_file' not in item:
         raise ValueError(

@@ -347,13 +347,13 @@ class ASRVideoText(VideoText):
     """`VideoText` collector from cv structured json files."""
 
     def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
-        """Parse lists of audio files, durations and transcripts texts.
+        """Parse lists of video files, durations and transcripts texts.
 
         Args:
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
-            *args: Args to pass to `AudioText` constructor.
-            **kwargs: Kwargs to pass to `AudioText` constructor.
+            *args: Args to pass to `VideoText` constructor.
+            **kwargs: Kwargs to pass to `VideoText` constructor.
         """
 
         ids, video_files, durations, texts, offsets, = (
