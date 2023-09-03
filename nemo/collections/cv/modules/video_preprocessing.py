@@ -20,9 +20,11 @@ from nemo.core.classes import NeuralModule, typecheck
 
 try:
     import torchvision
+
     TORCHVISION_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
+
 
 class VideoPreprocessor(NeuralModule):
 
@@ -90,6 +92,7 @@ class VideoPreprocessor(NeuralModule):
 
         return input_signal, length
 
+
 class NormalizeVideo(NeuralModule):
     def __init__(self, mean, std):
         super().__init__()
@@ -106,6 +109,7 @@ class NormalizeVideo(NeuralModule):
         x = (x - self.mean) / self.std
 
         return x
+
 
 class ResizeVideo(NeuralModule):
     def __init__(self, size):

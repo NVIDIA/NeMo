@@ -17,9 +17,11 @@ import tempfile
 
 try:
     import torchvision
+
     TORCHVISION_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
+
 
 class VideoFeaturizer(object):
     def __init__(self):

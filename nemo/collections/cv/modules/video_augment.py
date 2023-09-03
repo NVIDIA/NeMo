@@ -24,9 +24,11 @@ from nemo.core.neural_types import NeuralType, VideoSignal
 
 try:
     import torchvision
+
     TORCHVISION_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     TORCHVISION_AVAILABLE = False
+
 
 class VideoAugmentation(NeuralModule):
 
