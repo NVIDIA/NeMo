@@ -79,7 +79,7 @@ def get_video_to_text_bpe_dataset_from_config(
 
         shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
         if is_concat:
-            raise Exception("get_concat_tarred_dataset method not implemented")
+            raise NotImplementedError("get_concat_tarred_dataset method not implemented")
         else:
             dataset = get_tarred_dataset(
                 config=config, tokenizer=tokenizer, shuffle_n=shuffle_n, global_rank=global_rank, world_size=world_size
