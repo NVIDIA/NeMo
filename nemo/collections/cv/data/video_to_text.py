@@ -30,7 +30,7 @@ from nemo.utils import logging
 from nemo.utils.data_utils import datastore_path_to_webdataset_url, is_datastore_path
 
 
-def _speech_collate_fn(batch, pad_id):
+def _video_speech_collate_fn(batch, pad_id):
     """collate batch of video sig, video len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -201,7 +201,7 @@ class _VideoTextDataset(Dataset):
         return len(self.manifest_processor.collection)
 
     def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
+        return _video_speech_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
 
 
 class VSRManifestProcessor:
@@ -676,7 +676,7 @@ class _TarredVideoToTextDataset(IterableDataset):
         return TarredAudioLoopOffsets(self.manifest_processor.collection)
 
     def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, self.pad_id)
+        return _video_speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
