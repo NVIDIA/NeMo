@@ -107,9 +107,9 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     # try to attach the parent directory of manifest to the audio path.
     # Revert to the original path if the new path still doesn't exist.
     # Assume that the audio path is like "wavs/xxxxxx.wav".
-    if item['audio_file'] in item:
+    if 'audio_file' in item:
         item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
-    if item['video_file'] in item:
+    if 'video_file' in item:
         item['video_file'] = get_full_path(audio_file=item['video_file'], manifest_file=manifest_file)
 
     # Duration.
