@@ -89,7 +89,7 @@ def get_video_to_text_bpe_dataset_from_config(
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         if is_concat:
-            raise Exception("get_concat_bpe_dataset method not implemented")
+            raise NotImplementedError("get_concat_bpe_dataset method not implemented")
         else:
             dataset = get_bpe_dataset(config=config, tokenizer=tokenizer)
     return dataset
