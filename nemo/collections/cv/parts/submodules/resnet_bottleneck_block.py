@@ -18,6 +18,7 @@ from torch.nn.modules.utils import _pair
 
 from nemo.collections.cv.parts.submodules.conv2d import Conv2d
 
+
 class ResNetBottleneckBlock(nn.Module):
 
     """ ResNet Bottleneck Residual Block used by ResNet50, ResNet101 and ResNet152 networks.

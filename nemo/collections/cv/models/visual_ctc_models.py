@@ -506,7 +506,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
 
         # Back-end Networks
         encoded, encoded_len = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)
-        
+
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 

@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import random
+from collections import OrderedDict
 
 import torch
 import torchvision
 from torch import nn
 
 from nemo.core.classes.module import NeuralModule
-from collections import OrderedDict
-from nemo.core.neural_types import VideoSignal, NeuralType
+from nemo.core.neural_types import NeuralType, VideoSignal
+
 
 class VideoAugmentation(NeuralModule):
 
@@ -68,20 +69,12 @@ class VideoAugmentation(NeuralModule):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
-        return OrderedDict(
-            {
-                "input_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
-            }
-        )
+        return OrderedDict({"input_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),})
 
     @property
     def input_types_for_export(self):
         """Returns definitions of module input ports."""
-        return OrderedDict(
-            {
-                "output_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
-            }
-        )
+        return OrderedDict({"output_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),})
 
     @torch.no_grad()
     def forward(self, input_signal, length):

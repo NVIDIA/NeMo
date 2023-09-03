@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
+
 import torch
 from torch import nn
 
 from nemo.collections.cv.modules.resnet import ResNet
 from nemo.core.classes.module import NeuralModule
-from collections import OrderedDict
-from nemo.core.neural_types import LengthsType, VideoSignal, NeuralType
+from nemo.core.neural_types import LengthsType, NeuralType, VideoSignal
 
 
 class ResNetVideoFrontEnd(NeuralModule):
@@ -57,7 +58,7 @@ class ResNetVideoFrontEnd(NeuralModule):
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
-                "length": NeuralType(tuple('B'), LengthsType())
+                "length": NeuralType(tuple('B'), LengthsType()),
             }
         )
 
