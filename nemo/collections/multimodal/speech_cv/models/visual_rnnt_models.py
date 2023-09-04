@@ -31,7 +31,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.cv.data import video_to_text_dataset
+from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -485,7 +485,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.cv.data.video_to_text.VideoToCharDataset`
+            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
@@ -524,7 +524,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.cv.data.video_to_text.VideoToCharDataset`
+            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
@@ -545,7 +545,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.cv.data.video_to_text.VideoToCharDataset`
+            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """

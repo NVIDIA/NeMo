@@ -27,7 +27,7 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.cv.models.visual_rnnt_models import VisualEncDecRNNTModel
+from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils

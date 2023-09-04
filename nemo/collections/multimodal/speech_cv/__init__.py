@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.cv.modules.linear_projection_video_front_end import LinearProjectionVideoFrontEnd
-from nemo.collections.cv.modules.resnet_video_front_end import ResNetVideoFrontEnd
-from nemo.collections.cv.modules.video_augment import VideoAugmentation
-from nemo.collections.cv.modules.video_preprocessing import VideoPreprocessor
+from nemo.collections.multimodal.speech_cv import data, models, modules
+from nemo.package_info import __version__
+
+# Set collection version equal to NeMo version.
+__version = __version__
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Speech Computer Vision collection"

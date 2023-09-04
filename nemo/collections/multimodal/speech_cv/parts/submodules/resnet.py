@@ -14,10 +14,10 @@
 
 from torch import nn
 
-from nemo.collections.cv.parts.submodules.conv2d import Conv2d
-from nemo.collections.cv.parts.submodules.global_avg_pool2d import GlobalAvgPool2d
-from nemo.collections.cv.parts.submodules.resnet_block import ResNetBlock
-from nemo.collections.cv.parts.submodules.resnet_bottleneck_block import ResNetBottleneckBlock
+from nemo.collections.multimodal.speech_cv.parts.submodules.conv2d import Conv2d
+from nemo.collections.multimodal.speech_cv.parts.submodules.global_avg_pool2d import GlobalAvgPool2d
+from nemo.collections.multimodal.speech_cv.parts.submodules.resnet_block import ResNetBlock
+from nemo.collections.multimodal.speech_cv.parts.submodules.resnet_bottleneck_block import ResNetBottleneckBlock
 
 
 class ResNet(nn.Module):

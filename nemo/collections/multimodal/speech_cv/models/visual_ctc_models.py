@@ -30,7 +30,7 @@ from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.cv.data import video_to_text_dataset
+from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, NeuralType, VideoSignal
@@ -383,7 +383,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.cv.data.video_to_text.VideoToCharDataset`
+            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
@@ -422,7 +422,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.cv.data.video_to_text.VideoToCharDataset`
+            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
@@ -443,7 +443,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                 of an ASR Training dataset.
 
         Supported Datasets:
-            -   :class:`~nemo.collections.cv.data.video_to_text.VideoToCharDataset`
+            -   :class:`~nemo.collections.multimodal.speech_cv.data.video_to_text.VideoToCharDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
