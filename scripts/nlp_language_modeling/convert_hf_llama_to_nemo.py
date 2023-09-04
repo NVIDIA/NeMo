@@ -17,37 +17,30 @@ Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_hf_llama_to_nemo.py \
      --in-file <path_to_hf_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file>
+     --out-file <path_to_output_nemo_file> \
+     [--fast-swiglu\
 """
 
-import importlib
 import os
-import pathlib
-import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
-from typing import Any, Optional
 
-import numpy as np
 import torch
-from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.cloud_io import load as pl_load
-from pytorch_lightning.utilities.migration import pl_legacy_patch
-from transformers import LlamaForCausalLM
+from transformers import LlamaForCausalLM, LlamaTokenizer
 
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 
-# from nemo.collections.nlp.models.language_modeling.megatron_llama_model import MegatronLLAMAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import AppState, logging
-from nemo.utils.distributed import initialize_distributed
-from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin,
+)
+from nemo.utils import logging
 
 
 def get_args():
@@ -55,23 +48,41 @@ def get_args():
     parser.add_argument(
         "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
-    parser.add_argument("--out-file", type=str, default=None, required=False, help="Path to output .nemo file.")
-
+    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--fast-swiglu", action="store_true", help="Enable fast swiglu by combining gate and up gemm")
+    parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
     return args
 
 
 def load_model(cls, checkpoint, strict, **kwargs):
-    # print(checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
-            model = ptl_load_state(
-                cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg, **kwargs
-            )
+            # model = ptl_load_state(
+            #     cls, checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
+            # )
+            model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
+            for name, module in model.named_parameters():
+                if name in checkpoint['state_dict']:
+                    module.data = checkpoint['state_dict'][name]
+                    checkpoint['state_dict'].pop(name)
+                else:
+                    print(f"Unexpected key: {name} not in checkpoint but in model.")
+
+            for name, buffer in model.named_buffers():
+                if name in checkpoint['state_dict']:
+                    buffer.data = checkpoint['state_dict'][name]
+                    checkpoint['state_dict'].pop(name)
+
+            if len(checkpoint['state_dict'].keys()) != 0:
+                raise RuntimeError(
+                    f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
+                )
+
             # register the artifacts
-            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
             if cfg.tokenizer.model is not None:
                 model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
             if cfg.tokenizer.vocab_file is not None:
@@ -83,154 +94,234 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(llama_config):
-    nemo_config = {}
-    nemo_config['cfg'] = {}
-    nemo_config['cfg']['encoder_seq_length'] = llama_config['max_sequence_length']
-    nemo_config['cfg']['num_layers'] = int(llama_config['num_hidden_layers'])
-    nemo_config['cfg']['hidden_size'] = llama_config['hidden_size']
-    nemo_config['cfg']['ffn_hidden_size'] = llama_config['intermediate_size']
-    nemo_config['cfg']['num_attention_heads'] = llama_config['num_attention_heads']
-    nemo_config['cfg']['max_position_embeddings'] = llama_config['max_position_embeddings']
-    nemo_config['cfg']['init_method_std'] = llama_config['initializer_range']
-    nemo_config['cfg']['normalization'] = 'rmsnorm'
-    nemo_config['cfg']['layernorm_epsilon'] = llama_config['rms_norm_eps']
-    nemo_config['cfg']['pre_process'] = True
-    nemo_config['cfg']['post_process'] = True
-    nemo_config['cfg']['bias'] = False
-    nemo_config['cfg']['hidden_dropout'] = 0.0
-    nemo_config['cfg']['attention_dropout'] = 0.0
-    nemo_config['cfg']['ffn_dropout'] = 0.0
-    nemo_config['cfg']['bias_dropout_add_fusion'] = False
-    nemo_config['cfg']['bias_activation_fusion'] = False
-    nemo_config['cfg']['use_cpu_initialization'] = False
-    nemo_config['cfg']['share_embeddings_and_output_weights'] = False
-    nemo_config['cfg']['make_vocab_size_divisible_by'] = 128
-    nemo_config['cfg']['activation'] = 'swiglu'
-    nemo_config['cfg']['transformer_block_type'] = 'pre_ln'
-    nemo_config['cfg']['position_embedding_type'] = 'rope'
-    nemo_config['cfg']['precision'] = 32
-    nemo_config['cfg']['optim'] = {'name': 'fused_adam'}
-    nemo_config['cfg']['tokenizer'] = {}
-    nemo_config['cfg']['tokenizer']['library'] = 'sentencepiece'
-    nemo_config['cfg']['tokenizer']['type'] = 'null'
-    nemo_config['cfg']['tokenizer']['model'] = 'tokenizer.model'
-    nemo_config['cfg']['tokenizer']['vocab_file'] = 'null'
-    nemo_config['cfg']['tokenizer']['merge_file'] = 'null'
-    nemo_config['cfg']['tokenizer']['tokenizer_model'] = 'null'
-    nemo_config['cfg']['tokenizer']['sentencepiece_legacy'] = False
-    nemo_config['cfg']['micro_batch_size'] = 1
-    nemo_config['cfg']['global_batch_size'] = 1
+def load_config(args, llama_config):
+    nemo_config = OmegaConf.load(
+        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
+    ).model
+    nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
+    nemo_config.num_layers = int(llama_config['num_hidden_layers'])
+    nemo_config.hidden_size = llama_config['hidden_size']
+    nemo_config.ffn_hidden_size = llama_config['intermediate_size']
+    nemo_config.num_attention_heads = llama_config['num_attention_heads']
+    nemo_config.max_position_embeddings = llama_config['max_position_embeddings']
+    nemo_config.init_method_std = llama_config['initializer_range']
+    nemo_config.layernorm_epsilon = llama_config['rms_norm_eps']
+    if 'num_key_value_heads' in llama_config:
+        nemo_config.num_query_groups = llama_config['num_key_value_heads']
+    nemo_config.use_cpu_initialization = True
+    nemo_config.activation = 'fast-swiglu' if args.fast_swiglu else 'swiglu'
+    nemo_config.tokenizer.model = llama_config['tokenizer_model']
+    if llama_config['rope_scaling'] is not None:
+        if llama_config['rope_scaling']['type'] == 'linear':
+            nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
+        else:
+            raise ValueError("Only linear rope scaling type is supported now")
 
-    nemo_config['cfg']['use_scaled_init_method'] = True
-    nemo_config['cfg']['normalize_attention_scores'] = True
-    nemo_config['cfg']['grad_allreduce_chunk_size_mb'] = 125
-    nemo_config['cfg']['persist_layer_norm'] = True
-    nemo_config['cfg']['masked_softmax_fusion'] = True
-    # print(nemo_config)
+    base = 128
+    while llama_config['vocab_size'] % base != 0:
+        base //= 2
+    nemo_config.make_vocab_size_divisible_by = base
+
     return nemo_config
 
 
 def convert(args):
-
-    # trainer = Trainer(devices=args.gpus_per_node, accelerator='cpu', num_nodes=num_nodes)
-    trainer = Trainer(accelerator='cpu')
-    # checkpoint_path = megatron_lm_inject_model_parallel_rank(
-    #    os.path.join(args.checkpoint_folder, args.checkpoint_name)
-    # )
     logging.info(f"loading checkpoint {args.in_file}")
     model = LlamaForCausalLM.from_pretrained(args.in_file)
+    tokenizer = LlamaTokenizer.from_pretrained(args.in_file)
     hf_config = vars(model.config)
-    nemo_config = load_config(hf_config)
+    hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
     print(f"hf_config: {hf_config}")
+    print("named parameters:")
+    for name, param in model.named_parameters():
+        print(f"- {name}")
+
+    nemo_config = load_config(args, hf_config)
+
+    if args.precision in ["32", "16"]:
+        precision = int(float(args.precision))
+    elif args.precision in ["bf16", "bf16-mixed"]:
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            precision = args.precision
+        else:
+            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
+            precision = args.precision[2:]  # prune bf in string
+    else:
+        precision = args.precision
+
+    plugins = []
+    if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
+        scaler = None
+        if precision in [16, '16', '16-mixed']:
+            scaler = GradScaler(
+                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
+                hysteresis=nemo_config.get('hysteresis', 2),
+            )
+            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
+            plugin_precision = '16-mixed'
+        else:
+            plugin_precision = 'bf16-mixed'
+
+        if nemo_config.get('megatron_amp_O2', False):
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+
+    if precision == 32:
+        dtype = torch.float32
+    elif precision in [16, "16", "16-mixed"]:
+        dtype = torch.float16
+    elif precision == ["bf16", "bf16-mixed"]:
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32  # fallback
+
+    nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
 
-    # print("named parameters:")
-    # for name, param in model.named_parameters():
-    #    print(f"- {name}")
+    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision)
 
     hidden_size = hf_config["hidden_size"]
     head_num = hf_config["num_attention_heads"]
     head_size = hidden_size // head_num
     num_layers = hf_config["num_hidden_layers"]
 
-    # print(model)
-    # print(model.state_dict())
+    mcore_gpt = nemo_config.mcore_gpt
 
-    checkpoint = None
+    assert mcore_gpt == nemo_config.get(
+        'transformer_engine', False
+    ), "mcore_gpt transformer_engine must be enabled (or disabled) together."
+
+    param_to_weights = lambda param: param.float()
+
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
 
     embed_weight = model.state_dict()[f'model.embed_tokens.weight']
-    embed_weights_base_name = f'model.language_model.embedding.word_embeddings.weight'
-    checkpoint['state_dict'][embed_weights_base_name] = embed_weight
+    if mcore_gpt:
+        embed_weights_base_name = f'model.embedding.word_embeddings.weight'
+    else:
+        embed_weights_base_name = f'model.language_model.embedding.word_embeddings.weight'
+    checkpoint['state_dict'][embed_weights_base_name] = param_to_weights(embed_weight)
 
-    rotary_embed_weight = model.state_dict()[f'model.layers.0.self_attn.rotary_emb.inv_freq']
-    rotary_embed_weight_base_name = f'model.language_model.rotary_pos_emb.inv_freq'
-    checkpoint['state_dict'][rotary_embed_weight_base_name] = rotary_embed_weight
+    # in hf, this is defined as register_buffer(..., persistent=False) so it won't be in the state dict
+    if f'model.layers.0.self_attn.rotary_emb.inv_freq' in model.state_dict():
+        rotary_embed_weight = model.state_dict()[f'model.layers.0.self_attn.rotary_emb.inv_freq']
+        if mcore_gpt:
+            rotary_embed_weight_base_name = f'model.rotary_pos_emb.inv_freq'
+        else:
+            rotary_embed_weight_base_name = f'model.language_model.rotary_pos_emb.inv_freq'
+        checkpoint['state_dict'][rotary_embed_weight_base_name] = param_to_weights(rotary_embed_weight)
+
+    if nemo_config.num_query_groups is None or nemo_config.num_query_groups == head_num:
+        num_query_groups = head_num
+    else:
+        num_query_groups = nemo_config.num_query_groups
+        assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
+    if mcore_gpt:
+        assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
         old_tensor_shape = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].size()
-        new_tensor_shape = (head_num, head_size) + model.state_dict()[
-            f'model.layers.{l}.self_attn.q_proj.weight'
-        ].size()[1:]
-        q = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_tensor_shape)
-        k = model.state_dict()[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_tensor_shape)
-        v = model.state_dict()[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_tensor_shape)
-        qkv_weights = torch.cat((q, k, v), axis=1)
-        qkv_weights = qkv_weights.reshape([3 * hidden_size, hidden_size])
-        qkv_weights_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.weight'
-        checkpoint['state_dict'][qkv_weights_base_name] = qkv_weights
+        new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+        new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+        q = model.state_dict()[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_q_tensor_shape)
+        k = model.state_dict()[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_kv_tensor_shape)
+        v = model.state_dict()[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
+        qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+        heads_per_group = head_num // num_query_groups
+        for i in range(num_query_groups):
+            qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+            qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+            qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
+        qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+        if mcore_gpt:
+            qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
+        else:
+            qkv_weights_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.weight'
+        checkpoint['state_dict'][qkv_weights_base_name] = param_to_weights(qkv_weights)
 
         # attention dense
         o_weight = model.state_dict()[f'model.layers.{l}.self_attn.o_proj.weight']
-        o_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
-        checkpoint['state_dict'][o_weight_base_name] = o_weight
+        if mcore_gpt:
+            o_weight_base_name = f'model.decoder.layers.{l}.self_attention.linear_proj.weight'
+        else:
+            o_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
+        checkpoint['state_dict'][o_weight_base_name] = param_to_weights(o_weight)
 
         # MLP
         mlp_down_weight = model.state_dict()[f'model.layers.{l}.mlp.gate_proj.weight']
-        mlp_down_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
-        checkpoint['state_dict'][mlp_down_base_name] = mlp_down_weight
-
         mlp_gate_weight = model.state_dict()[f'model.layers.{l}.mlp.up_proj.weight']
-        mlp_gate_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h_2.weight'
-        checkpoint['state_dict'][mlp_gate_base_name] = mlp_gate_weight
+        if args.fast_swiglu:
+            if mcore_gpt:
+                mlp_down_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.weight'
+            else:
+                mlp_down_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
+            mlp_down_weight = torch.cat((mlp_down_weight, mlp_gate_weight), axis=0)
+            checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
+        else:
+            mlp_down_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
+            checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
+
+            mlp_gate_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h_2.weight'
+            checkpoint['state_dict'][mlp_gate_base_name] = param_to_weights(mlp_gate_weight)
 
         mlp_up_weight = model.state_dict()[f'model.layers.{l}.mlp.down_proj.weight']
-        mlp_up_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_4h_to_h.weight'
-        checkpoint['state_dict'][mlp_up_base_name] = mlp_up_weight
+        if mcore_gpt:
+            mlp_up_base_name = f'model.decoder.layers.{l}.mlp.linear_fc2.weight'
+        else:
+            mlp_up_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_4h_to_h.weight'
+        checkpoint['state_dict'][mlp_up_base_name] = param_to_weights(mlp_up_weight)
 
         # LayerNorm
         input_ln_weight = model.state_dict()[f'model.layers.{l}.input_layernorm.weight']
-        input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
-        checkpoint['state_dict'][input_ln_base_name] = input_ln_weight
+        if mcore_gpt:
+            input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
+        else:
+            input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
+        checkpoint['state_dict'][input_ln_base_name] = param_to_weights(input_ln_weight)
 
         post_attn_ln_weight = model.state_dict()[f'model.layers.{l}.post_attention_layernorm.weight']
-        post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
-        checkpoint['state_dict'][post_attn_ln_base_name] = post_attn_ln_weight
+        if mcore_gpt:
+            post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
+        else:
+            post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
+        checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
 
         print(f"done layer {l}")
 
     final_ln_weight = model.state_dict()[f'model.norm.weight']
-    final_ln_base_name = f'model.language_model.encoder.final_layernorm.weight'
-    checkpoint['state_dict'][final_ln_base_name] = final_ln_weight
+    if mcore_gpt:
+        final_ln_base_name = f'model.decoder.final_layernorm.weight'
+    else:
+        final_ln_base_name = f'model.language_model.encoder.final_layernorm.weight'
+    checkpoint['state_dict'][final_ln_base_name] = param_to_weights(final_ln_weight)
 
     output_layer_weight = model.state_dict()[f'lm_head.weight']
-    output_layer_base_name = f'model.language_model.output_layer.weight'
-    checkpoint['state_dict'][output_layer_base_name] = output_layer_weight
+    if mcore_gpt:
+        output_layer_base_name = f'model.output_layer.weight'
+    else:
+        output_layer_base_name = f'model.language_model.output_layer.weight'
+    checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
-    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = OmegaConf.create(nemo_config)
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
+
+    del model
 
     model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
-    # verify tensor parallel rank id and pipeline parallel rank id matches
     model._save_restore_connector = NLPSaveRestoreConnector()
+
+    # cast to target precision and disable cpu init
+    model = model.to(dtype=dtype)
+    model.cfg.use_cpu_initialization = False
+
     model.save_to(args.out_file)
     logging.info(f'NeMo model saved to: {args.out_file}')
 
 
 if __name__ == '__main__':
     args = get_args()
-    os.chdir(args.in_file)
     convert(args)

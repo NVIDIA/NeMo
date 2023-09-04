@@ -186,7 +186,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
         # Raise error if using multiple dataloaders
@@ -197,14 +197,15 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            else:
-                self.model.sync_initial_word_embeddings()
+        if not self.cfg.get('mcore_gpt', False):
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if isinstance(self.model, list):
+                    for i, module in enumerate(self.model):
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                        module.sync_initial_word_embeddings()
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+                else:
+                    self.model.sync_initial_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
             self.setup_transformer_engine_tp_groups()
@@ -278,13 +279,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 sep_id=self.sep_id,
                 max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
-                context_key=data_cfg.get('context_key', 'text'),
                 label_key=data_cfg.get('label_key', 'answer'),
-                separate_prompt_and_response_with_newline=data_cfg.get(
-                    'separate_prompt_and_response_with_newline', True
-                ),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
-                truncation_field=data_cfg.get('truncation_field', 'context'),
+                truncation_field=data_cfg.get('truncation_field', 'text'),
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
@@ -298,6 +295,9 @@ class MegatronGPTSFTModel(MegatronGPTModel):
                 hf_dataset=data_cfg.get(
                     'hf_dataset', False
                 ),  # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+                truncation_method=data_cfg.get(
+                    'truncation_method', 'right'
+                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
             )
             datasets.append(dataset)
 
@@ -338,6 +338,10 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_o2,)
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
+
+        self.model.config.no_sync_func = no_sync_func
+        self.model.config.grad_sync_func = grad_sync_func
+        self.model.config.param_sync_func = param_sync_func
 
         fwd_bwd_function = get_forward_backward_func()
 
@@ -381,20 +385,17 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
-        except StopIteration:
-            return
+        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
 
     def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
         # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        try:
-            return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
-        except StopIteration:
-            return
+        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
 
     def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
         batch = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -402,21 +403,24 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         loss = super().validation_step(itertools.chain([batch]), batch_idx)
 
-        # We need _inference_config to get generation params
-        # add_BOS and tokens_to_generate are set in dataset
-        if self.get_inference_config() is None:
-            self.set_inference_config(inference_config={})
-        self._inference_config['add_BOS'] = data_cfg.add_bos
-        self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+        if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
+            # We need _inference_config to get generation params
+            # add_BOS and tokens_to_generate are set in dataset
+            if self.get_inference_config() is None:
+                self.set_inference_config(inference_config={})
+            self._inference_config['add_BOS'] = data_cfg.add_bos
+            self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 
-        output = self.predict_step(batch, batch_idx, dataloader_idx)
+            output = self.predict_step(batch, batch_idx, dataloader_idx)
+            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+            preds_text = [
+                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                for t, l in zip(output['token_ids'], batch['context_lengths'])
+            ]
+        else:
+            inputs_text, labels_text, preds_text = [], [], []
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-        preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-            for t, l in zip(output['token_ids'], batch['context_lengths'])
-        ]
         outputs = {
             'loss': loss,
             'preds': preds_text,  # [str]
@@ -583,6 +587,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -750,7 +755,7 @@ class MegatronGPTSFTModel(MegatronGPTModel):
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
-            if hasattr(self.cfg.data, 'test_ds'):
+            if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)

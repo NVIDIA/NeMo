@@ -5,10 +5,10 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: 32
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -41,6 +41,7 @@ exp_manager:
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
+  mcore_gpt: True
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
@@ -50,12 +51,12 @@ model:
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
   # model architecture
-  encoder_seq_length: 512
+  encoder_seq_length: 4096
   max_position_embeddings: ${.encoder_seq_length}
-  num_layers: 12
-  hidden_size: 768
-  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 12
+  num_layers: 32 # 7b: 32 | 13b: 40 | 70b: 80
+  hidden_size: 4096 # 7b: 4096 | 13b: 5120 | 70b: 8192
+  ffn_hidden_size: 11008 # Transformer FFN hidden size. Usually 4 * hidden_size. | 7b: 11008 | 13b: 13824 | 70b: 28672
+  num_attention_heads: 32 # 7b: 32 | 13b: 40 | 70b: 64
   init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0.0 # Dropout probability for hidden state transformer.
@@ -64,14 +65,14 @@ model:
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-  layernorm_epsilon: 1e-6
+  layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   bias: False # Whether to use bias terms in all weight matrices.
-  activation: 'swiglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']
+  activation: 'fast-swiglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']
   headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
   openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
@@ -79,18 +80,11 @@ model:
   position_embedding_type: 'rope' # Position embedding type. Options ['learned_absolute', 'rope']
   rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
   attention_type: 'multihead' # Attention type. Options ['multihead']
-  share_embeddings_and_output_weights: True # Share embedding and output layer weights.
+  share_embeddings_and_output_weights: False # Share embedding and output layer weights.
   overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
   batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  num_query_groups: 32 # Number of query groups for group query attention. If None, normal attention is used. | 7b: 32 | 13b: 40 | 70b: 8
 
-  #  tokenizer:
-  #    library: 'huggingface'
-  #    type: 'hf-internal-testing/llama-tokenizer'
-  #    model: null
-  #    vocab_file: null
-  #    merge_file: null 
-  #    delimiter: null # only used for tabular tokenizer
-  #    sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
   tokenizer:
     library: 'sentencepiece'
     type: null
@@ -163,7 +157,7 @@ model:
   sequence_parallel: False
 
   ## Transformer Engine
-  transformer_engine: False
+  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3 
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
@@ -187,7 +181,7 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: ???
+    # data_prefix: ???
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
