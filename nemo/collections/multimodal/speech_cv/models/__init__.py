@@ -15,7 +15,9 @@
 # CTC
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_bpe_models import VisualEncDecCTCModelBPE
 from nemo.collections.multimodal.speech_cv.models.visual_ctc_models import VisualEncDecCTCModel
-from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_bpe_models import VisualEncDecHybridRNNTCTCBPEModel
+from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_bpe_models import (
+    VisualEncDecHybridRNNTCTCBPEModel,
+)
 
 # Hybrid CTC/RNN-T
 from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_models import VisualEncDecHybridRNNTCTCModel
