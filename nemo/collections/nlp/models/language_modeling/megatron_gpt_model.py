@@ -918,7 +918,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     self.inference_params.sequence_len_offset += output_tensor.size(0)
 
-
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
 
