@@ -143,6 +143,7 @@ def main(cfg) -> None:
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
+    
     plugins = []
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,
@@ -166,7 +167,6 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
-
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager

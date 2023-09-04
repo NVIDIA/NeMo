@@ -12,9 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+from typing import Any, List, Optional, Union
+
+import numpy as np
+import torch
 from omegaconf import DictConfig, ListConfig
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
+)
+
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate,
+    get_computeprob_response,
+    get_default_length_params,
+    get_default_sampling_params,
+    megatron_gpt_generate,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
@@ -105,4 +118,44 @@ class MegatronMMGPTSFTModel(MegatronGPTSFTModel):
         else:
             return datasets
 
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        # generate either takes list of text prompts or a tuple of (context_ids, context_length)
+        if isinstance(batch, list):
+            inference_inputs = batch
+        else:
+            inference_inputs = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
+        
+        inference_config = self.get_inference_config()
+        if inference_config is None:
+            return None
+        else:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
+            compute_logprob = inference_config['compute_logprob']
+            if compute_logprob:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = inference_inputs
+                inference_config['tokens_to_generate'] = 1
+                inference_config['all_probs'] = True
+                inference_config["add_BOS"] = False
+                inference_config['greedy'] = True
+                response = generate(self, **inference_config)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                return compute_prob_response
+            else:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = inference_inputs
+                response =  generate(self, **inference_config)
+                
+                # accumulate ground truth and predictions in the form of text
+                gt_text = [
+                    self.tokenizer.ids_to_text(t.numpy()[l.item() :]) for t, l in zip(batch['tokens'], batch['context_lengths'])
+                ] 
+                pred_text = [
+                    self.tokenizer.ids_to_text(t[l.item() :]) for t, l in zip(response['token_ids'], batch['context_lengths'])
+                ]
+                
+                response['gt_text'] = gt_text
+                response['pred_text'] = pred_text
+                return response
     
