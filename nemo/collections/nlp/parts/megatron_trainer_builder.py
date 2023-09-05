@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.utils.exp_manager import CustomProgressBar
 
 
 class MegatronTrainerBuilder:
@@ -83,7 +84,7 @@ class MegatronTrainerBuilder:
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer)
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[CustomProgressBar()])
 
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
@@ -102,4 +103,4 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=[ModelSummary(max_depth=3), CustomProgressBar()])
