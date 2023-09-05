@@ -49,7 +49,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
-    
+
     from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, AttnType, LayerType, ModelType
     from nemo.collections.nlp.modules.common.megatron.utils import divide as safe_divide
 
