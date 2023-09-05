@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import torch
+
 from nemo.collections.nlp.modules.common.megatron.utils import _cast_if_autocast_enabled
 
 try:
@@ -23,8 +24,9 @@ try:
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
-    from torch.nn.modules.normalization import LayerNorm
     import torch.nn.functional as F
+    from torch.nn.modules.normalization import LayerNorm
+
     HAVE_APEX = False
 
 

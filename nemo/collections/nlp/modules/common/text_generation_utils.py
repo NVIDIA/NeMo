@@ -371,6 +371,7 @@ def receive_generate_info():
         end_strings,
     )
 
+
 def unsynced_generate(
     model,
     inference_strategy,
@@ -390,7 +391,7 @@ def unsynced_generate(
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
-    
+
     if isinstance(tokenizer, TabularTokenizer):
         assert False, "TabularTokenizer is not supported yet"
     else:
@@ -423,12 +424,11 @@ def unsynced_generate(
             dtype = torch.bfloat16
         else:
             dtype = torch.float32
-            
+
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits
 
-    
-    
+
 def synced_generate(
     model,
     inference_strategy,
@@ -448,7 +448,7 @@ def synced_generate(
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
-    
+
     if isinstance(tokenizer, TabularTokenizer):
         batch_token_iterator = tab_sample_sequence_batch(
             model,
@@ -525,7 +525,6 @@ def synced_generate(
                 torch.distributed.broadcast(full_logits, src, group)
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits
-
 
 
 def generate(
@@ -990,7 +989,7 @@ def unsynced_sample_sequence_batch(
             # make sure it won't sample outside the vocab_size range
             logits[:, tokenizer.vocab_size :] = -float('Inf')
 
-                # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
+            # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
 
             started = context_lengths <= context_length
             if extra.get('greedy', False):
@@ -1062,6 +1061,7 @@ def unsynced_sample_sequence_batch(
             counter += 1
             if done:
                 break
+
 
 def tab_sample_sequence_batch(
     model,

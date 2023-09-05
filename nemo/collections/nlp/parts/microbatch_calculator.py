@@ -1,9 +1,10 @@
-from abc import ABC
-from abc import abstractmethod
-from typing import Optional, List
+from abc import ABC, abstractmethod
+from typing import List, Optional
+
 from nemo.utils import logging
 
 _GLOBAL_NUM_MICROBATCHES_CALCULATOR = None
+
 
 class NumMicroBatchesCalculator(ABC):
     def __init__(self):
@@ -19,6 +20,7 @@ class NumMicroBatchesCalculator(ABC):
     @abstractmethod
     def update(self, consumed_samples, consistency_check):
         pass
+
 
 class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
     def __init__(
@@ -48,9 +50,7 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
 
         self.micro_batch_size = micro_batch_size
         self.data_parallel_size = data_parallel_size
-        self.micro_batch_times_data_parallel_size = (
-            self.micro_batch_size * self.data_parallel_size
-        )
+        self.micro_batch_times_data_parallel_size = self.micro_batch_size * self.data_parallel_size
         assert self.micro_batch_times_data_parallel_size > 0
 
         assert start_batch_size > 0
@@ -82,37 +82,26 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
             self.current_global_batch_size = self.global_batch_size
         else:
             steps = int(consumed_samples / self.rampup_samples_per_increment)
-            self.current_global_batch_size = (
-                self.start_batch_size + steps * self.batch_size_increment
-            )
+            self.current_global_batch_size = self.start_batch_size + steps * self.batch_size_increment
             assert self.current_global_batch_size <= self.global_batch_size
 
         if consistency_check:
-            assert (
-                self.current_global_batch_size
-                % self.micro_batch_times_data_parallel_size
-                == 0
-            ), (
+            assert self.current_global_batch_size % self.micro_batch_times_data_parallel_size == 0, (
                 "current global "
                 "batch size ({}) is not divisible by micro-batch-size ({}) times"
                 "data parallel size ({})".format(
-                    self.current_global_batch_size,
-                    self.micro_batch_size,
-                    self.data_parallel_size,
+                    self.current_global_batch_size, self.micro_batch_size, self.data_parallel_size,
                 )
             )
-        self.num_micro_batches = (
-            self.current_global_batch_size // self.micro_batch_times_data_parallel_size
-        )
+        self.num_micro_batches = self.current_global_batch_size // self.micro_batch_times_data_parallel_size
+
 
 class ConstantNumMicroBatches(NumMicroBatchesCalculator):
     def __init__(self, global_batch_size, micro_batch_size, data_parallel_size):
         micro_batch_times_data_parallel = micro_batch_size * data_parallel_size
         assert global_batch_size % micro_batch_times_data_parallel == 0, (
             "global batch size ({}) is not divisible by micro batch size ({})"
-            " times data parallel size ({})".format(
-                global_batch_size, micro_batch_size, data_parallel_size
-            )
+            " times data parallel size ({})".format(global_batch_size, micro_batch_size, data_parallel_size)
         )
         self.num_micro_batches = global_batch_size // micro_batch_times_data_parallel
         assert self.num_micro_batches >= 1
@@ -123,7 +112,7 @@ class ConstantNumMicroBatches(NumMicroBatchesCalculator):
     def update(self, consumed_samples, consistency_check):
         pass
 
-    
+
 def build_num_microbatches_calculator(
     rank: int,
     rampup_batch_size: Optional[List[int]],
@@ -133,15 +122,9 @@ def build_num_microbatches_calculator(
 ):
     # Constant num micro-batches.
     if rampup_batch_size is None:
-        num_microbatches_calculator = ConstantNumMicroBatches(
-            global_batch_size, micro_batch_size, data_parallel_size
-        )
+        num_microbatches_calculator = ConstantNumMicroBatches(global_batch_size, micro_batch_size, data_parallel_size)
         if rank == 0:
-            logging.info(
-                "setting number of micro-batches to constant {}".format(
-                    num_microbatches_calculator.get()
-                )
-            )
+            logging.info("setting number of micro-batches to constant {}".format(num_microbatches_calculator.get()))
 
     else:
         assert len(rampup_batch_size) == 3, (
@@ -156,12 +139,7 @@ def build_num_microbatches_calculator(
             logging.info(
                 "will use batch size rampup starting from global batch "
                 "size {} to global batch size {} with batch size increments "
-                "{} over {} samples.".format(
-                    start_batch_size,
-                    global_batch_size,
-                    batch_size_increment,
-                    ramup_samples,
-                )
+                "{} over {} samples.".format(start_batch_size, global_batch_size, batch_size_increment, ramup_samples,)
             )
         num_microbatches_calculator = RampupBatchsizeNumMicroBatches(
             start_batch_size,
@@ -174,17 +152,20 @@ def build_num_microbatches_calculator(
 
     return num_microbatches_calculator
 
+
 def _reconfigure_microbatch_calculator(
-        rank: int,
-        rampup_batch_size: Optional[List[int]],
-        global_batch_size: int,
-        micro_batch_size: int,
-        data_parallel_size: int,
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
 ) -> None:
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
-        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size
+    )
+
 
 def get_micro_batch_size():
     return _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size
@@ -203,19 +184,22 @@ def update_num_microbatches(consumed_samples, consistency_check=True):
 
     setup_microbatch_calculator
 
+
 def _ensure_var_is_not_initialized(var, name):
     """Make sure the input variable is not None."""
     assert var is None, "{} is already initialized.".format(name)
 
+
 def setup_microbatch_calculator(
-        rank: int,
-        rampup_batch_size: Optional[List[int]],
-        global_batch_size: int,
-        micro_batch_size: int,
-        data_parallel_size: int,
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
 ) -> None:
     global _GLOBAL_NUM_MICROBATCHES_CALCULATOR
     _ensure_var_is_not_initialized(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num microbatches calculator')
 
     _GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
-        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size)
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size
+    )

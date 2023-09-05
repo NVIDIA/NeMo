@@ -260,7 +260,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.model.cuda(torch.cuda.current_device())
 
             self._wrap_model_for_O2()
-        
+
         model_precision = trainer.precision if self.trainer else cfg.precision
         if model_precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
@@ -270,7 +270,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
-
 
         self.enable_autocast = (
             True if (not self.megatron_amp_o2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False

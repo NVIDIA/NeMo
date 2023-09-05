@@ -27,8 +27,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
 
-    from nemo.collections.nlp.parts.microbatch_calculator import ConstantNumMicroBatches
-    from nemo.collections.nlp.parts.microbatch_calculator import setup_microbatch_calculator
+    from nemo.collections.nlp.parts.microbatch_calculator import ConstantNumMicroBatches, setup_microbatch_calculator
+
     HAVE_APEX = False
 
 try:

@@ -55,8 +55,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
     # fake missing classes with None attributes
-    #ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
-    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType, AttnType
+    # ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, AttnType, LayerType, ModelType
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
@@ -232,9 +232,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
-                    self.input_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon
-                    )
+                    self.input_layernorm = LayerNorm1P(hidden_size, layernorm_epsilon)
             elif normalization == 'low_precision_layernorm':
                 self.input_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
@@ -291,9 +289,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                             hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                         )
                     else:
-                        self.post_attention_layernorm = LayerNorm1P(
-                            hidden_size, layernorm_epsilon
-                        )
+                        self.post_attention_layernorm = LayerNorm1P(hidden_size, layernorm_epsilon)
                 elif normalization == 'low_precision_layernorm':
                     self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
                 else:
@@ -319,9 +315,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
-                    self.post_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon
-                    )
+                    self.post_attention_layernorm = LayerNorm1P(hidden_size, layernorm_epsilon)
             elif normalization == 'low_precision_layernorm':
                 self.post_attention_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
@@ -363,9 +357,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                             hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                         )
                     else:
-                        self.post_inter_attention_normformer_norm = LayerNorm1P(
-                            hidden_size, layernorm_epsilon
-                        )
+                        self.post_inter_attention_normformer_norm = LayerNorm1P(hidden_size, layernorm_epsilon)
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -380,9 +372,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
-                    self.post_inter_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon
-                    )
+                    self.post_inter_attention_layernorm = LayerNorm1P(hidden_size, layernorm_epsilon)
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
         elif (
@@ -419,9 +409,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                             hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                         )
                     else:
-                        self.post_inter_attention_normformer_norm = LayerNorm1P(
-                            hidden_size, layernorm_epsilon
-                        )
+                        self.post_inter_attention_normformer_norm = LayerNorm1P(hidden_size, layernorm_epsilon)
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -436,9 +424,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                         hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
-                    self.post_inter_attention_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon
-                    )
+                    self.post_inter_attention_layernorm = LayerNorm1P(hidden_size, layernorm_epsilon)
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1208,9 +1194,7 @@ class ParallelTransformer(MegatronModule):
                         hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
                     )
                 else:
-                    self.final_layernorm = LayerNorm1P(
-                        hidden_size, layernorm_epsilon
-                    )
+                    self.final_layernorm = LayerNorm1P(hidden_size, layernorm_epsilon)
             elif normalization == 'low_precision_layernorm':
                 self.final_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
             else:
@@ -1485,7 +1469,6 @@ class ParallelTransformer(MegatronModule):
             from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         else:
             from nemo.collections.nlp.parts.microbatch_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-
 
         num_micro_batches = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num_micro_batches', 1)
 

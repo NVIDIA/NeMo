@@ -28,6 +28,7 @@ class LayerType(enum.Enum):
     decoder_pre_mlp = 5  # decoder that skips the computation after the self-attention
     retrieval_decoder_after_self_attn = 6  # retrieval decoder that skips the self-attention
 
+
 class AttnType(enum.Enum):
     self_attn = 1
     cross_attn = 2

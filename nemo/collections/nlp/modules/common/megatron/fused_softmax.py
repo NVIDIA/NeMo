@@ -23,7 +23,7 @@ try:
 
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, ModelType, LayerType
+    from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, ModelType
 
 if HAVE_APEX:
 
@@ -105,7 +105,6 @@ else:
 
             if not (self.scale is None or softmax_in_fp32):
                 raise RuntimeError("softmax should be in fp32 when scaled")
-
 
         def forward(self, input, mask):
             # [b, np, sq, sk]
