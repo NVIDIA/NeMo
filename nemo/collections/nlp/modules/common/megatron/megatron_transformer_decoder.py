@@ -31,10 +31,6 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-    # fake missing classes with None attributes
-    # AttnMaskType = ApexGuardDefaults()
-    # LayerType = ApexGuardDefaults()
-    # ModelType = ApexGuardDefaults()
     from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, ModelType
 
 try:

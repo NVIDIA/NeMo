@@ -49,9 +49,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
-
-    # fake missing classes with None attributes
-    # ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    
     from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, AttnType, LayerType, ModelType
     from nemo.collections.nlp.modules.common.megatron.utils import divide as safe_divide
 
