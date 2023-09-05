@@ -350,6 +350,7 @@ class ALMAudioQA(AudioQuestAns):
         question_file: Optional[str] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
+        random_context_positive_ratio: Optional[int] = 2,
         *args,
         **kwargs,
     ):
